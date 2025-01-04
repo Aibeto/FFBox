@@ -125,7 +125,7 @@ onMounted(async () => {
 				<div class="actions">
 					<button @click="handleTopBarButtonClicked(0)">更新说明</button>
 					<div class="seperator"></div>
-					<button @click="handleTopBarButtonClicked(1)">开发日志</button>
+					<button @click="handleTopBarButtonClicked(1)" class="涩话草坪">涩话草坪</button>
 					<div class="seperator"></div>
 					<button @click="handleTopBarButtonClicked(2)">使用条款</button>
 				</div>
@@ -573,6 +573,9 @@ onMounted(async () => {
 
 	// 主题
 	.mainFrame[data-color_theme="themeLight"] {
+		.涩话草坪 {
+			color: hsl(120, 40%, 40%) !important;
+		}
 		.startbutton-green {
 			background: linear-gradient(180deg, hwb(120 40% 10%), hwb(120 20% 20%));
 			box-shadow: 0px -1px 1px 0px rgba(255, 255, 255, 0.3),	// 去除上方阴影
@@ -607,6 +610,9 @@ onMounted(async () => {
 		}
 	}
 	.mainFrame[data-color_theme="themeDark"] {
+		.涩话草坪 {
+			color: hsl(120, 40%, 65%) !important;
+		}
 		.startbutton-green {
 			background: linear-gradient(180deg, hwb(120 20% 10%), hwb(120 10% 30%));
 			box-shadow: 0px 1px 1px 0px rgba(16, 16, 16, 0.15),	// 按钮厚度
