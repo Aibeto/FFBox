@@ -23,16 +23,18 @@ export interface FFBoxServerEvent {
 export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & FFBoxServerEvent>) implements FFBoxServiceInterface {
 	public tasklist: ServiceTask[] = [];
 	private latestTaskId = 0;
-	private workingStatus: WorkingStatus = WorkingStatus.idle;
-	private maxThreads = 1;
+	public workingStatus: WorkingStatus = WorkingStatus.idle;
 	private ffmpegVersion = '';
 	private ffmpegPath = '';
-	private customFFmpegPath: string;
 	private globalTask: ServiceTask;
 	public notifications: Notification[] = [];
 	private latestNotificationId = 0;
 	private functionLevel = 20;
 	public machineId: string;
+	// 设置部分
+	private maxThreads = 1;
+	private customFFmpegPath: string;
+	private preserveUnfinishedTasks = true;
 
 	constructor() {
 		super();
@@ -65,6 +67,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const currentMaxThreads = (await localConfig.get('service.maxThreads') as number) || 1;
 		this.maxThreads = currentMaxThreads;
 		log.info(`设定最大同时运行任务数为 ${this.maxThreads}`);
+
 		const customFFmpegPath = await localConfig.get('service.customFFmpegPath');
 		// 发生了变更，或者初始化时 ffmpegPath 为空（如果之前已经初始化过，那么 customFFmpegPath 两者之一不为空）
 		if (this.customFFmpegPath !== customFFmpegPath || !this.ffmpegPath && !customFFmpegPath) {
@@ -72,6 +75,27 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.initFFmpeg();
 		}
 		this.customFFmpegPath = customFFmpegPath as any || undefined;
+
+		const preserveUnfinishedTasks = await localConfig.get('service.preserveUnfinishedTasks') === false ? false : true;
+		const lastStatusTasks = await localConfig.get('lastStatus.tasks') as { fileBaseName: string; after: OutputParams; }[];
+		if (preserveUnfinishedTasks) {
+			try {
+				if (lastStatusTasks.length) {
+					this.setNotification(-1, `服务器上次退出时有未完成任务 ${lastStatusTasks.length} 个，正在重新添加到任务列表`, NotificationLevel.info);
+				}
+				log.info(`正在恢复上次退出时未完成的 ${lastStatusTasks.length} 个任务`);
+				for (const task of lastStatusTasks) {
+					this.taskAdd(task.fileBaseName, task.after);
+				}
+				await localConfig.set('lastStatus.tasks', []);
+			} catch (error) {}
+		} else {
+			try {
+				if (lastStatusTasks.length) {
+					await localConfig.set('lastStatus.tasks', []);
+				}
+			} catch (error) {}
+		}
 	}
 
 	/**
@@ -336,6 +360,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.setNotification(id, `任务「${task.fileBaseName}」已转码完成`, NotificationLevel.ok);
 			this.emitTaskUpdate(id, task);
 			this.queueAssign();
+			this.storeUnfinishedTask();
 		});
 		newFFmpeg.on('status', (status: FFmpegProgress) => {
 			const progressLog = task.progressLog;
@@ -374,6 +399,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				task: convertAnyTaskToTask(task),
 			});
 			this.queueAssign();
+			this.storeUnfinishedTask();
 		});
 		newFFmpeg.on('escaped', () => {
 			log.error(`[任务 ${id}] 异常终止：${task.fileBaseName}。`);
@@ -381,6 +407,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.setNotification(id, '任务「' + task.fileBaseName + '」异常终止。请在命令行输出面板查看详细原因。', NotificationLevel.error);
 			this.emitTaskUpdate(id, task);
 			this.queueAssign();
+			this.storeUnfinishedTask();
 		});
 		for (const parameter of ['time', 'frame', 'size']) {
 			const _parameter = parameter as 'time' | 'frame' | 'size';
@@ -392,6 +419,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.workingStatus = WorkingStatus.running;
 			this.emit('workingStatusUpdate', { value: 'start' });
 		}
+		this.storeUnfinishedTask();
 	}
 
 	/**
@@ -476,6 +504,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					task: convertAnyTaskToTask(task),
 				});
 				this.queueAssign();
+				this.storeUnfinishedTask();
 			});
 		} else if (task.status === TaskStatus.stopping) {
 			// 正在停止状态下强制重置
@@ -488,6 +517,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					task: convertAnyTaskToTask(task),
 				});
 				this.queueAssign();
+				this.storeUnfinishedTask();
 			});
 		} else if ([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(task.status)) {
 			// 完成状态下或队列中仍未开始状态下重置
@@ -498,6 +528,28 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			log.error(`[任务 ${id}] 重置：任务当前状态为 ${task.status}，操作不合法！`);
 		}
 		this.emitTaskUpdate(id, task);
+	}
+
+	private storeUnfinishedTask(): void {
+		if (!this.preserveUnfinishedTasks) {
+			return;
+		}
+		const tasks: { fileBaseName: string; after: OutputParams; }[] = [];
+		for (const [id, task] of Object.entries(this.tasklist)) {
+			// 未开始或者排队的任务不需要存储
+			if ([TaskStatus.initializing, TaskStatus.idle, TaskStatus.finished, TaskStatus.error].includes(task.status) || id === '-1') {
+				break;
+			}
+			tasks.push({
+				fileBaseName: task.fileBaseName,
+				after: task.after,
+			});
+		}
+		clearTimeout((global as any).saveStatusTimer);
+		(global as any).saveStatusTimer = setTimeout(() => {
+			localConfig.set('lastStatus.tasks', tasks);
+			log.info(`任务状态已保存。`, tasks);
+		}, 700);
 	}
 
 	/**
@@ -638,7 +690,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @param content
 	 * @param level
 	 */
-	private setNotification(taskId: number, content: string, level: NotificationLevel): void {
+	public setNotification(taskId: number, content: string, level: NotificationLevel): void {
 		const notificationId = this.latestNotificationId++;
 		const notification = {
 			time: new Date().getTime(),

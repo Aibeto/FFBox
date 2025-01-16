@@ -133,13 +133,13 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					// 🔵 status（有视频）
 					// const l_status = scanf(thisLine, `frame=%d fps=%f q=%f (L)size=%dkB time=%d:%d:%d.%d bitrate=%dkbits/s speed=%dx`);
 					const l_status = thisLine.match(/(\d+([.|:]?\d*)*)|(N\/A)/g)!;
-					const time = l_status[4].match(/\d+/g)!;
+					const time = l_status[4].match(/\d+/g)!;	// 有小概率为 NaN
 					this.emit('status', {
 						frame: parseInt(l_status[0]),
 						fps: parseInt(l_status[1]),
 						q: parseFloat(l_status[2]),
 						size: parseInt(l_status[3]),
-						time: parseInt(time[0]) * 3600 + parseInt(time[1]) * 60 + parseInt(time[2]) + parseInt(time[3]) * 0.01,
+						time: time ? parseInt(time[0]) * 3600 + parseInt(time[1]) * 60 + parseInt(time[2]) + parseInt(time[3]) * 0.01 : NaN,
 						bitrate: parseFloat(l_status[5]),
 						speed: parseFloat(l_status[6]),
 					});
@@ -147,13 +147,13 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					// 🔵 status（无视频）
 					// const l_status = scanf(thisLine, `size=%dkB time=%d:%d:%d.%d bitrate=%dkbits/s speed=%dx`);
 					const l_status = thisLine.match(/(\d+([.|:]?\d*)*)|(N\/A)/g)!;
-					const time = l_status[1].match(/\d+/g)!;
+					const time = l_status[1].match(/\d+/g)!;	// 有小概率为 NaN
 					this.emit('status', {
 						frame: NaN,
 						fps: NaN,
 						q: NaN,
 						size: parseInt(l_status[0]),
-						time: parseInt(time[0]) * 3600 + parseInt(time[1]) * 60 + parseInt(time[2]) + parseInt(time[3]) * 0.01,
+						time: time ? parseInt(time[0]) * 3600 + parseInt(time[1]) * 60 + parseInt(time[2]) + parseInt(time[3]) * 0.01 : NaN,
 						bitrate: parseFloat(l_status[2]),
 						speed: parseFloat(l_status[3]),
 					});

@@ -245,6 +245,13 @@ function getRouter(): Router {
 		ctx.response.body = result;
 	});
 
+	// 获取服务器运行状态
+	router.get('/workingStatus', async function (ctx) {
+		const result = ffboxService.workingStatus;
+		ctx.response.status = 200;
+		ctx.response.body = result;
+	});
+
 	// 检查文件是否已缓存
 	// 已缓存返回奇数
 	router.post('/upload/check/', async function (ctx) {

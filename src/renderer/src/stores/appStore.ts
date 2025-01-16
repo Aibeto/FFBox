@@ -528,7 +528,8 @@ export const useAppStore = defineStore('app', {
 			Promise.all([
 				fetch(`http://${server.entity.ip}:${server.entity.port}/version`, { method: 'get' }),
 				fetch(`http://${server.entity.ip}:${server.entity.port}/properties`, { method: 'get' }),
-			]).then(([versionResponse, propertiesResponse]) => {
+				fetch(`http://${server.entity.ip}:${server.entity.port}/workingStatus`, { method: 'get' }),
+			]).then(([versionResponse, propertiesResponse, workingStatusResponse]) => {
 				versionResponse.text().then((text) => {
 					server.data.version = text;
 					if (['3.0', '4.0', '4.1', '4.2'].includes(text)) {
@@ -548,6 +549,11 @@ export const useAppStore = defineStore('app', {
 							const result = 这.activate(value, true);
 							console.log('激活结果', result);
 						});					
+					}
+				});
+				workingStatusResponse.text().then((text) => {
+					if (text === WorkingStatus.idle || text === WorkingStatus.running) {
+						server.data.workingStatus = text;
 					}
 				});
 			});
@@ -632,6 +638,7 @@ export const useAppStore = defineStore('app', {
 					handleNotificationUpdate(server, data.notificationId, data.notification);
 				});
 
+				server.data.tasks = [];	// 由于 taskList 只包含 id，重新连接后需要清除原 task 信息以获取新的
 				这.updateServerProperties(server);
 				// 这.updateGlobalTask(server);
 				这.updateTask(server, -1);
