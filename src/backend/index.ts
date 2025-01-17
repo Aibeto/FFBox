@@ -3,12 +3,14 @@ import { FFBoxService } from './FFBoxService';
 import { version } from '@common/constants';
 import { log } from './utils';
 import { NotificationLevel } from '@common/types';
+import webuiServer from './webuiServer';
 
 let service: FFBoxService;
 const helpText = `
 Options:
   -?, -h, --help        显示 FFBoxService 帮助文档
   --port [number]       指定监听端口
+  --webuiPort [number]  同时启动一个静态资源服务器以使用 webUI。请确保工作路径/程序路径下有 webUI/index.html 文件
   --loglevel [0|3|5|6]  信息显示级别（无|错误|事件|调试）
 `;
 
@@ -21,6 +23,8 @@ process.on('uncaughtException', (err) => {
 });
 
 console.log(`FFBoxService 版本 ${version} - FFBox 服务端程序`);
+console.log(`\x1b[2m如需帮助，请使用 --help 参数\x1b[0m`);
+
 if (['-h', '-?', '--help'].some((t) => getSingleArgvValue(t))) {
 	console.log(helpText);
 } else {
@@ -31,4 +35,9 @@ if (['-h', '-?', '--help'].some((t) => getSingleArgvValue(t))) {
 	service.on('serverClose', () => {
 		process.exit();
 	});
+
+	const webuiPort = getSingleArgvValue('--webuiPort');
+	if (webuiPort) {
+		webuiServer.start(+webuiPort);
+	}
 }

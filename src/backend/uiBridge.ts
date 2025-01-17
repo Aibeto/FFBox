@@ -15,9 +15,6 @@ import { getSingleArgvValue } from '@common/utils';
 import { getOs, log } from './utils';
 import { FFBoxService } from './FFBoxService';
 
-// let koaBody = require('koa-body');
-const isDev = true;
-
 let server: Http.Server | null;
 let koa: Koa | null;
 let wss: WebSocket.Server | null;

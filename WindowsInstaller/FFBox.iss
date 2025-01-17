@@ -19,7 +19,7 @@
 ; #define MyRegInstallPath_sk "Programs/FFBox"
 ; #define MyRegInstallPath_vn "installPath"
 ; 点击 license 打开的网页连接
-#define MyAppLkLicenseURL 'http://ttqf.tech/LICENSE'
+#define MyAppLkLicenseURL 'http://ffbox.ttqf.tech/LICENSE'
 ; 安装目录至少需要的空间
 #define MyAppNeedSpaceByte 290000000
 ; 外部程序调用本安装程序时，会向外部传安装进度的 window api Message ID 
@@ -122,7 +122,7 @@ var
   imgBigIcon: Longint;
   btnClose, btnMin:HWND;
 
-  DpiScalePctg: integer;
+  DpiScalePctg: Single;
   
   // page welcome 
   btnOneKey: HWND;
@@ -166,7 +166,7 @@ begin
 end;
 
 function DpiScale(v: integer): integer; begin
-  Result := v * DpiScalePctg;
+  Result := Round(v * DpiScalePctg);
 end;
 
 function GetCmdlineParam(PName:String):String;
@@ -571,7 +571,7 @@ var
   winH:integer;
   i:integer;
 begin
-  DpiScalePctg := WizardForm.Font.PixelsPerInch / 96;
+  DpiScalePctg := WizardForm.Font.PixelsPerInch / 96.0;
 
   winW:=DpiScale(640);
   winH:=DpiScale(320);
@@ -579,7 +579,7 @@ begin
   WizardForm.InnerNotebook.Hide;
   WizardForm.OuterNotebook.hide;
   WizardForm.BorderStyle:=bsNone;
-  WizardForm.Position:=poDesktopCenter;
+  WizardForm.Position:=poScreenCenter;
   
   WizardForm.Width:=winW;
   WizardForm.Height:=winH;

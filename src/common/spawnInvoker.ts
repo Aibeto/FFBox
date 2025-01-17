@@ -57,6 +57,6 @@ export function spawnInvoker(command: string, args: ReadonlyArray<string> | unde
 			}
 		}
 		// Windows 中启动程序时可能遇到 EPERM 错误，重试有可能解决问题
-		trySpawn(3);
+		trySpawn(4);
 	});
 }

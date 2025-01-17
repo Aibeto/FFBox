@@ -606,38 +606,17 @@ export const useAppStore = defineStore('app', {
 				return;
 			}
 			const _port = port ?? 33269;
+			const isReconnect = entity.status === ServiceBridgeStatus.Disconnected;	// 接下来会由 entity.connect 改为 Reconnecting
 			console.log('初始化服务器连接', server.data);
 			entity.connect(ip, _port);
 
+			if (isReconnect) {
+				return;	// 不重复绑定事件
+			}
 			entity.on('connected', () => {
 				server.data.name = ip === 'localhost' ? '本地服务器' : ip;
 				console.log(`成功连接到服务器 ${server.entity.ip}`);
 				这.pushMsg(`成功连接到服务器 ${server.data.name}`, NotificationLevel.ok);
-
-				entity.on('ffmpegVersion', (data) => {
-					handleFFmpegVersion(server, data.content);
-				});
-				entity.on('workingStatusUpdate', (data) => {
-					handleWorkingStatusUpdate(server, data.value);
-				});
-				entity.on('tasklistUpdate', (data) => {
-					handleTasklistUpdate(server, data.content);
-					这.recalcChangedParams();
-				});
-				entity.on('taskUpdate', (data) => {
-					handleTaskUpdate(server, data.taskId, data.task);
-					这.recalcChangedParams();
-				});
-				entity.on('cmdUpdate', (data) => {
-					handleCmdUpdate(server, data.taskId, data.content);
-				});
-				entity.on('progressUpdate', (data) => {
-					handleProgressUpdate(server, data.taskId, data.time, data.status, 这.functionLevel);
-				});
-				entity.on('notificationUpdate', (data) => {
-					handleNotificationUpdate(server, data.notificationId, data.notification);
-				});
-
 				server.data.tasks = [];	// 由于 taskList 只包含 id，重新连接后需要清除原 task 信息以获取新的
 				这.updateServerProperties(server);
 				// 这.updateGlobalTask(server);
@@ -646,14 +625,8 @@ export const useAppStore = defineStore('app', {
 				// entity.updateTaskList();
 				这.updateNotifications(server);
 			});
-			const destroy = () => {
-				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegVersion', 'workingStatusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'taskNotification'] as any[]) {
-					entity.removeAllListeners(eventName);
-				}
-			}
 			entity.on('disconnected', () => {
 				console.log(`已断开服务器 ${server.entity.ip} 的连接`);
-				destroy();
 				这.pushMsg(`已断开服务器 ${server.data.name} 的连接`, NotificationLevel.warning);
 			});
 			entity.on('error', () => {
@@ -666,7 +639,30 @@ export const useAppStore = defineStore('app', {
 						这.initializeServer(serverId, ip, port, retryCount - 1);
 					}, 150);
 				}
-				destroy();
+			});
+
+			entity.on('ffmpegVersion', (data) => {
+				handleFFmpegVersion(server, data.content);
+			});
+			entity.on('workingStatusUpdate', (data) => {
+				handleWorkingStatusUpdate(server, data.value);
+			});
+			entity.on('tasklistUpdate', (data) => {
+				handleTasklistUpdate(server, data.content);
+				这.recalcChangedParams();
+			});
+			entity.on('taskUpdate', (data) => {
+				handleTaskUpdate(server, data.taskId, data.task);
+				这.recalcChangedParams();
+			});
+			entity.on('cmdUpdate', (data) => {
+				handleCmdUpdate(server, data.taskId, data.content);
+			});
+			entity.on('progressUpdate', (data) => {
+				handleProgressUpdate(server, data.taskId, data.time, data.status, 这.functionLevel);
+			});
+			entity.on('notificationUpdate', (data) => {
+				handleNotificationUpdate(server, data.notificationId, data.notification);
 			});
 		},
 		/**
