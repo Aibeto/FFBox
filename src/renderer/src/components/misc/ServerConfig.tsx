@@ -2,11 +2,12 @@ import { defineComponent, onMounted, ref } from "vue";
 import { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import nodeBridge from "@renderer/bridges/nodeBridge";
-import Inputbox from '@renderer/containers/MainFrame/MainArea/ParaBox/components/Inputbox.vue';
-import Checkbox from '@renderer/containers/MainFrame/MainArea/ParaBox/components/Checkbox.vue';
-import { posIntegerFixer } from "@renderer/containers/MainFrame/MainArea/ParaBox/components/validatorAndFixer";
+import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
+import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
+import { posIntegerFixer } from "@renderer/components/validatorAndFixer";
 import { ButtonType } from "../Button/Button";
 import Msgbox from "../Msgbox/Msgbox";
+import style from './ServerConfig.module.less';
 
 export function showServerConfig(serverId: string) {
 	let compFuncs: any;
@@ -65,10 +66,10 @@ const Comp = defineComponent((props: P) => {
     });
 
 	return () => (
-		<>
-			<Inputbox title="同时转码数" value={maxThreadsValue.value} onChange={(value: string) => maxThreadsValue.value = value} inputFixer={posIntegerFixer} placeholder="1" />
-			<Inputbox title="ffmpeg 路径" value={customFFmpegPathValue.value} onChange={(value: string) => customFFmpegPathValue.value = value} placeholder="建议留空，自动检测" />
-			<Checkbox title="保留未完任务" checked={preserveUnfinishedTasksValue.value} onChange={(value: boolean) => preserveUnfinishedTasksValue.value = value} />
-		</>
+		<div class={style.serverConfig}>
+			<BoxedNormalInput title="同时转码任务数量" value={maxThreadsValue.value} onChange={(value: string) => maxThreadsValue.value = value} inputFixer={posIntegerFixer} placeholder="1" />
+			<BoxedSwitch title="保留未完成任务" checked={preserveUnfinishedTasksValue.value} onChange={(value: boolean) => preserveUnfinishedTasksValue.value = value} />
+			<BoxedNormalInput title="ffmpeg 路径" value={customFFmpegPathValue.value} onChange={(value: string) => customFFmpegPathValue.value = value} placeholder="建议留空，自动检测" long={true} />
+		</div>
 	);
 }, { props: ['serverId', 'exportFunctions'] });

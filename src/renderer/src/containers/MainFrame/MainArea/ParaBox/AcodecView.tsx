@@ -1,8 +1,8 @@
 import { computed, FunctionalComponent } from 'vue';
 import { acodecs, volSlider } from '@common/params/acodecs';
-import Combobox from './components/Combobox.vue';
-import Inputbox from './components/Inputbox.vue';
-import Slider from './components/Slider.vue';
+import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
+import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
+import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import style from './index.module.less';
 
@@ -98,15 +98,15 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 	};
 	return (
 		<div class={style.container}>
-			<Combobox title="音频编码" text={appStore.globalParams.audio.acodec} list={acodecs} onChange={(value: string) => handleChange('acodec', value)} />
+			<BoxedDropdownInput title="音频编码" text={appStore.globalParams.audio.acodec} list={acodecs} onChange={(value: string) => handleChange('acodec', value)} />
 			{['禁用音频', '不重新编码'].indexOf(appStore.globalParams.audio.acodec) === -1 && (
 				<>
 					{appStore.globalParams.audio.acodec !== '自动' && (
-						<Combobox title="编码器" text={appStore.globalParams.audio.aencoder} list={aencodersList.value} onChange={(value: string) => handleChange('aencoder', value)} />
+						<BoxedDropdownInput title="编码器" text={appStore.globalParams.audio.aencoder} list={aencodersList.value} onChange={(value: string) => handleChange('aencoder', value)} />
 					)}
-					<Combobox title="码率控制" text={appStore.globalParams.audio.ratecontrol} list={rateControlsList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
+					<BoxedDropdownInput title="码率控制" text={appStore.globalParams.audio.ratecontrol} list={rateControlsList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
 					{ratecontrolSlider.value && (
-						<Slider
+						<BoxedSlider
 							title={ratecontrolSlider.value.display}
 							value={appStore.globalParams.audio.ratevalue}
 							tags={ratecontrolSlider.value.tags}
@@ -119,7 +119,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					{parametersList.value.map((parameter) => {
 						if (parameter.mode === 'slider') {
 							return (
-								<Slider
+								<BoxedSlider
 									title={parameter.display}
 									value={appStore.globalParams.audio.detail[parameter.parameter]}
 									tags={parameter.tags}
@@ -133,7 +133,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 							);
 						} else if (parameter.mode === 'combo') {
 							return (
-								<Combobox
+								<BoxedDropdownInput
 									title={parameter.display}
 									text={appStore.globalParams.audio.detail[parameter.parameter]}
 									list={parameter.items}
@@ -142,7 +142,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 							);
 						}
 					})}
-					<Slider
+					<BoxedSlider
 						title="音量"
 						value={appStore.globalParams.audio.vol}
 						tags={volSlider.tags}
@@ -153,7 +153,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					/>
 				</>
 			)}
-			<Inputbox title="自定义参数" value={appStore.globalParams.audio.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			<BoxedNormalInput title="自定义参数" value={appStore.globalParams.audio.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 		</div>
 	);
 };

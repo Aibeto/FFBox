@@ -125,8 +125,8 @@ class ElectronApp {
 			mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
 		} else {
 			// 环境变量来自 build.mjs 传入
-			const url = `http://${process.env['VITE_DEV_SERVER_HOST']}:${process.env['VITE_DEV_SERVER_PORT']}`;
-	
+			const url = `http://localhost:${process.env['VITE_DEV_SERVER_PORT']}`;
+
 			mainWindow.loadURL(url);
 			mainWindow.webContents.openDevTools();
 		}

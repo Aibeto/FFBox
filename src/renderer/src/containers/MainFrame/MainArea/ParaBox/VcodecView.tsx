@@ -1,9 +1,9 @@
 import { computed, FunctionalComponent } from 'vue';
 import { vcodecs, resolution, framerate } from '@common/params/vcodecs';
-import Combobox from './components/Combobox.vue';
-import Inputbox from './components/Inputbox.vue';
-import Slider from './components/Slider.vue';
-import { framerateValidator } from './components/validatorAndFixer';
+import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
+import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
+import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
+import { framerateValidator } from '../../../../components/validatorAndFixer';
 import { useAppStore } from '@renderer/stores/appStore';
 import style from './index.module.less';
 
@@ -105,20 +105,20 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 	};
 	return (
 		<div class={style.container}>
-			<Combobox title="视频编码" text={appStore.globalParams.video.vcodec} list={vcodecs} onChange={(value: string) => handleChange('vcodec', value)} />
+			<BoxedDropdownInput title="视频编码" text={appStore.globalParams.video.vcodec} list={vcodecs} onChange={(value: string) => handleChange('vcodec', value)} />
 			{['禁用视频', '不重新编码'].indexOf(appStore.globalParams.video.vcodec) === -1 && (
 				<>
 					{appStore.globalParams.video.vcodec !== '自动' && (
-						<Combobox title="编码器" text={appStore.globalParams.video.vencoder} list={vencodersList.value} onChange={(value: string) => handleChange('vencoder', value)} />
+						<BoxedDropdownInput title="编码器" text={appStore.globalParams.video.vencoder} list={vencodersList.value} onChange={(value: string) => handleChange('vencoder', value)} />
 					)}
-					<Combobox title="分辨率" text={appStore.globalParams.video.resolution} list={resolution} onChange={(value: string) => handleChange('resolution', value)} />
-					<Combobox title="输出帧速" text={appStore.globalParams.video.framerate} list={framerate} validator={framerateValidator} onChange={(value: string) => handleChange('framerate', value)} />
+					<BoxedDropdownInput title="分辨率" text={appStore.globalParams.video.resolution} list={resolution} onChange={(value: string) => handleChange('resolution', value)} />
+					<BoxedDropdownInput title="输出帧速" text={appStore.globalParams.video.framerate} list={framerate} validator={framerateValidator} onChange={(value: string) => handleChange('framerate', value)} />
 					{rateControlsList.value.length ? (
-						<Combobox title="码率控制" text={appStore.globalParams.video.ratecontrol} list={rateControlsList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
+						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.video.ratecontrol} list={rateControlsList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
 					) : null}
 					{ratecontrolSlider.value && (
-						<Slider
-							title={ratecontrolSlider.value.display}
+						<BoxedSlider
+							title={ratecontrolSlider.value.display} 
 							value={appStore.globalParams.video.ratevalue}
 							tags={ratecontrolSlider.value.tags}
 							step={ratecontrolSlider.value.step}
@@ -130,7 +130,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					{parametersList.value.map((parameter) => {
 						if (parameter.mode === 'slider') {
 							return (
-								<Slider
+								<BoxedSlider
 									title={parameter.display}
 									value={appStore.globalParams.video.detail[parameter.parameter]}
 									tags={parameter.tags}
@@ -144,7 +144,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 							);
 						} else if (parameter.mode === 'combo') {
 							return (
-								<Combobox
+								<BoxedDropdownInput
 									title={parameter.display}
 									text={appStore.globalParams.video.detail[parameter.parameter]}
 									list={parameter.items}
@@ -155,7 +155,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					})}
 				</>
 			)}
-			<Inputbox title="自定义参数" value={appStore.globalParams.video.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			<BoxedNormalInput title="自定义参数" value={appStore.globalParams.video.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 		</div>
 	);
 };

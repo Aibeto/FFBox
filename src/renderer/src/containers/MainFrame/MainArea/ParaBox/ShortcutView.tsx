@@ -1,7 +1,7 @@
 import { FunctionalComponent, ref, VNodeRef } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import style from './index.module.less';
-import RadioList from './components/RadioList.vue'
+import RadioList from '@renderer/components/RadioList/RadioList.vue'
 import Popup from '@renderer/components/Popup/Popup';
 import { NotificationLevel } from '@common/types';
 

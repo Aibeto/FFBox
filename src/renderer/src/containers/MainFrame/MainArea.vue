@@ -5,7 +5,7 @@ import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import ListArea from './MainArea/ListArea.vue';
 import ParaBox from './MainArea/ParaBox.vue';
-import Inputbox from './MainArea/ParaBox/components/Inputbox.vue';
+import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import IconDisconnected from '@renderer/assets/mainArea/disconnect.svg?component';
 import IconLoading from '@renderer/assets/mainArea/loading.svg?component';
@@ -75,8 +75,8 @@ const handleReconnectClicked = async () => {
 					>
 						<h2>连接服务器</h2>
 						<div class="box">
-							<Inputbox title="IP" :value="ip" :disabled="ip === 'localhost'" :inputFixer="ipInputFixer" @change="ip = $event" />
-							<Inputbox title="端口" :value="port" @change="port = $event" />
+							<BoxedNormalInput title="IP" :value="ip" :disabled="ip === 'localhost'" :inputFixer="ipInputFixer" @change="ip = $event" />
+							<BoxedNormalInput title="端口" :value="port" @change="port = $event" />
 						</div>
 						<div class="buttonBox">
 							<Button

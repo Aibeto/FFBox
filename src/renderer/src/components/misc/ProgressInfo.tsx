@@ -2,7 +2,7 @@ import { computed, defineComponent, onMounted, onUnmounted, ref } from "vue";
 import { TaskStatus, TransferStatus } from "@common/types";
 import { UITask } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
-import RadioList, { Props as RadioListProps } from '@renderer/containers/MainFrame/MainArea/ParaBox/components/RadioList.vue';
+import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
 import Msgbox from "../Msgbox/Msgbox";
 import { calcDashboard, getOutputDuration } from "@renderer/common/dashboardCalc";
 import style from './ProgressInfo.tsx.module.less';

@@ -14,7 +14,7 @@ import ImageAlipay from '@renderer/assets/menuCenter/sponsorCenter/alipay.png';
 import ImageWechatpay from '@renderer/assets/menuCenter/sponsorCenter/wechatpay.svg?url';
 import ImageQQpay from '@renderer/assets/menuCenter/sponsorCenter/qqpay.png';
 import Popup from '@renderer/components/Popup/Popup';
-import Inputbox from '@renderer/containers/MainFrame/MainArea/ParaBox/components/Inputbox.vue';
+import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
 
 const appStore = useAppStore();
@@ -228,7 +228,7 @@ onMounted(() => {
 		<h2>激活软件</h2>
 		<p>FFBox 是一款试用、有源、捐赠混合的软件。出厂状况下，本软件存在部分功能的使用限制</p>
 		<p>您可以通过激活码去除这些限制，详情请到官网或官方信息发布平台查询～</p>
-		<Inputbox :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" style="margin: 0" title="激活码" :long="true" @change="(value) => activateCode = value" />
+		<BoxedNormalInput :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" style="margin: 0" title="激活码" :long="true" @change="(value) => activateCode = value" />
 		<Button :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" @click="handleActivateButtonClick">激活</Button>
 		<p>机器码：<span style="user-select: all;">
 			{{ appStore.localServer?.entity.status === ServiceBridgeStatus.Connected ? (appStore.localServer.data.machineId ?? '（服务器版本不匹配，无法读取）') : '（未连接，请连接本地服务器后获取）' }}

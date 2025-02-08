@@ -6,7 +6,6 @@ import { useAppStore } from '@renderer/stores/appStore';
 const appStore = useAppStore();
 
 interface Props {
-	title: string;
 	value: number | string;
 	tags?: [number, string][] | Map<number, string>;
 	step?: number;
@@ -126,12 +125,11 @@ const handleKeypress = (event: KeyboardEvent) => {
 
 <template>
 	<div class="slider" :data-color_theme="appStore.frontendSettings.colorTheme">
-		<div class="slider-title">{{ props.title }}</div>
 		<div class="slider-module" @mousedown="handleDragStart">
 			<div class="slider-module-track"></div>
 			<div class="slider-module-track-background" :style="{ width: convertedValue * 100 + '%' }"></div>
 			<span v-for="(tag, index) in tags" :key="index" class="slider-module-mark" :style="{ left: tag[0] * 100 + '%' }">{{ tag[1] }}</span>
-			<button class="slider-module-slipper" v-bind:style="{ left: convertedValue * 100 + '%' }" ref="slipperRef" @keydown="handleKeypress" :aria-label="title + '滑块'"></button>
+			<button class="slider-module-slipper" v-bind:style="{ left: convertedValue * 100 + '%' }" ref="slipperRef" @keydown="handleKeypress" aria-label="滑块"></button>
 		</div>
 		<div class="slider-text">{{ valueToTextConverter(props.valueToText, value) }}</div>
 	</div>
@@ -140,24 +138,16 @@ const handleKeypress = (event: KeyboardEvent) => {
 <style lang="less" scoped>
 	.slider {
 		position: relative;
-		width: calc(100% - 16px);
+		flex-grow: 1;
 		height: 56px;
-		margin: 4px 24px;
+		display: flex;
+		align-items: center;
 		transition: all 0.5s;
-		.slider-title {
-			position: absolute;
-			left: 0;
-			top: 50%;
-			width: 88px;
-			transform: translateY(-50%);
-			font-size: 14px;
-			text-align: center;
-		}
 		.slider-module {
-			position: absolute;
-			left: 104px;
-			width: calc(100% - 88px - 88px - 32px);
+			position: relative;
+			flex-grow: 1;
 			height: 100%;
+			margin: 0 16px;
 			font-size: 14px;
 			.slider-module-track {
 				position: absolute;
@@ -229,10 +219,6 @@ const handleKeypress = (event: KeyboardEvent) => {
 			}
 		}
 		.slider-text {
-			position: absolute;
-			right: 0px;
-			top: 50%;
-			transform: translateY(-50%);
 			width: 88px;
 			font-size: 14px;
 			text-align: center;

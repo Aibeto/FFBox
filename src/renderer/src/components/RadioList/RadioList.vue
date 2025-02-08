@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import InputAutoSize from './InputAutoSize.vue';
+import InputAutoSize from '../InputAutoSize/InputAutoSize.vue';
 
 export interface Props {
 	list: {

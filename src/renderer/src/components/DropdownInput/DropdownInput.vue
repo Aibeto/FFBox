@@ -6,7 +6,6 @@ import { computed, onMounted, ref, watch } from 'vue'
 import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
 
 interface Props {
-	title: string;
 	text: string;
 	list: MenuItem[];
 	readonly?: boolean;
@@ -134,77 +133,58 @@ onMounted(() => {
 </script>
 
 <template>
-	<div class="combobox">
-		<div class="combobox-title">{{ title }}</div>
-		<div class="combobox-selector" ref="selectorRef" :style="selectorStyle" @click="handleClick">
-			<input
-				type="text"
-				v-model="inputText"
-				:readonly="readonly"
-				@blur="handleBlur"
-				@focus="handleFocus"
-				@input="handleInput"
-				@keydown="handleKeydown"
-			>
-			<div class="combobox-selector-img"></div>
-		</div>
+	<div class="combobox-selector" ref="selectorRef" :style="selectorStyle" @click="handleClick">
+		<input
+			type="text"
+			v-model="inputText"
+			:readonly="readonly"
+			@blur="handleBlur"
+			@focus="handleFocus"
+			@input="handleInput"
+			@keydown="handleKeydown"
+		>
+		<div class="combobox-selector-img"></div>
 	</div>
 </template>
 
 <style scoped>
-	.combobox {
+	.combobox-selector {
 		position: relative;
-		width: 210px;
-		height: 56px;
-		margin: 4px 24px;
+		height: 24px;
+		/* width: 122px; */
+		flex-grow: 1;
+		border-radius: 24px;
+		background: var(--f7);
+		border: #AAA 1px solid;
+		box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
 	}
-		.combobox-title {
+	.combobox-selector:hover {
+		background: var(--ff);
+	}
+	.combobox-selector:active {
+		background: var(--e7);
+	}
+		.combobox-selector input {
 			position: absolute;
-			left: 0;
-			top: 50%;
-			width: 88px;
-			transform: translateY(-50%);
-			font-size: 14px;
-			text-align: center;
-		}
-		.combobox-selector {
-			position: absolute;
-			left: 88px;
+			left: 6px;
+			width: calc(100% - 28px);
 			height: 24px;
-			width: 122px;
-			margin: 15px 0;
-			border-radius: 24px;
-			background: var(--f7);
-			border: #AAA 1px solid;
-			box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+			line-height: 24px;
+			background: none;
+			border: none;
+			margin: 0;
+			padding: 0;
+			outline: none;
+			font-family: inherit;
+			font-size: 13px;
+			color: inherit;
 		}
-		.combobox-selector:hover {
-			background: var(--ff);
+		.combobox-selector-img {
+			position: absolute;
+			right: 6px;
+			top: 4px;
+			width: 16px;
+			height: 16px;
+			background: url(/src/assets/mainArea/paraBox/menu_button.svg) center/contain no-repeat;
 		}
-		.combobox-selector:active {
-			background: var(--e7);
-		}
-			.combobox-selector input {
-				position: absolute;
-				left: 6px;
-				width: calc(100% - 28px);
-				height: 24px;
-				line-height: 24px;
-				background: none;
-				border: none;
-				margin: 0;
-				padding: 0;
-				outline: none;
-				font-family: inherit;
-				font-size: 13px;
-				color: inherit;
-			}
-			.combobox-selector-img {
-				position: absolute;
-				right: 6px;
-				top: 4px;
-				width: 16px;
-				height: 16px;
-				background: url(/src/assets/mainArea/paraBox/menu_button.svg) center/contain no-repeat;
-			}
 </style>

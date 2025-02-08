@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import RadioList, { Props as RadioListProps } from '../MainArea/ParaBox/components/RadioList.vue';
+import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
 import { useAppStore } from '@renderer/stores/appStore';
 
 const appStore = useAppStore();
