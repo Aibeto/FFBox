@@ -22,10 +22,10 @@ onMounted(async () => {
 		if (location.href.startsWith('file')) {
 			// 打包后的 electron 环境首先启动 service 再连接
 			nodeBridge.startService().finally(() => {
-				appStore.initializeServer(firstServerId, 'localhost', 33269, 3); // 4 次连接机会
+				appStore.initializeServer(firstServerId, 'localhost', 33269, '', '', 3); // 4 次连接机会
 			});
 		} else {
-			appStore.initializeServer(firstServerId, 'localhost', 33269);
+			appStore.initializeServer(firstServerId, 'localhost', 33269, '', '');
 		}
 	}
 

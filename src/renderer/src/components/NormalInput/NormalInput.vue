@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 interface Props {
 	value?: string;
+	type?: 'text' | 'password';
 	disabled?: boolean;
 	placeholder?: string;
 	validator?: (value: string) => string;
@@ -75,7 +76,7 @@ onMounted(() => {
 
 <template>
 	<div class="inputbox-selector" :style="selectorStyle">
-		<input type="text" :disabled="props.disabled" v-model="inputText" @blur="handleBlur" @focus="handleFocus" @input="handleInput" :placeholder="placeholder">
+		<input :type="$props.type || 'text'" :disabled="props.disabled" v-model="inputText" @blur="handleBlur" @focus="handleFocus" @input="handleInput" :placeholder="placeholder">
 	</div>
 </template>
 

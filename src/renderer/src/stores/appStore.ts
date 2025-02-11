@@ -533,6 +533,7 @@ export const useAppStore = defineStore('app', {
 				versionResponse.text().then((text) => {
 					server.data.version = text;
 					if (['3.0', '4.0', '4.1', '4.2'].includes(text)) {
+						// 4.3 版本更新了任务管理方式
 						Popup({ message: `服务器版本 ${text} 与客户端版本 ${version} 不兼容，请更换服务器或客户端`, level: NotificationLevel.warning });
 					} else if (text !== version) {
 						Popup({ message: `服务器版本 ${text} 与客户端版本不匹配，可能会导致部分操作异常，请谨慎操作`, level: NotificationLevel.warning });
@@ -598,7 +599,7 @@ export const useAppStore = defineStore('app', {
 		/**
 		 * 初始化服务器连接并挂载事件监听
 		 */
-		initializeServer(serverId: string, ip: string, port: number, retryCount = 0) {
+		initializeServer(serverId: string, ip: string, port: number, username: string, password: string, retryCount = 0) {
 			const 这 = useAppStore();
 			const server = 这.servers.find((server) => server.data.id === serverId) as Server;
 			const entity = server.entity;
@@ -606,12 +607,13 @@ export const useAppStore = defineStore('app', {
 				return;
 			}
 			const _port = port ?? 33269;
-			const isReconnect = entity.status === ServiceBridgeStatus.Disconnected;	// 接下来会由 entity.connect 改为 Reconnecting
 			console.log('初始化服务器连接', server.data);
-			entity.connect(ip, _port);
+			entity.connect(ip, _port, username, password);
 
-			if (isReconnect) {
-				return;	// 不重复绑定事件
+			const destroy = () => {
+				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegVersion', 'workingStatusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'taskNotification'] as any[]) {
+					entity.removeAllListeners(eventName);
+				}
 			}
 			entity.on('connected', () => {
 				server.data.name = ip === 'localhost' ? '本地服务器' : ip;
@@ -628,15 +630,17 @@ export const useAppStore = defineStore('app', {
 			entity.on('disconnected', () => {
 				console.log(`已断开服务器 ${server.entity.ip} 的连接`);
 				这.pushMsg(`已断开服务器 ${server.data.name} 的连接`, NotificationLevel.warning);
+				destroy();
 			});
-			entity.on('error', () => {
-				if (!retryCount) {
-					console.log(`服务器 ${server.entity.ip} 连接出错，建议检查网络连接或防火墙`);
-					这.pushMsg(`服务器 ${server.data.name} 连接出错，建议检查网络连接或防火墙`, NotificationLevel.error);
+			entity.on('error', (reason) => {
+				if (!retryCount || reason.includes('连接失败')) {
+					console.log(`服务器 ${server.entity.ip} ${reason}`);
+					这.pushMsg(`服务器 ${server.data.name} ${reason}`, NotificationLevel.error);
+					destroy();
 				} else {
-					console.log(`服务器 ${server.entity.ip} 连接失败，剩余重试次数 ${retryCount}`);
+					console.log(`服务器 ${server.entity.ip} ${reason}，剩余重试次数 ${retryCount}`);
 					setTimeout(() => {
-						这.initializeServer(serverId, ip, port, retryCount - 1);
+						这.initializeServer(serverId, ip, port, username, password, retryCount - 1);
 					}, 150);
 				}
 			});
@@ -671,7 +675,8 @@ export const useAppStore = defineStore('app', {
 		reConnectServer(serverId: string) {
 			const 这 = useAppStore();
 			const server = 这.servers.find((server) => server.data.id === serverId) as Server;
-			这.initializeServer(serverId, server.entity.ip, server.entity.port);
+			const entity = server.entity;
+			这.initializeServer(serverId, entity.ip, entity.port, entity.username, entity.password);
 		},
 		// #endregion 服务器处理
 		// #region 其他

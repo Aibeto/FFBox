@@ -36,6 +36,9 @@ export type FFBoxServiceEvent = {
 export type FFBoxServiceEventApi = {
 	event: keyof FFBoxServiceEventParam;
 	payload: FFBoxServiceEventParam[keyof FFBoxServiceEventParam];
+} | {
+	event: 'sessionId';
+	payload: string;
 };
 
 export interface FFBoxServiceFunctionApi {

@@ -23,6 +23,8 @@ const appStore = useAppStore();
  */
 const ip = ref('127.0.0.1');
 const port = ref('33269');
+const username = ref('');
+const password = ref('');
 const loginBoxVisible = computed(() => [ServiceBridgeStatus.Idle, ServiceBridgeStatus.Connecting].includes(appStore.currentServer?.entity.status));
 const isConnecting = computed(() => [ServiceBridgeStatus.Connecting, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status));
 const isDisconnected = computed(() => [ServiceBridgeStatus.Disconnected, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status));
@@ -50,7 +52,7 @@ const handleConnectClicked = () => {
 	if (!ip.value.length || isNaN(Number(port.value))) {
 		return;
 	}
-	appStore.initializeServer(appStore.currentServerId, ip.value, Number(port.value));
+	appStore.initializeServer(appStore.currentServerId, ip.value, Number(port.value), username.value, password.value);
 };
 const handleReconnectClicked = async () => {
 	if (location.href.startsWith('file') && appStore.currentServer.entity.ip === 'localhost') {
@@ -75,8 +77,14 @@ const handleReconnectClicked = async () => {
 					>
 						<h2>连接服务器</h2>
 						<div class="box">
-							<BoxedNormalInput title="IP" :value="ip" :disabled="ip === 'localhost'" :inputFixer="ipInputFixer" @change="ip = $event" />
-							<BoxedNormalInput title="端口" :value="port" @change="port = $event" />
+							<div>
+								<BoxedNormalInput title="IP" :value="ip" :disabled="ip === 'localhost'" :inputFixer="ipInputFixer" @change="ip = $event" />
+								<BoxedNormalInput title="端口" :value="port" @change="port = $event" />
+							</div>
+							<div>
+								<BoxedNormalInput title="用户名" :value="username" @change="username = $event" />
+								<BoxedNormalInput title="密码" type="password" :value="password" @change="password = $event" />
+							</div>
 						</div>
 						<div class="buttonBox">
 							<Button
@@ -191,12 +199,13 @@ const handleReconnectClicked = async () => {
 					align-items: center;
 					height: 100%;
 					.box {
-						display: flex;
-						flex-direction: column;
-						justify-content: center;
-						align-items: center;
-						border-radius: 8px;
+						&>div {
+							display: flex;
+							justify-content: center;
+							align-items: center;
+						}
 						padding-right: 20px;
+						border-radius: 8px;
 						background-color: hwb(var(--bg97) / 0.8);
 						box-shadow: 0 3px 2px -2px hwb(var(--highlight)) inset,	// 上亮光
 									0 16px 32px 0px hwb(var(--hoverShadow) / 0.02),

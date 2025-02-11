@@ -11,13 +11,15 @@ import os from 'os';
 import path from 'path';
 import { FFBoxServiceEventApi, FFBoxServiceEventParam, FFBoxServiceFunctionApi } from '@common/types';
 import { version } from '@common/constants';
-import { getSingleArgvValue } from '@common/utils';
+import { getSingleArgvValue, randomString } from '@common/utils';
 import { getOs, log } from './utils';
+import localConfig from '@common/localConfig';
 import { FFBoxService } from './FFBoxService';
 
 let server: Http.Server | null;
 let koa: Koa | null;
 let wss: WebSocket.Server | null;
+let clients = new Map<string, { ws: WebSocket, sessionId: string, username: string | undefined, functionLevel: number }>();
 let ffboxService: FFBoxService | null;
 
 const uploadDir = os.tmpdir() + '/FFBoxUploadCache'; // 文件上传目录
@@ -127,11 +129,15 @@ const uiBridge = {
 // #region 事件挂载区
 
 /**
- * 对每个传入的 WebSocket 客户端连接挂载事件监听
+ * 每个传入的 WebSocket 客户端连接都听过此函数挂载事件监听
+ * 4.4 及更新版本的客户端会首先检查客户端版本再进行 WebSocket 连接，然后等待 sessionId。因此客户端接入后需尽快返回 sessionId，提供给客户端进行 login
+ * 为什么不是在 Websocket 连接后直接通过 Websocket 登录，而是要另发请求呢？这是因为登录是一种“请求”，尽量不做成“事件”让客户端转锁等待
  */
 function mountWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): void {
 	const address = request.socket.remoteAddress;
-	log.info(`新客户端接入：${address}。`);
+	const sessionId = randomString(6);
+	clients.set(sessionId, { ws, sessionId, username: undefined, functionLevel: 0 });
+	log.info(`新客户端接入：${address}。sessionId：${sessionId}。当前客户端数量：${clients.size}.`);
 
 	ws.on('message', function (message: Buffer, isBinary: boolean): void {
 		// console.log('uiBridge: 收到来自客户端的消息', message);
@@ -139,18 +145,22 @@ function mountWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): voi
 			handleMessageFromClient(message.toString());
 		}
 	});
-
 	ws.on('close', function (code: number, reason: string) {
-		log.info(`客户端连接关闭：${address}。`, code, reason);
+		clients.delete(sessionId);
+		log.info(`客户端连接关闭：${address}。当前客户端数量：${clients.size}。`, code, reason);
 	});
-
 	ws.on('error', function (err: Error) {
 		log.error(`客户端连接出错：${address}。`, err);
 	});
-
 	ws.on('open', function () {
 		log.info(`客户端连接打开：${address}。`);
 	});
+
+	const data: FFBoxServiceEventApi = {
+		event: 'sessionId',
+		payload: sessionId,
+	};
+	ws.send(JSON.stringify(data));
 }
 
 /**
@@ -232,6 +242,37 @@ function getRouter(): Router {
 			machineId: ffboxService.machineId,			
 		};
 		ctx.response.status = 200;
+		ctx.response.body = result;
+	});
+
+	// 登录
+	router.post('/login', async function (ctx) {
+		if (!ctx.request.body) {
+			// 非法请求
+			ctx.response.status = 400;
+			return;
+		}
+		const result = { isUserExist: false, isSuccess: false, functionLevel: 0 };
+		const body = ctx.request.body;
+		if (body.sessionId) {
+			const users: { username: string; passkey: string; maxFunctionLevel: number }[]
+				= (await localConfig.get('service.users') as any) || [{ username : "", passkey: "", maxFunctionLevel: 100 }];
+			const client = clients.get(body.sessionId);
+			const user = users.find((user) => user.username === body.username);
+			if (client && user) {
+				result.isUserExist = true;
+				if (!user.passkey || user.passkey === body.passkey) {
+					result.isSuccess = true;
+					result.functionLevel = user.maxFunctionLevel;
+					client.functionLevel = user.maxFunctionLevel;
+					client.username = body.username;
+					ctx.response.status = 200;
+					ctx.response.body = result;
+					return;
+				}
+			}
+		}
+		ctx.response.status = 400;
 		ctx.response.body = result;
 	});
 

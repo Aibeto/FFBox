@@ -1,11 +1,12 @@
+import EventEmitter from 'events';
+import CryptoJS from 'crypto-js';
 import { getTimeString, TypedEventEmitter } from '@common/utils';
 import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceFunctionApi, FFBoxServiceInterface, OutputParams } from '@common/types';
-import EventEmitter from 'events';
 
 export interface ServeiceBridgeEvent {
 	connected: () => void;
 	disconnected: () => void;
-	error: (event: Event) => void;
+	error: (reason: string) => void;
 	message: (event: MessageEvent<any>) => void;
 };
 
@@ -21,7 +22,11 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	private ws: WebSocket | null = null;
 	public ip: string;
 	public port: number;
+	public username: string;
+	public password: string;
 	public status = ServiceBridgeStatus.Idle;
+	public sessionId?: string;
+	public functionLevel: number = NaN;
 
 	constructor(ip?: string, port?: number) {
 		super();
@@ -32,12 +37,11 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		}, 0);
 	}
 
-	public connect(ip?: string, port?: number) {
+	public async connect(ip?: string, port?: number, username?: string, password?: string) {
 		if (ip && port) {
 			this.ip = ip;
 			this.port = port;
 		}
-		console.log(`serviceBridge: 正在连接服务器 ws://${this.ip}:${this.port}/`);
 		if (this.status === ServiceBridgeStatus.Idle) {
 			this.status = ServiceBridgeStatus.Connecting;
 		} else if (this.status === ServiceBridgeStatus.Disconnected) {
@@ -45,44 +49,138 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		} else {
 			return;
 		}
-		let ws = new WebSocket(`ws://${this.ip}:${this.port}/`);
-		this.ws = ws;
-		let 这 = this;
-		ws.onopen = function (event) {
-			console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器连接成功`, event);
-			这.status = ServiceBridgeStatus.Connected;
-			这.emit('connected');
-			这.emitFFmpegVersion();
 
-			setTimeout(() => {
-				// 这.testSendBigPackage();	// test
-			}, 4000);
-		}
-		ws.onclose = function (event) {
-			// close 事件在 error 事件后触发
-			if (这.status === ServiceBridgeStatus.Connected) {
-				// 掉线
-				这.status = ServiceBridgeStatus.Disconnected;
-			} else {
-				// 未连接成功，由 onerror 处理过，这里不需处理
+		const finalResult = await new Promise(async (connectResult, _) => {
+			/**
+			 * 先查询服务器版本
+			 * 如果服务器版本是 4.4 或更新，那么具有登录系统。连接后，等待服务器马上触发的 sessionId 事件（ws），此时即可通过 sessionId 登录（fetch）
+			 * 旧版服务器则无需登录
+			 */
+			const [requestOK1, needLogin] = await new Promise<[boolean, boolean]>((resolve, reject) => {
+				console.log(`serviceBridge: 正在检查服务器版本 http://${this.ip}:${this.port}/`);
+				fetch(`http://${ip}:${port}/version`, { method: 'get' }).then((res) => {
+					res.text().then((text) => {
+						if (['3.0', '4.0', '4.1', '4.2', '4.3'].includes(text)) {
+							resolve([true, false]);
+						} else {
+							resolve([true, true]);
+						}
+					}).catch(() => {
+						resolve([false, false]);
+					});
+				}).catch((err) => {
+					resolve([false, false]);
+				});
+			});
+			if (!requestOK1) {
+				this.emit('error', '连接失败：获取服务器版本失败');
+				connectResult(false);
+				return;
 			}
-			这.emit('disconnected');
-		}
-		ws.onerror = function (event) {
-			// console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器连接失败`, event);
-			if (这.status === ServiceBridgeStatus.Connecting) {
+	
+			console.log(`serviceBridge: 正在连接服务器 ws://${this.ip}:${this.port}/`);
+			let ws = new WebSocket(`ws://${this.ip}:${this.port}/`);
+			this.ws = ws;
+			let 这 = this;
+			ws.onopen = async function (event) {
+				console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器连接成功`, event);
+				if (needLogin) {
+					// 转锁 1s 等待 sessionId 返回
+					for (let n = 25; n > 0; n--) {
+						if (这.sessionId) {
+							break;
+						} else {
+							await new Promise((r) => setTimeout(() => r(undefined), 40));
+						}
+					}
+					if (!这.sessionId) {
+						这.emit('error', '连接失败：服务器未及时返回 sessionId');
+						ws.close();
+						connectResult(false);
+						return;
+					}
+					const [requestOK2, isUserExist, loginSuccess, functionLevel] = await new Promise<[boolean, boolean, boolean, number]>((resolve, reject) => {
+						fetch(`http://${ip}:${port}/login`, {
+							method: 'post',
+							body: JSON.stringify({ username, passkey: CryptoJS.SHA256(password).toString(), sessionId: 这.sessionId }),
+							headers: new Headers({
+								'Content-Type': 'application/json'
+							}),
+						}).then((response) => {
+							response.text().then((text) => {
+								try {
+									let result = JSON.parse(text);
+									resolve([true, result.isUserExist, result.isSuccess, result.functionLevel]);
+								} catch (e) {
+									resolve([false, false, false, NaN]);
+								}
+							}).catch((err) => {
+								resolve([false, false, false, NaN]);
+							});
+						}).catch((err) => {
+							resolve([false, false, false, NaN]);
+						});	
+					});
+					if (!requestOK2) {
+						这.emit('error', '连接失败：登录连接失败');
+						ws.close();
+						connectResult(false);
+						return;
+					}		
+					if (!isUserExist) {
+						这.emit('error', '登录失败：用户名错误');
+						ws.close();
+						connectResult(false);
+						return;
+					}		
+					if (!loginSuccess) {
+						这.emit('error', '登录失败：密码错误');
+						ws.close();
+						connectResult(false);
+						return;
+					}
+				}
+	
+				这.status = ServiceBridgeStatus.Connected;
+				这.emit('connected');
+				这.emitFFmpegVersion();
+				connectResult(true);
+
+				setTimeout(() => {
+					// 这.testSendBigPackage();	// test
+				}, 4000);
+			}
+			ws.onclose = function (event) {
+				// close 事件在 error 事件后触发
+				if (这.status === ServiceBridgeStatus.Connected) {
+					// 掉线
+					这.status = ServiceBridgeStatus.Disconnected;
+				} else {
+					// 未连接成功，由 onerror 处理过，这里不需处理
+				}
+				这.sessionId = undefined;
+				这.functionLevel = NaN;
+				这.emit('disconnected');
+			}
+			ws.onerror = function (event) {
+				// console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器连接失败`, event);
+				这.emit('error', 'Websocket 连接失败');
+				return;
+			}
+			ws.onmessage = function (event) {
+				// console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器发来消息`, event);
+				// 这.emit('message', event);
+				这.handleWsEvents(event);
+			}
+		});
+		if (!finalResult) {
+			if (this.status === ServiceBridgeStatus.Connecting) {
 				// 第一次连接就失败
-				这.status = ServiceBridgeStatus.Idle;
-			} else if (这.status === ServiceBridgeStatus.Reconnecting) {
+				this.status = ServiceBridgeStatus.Idle;
+			} else if (this.status === ServiceBridgeStatus.Reconnecting) {
 				// 连接后重连失败
-				这.status = ServiceBridgeStatus.Disconnected;
+				this.status = ServiceBridgeStatus.Disconnected;
 			}
-			这.emit('error', event);
-		}
-		ws.onmessage = function (event) {
-			// console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器发来消息`, event);
-			// 这.emit('message', event);
-			这.handleWsEvents(event);
 		}
 	}
 
@@ -98,7 +196,13 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	 */
 	private handleWsEvents(event: MessageEvent<any>) {
 		let data: FFBoxServiceEventApi = JSON.parse(event.data);
-		this.emit(data.event, data.payload as any);
+		if (data.event === 'sessionId') {
+			// 连接后，服务器将马上触发 sessionId 事件，此时即可使登录操作继续
+			console.log(`本次登录 sessionId：${data.payload}`);
+			this.sessionId = data.payload;
+		} else {
+			this.emit(data.event, data.payload as any);
+		}
 	}
 
 	/**

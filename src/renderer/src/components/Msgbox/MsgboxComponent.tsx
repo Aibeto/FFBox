@@ -23,19 +23,22 @@ const MsgboxComponent: FunctionalComponent<Props> = (props) => {
 	const handleKeyPress = (e: KeyboardEvent) => {
 		if (props.buttons.length === 1 && (e.key === 'Escape' || e.key === 'Enter')) {
 			handleButtonClick(props.buttons[0]);
+			e.stopImmediatePropagation();
 		} else if (e.key === 'Escape') {
 			const button = props.buttons.find((button) => button.role === 'cancel');
 			if (button) {
 				handleButtonClick(button);
+				e.stopImmediatePropagation();
 			}
 		} else if (e.key === 'Enter') {
 			const button = props.buttons.find((button) => button.role === 'confirm');
 			if (button) {
 				handleButtonClick(button);
+				e.stopImmediatePropagation();
 			}
 		}
 	}
-	
+
 	const handleButtonClick = (button: MsgboxOptions['buttons'][number]) => {
 		if (button.callback) {
 			disable.value = true;

@@ -4,6 +4,7 @@ import NormalInput from './NormalInput.vue';
 
 interface Props {
 	title: string;
+	type?: 'text' | 'password';
 	value?: string;
 	long?: boolean;
 	disabled?: boolean;

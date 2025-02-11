@@ -5,6 +5,7 @@ import { NotificationLevel } from '@common/types';
 import { ServiceBridgeStatus } from "@renderer/bridges/serviceBridge";
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
+import { useTooltip } from '@renderer/common/tooltipUtil';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import IconGithub from '@renderer/assets/menuCenter/sponsorCenter/github.svg?component';
 import IconGitee from '@renderer/assets/menuCenter/sponsorCenter/gitee.svg?component';
@@ -15,7 +16,6 @@ import ImageWechatpay from '@renderer/assets/menuCenter/sponsorCenter/wechatpay.
 import ImageQQpay from '@renderer/assets/menuCenter/sponsorCenter/qqpay.png';
 import Popup from '@renderer/components/Popup/Popup';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
-import Tooltip from '@renderer/components/Tooltip/Tooltip';
 
 const appStore = useAppStore();
 const style = useCssModule();
@@ -133,10 +133,11 @@ const handleActivateButtonClick = () => {
 	}
 };
 
-const handleElementHover = (e: MouseEvent, content: string) => {
-	const rect = e.target.getBoundingClientRect();
-	Tooltip.show({ content: content, style: { top: `${rect.top + rect.height}px`, right: `${window.innerWidth - rect.right}px` }, class: style.smallTip });
-	// Tooltip.show({ content: content, style: { top: `${e.pageY}px`, right: `${window.innerWidth - e.pageX}px` }, class: style.smallTip });
+const handleMachineCodeClick = () => {
+	if (appStore.localServer?.entity.status === ServiceBridgeStatus.Connected && appStore.localServer.data.machineId) {
+		navigator.clipboard.writeText(appStore.localServer.data.machineId);
+		Popup({ message: '已复制机器码🫡', level: NotificationLevel.info });
+	}
 };
 
 onMounted(() => {
@@ -153,22 +154,22 @@ onMounted(() => {
 		<p>开发者想要你来 GitHub / Gitee 点个星～</p>
 		<p>（或者提点建议也行，比如如何让下面这些花花绿绿的二维码没那么丑🤪</p>
 		<div class="paragram">
-			<Button @click="jumpToGithub" @mouseleave="Tooltip.hide()" @mouseenter="handleElementHover($event, '如果你打不开，那就努力再尝试！反复尝试！尝试到国家都为你而感动！')">
+			<Button @click="jumpToGithub" v-bind="useTooltip('如果你打不开，那就努力再尝试！反复尝试！尝试到国家都为你而感动！')">
 				<IconGithub />GitHub
 			</Button>
-			<Button @click="jumpToGitee" @mouseleave="Tooltip.hide()" @mouseenter="handleElementHover($event, '这个是备用哒～')">
+			<Button @click="jumpToGitee" v-bind="useTooltip('这个是备用哒～')">
 				<IconGitee />Gitee
 			</Button>
 		</div>
 		<p>如果你不只是想给我送⭐，还想送我奶茶🧋，那么可以点下面两个按钮～</p>
 		<div class="paragram">
-			<Button @click="jumpToKoFi" @mouseleave="Tooltip.hide()" @mouseenter="handleElementHover($event, '一直都没人点这个，我是不是该考虑把它撤了🤔')">
+			<Button @click="jumpToKoFi" v-bind="useTooltip('一直都没人点这个，我是不是该考虑把它撤了🤔')">
 				<IconKoFi />Ko-Fi
 			</Button>
-			<Button @click="jumpToAfdian" @mouseleave="Tooltip.hide()" @mouseenter="handleElementHover($event, '这个似乎更适合中国宝宝的体质❤️～')">
+			<Button @click="jumpToAfdian" v-bind="useTooltip('这个似乎更适合中国宝宝的体质❤️～')">
 				<img :src="IconAfdian" />爱发电
 			</Button>
-			<Button @click="jumpToAutoSponsorProxy" @mouseleave="Tooltip.hide()" @mouseenter="handleElementHover($event, '如果有哪天左边的某个按钮失效了就点这个吧🌚（当然也不排除这个按钮会失效')">
+			<Button @click="jumpToAutoSponsorProxy" v-bind="useTooltip('如果有哪天左边的某个按钮失效了就点这个吧🌚（当然也不排除这个按钮会失效')">
 				帮我挑个合适的
 			</Button>
 		</div>
@@ -177,8 +178,7 @@ onMounted(() => {
 			<div
 				class="QRscreen QRscreen-alipayredenvelop"
 				:style="envelopStyle"
-				@mouseleave="Tooltip.hide()"
-				@mouseenter="handleElementHover($event, '支付宝每隔一段时间就会搞活动把这个红包变大，只要它不改链接，红包二维码就一直能用～')"
+				v-bind="useTooltip('支付宝每隔一段时间就会搞活动把这个红包变大，只要它不改链接，红包二维码就一直能用～')"
 				@mousedown="handleEnvelopMouseDown"
 				@mouseup="() => envelopPressed = false"
 			>
@@ -194,7 +194,7 @@ onMounted(() => {
 		</div>
 		<p>如果还想把我喂胖，扫下面几个🐴也行 _(:з」∠)_（只要你喜欢</p>
 		<div class="paragram">
-			<div class="QRscreen QRscreen-alipay" @mouseleave="Tooltip.hide()" @mouseenter="handleElementHover($event, '（你有没有发现，我把支付宝跟微信支付的标语互换了👀')">
+			<div class="QRscreen QRscreen-alipay" v-bind="useTooltip('（你有没有发现，我把支付宝跟微信支付的标语互换了👀')">
 				<div class="QRuppertext">推荐使用<strong>支付宝</strong></div>
 				<div class="QRbox">
 					<canvas ref="qr_alipay"></canvas>
@@ -204,7 +204,7 @@ onMounted(() => {
 					<img :src="ImageAlipay">
 				</div>
 			</div>
-			<div class="QRscreen QRscreen-wechatpay" @mouseleave="Tooltip.hide()" @mouseenter="handleElementHover($event, '（你有没有发现，我把支付宝跟微信支付的标语互换了👀')">
+			<div class="QRscreen QRscreen-wechatpay" v-bind="useTooltip('（你有没有发现，我把支付宝跟微信支付的标语互换了👀')">
 				<div class="QRuppertext">支付就用微信支付</div>
 				<div class="QRbox">
 					<canvas ref="qr_wechatpay"></canvas>
@@ -214,7 +214,7 @@ onMounted(() => {
 					<img :src="ImageWechatpay">
 				</div>
 			</div>
-			<div class="QRscreen QRscreen-qqpay" @mouseleave="Tooltip.hide()" @mouseenter="handleElementHover($event, '听说好多人不用 QQ 支付的原因是要实名？🤔')">
+			<div class="QRscreen QRscreen-qqpay" v-bind="useTooltip('听说好多人不用 QQ 支付的原因是要实名？🤔')">
 				<div class="QRuppertext">QQ 支付</div>
 				<div class="QRbox">
 					<canvas ref="qr_qqpay"></canvas>
@@ -225,12 +225,12 @@ onMounted(() => {
 				</div>
 			</div>
 		</div>
-		<h2>激活软件</h2>
-		<p>FFBox 是一款试用、有源、捐赠混合的软件。出厂状况下，本软件存在部分功能的使用限制</p>
+		<h2>功能解锁</h2>
+		<p v-bind="useTooltip('限制了 11:11 的转码和媒体时长、特别高和特别低的码率设定值、文件上传大小', 't')">FFBox 是一款试用、有源、捐赠混合的软件。出厂状况下，本软件存在部分功能的使用限制</p>
 		<p>您可以通过激活码去除这些限制，详情请到官网或官方信息发布平台查询～</p>
-		<BoxedNormalInput :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" style="margin: 0" title="激活码" :long="true" @change="(value) => activateCode = value" />
+		<BoxedNormalInput :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" style="margin: 0" title="激活码" :long="true" placeholder="一份激活码对应唯一的机器码，请您输入与本机机器码对应的激活码进行激活🫡" @change="(value) => activateCode = value" />
 		<Button :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" @click="handleActivateButtonClick">激活</Button>
-		<p>机器码：<span style="user-select: all;">
+		<p>机器码：<span style="user-select: all;" @click="handleMachineCodeClick">
 			{{ appStore.localServer?.entity.status === ServiceBridgeStatus.Connected ? (appStore.localServer.data.machineId ?? '（服务器版本不匹配，无法读取）') : '（未连接，请连接本地服务器后获取）' }}
 		</span></p>
 	</div>
@@ -340,22 +340,4 @@ onMounted(() => {
 </style>
 
 <style module lang="less">
-	.smallTip {
-		:global .tooltip-box {
-			position: relative;
-			top: -1px;
-			padding: 6px 10px;
-			border-radius: 8px;
-			border: none;
-			background-color: hwb(var(--hoverLightBg) / 0.5);
-			backdrop-filter: blur(8px) contrast(110%);
-			box-shadow: 0 0 1px 0.5px hwb(var(--hoverLightBg)),
-						0 1.5px 4px 0 hwb(var(--hoverShadow) / 0.2),
-						0 1px 0.5px 0px hwb(var(--highlight) / 0.5) inset;	// 上高光
-			.tooltip-message {
-				font-size: 12px;
-				line-height: 16px;
-			}
-		}
-	}
 </style>
