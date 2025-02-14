@@ -304,18 +304,18 @@ onMounted(() => appStore.selectedPanelIndex = 0);
 					width: 100%;
 					height: 100%;
 					overflow: auto;
-					&::-webkit-scrollbar {
-						width: 10px;
-						background: transparent;
-					}
-					&::-webkit-scrollbar-thumb {
-						border-radius: 10px;
-						background: rgba(128, 128, 128, 0.2);
-					}
-					&::-webkit-scrollbar-track {
-						border-radius: 10px;
-						background: rgba(128, 128, 128, 0.1);
-					}
+				}
+				::-webkit-scrollbar {
+					width: 10px;
+					background: transparent;
+				}
+				::-webkit-scrollbar-thumb {
+					border-radius: 10px;
+					background: rgba(128, 128, 128, 0.2);
+				}
+				::-webkit-scrollbar-track {
+					border-radius: 10px;
+					background: rgba(128, 128, 128, 0.1);
 				}
 			}
 		}
