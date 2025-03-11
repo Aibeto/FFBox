@@ -11,7 +11,7 @@ import { defaultParams } from '@common/defaultParams';
 import localConfig from '@common/localConfig';
 import { getInitialServiceTask, convertAnyTaskToTask, TypedEventEmitter, replaceOutputParams, randomString } from '@common/utils';
 import { getMachineId, log } from './utils';
-import { FFmpeg } from './FFmpegInvoke';
+import { FFmpeg, EncoderDetail } from './FFmpegInvoke';
 import UIBridge from './uiBridge';
 
 export interface FFBoxServerEvent {
@@ -153,7 +153,45 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			}
 			log.info('FFmpeg 路径和版本检查完毕。', this.ffmpegPath, this.ffmpegVersion);
 			this.emitFFmpegVersion();
+			setTimeout(() => {
+				// this.getFFmpegCodecs();
+			}, 100);
 		});
+	}
+
+	public async getFFmpegCodecs(): Promise<void> {
+		const ffmpeg = new FFmpeg(this.ffmpegPath, 3, ['-codecs']);
+		ffmpeg.on('codecs', async (codecsResult) => {
+			log.info(`编码器扫描完成，支持视频编码 ${codecsResult.videoCodecs.length} 个、音频编码 ${codecsResult.audioCodecs.length} 个`);
+			console.log(codecsResult);
+			const videoFinalResult: {
+				name: string;
+				description: string;
+				encoders: (EncoderDetail & { name: string; })[];
+			}[] = [];
+			for (const codec of codecsResult.videoCodecs) {
+				const encoderNames = codec.encoders.length ? codec.encoders : ['default'];
+				const encoderDetails: (EncoderDetail & { name: string; })[] = [];
+				for (const encoderName of encoderNames) {
+					// console.log(`正在读取 ${codec.name} ${encoder}`);
+					await new Promise((resolve, reject) => {
+						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName === 'default' ? codec.name : encoderName}`]);
+						ffmpeg2.on('codecs', (_, codecResult) => {
+							// console.log(codecResult);
+							encoderDetails.push({ name: encoderName, ...codecResult });
+							resolve(0);
+						});
+					});
+				}
+				videoFinalResult.push({
+					name: codec.name,
+					description: codec.description,
+					encoders: encoderDetails,
+				});
+			}
+			debugger;
+		});
+		
 	}
 
 	/**
@@ -231,12 +269,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.before.abitrate = parseInt(input.abitrate || '-1');
 			this.emitTaskUpdate(id, task);
 		});
-		ffmpeg.on('critical', ({ content: errors }) => {
-			let reason = '';
-			errors.forEach((value) => {
-				reason += value;
-			});
-			this.setNotification(id, filePath + '：' + reason, NotificationLevel.warning);
+		ffmpeg.on('closed', (errorCode, errors, runningResult) => {
+			this.setNotification(id, filePath + '：' + [...errors].join(''), NotificationLevel.warning);
 			setTimeout(() => {
 				this.taskDelete(id);
 			}, 100);
@@ -353,14 +387,25 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.outputFile = getFFmpegParaArrayOutputPath(task.after);
 			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray(task.after, false));
 		}
-		newFFmpeg.on('finished', () => {
-			log.info(`[任务 ${id}] 完成：${task.fileBaseName}。`);
-			task.status = TaskStatus.finished;
-			task.progressLog.elapsed = new Date().getTime() / 1000 - task.progressLog.lastStarted;
-			this.setNotification(id, `任务「${task.fileBaseName}」已转码完成`, NotificationLevel.ok);
+		newFFmpeg.on('closed', (errorCode, errors, runningResult) => {
+			if (errorCode) {
+				if (runningResult === 'failed') {
+					log.error(`[任务 ${id}] 出错：${task.fileBaseName}。`);
+					this.setNotification(id, '任务「' + task.fileBaseName + '」转码失败。' + [...errors].join('') + '请在命令行输出面板查看详细原因。', NotificationLevel.error);
+				} else {
+					log.error(`[任务 ${id}] 异常终止：${task.fileBaseName}。`);
+					this.setNotification(id, '任务「' + task.fileBaseName + '」异常终止。请在命令行输出面板查看详细原因。', NotificationLevel.error);
+				}
+				task.status = TaskStatus.error;
+			} else {
+				log.info(`[任务 ${id}] 完成：${task.fileBaseName}。`);
+				task.status = TaskStatus.finished;
+				task.progressLog.elapsed = new Date().getTime() / 1000 - task.progressLog.lastStarted;
+				this.setNotification(id, `任务「${task.fileBaseName}」已转码完成`, NotificationLevel.ok);
+			}
 			this.emitTaskUpdate(id, task);
 			this.queueAssign();
-			this.storeUnfinishedTask();
+			this.storeUnfinishedTask();		
 		});
 		newFFmpeg.on('status', (status: FFmpegProgress) => {
 			const progressLog = task.progressLog;
@@ -389,25 +434,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		// });
 		newFFmpeg.on('warning', (warning) => {
 			this.setNotification(id, task.fileBaseName + '：' + warning.content, NotificationLevel.warning);
-		});
-		newFFmpeg.on('critical', ({ content: errors }) => {
-			log.error(`[任务 ${id}] 出错：${task.fileBaseName}。`);
-			task.status = TaskStatus.error;
-			this.setNotification(id, '任务「' + task.fileBaseName + '」转码失败。' + [...errors].join('') + '请在命令行输出面板查看详细原因。', NotificationLevel.error);
-			this.emit('taskUpdate', {
-				taskId: id,
-				task: convertAnyTaskToTask(task),
-			});
-			this.queueAssign();
-			this.storeUnfinishedTask();
-		});
-		newFFmpeg.on('escaped', () => {
-			log.error(`[任务 ${id}] 异常终止：${task.fileBaseName}。`);
-			task.status = TaskStatus.error;
-			this.setNotification(id, '任务「' + task.fileBaseName + '」异常终止。请在命令行输出面板查看详细原因。', NotificationLevel.error);
-			this.emitTaskUpdate(id, task);
-			this.queueAssign();
-			this.storeUnfinishedTask();
 		});
 		for (const parameter of ['time', 'frame', 'size']) {
 			const _parameter = parameter as 'time' | 'frame' | 'size';

@@ -1,6 +1,6 @@
 {
   "name": "FFBox",
-  "version": "4.4.0-alpha",
+  "version": "4.4.0-beta",
   "description": "",
   "main": "app/main/index.cjs",
   "scripts": {

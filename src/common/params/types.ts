@@ -48,3 +48,10 @@ export type Parameter = BasicParameter & (
 	({ mode: 'slider' } & SliderOptions)
 );
 export type RateControl = NarrowedMenuItem & { cmd: (string | Symbol)[] } & SliderOptions;
+
+// TODO 由 service 向前端报告的编码器详情（将会在前端转换为 MenuItem）
+export interface FFmpegCodecDetail {
+		name: string;
+		description: string;
+		// encoders: (CodecDetail & { name: string; })[];
+}
