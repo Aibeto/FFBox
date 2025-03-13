@@ -8,6 +8,7 @@ import nodeBridge from "@renderer/bridges/nodeBridge";
 export function showEnvironmentInfo() {
     const appStore = useAppStore();
     const backendInfo = [];
+    const ffmpegEncoderInfo = appStore.currentServer.data.ffmpegInfo.version ? (appStore.currentServer.data.ffmpegInfo.scanning ? '（正在扫描编码器）' : `（${appStore.currentServer.data.ffmpegInfo.videoEncodersCount} 个视频编码器，${appStore.currentServer.data.ffmpegInfo.audioEncodersCount} 个音频编码器）`) : '';
     if (appStore.currentServer?.entity.status === ServiceBridgeStatus.Connected) {
         backendInfo.push(
             `当前后端连接形式：${appStore.currentServer.entity.ip === 'localhost' ? '本地' : '远程'}`,
@@ -16,7 +17,7 @@ export function showEnvironmentInfo() {
             h('br'),
             `当前后端 OS 环境：${appStore.currentServer.data.os}`,
             h('br'),
-            `当前后端 ffmpeg 版本：${appStore.currentServer.data.ffmpegVersion}`,
+            `当前后端 ffmpeg：${appStore.currentServer.data.ffmpegInfo.version}${ffmpegEncoderInfo}`,
         )
     }
     Msgbox({

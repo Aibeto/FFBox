@@ -36,8 +36,6 @@ const tasks = computed(() => {
 	return ret;
 });
 
-const hasFFmpeg = computed(() => appStore.currentServer?.data.ffmpegVersion !== '-');
-
 const debugLauncher = (() => {
 	let clickSpeedCounter = 0;
 	let clickSpeedTimer = 0;
@@ -109,7 +107,7 @@ const handleDownloadFFmpegClicked = () => {
 
 const onDragenter = (event: DragEvent) => {
 	// 这里把 dragenter 和 dragover 都引到这里了，拖动时会高频率调用，虽然不是很好，但是不加 dragover 会导致 drop 没反应
-	if (!appStore.currentServer || appStore.currentServer.data.ffmpegVersion === '-') {
+	if (!appStore.currentServer || !appStore.currentServer.data.ffmpegInfo?.version) {
 		return;
 	}
 	event.preventDefault();
@@ -150,7 +148,7 @@ const onDrop = (event: DragEvent) => {	//
 			/>
 		</div>
 		<div
-			v-if="hasFFmpeg"
+			v-if="appStore.currentServer?.data.ffmpegInfo"
 			class="dropfilesdiv"
 			@click="appStore.selectedTask = new Set()"
 			@mousedown="debugLauncher($event)"

@@ -143,7 +143,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	
 				这.status = ServiceBridgeStatus.Connected;
 				这.emit('connected');
-				这.emitFFmpegVersion();
+				这.emitFFmpegInfo();
 				connectResult(true);
 
 				setTimeout(() => {
@@ -240,9 +240,9 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		this.sendWs(data);
 	}
 
-	public emitFFmpegVersion() {
+	public emitFFmpegInfo() {
 		let data: FFBoxServiceFunctionApi = {
-			function: 'emitFFmpegVersion',
+			function: 'emitFFmpegInfo',
 			args: [],
 		}
 		this.sendWs(data);

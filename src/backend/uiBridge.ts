@@ -186,7 +186,7 @@ function mountEventFromService(): void {
 	}
 	// eslint-disable-next-line
 	const eventsEnum: Array<keyof FFBoxServiceEventParam> = [
-		'ffmpegVersion',
+		'ffmpegInfo',
 		"workingStatusUpdate",
 		"tasklistUpdate",
 		"taskUpdate",

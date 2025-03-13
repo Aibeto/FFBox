@@ -3,12 +3,13 @@ import { computed } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import { version } from '@common/constants'
 import { showEnvironmentInfo } from '@renderer/components/misc/EnvironmentInfo';
+import IconLoading from '@renderer/assets/mainArea/loading.svg?component';
 import IconInfo from '@renderer/assets/statusBar/info.svg?component';
 
 const appStore = useAppStore();
 
 const versionStyle = computed(() => {
-	if (appStore.currentServer?.data.ffmpegVersion) {
+	if (appStore.currentServer?.data.ffmpegInfo?.version) {
 		return { zoom: 0.55 };
 	} else {
 		return { top: '10px' };
@@ -43,7 +44,7 @@ const handleInfoCenterButtonClicked = () => {
 	<div class="statusbar" :data-color_theme="appStore.frontendSettings.colorTheme">
 		<div class="left">
 			<div>
-				<div class="version" :style="versionStyle" @click="showEnvironmentInfo">FFBox：{{ FFBoxVersionText }}<br />FFmpeg：{{ appStore.currentServer?.data.ffmpegVersion || '-' }}</div>
+				<div class="version" :style="versionStyle" @click="showEnvironmentInfo">FFBox：{{ FFBoxVersionText }}<br />FFmpeg：{{ appStore.currentServer?.data.ffmpegInfo?.version || '-' }}<IconLoading class="loading" v-if="appStore.currentServer?.data.ffmpegInfo?.scanning" /></div>
 			</div>
 			<div @click="handleInfoCenterButtonClicked">
 				<IconInfo />{{ appStore.unreadNotificationCount }}
@@ -102,6 +103,20 @@ const handleInfoCenterButtonClicked = () => {
 					text-align: left;
 					zoom: 1;
 					transition: all 0.3s ease-out;
+					@keyframes rotation {
+						from {
+							transform: rotate(0deg);
+						}
+						to {
+							transform: rotate(360deg);
+						}
+					}
+					.loading {
+						width: 18px;
+						height: 18px;
+						animation: rotation 1s steps(8) infinite;
+						margin: -2px -2px -2px 8px;
+					}
 				}
 			}
 		}

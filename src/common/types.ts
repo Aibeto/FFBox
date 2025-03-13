@@ -3,7 +3,7 @@ import type { FFmpeg } from '@backend/FFmpegInvoke';
 export interface FFBoxServiceInterface {
 	initSettings(): void;
 	initFFmpeg(): void;
-	emitFFmpegVersion(): void;
+	emitFFmpegInfo(): void;
 	taskAdd(taskName: string, outputParams?: OutputParams): Promise<number>;
 	mergeUploaded(id: number, hashs: Array<string>): void;
 	taskDelete(id: number): void;
@@ -20,7 +20,7 @@ export interface FFBoxServiceInterface {
 }
 
 export interface FFBoxServiceEventParam {
-	ffmpegVersion: { content: string };
+	ffmpegInfo: FFmpegInfo;
 	workingStatusUpdate: { value: 'start' | 'stop' | 'pause' };	// 此处不使用 WorkingStatus 的原因是：任务列表与任务状态是通过两个消息传送的，到达顺序不可保证，因此需要由后端告知工作状态停止是暂停还是停止，否则前端无法判断
 	tasklistUpdate: { content: number[] };
 	taskUpdate: { taskId: number; task: Task };
@@ -46,6 +46,13 @@ export interface FFBoxServiceFunctionApi {
 	args: Parameters<FFBoxServiceInterface[keyof FFBoxServiceInterface]>;	// 数组形式，按顺序传入参数
 }
 
+export interface FFmpegInfo {
+	version: string;
+	scanning: boolean;
+	videoEncodersCount: number;
+	audioEncodersCount: number;
+}
+
 export interface OutputParams {
 	input: OutputParams_input;
 	video: OutputParams_video;
@@ -67,7 +74,6 @@ export type OutputParams_input = {
 
 export type OutputParams_video = {
 	vcodec: string;
-	vencoder: string;
 	resolution: string;
 	framerate: string;
 	ratecontrol: string;
@@ -194,6 +200,13 @@ export interface ServiceTask extends Task {
 	// ffmpeg: any | null;
 	remoteTask: boolean;	// 本地/远程任务对于 service 来说，对输出文件名的处理方式不同；对于 UI 来说，只需要判断 IP 是否为 localhost 即决定是下载还是直接打开了
 }
+
+// TODO 由 service 向前端报告的编码器详情（将会在前端转换为 MenuItem）
+// export interface FFmpegCodecDetail {
+// 	name: string;
+// 	description: string;
+// 	// encoders: (CodecDetail & { name: string; })[];
+// }
 
 export enum WorkingStatus {
 	idle = 'idle',

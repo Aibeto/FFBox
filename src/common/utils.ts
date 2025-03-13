@@ -288,7 +288,6 @@ export function getInitialTask(fileBaseName: string, outputParams?: OutputParams
 			},
 			video: {
 				vcodec: '',
-				vencoder: '',
 				resolution: '',
 				framerate: '',
 				ratecontrol: '',

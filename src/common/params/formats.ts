@@ -1,5 +1,5 @@
+import { NarrowedMenuItem } from "@common/menu";
 import { OutputParams_output, OutputParams_input } from "../types";
-import { strict2, MenuItem, NarrowedMenuItem, SliderOptions, Parameter } from './types';
 
 export interface Format extends NarrowedMenuItem {
 	extension: string;

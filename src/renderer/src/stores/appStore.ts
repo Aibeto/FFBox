@@ -8,7 +8,7 @@ import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
 import { getInitialUITask, randomString, replaceOutputParams } from '@common/utils';
 import path from '@common/path';
-import { handleCmdUpdate, handleFFmpegVersion, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from './eventsHandler';
+import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from './eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { dashboardTimer } from '@renderer/common/dashboardCalc';
 import Popup from '@renderer/components/Popup/Popup';
@@ -571,7 +571,7 @@ export const useAppStore = defineStore('app', {
 					name: '未连接',
 					tasks: [],
 					notifications: [],
-					ffmpegVersion: '',
+					ffmpegInfo: { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0 },
 					version: '',
 					workingStatus: WorkingStatus.idle,
 					progress: 0,
@@ -611,7 +611,7 @@ export const useAppStore = defineStore('app', {
 			entity.connect(ip, _port, username, password);
 
 			const destroy = () => {
-				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegVersion', 'workingStatusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'taskNotification'] as any[]) {
+				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegInfo', 'workingStatusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'taskNotification'] as any[]) {
 					entity.removeAllListeners(eventName);
 				}
 			}
@@ -645,8 +645,8 @@ export const useAppStore = defineStore('app', {
 				}
 			});
 
-			entity.on('ffmpegVersion', (data) => {
-				handleFFmpegVersion(server, data.content);
+			entity.on('ffmpegInfo', (data) => {
+				handleFFmpegInfo(server, data);
 			});
 			entity.on('workingStatusUpdate', (data) => {
 				handleWorkingStatusUpdate(server, data.value);

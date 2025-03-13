@@ -430,7 +430,7 @@ class ElectronApp {
 				}		
 				fs.readFile(licensePath, { encoding: 'utf-8' }).then((data) => {
 					const cipherText = CryptoJS.SHA1(data);
-					if (['c10a2191115c97595e0f0bbb4a127547c9ebb59e', '4e994ccf17287387cf8bf155ad40f30ad5ca5f38'].includes(cipherText.toString())) {
+					if (['df02feb5f8300269b6cc1f53c83e8b0086aff66b', '9a89582a1c0c604ca95132d2c04ed078b519f599'].includes(cipherText.toString())) {
 						// 两个校验码，适配 LF 换行符和 CRLF 换行符
 						resolve(data);
 					} else {

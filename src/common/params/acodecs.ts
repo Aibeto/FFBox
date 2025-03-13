@@ -1,5 +1,6 @@
+import { NarrowedMenuItem } from "@common/menu";
 import { OutputParams_audio } from "../types";
-import { strict2, MenuItem, NarrowedMenuItem, SliderOptions, Parameter, RateControl } from './types';
+import { strict2, SliderOptions, Parameter, RateControl } from './types';
 
 const VALUE = Symbol()
 

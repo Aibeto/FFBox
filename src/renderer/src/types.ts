@@ -1,4 +1,4 @@
-import { Task, TransferStatus, SingleProgressLog, WorkingStatus, Notification } from '@common/types';
+import { Task, TransferStatus, SingleProgressLog, WorkingStatus, Notification, FFmpegInfo } from '@common/types';
 import { ServiceBridge } from '@renderer/bridges/serviceBridge'
 
 export interface UITask extends Task {
@@ -39,7 +39,7 @@ export interface ServerData {
 	nickName?: string;	// 暂不支持
 	tasks: UITask[];
 	notifications: Notification[];
-	ffmpegVersion: string;
+	ffmpegInfo: FFmpegInfo;
 	version?: string;
 	os?: 'Windows' | 'Linux' | 'MacOS' | 'unknown';
 	isSandboxed?: boolean;

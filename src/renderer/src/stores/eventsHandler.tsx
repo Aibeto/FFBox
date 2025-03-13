@@ -1,5 +1,5 @@
 import nodeBridge from "@renderer/bridges/nodeBridge";
-import { FFmpegProgress, Notification, Task, TaskStatus, TransferStatus, WorkingStatus } from "@common/types";
+import { FFmpegInfo, FFmpegProgress, Notification, Task, TaskStatus, TransferStatus, WorkingStatus } from "@common/types";
 import { Server, UITask } from '@renderer/types';
 import { getInitialUITask, mergeTaskFromService } from "@common/utils";
 import { dashboardTimer, overallProgressTimer } from "@renderer/common/dashboardCalc";
@@ -11,8 +11,8 @@ import { ButtonType } from "@renderer/components/Button/Button";
 
 // #region server events
 
-export function handleFFmpegVersion(server: Server, content: string) {
-    server.data.ffmpegVersion = content || '-';
+export function handleFFmpegInfo(server: Server, info: FFmpegInfo) {
+    server.data.ffmpegInfo = info;
 };
 export function handleWorkingStatusUpdate(server: Server, workingStatus: "start" | "stop" | "pause") {
     const serverData = server.data;

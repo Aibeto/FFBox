@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MenuItem } from '@renderer/components/Menu/Menu';
+import { MenuItem } from '@common/menu';
 import ControlBox from '@renderer/components/ControlBox/ControlBox.vue';
 import DropdownInput from './DropdownInput.vue';
 

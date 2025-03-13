@@ -9,8 +9,7 @@ export const defaultParams: OutputParams = {
 		end: '',
 	},
 	video: {
-		vcodec: 'HEVC',
-		vencoder: '默认',
+		vcodec: 'libx265',
 		resolution: '不改变',
 		framerate: '不改变',
 		ratecontrol: 'CRF',

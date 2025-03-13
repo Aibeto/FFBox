@@ -274,6 +274,7 @@ const showTooltip = (menuItem: MenuItem) => {
 
 // 鼠标选择、键盘 Enter，或菜单为 select 模式时键盘移动焦点时均触发此函数，向上层报告
 const handleSelect = (e: MouseEvent | KeyboardEvent, menuItem: MenuItem) => {
+	e.stopPropagation();	// 防止触发 mask 的 onCancel
 	if ('value' in menuItem) {
 		props.onSelect(e, menuItem);
 	}

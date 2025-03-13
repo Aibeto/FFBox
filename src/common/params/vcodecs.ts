@@ -1,17 +1,12 @@
 import { OutputParams_video } from "../types";
-import { strict2, MenuItem, NarrowedMenuItem, SliderOptions, Parameter, RateControl } from './types';
+import { SliderOptions, Parameter, RateControl } from './types';
+import { getMenuItemByValue, MenuItem, NarrowedMenuItem } from '@common/menu';
 
 const VALUE = Symbol()
 
-export interface VEncoder extends NarrowedMenuItem {
-	codecName: string;	// 实际传给 ffmpeg 的编码器
-	parameters?: Parameter[];
-	ratecontrol?: RateControl[];
-	strict2?: true;
-}
-export interface VCodec extends NarrowedMenuItem {
-	codecName: string;
-	encoders?: VEncoder[];
+export interface VCodecDetail {
+	rateControl: RateControl[];
+	parameters: Parameter[];
 	strict2?: true;
 }
 
@@ -19,10 +14,7 @@ const 自动: NarrowedMenuItem = {
 	type: 'normal',
 	value: '自动',
 	label: '自动',
-	tooltip: '自动',
-}
-const strict2 = {
-	strict2: true as true,
+	tooltip: '不指定，由 FFmpeg 自动选择',
 }
 
 // #region 预置码率控制模式 combo
@@ -979,1347 +971,884 @@ const rgb555le: NarrowedMenuItem = {
 
 // #endregion
 
-const 默认编码器: VEncoder = {
-	type: 'normal',
-	value: '默认',
-	label: '默认',
-	tooltip: '使用默认编码器',
-	codecName: '-',
-}
-
-const vcodecs: VCodec[] = [
+const vcodecsList: MenuItem<VCodecDetail>[] = [
 	{
 		type: 'normal',
-		value: '禁用视频',
-		label: '禁用视频',
+		value: '禁用',
+		label: '禁用',
 		tooltip: '不输出视频',
-		codecName: '-',
-		encoders: [
-			默认编码器
-		],
 	},
 	{
 		type: 'normal',
-		value: '不重新编码',
+		value: 'copy',
 		label: '不重新编码',
 		tooltip: '复制源码流，不重新编码。',
-		codecName: 'copy',
-		encoders: [
-			默认编码器
-		],
 	},
 	{
 		type: 'normal',
 		value: '自动',
 		label: '自动',
 		tooltip: '自动选择编码',
-		codecName: '-',
-		encoders: [
-			默认编码器
-		],
 	},
+	{ type: 'separator' },
 	{
-		type: 'normal',
-		value: 'AV1',
+		type: 'submenu',
 		label: 'AV1',
 		tooltip: 'AV1 - AV1 即 AOMedia Video 1 是一个开放、免专利的影片编码格式，专为通过网络进行流传输而设计。',
-		codecName: 'av1',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuv422p, yuv444p, yuv420p10le, yuv422p10le, yuv444p10le, yuv420p12le, yuv422p12le, yuv444p12le ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...crf63slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'libaom-av1',
-				label: 'libaom-av1',
+				label: '【默认】libaom-av1',
 				tooltip: '',
-				codecName: 'libaom-av1',
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuv422p, yuv444p, yuv420p10le, yuv422p10le, yuv444p10le, yuv420p12le, yuv422p12le, yuv444p12le ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...crf63slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...CRF, ...crf63slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, yuv422p, yuv444p, yuv420p10le, yuv422p10le, yuv444p10le, yuv420p12le, yuv422p12le, yuv444p12le ],
+						},
+					],
+					strict2: true,
+				}
 			},
 		],
-		...strict2
 	},
 	{
-		type: 'normal',
-		value: 'HEVC',
+		type: 'submenu',
 		label: 'HEVC (H.265)',
 		tooltip: 'HEVC - HEVC 即高效率视频编码（High Efficiency Video Coding），又称为 H.265 和 MPEG-H 第 2 部分，是一种视频压缩标准，被视为是 ITU-T H.264/MPEG-4 AVC 标准的继任者。',
-		codecName: 'hevc',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						...H264265presetSlider,
-					},
-					{
-						mode: "combo", parameter: "tune", display: "编码倾重",
-						items: [ 默认, psnr, ssim, fastdecode, zerolatency ]
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...hevcLevel ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuv422p, yuv444p, gbrp, yuv420p10le, yuv422p10le, yuv444p10le, gbrp10le, gray, gray10le ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...H264265crfSlider
-					},
-					{
-						...CQP,
-						...qp70slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'libx265',
-				label: 'libx265',
+				label: '【默认】libx265',
 				tooltip: '',
-				codecName: 'libx265',
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						...H264265presetSlider,
-					},
-					{
-						mode: "combo", parameter: "tune", display: "编码倾重",
-						items: [ 默认, psnr, ssim, fastdecode, zerolatency ]
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...hevcLevel ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuv422p, yuv444p, gbrp, yuv420p10le, yuv422p10le, yuv444p10le, gbrp10le, gray, gray10le ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...H264265crfSlider
-					},
-					{
-						...CQP,
-						...qp70slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...CRF, ...H264265crfSlider },
+						{ ...CQP, ...qp70slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							...H264265presetSlider,
+						},
+						{
+							mode: "combo", parameter: "tune", display: "编码倾重",
+							items: [ 默认, psnr, ssim, fastdecode, zerolatency ],
+						},
+						{
+							mode: "combo", parameter: "level", display: "级别",
+							items: [ ...hevcLevel ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, yuv422p, yuv444p, gbrp, yuv420p10le, yuv422p10le, yuv444p10le, gbrp10le, gray, gray10le ],
+						},	
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'hevc_qsv',
 				label: 'hevc_qsv',
 				tooltip: 'Intel 硬件加速编码器',
-				codecName: 'hevc_qsv',
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						...qsvPresetSlider,
-					},
-					{
-						mode: "combo", parameter: 'profile:v', display: '规格',
-						items: [ 自动, main, main10, mainsp ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, nv12, p010le, qsv ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CQP, cmd: ['-q', VALUE],
-						...qp51slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...CQP, ...qp51slider, cmd: ['-q', VALUE] },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							...qsvPresetSlider,
+						},
+						{
+							mode: "combo", parameter: 'profile:v', display: '规格',
+							items: [ 自动, main, main10, mainsp ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, nv12, p010le, qsv ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'hevc_nvenc',
 				label: 'hevc_nvenc',
 				tooltip: 'NVIDIA 硬件加速编码器',
-				codecName: 'hevc_nvenc',
-				parameters: [
-					{
-						mode: "combo", parameter: "preset", display: "编码质量",
-						items: [ ...nvencPreset ],
-					},
-					{
-						mode: "combo", parameter: "tune", display: "编码倾重",
-						items: [ 默认, psnr, ssim, fastdecode, zerolatency ]
-					},
-					{
-						mode: "combo", parameter: 'profile:v', display: "规格",
-						items: [ 自动, main, main10, rext ]
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...hevcLevel ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, nv12, p016le, yuv444p, p010le, yuv444p16le, bgr0, rgb0, cuda, d3d11 ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF, cmd: ['-rc', 'vbr', '-cq', VALUE],
-						...crf51slider
-					},
-					{
-						...CQP,
-						...qp51slider
-					},
-					{
-						...CBR, cmd: ['-cbr', 'true', '-b:v', VALUE],
-						...vbitrateSlider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...CRF, ...crf51slider, cmd: ['-rc', 'vbr', '-cq', VALUE] },
+						{ ...CQP, ...qp51slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "preset", display: "编码质量",
+							items: [ ...nvencPreset ],
+						},
+						{
+							mode: "combo", parameter: "tune", display: "编码倾重",
+							items: [ 默认, psnr, ssim, fastdecode, zerolatency ],
+						},
+						{
+							mode: "combo", parameter: 'profile:v', display: "规格",
+							items: [ 自动, main, main10, rext ],
+						},
+						{
+							mode: "combo", parameter: "level", display: "级别",
+							items: [ ...hevcLevel ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, nv12, p016le, yuv444p, p010le, yuv444p16le, bgr0, rgb0, cuda, d3d11 ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'hevc_amf',
 				label: 'hevc_amf',
 				tooltip: 'AMD 硬件加速编码器',
-				codecName: 'hevc_amf',
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						step: 2,
-						tags: new Map([
-							[0 / 2, 'speed'],
-							[1 / 2, 'balanced'],
-							[2 / 2, 'quality'],
-						]),
-						default: 'balanced',
-						valueToText: (value: string) => value,
-						valueProcess: (value) => {
-							return Math.round(value * 2) / 2;
-						},
-						valueToParam: (value) => value,
-						stringToNumber: (value) => {
-							return [0 / 2, 1 / 2, 2 / 2][
-								['speed', 'balanced', 'quality'].indexOf(value)
-							];
-						},
-						numberToParam: (value) => {
-							return ['speed', 'balanced', 'quality'][
-								[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-							];
-						},
-					},
-					{
-						mode: "combo", parameter: "tune", display: "编码倾重",
-						items: [
-							自动,
-							{
-								type: 'normal',
-								value: 'transcoding',
-								label: 'transcoding（默认）',
-								tooltip: '转码',
+				extra: {
+					rateControl: [
+						{ ...CQP, ...qp51slider, cmd: ['-qp_i', VALUE, '-qp_p', VALUE] },
+						{ ...CBR, cmd: ['-rc', 'cbr', '-b:v', VALUE], ...vbitrateSlider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							step: 2,
+							tags: new Map([
+								[0 / 2, 'speed'],
+								[1 / 2, 'balanced'],
+								[2 / 2, 'quality'],
+							]),
+							default: 'balanced',
+							valueToText: (value: string) => value,
+							valueProcess: (value) => {
+								return Math.round(value * 2) / 2;
 							},
-							{
-								type: 'normal',
-								value: 'ultralowlatency',
-								label: 'ultralowlatency',
-								tooltip: '超低延迟',
+							valueToParam: (value) => value,
+							stringToNumber: (value) => {
+								return [0 / 2, 1 / 2, 2 / 2][
+									['speed', 'balanced', 'quality'].indexOf(value)
+								];
 							},
-							{
-								type: 'normal',
-								value: 'webcam',
-								label: 'webcam',
-								tooltip: '网络摄像头',
+							numberToParam: (value) => {
+								return ['speed', 'balanced', 'quality'][
+									[0 / 2, 1 / 2, 2 / 2].indexOf(value)
+								];
 							},
-						]
-					},
-					{
-						mode: "combo", parameter: 'profile:v', display: "规格",
-						items: [ 自动, main, high ]
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...hevcLevel ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, nv12, d3d11, dxva2_vld ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CQP, cmd: ['-qp_i', VALUE, '-qp_p', VALUE],
-						...qp51slider
-					},
-					{
-						...CBR, cmd: ['-rc', 'cbr', '-b:v', VALUE],
-						...vbitrateSlider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+						},
+						{
+							mode: "combo", parameter: "tune", display: "编码倾重",
+							items: [
+								自动,
+								{
+									type: 'normal',
+									value: 'transcoding',
+									label: 'transcoding（默认）',
+									tooltip: '转码',
+								},
+								{
+									type: 'normal',
+									value: 'ultralowlatency',
+									label: 'ultralowlatency',
+									tooltip: '超低延迟',
+								},
+								{
+									type: 'normal',
+									value: 'webcam',
+									label: 'webcam',
+									tooltip: '网络摄像头',
+								},
+							],
+						},
+						{
+							mode: "combo", parameter: 'profile:v', display: "规格",
+							items: [ 自动, main, high ]
+						},
+						{
+							mode: "combo", parameter: "level", display: "级别",
+							items: [ ...hevcLevel ]
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, nv12, d3d11, dxva2_vld ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'hevc_videotoolbox',
 				label: 'hevc_videotoolbox',
 				tooltip: '苹果硬件加速编码器',
-				codecName: 'hevc_videotoolbox',
-				parameters: [
-					{
-						mode: "combo", parameter: 'profile:v', display: "规格",
-						items: [ 自动, main, main10 ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, videotoolbox_vld, nv12, yuv420p, bgra, p010le ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: 'profile:v', display: "规格",
+							items: [ 自动, main, main10 ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, videotoolbox_vld, nv12, yuv420p, bgra, p010le ],
+						},
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'H.264',
+		type: 'submenu',
 		label: 'H.264 (AVC)',
 		tooltip: 'H.264 - H.264 又称为 MPEG-4 第 10 部分，高级视频编码（MPEG-4 Part 10, Advanced Video Coding，缩写为 MPEG-4 AVC）是一种面向块，基于运动补偿的视频编码标准。到 2014 年，它已经成为高精度视频录制、压缩和发布的最常用格式之一。',
-		codecName: 'h264',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						...H264265presetSlider,
-					},
-					{
-						mode: "combo", parameter: "tune", display: "编码倾重",
-						items: [ 默认, film, animation, grain, stillimage, psnr, ssim, fastdecode, zerolatency ]
-					},
-					{
-						mode: "combo", parameter: 'profile:v', display: "规格",
-						items: [ 自动, baseline, main, high, high422, high444 ]
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...h264Level ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuvj420p, yuv422p, yuvj422p, yuv444p, yuvj444p, nv12, nv16, nv21, yuv420p10le, yuv422p10le, yuv444p10le, nv20le, gray, gray10le ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...H264265crfSlider
-					},
-					{
-						...CQP,
-						...qp70slider
-					},
-					{
-						...CBR, cmd: ['-b:v', VALUE, '-minrate', VALUE, '-maxrate', VALUE],
-						...vbitrateSlider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'libx264',
-				label: 'libx264',
+				label: '【默认】libx264',
 				tooltip: '',
-				codecName: 'libx264',
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						...H264265presetSlider,
-					},
-					{
-						mode: "combo", parameter: "tune", display: "编码倾重",
-						items: [ 默认, film, animation, grain, stillimage, psnr, ssim, fastdecode, zerolatency ]
-					},
-					{
-						mode: "combo", parameter: 'profile:v', display: "规格",
-						items: [ 自动, baseline, main, high, high422, high444 ]
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...h264Level ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuvj420p, yuv422p, yuvj422p, yuv444p, yuvj444p, nv12, nv16, nv21, yuv420p10le, yuv422p10le, yuv444p10le, nv20le, gray, gray10le ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...H264265crfSlider
-					},
-					{
-						...CQP,
-						...qp70slider
-					},
-					{
-						...CBR, cmd: ['-b:v', VALUE, '-minrate', VALUE, '-maxrate', VALUE],
-						...vbitrateSlider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...CRF, ...H264265crfSlider },
+						{ ...CQP, ...qp70slider },
+						{ ...CBR, cmd: ['-b:v', VALUE, '-minrate', VALUE, '-maxrate', VALUE], ...vbitrateSlider },	
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							...H264265presetSlider,
+						},
+						{
+							mode: "combo", parameter: "tune", display: "编码倾重",
+							items: [ 默认, film, animation, grain, stillimage, psnr, ssim, fastdecode, zerolatency ],
+						},
+						{
+							mode: "combo", parameter: 'profile:v', display: "规格",
+							items: [ 自动, baseline, main, high, high422, high444 ],
+						},
+						{
+							mode: "combo", parameter: "level", display: "级别",
+							items: [ ...h264Level ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, yuvj420p, yuv422p, yuvj422p, yuv444p, yuvj444p, nv12, nv16, nv21, yuv420p10le, yuv422p10le, yuv444p10le, nv20le, gray, gray10le ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'libx264rgb',
 				label: 'libx264rgb',
 				tooltip: '',
-				codecName: 'libx264rgb',
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						...H264265presetSlider,
-					},
-					{
-						mode: "combo", parameter: "tune", display: "编码倾重",
-						items: [ 默认, film, animation, grain, stillimage, psnr, ssim, fastdecode, zerolatency ]
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...h264Level ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, bgr0, bgr24, rgb24 ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...H264265crfSlider
-					},
-					{
-						...CQP,
-						...qp70slider
-					},
-					{
-						...CBR, cmd: ['-b:v', VALUE, '-minrate', VALUE, '-maxrate', VALUE],
-						...vbitrateSlider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...CRF, ...H264265crfSlider },
+						{ ...CQP, ...qp70slider },
+						{ ...CBR, cmd: ['-b:v', VALUE, '-minrate', VALUE, '-maxrate', VALUE], ...vbitrateSlider },	
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							...H264265presetSlider,
+						},
+						{
+							mode: "combo", parameter: "tune", display: "编码倾重",
+							items: [ 默认, film, animation, grain, stillimage, psnr, ssim, fastdecode, zerolatency ],
+						},
+						{
+							mode: "combo", parameter: "level", display: "级别",
+							items: [ ...h264Level ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, bgr0, bgr24, rgb24 ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'h264_qsv',
 				label: 'h264_qsv',
 				tooltip: 'Intel 硬件加速编码器',
-				codecName: 'h264_qsv',
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						...qsvPresetSlider,
-					},
-					{
-						mode: "combo", parameter: 'profile:v', display: '规格',
-						items: [ 自动, baseline, main, high ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, nv12, p010le, qsv ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CQP, cmd: ['-q', VALUE],
-						...qp51slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...CQP, ...qp51slider, cmd: ['-q', VALUE] },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							...qsvPresetSlider,
+						},
+						{
+							mode: "combo", parameter: 'profile:v', display: '规格',
+							items: [ 自动, baseline, main, high ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, nv12, p010le, qsv ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'h264_nvenc',
 				label: 'h264_nvenc',
 				tooltip: 'NVIDIA 硬件加速编码器',
-				codecName: 'h264_nvenc',
-				parameters: [
-					{
-						mode: "combo", parameter: "preset", display: "编码质量",
-						items: [ ...nvencPreset ],
-					},
-					{
-						mode: "combo", parameter: "tune", display: "编码倾重",
-						items: [ 默认, psnr, ssim, fastdecode, zerolatency ]
-					},
-					{
-						mode: "combo", parameter: 'profile:v', display: "规格",
-						items: [ 自动, baseline, main, high, high444p ]
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...h264Level ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, nv12, p016le, yuv444p, p010le, yuv444p16le, bgr0, rgb0, cuda, d3d11 ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF, cmd: ['-rc', 'vbr', '-cq', VALUE],
-						...crf51slider
-					},
-					{
-						...CQP,
-						...qp51slider
-					},
-					{
-						...CBR, cmd: ['-cbr', 'true', '-b:v', VALUE],
-						...vbitrateSlider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...CRF, ...crf51slider, cmd: ['-rc', 'vbr', '-cq', VALUE] },
+						{ ...CQP, ...qp51slider },
+						{ ...CBR, cmd: ['-cbr', 'true', '-b:v', VALUE], ...vbitrateSlider },	
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "preset", display: "编码质量",
+							items: [ ...nvencPreset ],
+						},
+						{
+							mode: "combo", parameter: "tune", display: "编码倾重",
+							items: [ 默认, psnr, ssim, fastdecode, zerolatency ],
+						},
+						{
+							mode: "combo", parameter: 'profile:v', display: "规格",
+							items: [ 自动, baseline, main, high, high444p ],
+						},
+						{
+							mode: "combo", parameter: "level", display: "级别",
+							items: [ ...h264Level ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, nv12, p016le, yuv444p, p010le, yuv444p16le, bgr0, rgb0, cuda, d3d11 ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'h264_amf',
 				label: 'h264_amf',
 				tooltip: 'AMD 硬件加速编码器',
-				codecName: 'h264_amf',
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						step: 2,
-						tags: new Map([
-							[0 / 2, 'speed'],
-							[1 / 2, 'balanced'],
-							[2 / 2, 'quality'],
-						]),
-						default: 'balanced',
-						valueToText: (value: string) => value,
-						valueProcess: (value) => {
-							return Math.round(value * 2) / 2;
-						},
-						valueToParam: (value) => value,
-						stringToNumber: (value) => {
-							return [0 / 2, 1 / 2, 2 / 2][
-								['speed', 'balanced', 'quality'].indexOf(value)
-							];
-						},
-						numberToParam: (value) => {
-							return ['speed', 'balanced', 'quality'][
-								[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-							];
-						},
-					},
-					{
-						mode: "combo", parameter: "tune", display: "编码倾重",
-						items: [
-							{
-								type: 'normal',
-								value: 'transcoding',
-								label: 'transcoding（默认）',
-								tooltip: '转码',
+				extra: {
+					rateControl: [
+						{ ...CQP, ...qp51slider, cmd: ['-qp_i', VALUE, '-qp_p', VALUE] },
+						{ ...CBR, cmd: ['-rc', 'cbr', '-b:v', VALUE], ...vbitrateSlider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							step: 2,
+							tags: new Map([
+								[0 / 2, 'speed'],
+								[1 / 2, 'balanced'],
+								[2 / 2, 'quality'],
+							]),
+							default: 'balanced',
+							valueToText: (value: string) => value,
+							valueProcess: (value) => {
+								return Math.round(value * 2) / 2;
 							},
-							{
-								type: 'normal',
-								value: 'ultralowlatency',
-								label: 'ultralowlatency',
-								tooltip: '超低延迟',
+							valueToParam: (value) => value,
+							stringToNumber: (value) => {
+								return [0 / 2, 1 / 2, 2 / 2][
+									['speed', 'balanced', 'quality'].indexOf(value)
+								];
 							},
-							{
-								type: 'normal',
-								value: 'webcam',
-								label: 'webcam',
-								tooltip: '网络摄像头',
+							numberToParam: (value) => {
+								return ['speed', 'balanced', 'quality'][
+									[0 / 2, 1 / 2, 2 / 2].indexOf(value)
+								];
 							},
-						]
-					},
-					{
-						mode: "combo", parameter: 'profile:v', display: "规格",
-						items: [ 自动, main, high, constrained_baseline, constrained_high ]
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...h264Level ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, nv12, d3d11, dxva2_vld ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CQP, cmd: ['-qp_i', VALUE, '-qp_p', VALUE],
-						...qp51slider
-					},
-					{
-						...CBR, cmd: ['-rc', 'cbr', '-b:v', VALUE],
-						...vbitrateSlider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+						},
+						{
+							mode: "combo", parameter: "tune", display: "编码倾重",
+							items: [
+								{
+									type: 'normal',
+									value: 'transcoding',
+									label: 'transcoding（默认）',
+									tooltip: '转码',
+								},
+								{
+									type: 'normal',
+									value: 'ultralowlatency',
+									label: 'ultralowlatency',
+									tooltip: '超低延迟',
+								},
+								{
+									type: 'normal',
+									value: 'webcam',
+									label: 'webcam',
+									tooltip: '网络摄像头',
+								},
+							],
+						},
+						{
+							mode: "combo", parameter: 'profile:v', display: "规格",
+							items: [ 自动, main, high, constrained_baseline, constrained_high ],
+						},
+						{
+							mode: "combo", parameter: "level", display: "级别",
+							items: [ ...h264Level ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, nv12, d3d11, dxva2_vld ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'h264_videotoolbox',
 				label: 'h264_videotoolbox',
 				tooltip: '苹果硬件加速编码器',
-				codecName: 'h264_videotoolbox',
-				parameters: [
-					{
-						mode: "combo", parameter: 'profile:v', display: "规格",
-						items: [ 自动, baseline, main, main10, extended ],
-					},
-					{
-						mode: "combo", parameter: "level", display: "级别",
-						items: [ ...h264Level ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, videotoolbox_vld, nv12, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: 'profile:v', display: "规格",
+							items: [ 自动, baseline, main, main10, extended ],
+						},
+						{
+							mode: "combo", parameter: "level", display: "级别",
+							items: [ ...h264Level ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, videotoolbox_vld, nv12, yuv420p ],
+						},
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'H.263',
-		label: 'H.263',
-		tooltip: 'H.263 - H.263 是由 ITU-T 用于视频会议的低码率影像编码标准，属于影像编解码器。',
-		codecName: 'h263p',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			}
-		]
-	},
-	{
-		type: 'normal',
-		value: 'H.261',
-		label: 'H.261',
-		tooltip: 'H.261 - H.261 是 1990 年ITU-T 制定的一个影片编码标准，属于影片编解码器。',
-		codecName: 'h261',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			}
-		]
-	},
-	{
-		type: 'normal',
-		value: 'VP9',
+		type: 'submenu',
 		label: 'VP9',
 		tooltip: 'VP9 - VP9 是谷歌公司为了替换老旧的 VP8 影像编码格式并与动态专家图像组（MPEG）主导的高效率视频编码（H.265/HEVC）竞争所开发的免费、开源的影像编码格式。',
-		codecName: 'vp9',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						step: 2,
-						tags: new Map([
-							[0 / 2, 'realtime'],
-							[1 / 2, 'good'],
-							[2 / 2, 'best'],
-						]),
-						default: 'balanced',
-						valueToText: (value: string) => value,
-						valueProcess: (value) => {
-							return Math.round(value * 2) / 2;
-						},
-						valueToParam: (value) => value,
-						stringToNumber: (value) => {
-							return [0 / 2, 1 / 2, 2 / 2][
-								['realtime', 'good', 'best'].indexOf(value)
-							];
-						},
-						numberToParam: (value) => {
-							return ['realtime', 'good', 'best'][
-								[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-							];
-						},
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuv422p, yuv440p, yuv444p, yuv420p10le, yuv422p10le, yuv440p10le, yuv444p10le, yuv420p12le, yuv422p12le, yuv440p12le, yuv444p12le, gbrp, gbrp10le, gbrp12le ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...crf63slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'libvpx-vp9',
-				label: 'libvpx-vp9',
+				label: '【默认】libvpx-vp9',
 				tooltip: '',
-				codecName: 'libvpx-vp9',		
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						step: 2,
-						tags: new Map([
-							[0 / 2, 'realtime'],
-							[1 / 2, 'good'],
-							[2 / 2, 'best'],
-						]),
-						default: 'balanced',
-						valueToText: (value: string) => value,
-						valueProcess: (value) => {
-							return Math.round(value * 2) / 2;
+				extra: {
+					rateControl: [
+						{ ...CRF, ...crf63slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							step: 2,
+							tags: new Map([
+								[0 / 2, 'realtime'],
+								[1 / 2, 'good'],
+								[2 / 2, 'best'],
+							]),
+							default: 'balanced',
+							valueToText: (value: string) => value,
+							valueProcess: (value) => {
+								return Math.round(value * 2) / 2;
+							},
+							valueToParam: (value) => value,
+							stringToNumber: (value) => {
+								return [0 / 2, 1 / 2, 2 / 2][
+									['realtime', 'good', 'best'].indexOf(value)
+								];
+							},
+							numberToParam: (value) => {
+								return ['realtime', 'good', 'best'][
+									[0 / 2, 1 / 2, 2 / 2].indexOf(value)
+								];
+							},
 						},
-						valueToParam: (value) => value,
-						stringToNumber: (value) => {
-							return [0 / 2, 1 / 2, 2 / 2][
-								['realtime', 'good', 'best'].indexOf(value)
-							];
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, yuv422p, yuv440p, yuv444p, yuv420p10le, yuv422p10le, yuv440p10le, yuv444p10le, yuv420p12le, yuv422p12le, yuv440p12le, yuv444p12le, gbrp, gbrp10le, gbrp12le ],
 						},
-						numberToParam: (value) => {
-							return ['realtime', 'good', 'best'][
-								[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-							];
-						},
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuv422p, yuv440p, yuv444p, yuv420p10le, yuv422p10le, yuv440p10le, yuv444p10le, yuv420p12le, yuv422p12le, yuv440p12le, yuv444p12le, gbrp, gbrp10le, gbrp12le ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...crf63slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'VP8',
+		type: 'submenu',
 		label: 'VP8',
 		tooltip: 'VP8 - VP8 是一个由 On2 Technologies 开发并由 Google 发布的开放的影像压缩格式。',
-		codecName: 'vp8',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						step: 2,
-						tags: new Map([
-							[0 / 2, 'realtime'],
-							[1 / 2, 'good'],
-							[2 / 2, 'best'],
-						]),
-						default: 'balanced',
-						valueToText: (value: string) => value,
-						valueProcess: (value) => {
-							return Math.round(value * 2) / 2;
-						},
-						valueToParam: (value) => value,
-						stringToNumber: (value) => {
-							return [0 / 2, 1 / 2, 2 / 2][
-								['realtime', 'good', 'best'].indexOf(value)
-							];
-						},
-						numberToParam: (value) => {
-							return ['realtime', 'good', 'best'][
-								[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-							];
-						},
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuva420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...crf63slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'libvpx',
-				label: 'libvpx',
+				label: '【默认】libvpx',
 				tooltip: '',
-				codecName: 'libvpx',		
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						step: 2,
-						tags: new Map([
-							[0 / 2, 'realtime'],
-							[1 / 2, 'good'],
-							[2 / 2, 'best'],
-						]),
-						default: 'balanced',
-						valueToText: (value: string) => value,
-						valueProcess: (value) => {
-							return Math.round(value * 2) / 2;
+				extra: {
+					rateControl: [
+						{ ...CRF, ...crf63slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							step: 2,
+							tags: new Map([
+								[0 / 2, 'realtime'],
+								[1 / 2, 'good'],
+								[2 / 2, 'best'],
+							]),
+							default: 'balanced',
+							valueToText: (value: string) => value,
+							valueProcess: (value) => {
+								return Math.round(value * 2) / 2;
+							},
+							valueToParam: (value) => value,
+							stringToNumber: (value) => {
+								return [0 / 2, 1 / 2, 2 / 2][
+									['realtime', 'good', 'best'].indexOf(value)
+								];
+							},
+							numberToParam: (value) => {
+								return ['realtime', 'good', 'best'][
+									[0 / 2, 1 / 2, 2 / 2].indexOf(value)
+								];
+							},
 						},
-						valueToParam: (value) => value,
-						stringToNumber: (value) => {
-							return [0 / 2, 1 / 2, 2 / 2][
-								['realtime', 'good', 'best'].indexOf(value)
-							];
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, yuva420p ],
 						},
-						numberToParam: (value) => {
-							return ['realtime', 'good', 'best'][
-								[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-							];
-						},
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuva420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CRF,
-						...crf63slider
-					},
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'MPEG-4',
+		type: 'submenu',
 		label: 'MPEG-4 (Part 2)',
 		tooltip: 'MPEG-4 Part 2 - MPEG-4 是一套用于音频、视频信息的压缩编码标准，由国际标准化组织（ISO）和国际电工委员会（IEC）下属的“动态影像专家组”（Moving Picture Experts Group，即 MPEG）制定。该标准的第二部分为视频编解码器。',
-		codecName: 'mpeg4',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'mpeg4',
-				label: 'mpeg4',
+				label: '【默认】mpeg4',
 				tooltip: '',
-				codecName: 'mpeg4',
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'libxvid',
 				label: 'libxvid',
 				tooltip: '',
-				codecName: 'libxvid',
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p ],
+						},
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'MPEG-2',
+		type: 'submenu',
 		label: 'MPEG-2 (Part 2)',
 		tooltip: 'MPEG-2 Part 2 - MPEG-2 是 MPEG 工作组于 1994 年发布的视频和音频压缩国际标准。MPEG-2 通常用来为广播信号提供视频和音频编码，包括卫星电视、有线电视等。MPEG-2 经过少量修改后，也成为 DVD 产品的核心技术。',
-		codecName: 'mpeg2video',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuv422p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'mpeg2video',
-				label: 'mpeg2video',
+				label: '【默认】mpeg2video',
 				tooltip: '',
-				codecName: 'mpeg2video',
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuv422p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, yuv422p ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'mpeg2_qsv',
 				label: 'mpeg2_qsv',
-				tooltip: 'Intel 硬件加速编码器',
-				codecName: 'mpeg2_qsv',
-				parameters: [
-					{
-						mode: "slider", parameter: "preset", display: "编码质量",
-						...qsvPresetSlider,
-					},
-					{
-						mode: "combo", parameter: 'profile:v', display: '规格',
-						items: [ 自动, main, main10, mainsp ]
-					},
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, nv12, qsv ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							...qsvPresetSlider,
+						},
+						{
+							mode: "combo", parameter: 'profile:v', display: '规格',
+							items: [ 自动, main, main10, mainsp ],
+						},
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, nv12, qsv ],
+						},
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'MPEG-1',
+		type: 'submenu',
 		label: 'MPEG-1',
 		tooltip: 'MPEG-1 - MPEG-1 是 MPEG 组织制定的第一个视频和音频有损压缩标准，也是最早推出及应用在市场上的 MPEG 技术。它采用了块方式的运动补偿、离散余弦变换（DCT）、量化等技术，并为 1.2Mbps 传输速率进行了优化，被 Video CD 采用作为核心技术。',
-		codecName: 'mpeg1video',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p, yuv422p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				type: 'normal',
+				value: 'mpeg1video',
+				label: '【默认】mpeg1video',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, yuv422p ],
+						},
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'MJPEG',
+		type: 'submenu',
 		label: 'MJPEG',
 		tooltip: 'MJPEG - MJPEG 即 Motion JPEG（Motion Joint Photographic Experts Group）是一种影像压缩格式，其中每一帧图像都分别使用 JPEG 编码。',
-		codecName: 'mjpeg',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuvj420p, yuvj422p, yuvj444p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'mjpeg',
-				label: 'mjpeg',
+				label: '【默认】mjpeg',
 				tooltip: '',
-				codecName: 'mjpeg',	
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuvj420p, yuvj422p, yuvj444p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuvj420p, yuvj422p, yuvj444p ],
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'mjpeg_qsv',
 				label: 'mjpeg_qsv',
-				tooltip: 'INTEL 硬件加速编码器',
-				codecName: 'mjpeg_qsv',
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, nv12, qsv ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-				]
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, nv12, qsv ],
+						},
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'WMV2',
+		type: 'submenu',
 		label: 'WMV2 (WMV v8)',
 		tooltip: 'WMV2 - WMV（Windows Media Video）是微软公司开发的一组数字影片编解码格式的通称，它是 Windows Media 架构下的一部分。WMV2 即 Windows Media Video v8',
-		codecName: 'wmv2',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			}
-		]
+				type: 'normal',
+				value: 'wmv2',
+				label: '【默认】wmv2',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuvj420p ],
+						},
+					],
+				},
+			},
+		],
 	},
 	{
-		type: 'normal',
-		value: 'WMV1',
+		type: 'submenu',
 		label: 'WMV1 (WMV v7)',
 		tooltip: 'WMV1 - WMV（Windows Media Video）是微软公司开发的一组数字影片编解码格式的通称，它是 Windows Media 架构下的一部分。WMV1 即 Windows Media Video v7',
-		codecName: 'wmv1',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			}
-		]
+				type: 'normal',
+				value: 'wmv2',
+				label: '【默认】wmv2',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuvj420p ],
+						},
+					],
+				},
+			},
+		],
 	},
 	{
-		type: 'normal',
-		value: 'RV20',
+		type: 'submenu',
 		label: 'RV20',
 		tooltip: 'RV20 - RealVideo 是由 RealNetworks 于 1997 年所开发的一种专用视频压缩格式。RV20 使用 H.263 编码器。',
-		codecName: 'rv20',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			}
-		]
+				type: 'normal',
+				value: 'rv20',
+				label: '【默认】rv20',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuvj420p ],
+						},
+					],
+				},
+			},
+		],
 	},
 	{
-		type: 'normal',
-		value: 'RV10',
+		type: 'submenu',
 		label: 'RV10',
 		tooltip: 'RV10 - RealVideo 是由 RealNetworks 于 1997 年所开发的一种专用视频压缩格式。RV10 使用 H.263 编码器。',
-		codecName: 'rv10',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, yuv420p ]
-					},
-				],
-				ratecontrol: [
-					{
-						...ABR,
-						...vbitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			}
-		]
+				type: 'normal',
+				value: 'rv20',
+				label: '【默认】rv20',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuvj420p ],
+						},
+					],
+				},
+			},
+		],
 	},
 	{
-		type: 'normal',
-		value: 'msvideo1',
+		type: 'submenu',
 		label: 'Microsoft Video 1',
 		tooltip: 'Microsoft Video 1 - Microsoft Video 1 is a vector quantizer video codec with frame differencing that operates in either a palettized 8-bit color space or a 16-bit RGB color space.',
-		codecName: 'msvideo1',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "pix_fmt", display: "像素格式",
-						items: [ 自动, rgb555le ]
-					},
-				],
-				ratecontrol: []
-			}
-		]
+				type: 'normal',
+				value: 'rv20',
+				label: '【默认】rv20',
+				tooltip: '',
+				extra: {
+					rateControl: [],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, rgb555le ],
+						},
+					],
+				},
+			},
+		],
 	},
-]
+	{ type: 'separator' },
+	{
+		type: 'submenu',
+		label: '全部可用编码',
+		subMenu: [
+			{
+				type: 'normal',
+				value: 'fetchFromService',
+				label: '获取服务器可用编码器',
+				onClick: () => alert('hello'),
+			}
+		],
+	}
+];
 
 // https://zh.wikipedia.org/wiki/显示分辨率列表
 const resolution: MenuItem[] = [
@@ -2477,29 +2006,21 @@ const generator = {
 		const ret = [];
 		let strict2 = false;
 		let flags = '';
-		if (videoParams.vcodec === '禁用视频') {
+		if (videoParams.vcodec === '禁用') {
 			ret.push('-vn');
-		} else if (videoParams.vcodec === '不重新编码') {
+		} else if (videoParams.vcodec === 'copy') {
 			ret.push('-vcodec');
 			ret.push('copy');
 		} else if (videoParams.vcodec !== '自动') {
-			const vcodec = vcodecs.find((item) => item.value == videoParams.vcodec);
-			const vencoder = vcodec?.encoders.find((item) => item.value == videoParams.vencoder);
-			if (vcodec && vencoder) {
-				// 不是用户手动填的 vcodec 和 vencoder
-				if (videoParams.vencoder === "默认") {
-					// 使用默认编码器，返回 vcodec.codecName
-					ret.push('-vcodec');
-					ret.push(vcodec.codecName);
-				} else {
-					// 使用特定编码器，返回 vcodev.encoder[].codecName
-					ret.push('-vcodec');
-					ret.push(vencoder.codecName);
-				}
-				if (vcodec.strict2 || vencoder.strict2) {
+			const vcodecItem = getMenuItemByValue(vcodecsList, videoParams.vcodec) as any;
+			const vcodecDetail = (vcodecItem?.extra) as VCodecDetail;
+			ret.push('-vcodec');
+			ret.push(videoParams.vcodec);
+			if (vcodecDetail) {
+				if (vcodecDetail.strict2) {
 					strict2 = true;
 				}
-				for (const parameter of vencoder.parameters || []) {
+				for (const parameter of vcodecDetail.parameters || []) {
 					// 逐个遍历详细参数
 					if (parameter.mode === 'combo') {
 						if (videoParams.detail[parameter.parameter] != '默认' && videoParams.detail[parameter.parameter] != '自动') {
@@ -2522,7 +2043,7 @@ const generator = {
 								// ret.push('-threads')
 								// ret.push('1')
 								// 调试用↑
-				const ratecontrol = (vencoder.ratecontrol || []).find((item) => item.value === videoParams.ratecontrol);
+				const ratecontrol = (vcodecDetail.rateControl || []).find((item) => item.value === videoParams.ratecontrol);
 				if (ratecontrol) {
 					// 计算值
 					const floatValue = videoParams.ratevalue;
@@ -2560,14 +2081,6 @@ const generator = {
 					ret.push('-flags:v');
 					ret.push(flags);
 				}
-			} else if (vcodec) {
-				// 用户手动填入的 vencoder
-				ret.push('-vcodec');
-				ret.push(videoParams.vencoder);
-			} else {
-				// 用户手动填入的 vcodec
-				ret.push('-vcodec');
-				ret.push(videoParams.vcodec);
 			}
 		} // 如果编码为自动，则不设置 vcodec 参数，返回空 Array
 		if (videoParams.custom) {
@@ -2581,24 +2094,17 @@ const generator = {
 			mode: '-',
 			value: '-'
 		};
-		if (videoParams.vcodec == '禁用视频' || videoParams.vcodec == '不重新编码' || videoParams.vcodec == '自动') {
+		if (videoParams.vcodec == '禁用' || videoParams.vcodec == 'copy' || videoParams.vcodec == '自动') {
 			return ret;
 		} else {
-			const vcodec = vcodecs.find((item) => {
-				return item.value == videoParams.vcodec;
-			});
-			if (!vcodec) {
-				return ret;
-			}
-			const vencoder = vcodec.encoders.find((item) => {
-				return item.value == videoParams.vencoder;
-			});
-			if (!vencoder || vencoder.ratecontrol == null) {
+			const vcodecItem = getMenuItemByValue(vcodecsList, videoParams.vcodec) as any;
+			const vcodecDetail = (vcodecItem?.extra) as VCodecDetail;
+			if (!vcodecDetail || !vcodecDetail.rateControl?.length) {
 				return ret;
 			}
 			// 找到 ratecontrol 参数
-			const ratecontrol = vencoder.ratecontrol.find((item) => {
-				return item.value == videoParams.ratecontrol
+			const ratecontrol = vcodecDetail.rateControl.find((item) => {
+				return item.value == videoParams.ratecontrol;
 			})
 			if (ratecontrol != null) {
 				// 计算值
@@ -2632,13 +2138,10 @@ const generator = {
 						}
 					}
 				})();
-				ret = {
-					mode: ratecontrol.value,
-					value
-				};
+				ret = { mode: ratecontrol.value, value };
 			}
 			return ret;
 		}
 	}
 }
-export { vcodecs, resolution, framerate, generator }
+export { vcodecsList, resolution, framerate, generator }

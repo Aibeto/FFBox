@@ -1,5 +1,6 @@
 import { computed, FunctionalComponent } from 'vue';
-import { vcodecs, resolution, framerate } from '@common/params/vcodecs';
+import { vcodecsList, resolution, framerate, VCodecDetail } from '@common/params/vcodecs';
+import { getMenuItemByValue } from '@common/menu';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -12,53 +13,42 @@ interface Props {}
 const VcodecView: FunctionalComponent<Props> = (props) => {
 	const appStore = useAppStore();
 
-	// vencoderList 中的项由 vcodec 具体决定
-	const vencodersList = computed(() => {
-		const sName_vcodec = appStore.globalParams.video.vcodec;
-		if (sName_vcodec !== '禁用视频' && sName_vcodec !== '自动' && sName_vcodec !== '不重新编码') {
-			const vcodec = vcodecs.find((codec) => codec.value == sName_vcodec);
-			return vcodec?.encoders || [];
-		} else {
-			return []
-		}
-	});
-	const rateControlsList = computed(() => {
-		const sName_vencoder = appStore.globalParams.video.vencoder;
-		const vencoder = vencodersList.value.find((encoder) => encoder.value == sName_vencoder);
-		return vencoder?.ratecontrol || [];
+	const vcodec = computed(() => {
+		const vcodecName = appStore.globalParams.video.vcodec;
+		return (getMenuItemByValue(vcodecsList, vcodecName) as any)?.extra as VCodecDetail;
 	});
 	// 根据当前选择的码率控制器显示具体使用何种 slider
-	const ratecontrolSlider = computed(() => {
-		const rList = rateControlsList.value;
+	const rateControlSlider = computed(() => {
+		const rList = vcodec.value?.rateControl || [];
 		if (!rList.length) {
 			return null;
 		}
-		const sName_ratecontrol = appStore.globalParams.video.ratecontrol
-		let index = rList.findIndex((item) => item.value === sName_ratecontrol);
+		const rateControlName = appStore.globalParams.video.ratecontrol;
+		let index = rList.findIndex((item) => item.value === rateControlName);
 		// 切换编码器后没有原来的码率控制模式了
 		if (index == -1) {
-			index = 0
+			index = 0;
 			appStore.globalParams.video.ratecontrol = rList[0].value;
 			appStore.applyParameters();
 		}
 		const slider = rList[index];
-		let display;
+		let title;
 		switch (slider.value) {
 			case 'CRF':
-				display = 'CRF'
+				title = 'CRF'
 				break;
 			case 'CQP':
-				display = 'QP 参数'
+				title = 'QP 参数'
 				break;
 			case 'CBR': case 'ABR':
-				display = '码率'
+				title = '码率'
 				break;
 			case 'Q':
-				display = '质量参数'
+				title = '质量参数'
 				break;
 		}
 		return {
-			display, 
+			title, 
 			parameter: 'ratevalue',
 			step: slider.step,
 			tags: slider.tags,
@@ -68,31 +58,23 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 			stringToNumber: slider.stringToNumber,
 		};
 	});
-	const parametersList = computed(() => {
-		const sName_vencoder = appStore.globalParams.video.vencoder;
-		const vencoder = vencodersList.value.find((item) => item.value == sName_vencoder);
-		return vencoder?.parameters || [];
-	});
 
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
 		appStore.globalParams.video[sName] = value;
 		appStore.applyParameters();
 		if (sName == 'vcodec') {
-			// 更改 vcodec 后将 vencoder 恢复为默认
-			appStore.globalParams.video[sName] = value;
-			appStore.applyParameters();
-		}
-		if (sName == 'vencoder' || sName == 'vcodec') {
-			// 更改 vcodec 或 vencoder 后检查子组件的设置
-			for (const parameter of parametersList.value) {
+			// 更改 vcodec 后检查子组件的设置
+			for (const parameter of (vcodec.value?.parameters || [])) {
 				if (parameter.mode === 'combo') {
-					console.log(`参数 ${parameter.parameter} 重置为默认值或首项`);
-					appStore.globalParams.video.detail[parameter.parameter] = parameter.default ?? parameter.items[0].value;
+					const defaultValue = parameter.default ?? parameter.items[0].value;
+					console.log(`参数 ${parameter.parameter} 重置为默认值或首项：${defaultValue}`);
+					appStore.globalParams.video.detail[parameter.parameter] = defaultValue;
 					appStore.applyParameters();
 				} else if (parameter.mode == 'slider') {
-					console.log(`参数 ${parameter.parameter} 重置为默认值或 0.5`);
-					appStore.globalParams.video.detail[parameter.parameter] = parameter.default ?? 0.5;
+					const defaultValue = parameter.default ?? 0.5;
+					console.log(`参数 ${parameter.parameter} 重置为默认值或 0.5：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
+					appStore.globalParams.video.detail[parameter.parameter] = defaultValue;
 					appStore.applyParameters();
 				}
 			}
@@ -105,29 +87,26 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 	};
 	return (
 		<div class={style.container}>
-			<BoxedDropdownInput title="视频编码" text={appStore.globalParams.video.vcodec} list={vcodecs} onChange={(value: string) => handleChange('vcodec', value)} />
-			{['禁用视频', '不重新编码'].indexOf(appStore.globalParams.video.vcodec) === -1 && (
+			<BoxedDropdownInput title="视频编码器" text={appStore.globalParams.video.vcodec} list={vcodecsList} onChange={(value: string) => handleChange('vcodec', value)} />
+			{['禁用', 'copy'].indexOf(appStore.globalParams.video.vcodec) === -1 && (
 				<>
-					{appStore.globalParams.video.vcodec !== '自动' && (
-						<BoxedDropdownInput title="编码器" text={appStore.globalParams.video.vencoder} list={vencodersList.value} onChange={(value: string) => handleChange('vencoder', value)} />
-					)}
 					<BoxedDropdownInput title="分辨率" text={appStore.globalParams.video.resolution} list={resolution} onChange={(value: string) => handleChange('resolution', value)} />
 					<BoxedDropdownInput title="输出帧速" text={appStore.globalParams.video.framerate} list={framerate} validator={framerateValidator} onChange={(value: string) => handleChange('framerate', value)} />
-					{rateControlsList.value.length ? (
-						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.video.ratecontrol} list={rateControlsList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
+					{(vcodec.value?.rateControl || []).length ? (
+						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.video.ratecontrol} list={vcodec.value.rateControl} onChange={(value: string) => handleChange('ratecontrol', value)} />
 					) : null}
-					{ratecontrolSlider.value && (
+					{rateControlSlider.value && (
 						<BoxedSlider
-							title={ratecontrolSlider.value.display} 
+							title={rateControlSlider.value.title} 
 							value={appStore.globalParams.video.ratevalue}
-							tags={ratecontrolSlider.value.tags}
-							step={ratecontrolSlider.value.step}
-							valueToText={ratecontrolSlider.value.valueToText}
-							valueProcess={ratecontrolSlider.value.valueProcess}
+							tags={rateControlSlider.value.tags}
+							step={rateControlSlider.value.step}
+							valueToText={rateControlSlider.value.valueToText}
+							valueProcess={rateControlSlider.value.valueProcess}
 							onChange={(value: number) => handleChange('ratevalue', value)}
 						/>
 					)}
-					{parametersList.value.map((parameter) => {
+					{(vcodec.value?.parameters || []).map((parameter) => {
 						if (parameter.mode === 'slider') {
 							return (
 								<BoxedSlider
