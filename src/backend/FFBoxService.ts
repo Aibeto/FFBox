@@ -4,14 +4,16 @@ import os from 'os';
 import fs from 'fs';
 import fsPromise from 'fs/promises';
 import path from 'path';
-import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo } from '@common/types';
+import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail } from '@common/types';
 import { getFFmpegParaArray, getFFmpegParaArrayOutputPath } from '@common/getFFmpegParaArray';
 import { generator as fGenerator } from '@common/params/formats';
 import { defaultParams } from '@common/defaultParams';
 import localConfig from '@common/localConfig';
+import { parseFFmpegCodecsToCodecsList } from '@common/params/parser';
 import { getInitialServiceTask, convertAnyTaskToTask, TypedEventEmitter, replaceOutputParams, randomString } from '@common/utils';
+import { vcodecsList } from '@common/params/vcodecs';
 import { getMachineId, log } from './utils';
-import { FFmpeg, EncoderDetail } from './FFmpegInvoke';
+import { FFmpeg } from './FFmpegInvoke';
 import UIBridge from './uiBridge';
 
 export interface FFBoxServerEvent {
@@ -25,6 +27,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private latestTaskId = 0;
 	public workingStatus: WorkingStatus = WorkingStatus.idle;
 	private ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0 };
+	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; };
 	private ffmpegPath = '';
 	private globalTask: ServiceTask;
 	public notifications: Notification[] = [];
@@ -166,26 +169,18 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		ffmpeg.on('codecs', async (codecsResult) => {
 			log.info(`编码器概览扫描完成，支持视频编码 ${codecsResult.videoCodecs.length} 个、音频编码 ${codecsResult.audioCodecs.length} 个。即将扫描详细信息。`);
 			console.log(codecsResult);
-			const videoFinalResult: {
-				name: string;
-				description: string;
-				encoders: (EncoderDetail & { name: string; })[];
-			}[] = [];
-			const audioFinalResult: {
-				name: string;
-				description: string;
-				encoders: (EncoderDetail & { name: string; })[];
-			}[] = [];
+			const videoFinalResult: FFmpegCodecDetail[] = [];
+			const audioFinalResult: FFmpegCodecDetail[] = [];
 			let videoEncodersCount = 0;
 			let audioEncodersCount = 0;
 			for (const codec of codecsResult.videoCodecs) {
-				const encoderNames = codec.encoders.length ? codec.encoders : ['default'];
+				const encoderNames = codec.encoders.length ? codec.encoders : [codec.name];
 				const encoderDetails: (EncoderDetail & { name: string; })[] = [];
 				videoEncodersCount += encoderNames.length;
 				for (const encoderName of encoderNames) {
 					// console.log(`正在读取 ${codec.name} ${encoder}`);
 					await new Promise((resolve, _) => {
-						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName === 'default' ? codec.name : encoderName}`]);
+						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
 						ffmpeg2.on('codecs', (_, codecResult) => {
 							// console.log(codecResult);
 							encoderDetails.push({ name: encoderName, ...codecResult });
@@ -200,13 +195,13 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				});
 			}
 			for (const codec of codecsResult.audioCodecs) {
-				const encoderNames = codec.encoders.length ? codec.encoders : ['default'];
+				const encoderNames = codec.encoders.length ? codec.encoders : [codec.name];
 				const encoderDetails: (EncoderDetail & { name: string; })[] = [];
 				audioEncodersCount += encoderNames.length;
 				for (const encoderName of encoderNames) {
 					// console.log(`正在读取 ${codec.name} ${encoder}`);
 					await new Promise((resolve, _) => {
-						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName === 'default' ? codec.name : encoderName}`]);
+						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
 						ffmpeg2.on('codecs', (_, codecResult) => {
 							// console.log(codecResult);
 							encoderDetails.push({ name: encoderName, ...codecResult });
@@ -221,12 +216,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				});
 			}
 			log.info('编码器扫描结果', videoFinalResult, audioFinalResult);
+			this.ffmpegCodecs = { video: videoFinalResult, audio: audioFinalResult };
 			this.ffmpegInfo.scanning = false;
 			this.ffmpegInfo.videoEncodersCount = videoEncodersCount;
 			this.ffmpegInfo.audioEncodersCount = audioEncodersCount;
 			this.emitFFmpegInfo();
+			parseFFmpegCodecsToCodecsList(this.ffmpegCodecs);
+			log.info('编码器到参数转换结果', vcodecsList);
 		});
-		
 	}
 
 	/**

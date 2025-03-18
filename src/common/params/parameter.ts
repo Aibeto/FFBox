@@ -21,6 +21,8 @@ export interface BasicParameter {
 	display: string;	// 显示于表单标题
 }
 export type Parameter = BasicParameter & (
+	({ mode: 'switch' } & { default: boolean }) |
+	({ mode: 'text' } & { type?: 'int' | 'float', default?: string }) |
 	({ mode: 'combo' } & ComboOptions) |
 	({ mode: 'slider' } & SliderOptions)
 );

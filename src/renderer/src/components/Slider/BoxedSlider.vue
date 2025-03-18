@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SliderOptions } from '@common/params/types';
+import type { SliderOptions } from '@common/params/parameter';
 import ControlBox from '@renderer/components/ControlBox/ControlBox.vue';
 import Slider from './Slider.vue';
 

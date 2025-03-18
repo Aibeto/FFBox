@@ -53,6 +53,31 @@ export interface FFmpegInfo {
 	audioEncodersCount: number;
 }
 
+// 由 service 向前端报告的编码器详情（将会在前端转换为 MenuItem）
+export interface FFmpegCodecDetail {
+	name: string;
+	description: string;
+	encoders: (EncoderDetail & { name: string; })[];
+}
+
+export interface EncoderDetail {
+	generalCapabilities: string[];
+	threadingCapabilities: string;
+	supportedPixelFormats?: string[];	// 视频
+	supportedSampleRates?: number[];	// 音频
+	supportedSampleFormats?: string[];	// 音频
+	supportedChannelLayouts?: string[];	// 音频
+	options: {
+		name: string;
+		type: 'int' | 'float' | 'boolean' | 'string' | 'dictionary' | 'flags';
+		description: string;
+		options?: { name?: string, value: string | number, description?: string }[];
+		min?: number;
+		max?: number;
+		default?: string | number | boolean;
+	}[];
+}
+
 export interface OutputParams {
 	input: OutputParams_input;
 	video: OutputParams_video;
@@ -84,7 +109,6 @@ export type OutputParams_video = {
 
 export type OutputParams_audio = {
 	acodec: string;
-	aencoder: string;
 	ratecontrol: string;
 	ratevalue: number | string;
 	vol: number;
@@ -200,13 +224,6 @@ export interface ServiceTask extends Task {
 	// ffmpeg: any | null;
 	remoteTask: boolean;	// 本地/远程任务对于 service 来说，对输出文件名的处理方式不同；对于 UI 来说，只需要判断 IP 是否为 localhost 即决定是下载还是直接打开了
 }
-
-// TODO 由 service 向前端报告的编码器详情（将会在前端转换为 MenuItem）
-// export interface FFmpegCodecDetail {
-// 	name: string;
-// 	description: string;
-// 	// encoders: (CodecDetail & { name: string; })[];
-// }
 
 export enum WorkingStatus {
 	idle = 'idle',

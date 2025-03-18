@@ -1,13 +1,14 @@
 import { VNodeRef } from 'vue';
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
-import { Notification, NotificationLevel, OutputParams, TaskStatus, TransferStatus, WorkingStatus } from '@common/types';
+import { FFmpegCodecDetail, Notification, NotificationLevel, OutputParams, TaskStatus, TransferStatus, WorkingStatus } from '@common/types';
 import { version } from '@common/constants'; 
 import { Server } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
 import { getInitialUITask, randomString, replaceOutputParams } from '@common/utils';
 import path from '@common/path';
+import { parseFFmpegCodecsToCodecsList } from '@common/params/parser';
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from './eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { dashboardTimer } from '@renderer/common/dashboardCalc';
@@ -487,6 +488,19 @@ export const useAppStore = defineStore('app', {
 					nodeBridge.localStorage.set('presets', {});
 				}
 			});
+		},
+		fetchCodecs() {
+			const 这 = useAppStore();
+			const entity = 这.currentServer?.entity;
+			if (entity) {
+				fetch(`http://${entity.ip}:${entity.port}/codecs`, {
+					method: 'get',
+				}).then((response) => {
+					response.json().then((result: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }) => {
+						parseFFmpegCodecsToCodecsList(result);
+					});
+				});
+			}
 		},
 		// #endregion 参数处理
 		// #region 通知处理

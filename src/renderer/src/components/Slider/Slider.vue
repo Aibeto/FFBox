@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, VNodeRef } from 'vue';
-import type { SliderOptions } from '@common/params/types';
+import type { SliderOptions } from '@common/params/parameter';
 import { useAppStore } from '@renderer/stores/appStore';
 
 const appStore = useAppStore();
@@ -21,6 +21,9 @@ const props = defineProps<Props>();
 // 如果 props.value 是字符串，那么此处将其转换为对应值（如果有）
 const convertedValue = computed(() => {
 	if (typeof props.value === 'string') {
+		if (!props.stringToNumber) {
+			debugger;
+		}
 		return props.stringToNumber(props.value);
 	} else {
 		return props.value;

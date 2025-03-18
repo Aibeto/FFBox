@@ -1,4 +1,4 @@
-import { strict2 } from "./params/types";
+import { strict2 } from "./params/parameter";
 
 export type MenuItem<E = any> = {
     type: 'normal';
@@ -29,8 +29,8 @@ export type MenuItem<E = any> = {
 export type NarrowedMenuItem = Extract<MenuItem, { type: 'normal' }> & strict2;
 
 // 深度优先搜索，根据 value 获取第一个搜索到的 MenuItem
-export function getMenuItemByValue(menu: MenuItem[], value: any) {
-    function dfs(menu: MenuItem[]): MenuItem | undefined {
+export function getMenuItemByValue<E>(menu: MenuItem<E>[], value: any) {
+    function dfs(menu: MenuItem<E>[]): Extract<MenuItem<E>, { type: 'normal' | 'checkbox' | 'radio' }> | undefined {
         for (const menuItem of menu) {
             if (menuItem.type === 'submenu') {
                 const result = dfs(menuItem.subMenu);

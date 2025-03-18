@@ -24,8 +24,7 @@ export const defaultParams: OutputParams = {
 		},
 	},
 	audio: {
-		acodec: '不重新编码',
-		aencoder: '默认',
+		acodec: 'copy',
 		ratecontrol: 'CBR/ABR',
 		ratevalue: 0.5,
 		vol: 0.5,

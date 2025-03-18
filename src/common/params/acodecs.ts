@@ -1,18 +1,12 @@
-import { NarrowedMenuItem } from "@common/menu";
+import { getMenuItemByValue, MenuItem, NarrowedMenuItem } from "@common/menu";
 import { OutputParams_audio } from "../types";
-import { strict2, SliderOptions, Parameter, RateControl } from './types';
+import { strict2, SliderOptions, Parameter, RateControl } from './parameter';
 
 const VALUE = Symbol()
 
-export interface AEncoder extends NarrowedMenuItem {
-	codecName: string;	// 实际传给 ffmpeg 的编码器
-	parameters?: Parameter[];
-	ratecontrol?: RateControl[];
-	strict2?: true;
-}
-export interface ACodec extends NarrowedMenuItem {
-	codecName: string;
-	encoders?: AEncoder[];
+export interface ACodecDetail {
+	rateControl: RateControl[];
+	parameters: Parameter[];
 	strict2?: true;
 }
 
@@ -20,10 +14,7 @@ const 自动: NarrowedMenuItem = {
 	type: 'normal',
 	value: '自动',
 	label: '自动',
-	tooltip: '自动',
-}
-const strict2 = {
-	strict2: true as true,
+	tooltip: '不指定，由 FFmpeg 自动选择',
 }
 
 // #region 预置码率控制模式 combo
@@ -425,874 +416,601 @@ const volSlider: SliderOptions = {
 }
 
 
-const 默认编码器: AEncoder = {
-	type: 'normal',
-	value: '默认',
-	label: '默认',
-	tooltip: '使用默认编码器',
-	codecName: '-',
-}
-
-var acodecs: ACodec[] = [
+const acodecsList: MenuItem<ACodecDetail>[] = [
 	{
 		type: 'normal',
-		value: '禁用音频',
-		label: '禁用音频',
-		tooltip: '不输出音频',
-		codecName: '-',
-		encoders: [
-			默认编码器
-		],
+		value: '禁用',
+		label: '禁用',
+		tooltip: '不输出视频',
 	},
 	{
 		type: 'normal',
-		value: '不重新编码',
+		value: 'copy',
 		label: '不重新编码',
 		tooltip: '复制源码流，不重新编码。',
-		codecName: 'copy',
-		encoders: [
-			默认编码器
-		],
 	},
 	{
 		type: 'normal',
 		value: '自动',
 		label: '自动',
 		tooltip: '自动选择编码',
-		codecName: '-',
-		encoders: [
-			默认编码器
-		],
 	},
+	{ type: 'separator' },
 	{
-		type: 'normal',
-		value: 'OPUS',
+		type: 'submenu',
 		label: 'OPUS',
 		tooltip: 'OPUS - Opus 是一个有损声音编码的格式，由 Xiph.Org 基金会开发，之后由互联网工程任务组进行标准化，目标是希望用单一格式包含声音和语音，取代 Speex 和 Vorbis，且适用于网络上低延迟的即时声音传输，标准格式定义于 RFC 6716 文件。Opus 格式是一个开放格式，使用上没有任何专利或限制。',
-		codecName: 'opus',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000 ]
-					},
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'opus',
-				label: 'opus',
+				label: '【默认】opus',
 				tooltip: '',
-				codecName: 'opus',
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000 ]
-					},
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000 ],
+						},
+						{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [ 自动, lo_mono, lo_stereo ],
+						},
+					],
+					strict2: true,
+				},
 			},
 			{
 				type: 'normal',
 				value: 'libopus',
 				label: 'libopus',
 				tooltip: '',
-				codecName: 'libopus',
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000, sr_24000, sr_16000, sr_12000, sr_8000 ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000, sr_24000, sr_16000, sr_12000, sr_8000 ],
+						},
+					],
+					strict2: true,
+				},
 			},
 		],
-		...strict2
 	},
 	{
-		type: 'normal',
-		value: 'AAC',
+		type: 'submenu',
 		label: 'AAC',
 		tooltip: 'AAC - AAC 即 Advanced Audio Coding，高级音频编码，出现于 1997 年，为一种基于 MPEG-2 的有损数字音频压缩的专利音频编码标准，由 Fraunhofer IIS、杜比实验室、AT&T、Sony、Nokia 等公司共同开发。2000 年，MPEG-4 标准在原本的基础上加上了 PNS（Perceptual Noise Substitution）等技术，并提供了多种扩展工具。为了区别于传统的MPEG-2 AAC 又称为 MPEG-4 AAC。其作为 MP3 的后继者而被设计出来，在相同的比特率之下，AAC 相较于 MP3 通常可以达到更好的声音质量。',
-		codecName: 'aac',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_96000, sr_88200, sr_64000, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000, sr_12000, sr_11025, sr_8000, sr_7350 ]
-					},
-					{
-						mode: "combo", parameter: "aac_coder", display: "编码算法",
-						items: [
-							自动,
-							{
-								type: 'normal',
-								value: 'anmr',
-								label: 'anmr',
-								tooltip: 'ANMR method',
-								...strict2
-							},
-							{
-								type: 'normal',
-								value: 'twoloop',
-								label: 'twoloop',
-								tooltip: 'Two loop searching method',
-							},
-							{
-								type: 'normal',
-								value: 'fast',
-								label: 'fast（默认）',
-								tooltip: 'Default fast search',
-							},
-						]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				type: 'normal',
+				value: 'aac',
+				label: '【默认】aac',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_96000, sr_88200, sr_64000, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000, sr_12000, sr_11025, sr_8000, sr_7350 ],
+						},
+						{
+							mode: "combo", parameter: "aac_coder", display: "编码算法",
+							items: [
+								自动,
+								{
+									type: 'normal',
+									value: 'anmr',
+									label: 'anmr',
+									tooltip: 'ANMR method',
+									strict2: true,	// TODO 类型不科学
+								},
+								{
+									type: 'normal',
+									value: 'twoloop',
+									label: 'twoloop',
+									tooltip: 'Two loop searching method',
+								},
+								{
+									type: 'normal',
+									value: 'fast',
+									label: 'fast（默认）',
+									tooltip: 'Default fast search',
+								},
+							],
+						},
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'Vorbis',
+		type: 'submenu',
 		label: 'Vorbis (OGG)',
 		tooltip: 'Vorbis - Vorbis 是一种有损音频压缩格式，由 Xiph.Org 基金会所领导并开放源代码的一个免费的开源软件项目。该项目为有损音频压缩产生音频编码格式和软件参考编码器╱解码器（编解码器）。Vorbis 通常以 Ogg 作为容器格式，所以常合称为 Ogg Vorbis。',
-		codecName: 'vorbis',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'vorbis',
-				label: 'vorbis',
+				label: '【默认】vorbis',
 				tooltip: '',
-				codecName: 'vorbis',
-				parameters: [],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [],
+					strict2: true,
+				},
 			},
 			{
 				type: 'normal',
 				value: 'libvorbis',
 				label: 'libvorbis',
 				tooltip: '',
-				codecName: 'libvorbis',
-				parameters: [],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [],
+					strict2: true,
+				},
 			},
 		],
-		...strict2
 	},
 	{
-		type: 'normal',
-		value: 'MP3',
+		type: 'submenu',
 		label: 'MP3',
 		tooltip: 'MP3 - MP3 即 MPEG-1 Audio Layer Ⅲ，是当今流行的一种数字音频编码和有损压缩格式，它被设计来大幅降低音频数据量，通过舍弃 PCM 音频数据中对人类听觉不重要的部分，达成压缩成较小文件的目的。而对于大多数用户的听觉感受来说，MP3 的音质与最初的不压缩音频相比没有明显的下降。',
-		codecName: 'MP3',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'libmp3lame',
-				label: 'libmp3lame',
+				label: '【默认】libmp3lame',
 				tooltip: '',
-				codecName: 'libmp3lame',
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000, sr_12000, sr_11025, sr_8000 ]
-					},
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000, sr_12000, sr_11025, sr_8000 ],
+						},
+						{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [ 自动, lo_mono, lo_stereo ],
+						},	
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'libshine',
 				label: 'libshine',
 				tooltip: '',
-				codecName: 'libshine',
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000, sr_44100, sr_32000 ]
-					},
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000, sr_44100, sr_32000 ],
+						},
+						{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [ 自动, lo_mono, lo_stereo ],
+						},	
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'MP2',
+		type: 'submenu',
 		label: 'MP2',
-		tooltip: 'MP3 - MP3 即 MPEG-1 Audio Layer Ⅱ。个人电脑和互联网音乐流行 MP3，MP2 则多用于广播。',
-		codecName: 'mp2',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000 ]
-					},
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		tooltip: 'MP2 - MP2 即 MPEG-1 Audio Layer Ⅱ。个人电脑和互联网音乐流行 MP3，MP2 则多用于广播。',
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'mp2',
-				label: 'mp2',
+				label: '【默认】mp2',
 				tooltip: '',
-				codecName: 'mp2',
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000 ]
-					},
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000 ],
+						},
+						{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [ 自动, lo_mono, lo_stereo ]
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'mp2fixed',
 				label: 'mp2fixed',
 				tooltip: '',
-				codecName: 'mp2fixed',
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000 ]
-					},
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000 ],
+						},
+						{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [ 自动, lo_mono, lo_stereo ]
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'libtwolame',
 				label: 'libtwolame',
 				tooltip: '',
-				codecName: 'libtwolame',
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000 ]
-					},
-					{
-						mode: "combo", parameter: "mode", display: "声道模式",
-						items: [
-							自动,
-							{
-								type: 'normal',
-								value: 'stereo',
-								label: 'stereo',
-								tooltip: '立体声',
-							},
-							{
-								type: 'normal',
-								value: 'joint_stereo',
-								label: 'joint_stereo',
-								tooltip: '联合立体声',
-							},
-							{
-								type: 'normal',
-								value: 'dual_channel',
-								label: 'dual_channel',
-								tooltip: '双声道',
-							},
-							{
-								type: 'normal',
-								value: 'mono',
-								label: 'mono',
-								tooltip: '单声道',
-							},
-						]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000 ],
+						},
+						{
+							mode: "combo", parameter: "mode", display: "声道模式",
+							items: [
+								自动,
+								{
+									type: 'normal',
+									value: 'stereo',
+									label: 'stereo',
+									tooltip: '立体声',
+								},
+								{
+									type: 'normal',
+									value: 'joint_stereo',
+									label: 'joint_stereo',
+									tooltip: '联合立体声',
+								},
+								{
+									type: 'normal',
+									value: 'dual_channel',
+									label: 'dual_channel',
+									tooltip: '双声道',
+								},
+								{
+									type: 'normal',
+									value: 'mono',
+									label: 'mono',
+									tooltip: '单声道',
+								},
+							]
+						},
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'AC3',
+		type: 'submenu',
 		label: 'AC3',
 		tooltip: 'AC3 - AC3 即杜比数字音频编码。杜比数字（Dolby Digital）是美国杜比实验室开发的一系列有损和无损的多媒体单元格式。',
-		codecName: 'ac3',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [
-							自动, lo_mono, lo_stereo, lo_3_0_back, lo_3_0, lo_quad_side, lo_quad, lo_4_0, lo_5_0_side, lo_5_0, lo_2_1, lo_3_1, lo_4_1, lo_5_1_side, lo_5_1,
-							{
-								type: 'normal',
-								value: 'FC+LFE',
-								label: 'FC+LFE',
-								tooltip: '',
-							},
-							{
-								type: 'normal',
-								value: 'FL+FR+LFE+BC',
-								label: 'FL+FR+LFE+BC',
-								tooltip: '',
-							},
-							{
-								type: 'normal',
-								value: 'FL+FR+LFE+SL+SR',
-								label: 'FL+FR+LFE+SL+SR',
-								tooltip: '',
-							},
-							{
-								type: 'normal',
-								value: 'FL+FR+LFE+BL+BR',
-								label: 'FL+FR+LFE+BL+BR',
-								tooltip: '',
-							},
-						]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'ac3',
-				label: 'ac3',
+				label: '【默认】ac3',
 				tooltip: '',
-				codecName: 'ac3',
-				parameters: [
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [
-							自动, lo_mono, lo_stereo, lo_3_0_back, lo_3_0, lo_quad_side, lo_quad, lo_4_0, lo_5_0_side, lo_5_0, lo_2_1, lo_3_1, lo_4_1, lo_5_1_side, lo_5_1,
-							{
-								type: 'normal',
-								value: 'FC+LFE',
-								label: 'FC+LFE',
-								tooltip: '',
-							},
-							{
-								type: 'normal',
-								value: 'FL+FR+LFE+BC',
-								label: 'FL+FR+LFE+BC',
-								tooltip: '',
-							},
-							{
-								type: 'normal',
-								value: 'FL+FR+LFE+SL+SR',
-								label: 'FL+FR+LFE+SL+SR',
-								tooltip: '',
-							},
-							{
-								type: 'normal',
-								value: 'FL+FR+LFE+BL+BR',
-								label: 'FL+FR+LFE+BL+BR',
-								tooltip: '',
-							},
-						]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [
+								自动, lo_mono, lo_stereo, lo_3_0_back, lo_3_0, lo_quad_side, lo_quad, lo_4_0, lo_5_0_side, lo_5_0, lo_2_1, lo_3_1, lo_4_1, lo_5_1_side, lo_5_1,
+								{
+									type: 'normal',
+									value: 'FC+LFE',
+									label: 'FC+LFE',
+									tooltip: '',
+								},
+								{
+									type: 'normal',
+									value: 'FL+FR+LFE+BC',
+									label: 'FL+FR+LFE+BC',
+									tooltip: '',
+								},
+								{
+									type: 'normal',
+									value: 'FL+FR+LFE+SL+SR',
+									label: 'FL+FR+LFE+SL+SR',
+									tooltip: '',
+								},
+								{
+									type: 'normal',
+									value: 'FL+FR+LFE+BL+BR',
+									label: 'FL+FR+LFE+BL+BR',
+									tooltip: '',
+								},
+							]
+						},
+					],
+				},
 			},
 			{
 				type: 'normal',
 				value: 'ac3_fixed',
 				label: 'ac3_fixed',
 				tooltip: '',
-				codecName: 'ac3_fixed',
-				parameters: [
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [
-							自动, lo_mono, lo_stereo, lo_3_0_back, lo_3_0, lo_quad_side, lo_quad, lo_4_0, lo_5_0_side, lo_5_0, lo_2_1, lo_3_1, lo_4_1, lo_5_1_side, lo_5_1,
-							{
-								type: 'normal',
-								value: 'FC+LFE',
-								label: 'FC+LFE',
-								tooltip: '',
-							},
-							{
-								type: 'normal',
-								value: 'FL+FR+LFE+BC',
-								label: 'FL+FR+LFE+BC',
-								tooltip: '',
-							},
-							{
-								type: 'normal',
-								value: 'FL+FR+LFE+SL+SR',
-								label: 'FL+FR+LFE+SL+SR',
-								tooltip: '',
-							},
-							{
-								type: 'normal',
-								value: 'FL+FR+LFE+BL+BR',
-								label: 'FL+FR+LFE+BL+BR',
-								tooltip: '',
-							},
-						]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [
+								自动, lo_mono, lo_stereo, lo_3_0_back, lo_3_0, lo_quad_side, lo_quad, lo_4_0, lo_5_0_side, lo_5_0, lo_2_1, lo_3_1, lo_4_1, lo_5_1_side, lo_5_1,
+								{
+									type: 'normal',
+									value: 'FC+LFE',
+									label: 'FC+LFE',
+									tooltip: '',
+								},
+								{
+									type: 'normal',
+									value: 'FL+FR+LFE+BC',
+									label: 'FL+FR+LFE+BC',
+									tooltip: '',
+								},
+								{
+									type: 'normal',
+									value: 'FL+FR+LFE+SL+SR',
+									label: 'FL+FR+LFE+SL+SR',
+									tooltip: '',
+								},
+								{
+									type: 'normal',
+									value: 'FL+FR+LFE+BL+BR',
+									label: 'FL+FR+LFE+BL+BR',
+									tooltip: '',
+								},
+							]
+						},
+					],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'FLAC',
+		type: 'submenu',
 		label: 'FLAC',
 		tooltip: 'FLAC - FLAC 即 Free Lossless Audio Codec，FLAC 是一款的自由音频压缩编码，其特点是可以对音频文件无损压缩。',
-		codecName: 'flac',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				type: 'normal',
+				value: 'flac',
+				label: '【默认】flac',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [],
+					strict2: true,
+				},
 			},
 		],
-		...strict2
 	},
 	{
-		type: 'normal',
-		value: 'ALAC',
+		type: 'submenu',
 		label: 'ALAC',
 		tooltip: 'ALAC - ALAC 即 Apple Lossless Audio Codec，为苹果的无损音频压缩编码格式，可将非压缩音频格式（WAV、AIFF）压缩至原先容量的 40% 至 60% 左右。',
-		codecName: 'alac',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo, lo_3_0, lo_4_0, lo_5_0, lo_5_1, lo_6_1_back, lo_7_1_wide ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			}
+				type: 'normal',
+				value: 'alac',
+				label: '【默认】alac',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [ 自动, lo_mono, lo_stereo, lo_3_0, lo_4_0, lo_5_0, lo_5_1, lo_6_1_back, lo_7_1_wide ],
+						},	
+					],
+					strict2: true,
+				},
+			},
 		],
-		...strict2
 	},
 	{
-		type: 'normal',
-		value: 'WMA V2',
+		type: 'submenu',
 		label: 'WMA V2',
 		tooltip: 'WMA 2 - WMA 是微软公司开发的一系列音频编解码器。WMA Pro 支持更多声道和更高质量的音频。',
-		codecName: 'wmav2',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			}
-		]
+				type: 'normal',
+				value: 'wmav2',
+				label: '【默认】wmav2',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [],
+				},
+			},
+		],
 	},
 	{
-		type: 'normal',
-		value: 'WMA V1',
+		type: 'submenu',
 		label: 'WMA V1',
 		tooltip: 'WMA 1 - WMA 是微软公司开发的一系列音频编解码器。WMA Pro 支持更多声道和更高质量的音频。',
-		codecName: 'wmav1',
-		encoders: [
+		subMenu: [
 			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo, lo_3_0, lo_4_0, lo_5_0, lo_5_1, lo_6_1_back, lo_7_1_wide ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			}
-		]
+				type: 'normal',
+				value: 'wmav1',
+				label: '【默认】wmav1',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [ 自动, lo_mono, lo_stereo, lo_3_0, lo_4_0, lo_5_0, lo_5_1, lo_6_1_back, lo_7_1_wide ],
+						},
+					],
+				},
+			},
+		],
 	},
 	{
-		type: 'normal',
-		value: 'DTS',
+		type: 'submenu',
 		label: 'DTS',
 		tooltip: 'DTS - DTS 即 Digital Theater Systems，数字影院系统，由 DTS 公司（DTS Inc.，NASDAQ：DTSI）开发，为多声道音频格式中的一种，广泛应用于 DVD 音效上。其最普遍的格式为 5.1 声道。',
-		codecName: 'dts',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000, sr_12000, sr_11025, sr_8000 ]
-					},
-							{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo, lo_quad_side, lo_5_0_side, lo_5_1_side ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'dca',
-				label: 'dca',
+				label: '【默认】dca',
 				tooltip: '',
-				codecName: 'dca',
-				parameters: [
-					{
-						mode: "combo", parameter: "ar", display: "采样频率",
-						items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000, sr_12000, sr_11025, sr_8000 ]
-					},
-							{
-						mode: "combo", parameter: "channel_layout", display: "声道布局",
-						items: [ 自动, lo_mono, lo_stereo, lo_quad_side, lo_5_0_side, lo_5_1_side ]
-					},
-				],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000, sr_12000, sr_11025, sr_8000 ],
+						},
+								{
+							mode: "combo", parameter: "channel_layout", display: "声道布局",
+							items: [ 自动, lo_mono, lo_stereo, lo_quad_side, lo_5_0_side, lo_5_1_side ],
+						},
+					],
+				},
 			},
 		],
-		...strict2
 	},
 	{
-		type: 'normal',
-		value: 'AMR WB',
+		type: 'submenu',
 		label: 'AMR WB',
 		tooltip: 'AMR - AMR 即 Adaptive multi-Rate compression，自适应多速率音频压缩，是一个使语音编码最优化的专利。AMR 被标准语音编码 3GPP 在 1998 年 10 月选用，现在广泛在 GSM 和 UMTS 中使用。',
-		codecName: 'amr_wb',
-		encoders: [
-			{
-				...默认编码器,
-				parameters: [],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'libvo_armwbenc',
-				label: 'libvo_armwbenc',
+				label: '【默认】libvo_armwbenc',
 				tooltip: '',
-				codecName: 'libvo_armwbenc',		
-				parameters: [],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [],
+				},
 			},
-		]
+		],
 	},
 	{
-		type: 'normal',
-		value: 'AMR NB',
+		type: 'submenu',
 		label: 'AMR NB',
 		tooltip: 'AMR - AMR 即 Adaptive multi-Rate compression，自适应多速率音频压缩，是一个使语音编码最优化的专利。AMR 被标准语音编码 3GPP 在 1998 年 10 月选用，现在广泛在 GSM 和 UMTS 中使用。',
-		codecName: 'amr_nb',
-		encoders: [
-			{
-				...默认编码器,
-			},
+		subMenu: [
 			{
 				type: 'normal',
 				value: 'libopencore_armnb',
-				label: 'libopencore_armnb',
+				label: '【默认】libopencore_armnb',
 				tooltip: '',
-				codecName: 'libopencore_armnb',		
-				parameters: [],
-				ratecontrol: [
-					{
-						...CBR_ABR,
-						...abitrateSlider
-					},
-					{
-						...Q,
-						...q100slider
-					},
-				]
+				extra: {
+					rateControl: [
+						{ ...Q, ...q100slider },
+						{ ...CBR_ABR, ...abitrateSlider },
+					],
+					parameters: [],
+				},
 			},
-		]
+		],
 	},
-]
+	{ type: 'separator' },
+	{
+		type: 'submenu',
+		label: '全部可用编码',
+		subMenu: [
+			{
+				type: 'normal',
+				value: 'fetchFromService',
+				label: '获取服务器可用编码器',
+				onClick: () => window?.dispatchEvent(new CustomEvent('fetch-codecs')),
+			},
+		],
+	}
+];
 
 
 const generator = {
 	getAudioParam: function (audioParams: OutputParams_audio) {
 		const ret = [];
 		let strict2 = false;
-		if (audioParams.acodec == '禁用音频') {
+		if (audioParams.acodec == '音频') {
 			ret.push('-an');
-		} else if (audioParams.acodec == '不重新编码') {
+		} else if (audioParams.acodec == 'copy') {
 			ret.push('-acodec');
 			ret.push('copy');
 		} else if (audioParams.acodec !== '自动') {
-			const acodec = acodecs.find((item) => item.value == audioParams.acodec);
-			const aencoder = acodec?.encoders.find((item) => item.value == audioParams.aencoder);
-			if (acodec && aencoder) {
-				// 不是用户手动填的 acodec 和 aencoder
-				if (audioParams.aencoder === "默认") {
-					// 使用默认编码器，返回 acodec.codecName
-					ret.push('-acodec');
-					ret.push(acodec.codecName);
-				} else {
-					// 使用特定编码器，返回 acodev.ancoder[].codecName
-					ret.push('-acodec');
-					ret.push(aencoder.codecName);
-				}
-				if (acodec.strict2 || aencoder.strict2) {
+			const acodecItem = getMenuItemByValue(acodecsList, audioParams.acodec) as any;
+			const acodecDetail = (acodecItem?.extra) as ACodecDetail;
+			ret.push('-acodec');
+			ret.push(audioParams.acodec);
+			if (acodecDetail) {
+				if (acodecDetail.strict2) {
 					strict2 = true;
 				}
-				for (const parameter of aencoder.parameters || []) {
+				for (const parameter of acodecDetail.parameters || []) {
 					// 普通的详细参数
 					if (parameter.mode === 'combo') {
 						if (audioParams.detail[parameter.parameter] != '默认' && audioParams.detail[parameter.parameter] != '自动') {
@@ -1311,7 +1029,7 @@ const generator = {
 						ret.push(value);
 					}
 				}
-				const ratecontrol = (aencoder.ratecontrol || []).find((item) => item.value === audioParams.ratecontrol);
+				const ratecontrol = (acodecDetail.rateControl || []).find((item) => item.value === audioParams.ratecontrol);
 				if (ratecontrol) {
 					// 计算值
 					const floatValue = audioParams.ratevalue;
@@ -1329,17 +1047,9 @@ const generator = {
 					ret.push('-strict');
 					ret.push('-2');
 				}
-			} else if (acodec) {
-				// 用户手动填入的 aencoder
-				ret.push('-acodec');
-				ret.push(audioParams.aencoder);
-			} else {
-				// 用户手动填入的 acodec
-				ret.push('-acodec');
-				ret.push(audioParams.acodec);
 			}
 		} // 如果编码为自动，则不设置 acodec 参数，返回空 Array
-		if (audioParams.acodec !== '禁用音频' && audioParams.acodec !== '不重新编码') {
+		if (audioParams.acodec !== '禁用' && audioParams.acodec !== 'copy') {
 			if (audioParams.vol !== 0.5) {
 				ret.push('-vol');
 				ret.push(volSlider.valueToParam(audioParams.vol));
@@ -1356,24 +1066,17 @@ const generator = {
 			mode: '-',
 			value: '-'
 		};
-		if (audioParams.acodec == '禁用音频' || audioParams.acodec == '不重新编码' || audioParams.acodec == '自动') {
+		if (audioParams.acodec == '禁用' || audioParams.acodec == '不重新编码' || audioParams.acodec == '自动') {
 			return ret;
 		} else {
-			const acodec = acodecs.find((item) => {
-				return item.value == audioParams.acodec;
-			});
-			if (!acodec) {
-				return ret;
-			}
-			const aencoder = acodec.encoders.find((item) => {
-				return item.value == audioParams.aencoder;
-			});
-			if (!aencoder || aencoder.ratecontrol == null) {
+			const acodecItem = getMenuItemByValue(acodecsList, audioParams.acodec) as any;
+			const acodecDetail = (acodecItem?.extra) as ACodecDetail;
+			if (!acodecDetail || !acodecDetail.rateControl?.length) {
 				return ret;
 			}
 			// 找到 ratecontrol 参数
-			const ratecontrol = aencoder.ratecontrol.find((item) => {
-				return item.value == audioParams.ratecontrol
+			const ratecontrol = acodecDetail.rateControl.find((item) => {
+				return item.value == audioParams.ratecontrol;
 			})
 			if (ratecontrol != null) {
 				// 计算值
@@ -1407,13 +1110,10 @@ const generator = {
 						}
 					}
 				})();
-				ret = {
-					mode: ratecontrol.value,
-					value
-				};
+				ret = { mode: ratecontrol.value, value };
 			}
 			return ret;
 		}
 	}
 }
-export { acodecs, volSlider, generator }
+export { acodecsList, volSlider, generator }

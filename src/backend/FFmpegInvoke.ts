@@ -5,6 +5,7 @@
 // const scanf = utils.scanf;
 import { spawn, ChildProcess } from 'child_process';
 import EventEmitter from 'events';
+import { EncoderDetail } from '@common/types';
 import { spawnInvoker } from '@common/spawnInvoker';
 import { selectString, replaceString, scanf, TypedEventEmitter } from '@common/utils';
 import { log } from './utils';
@@ -33,23 +34,6 @@ interface CodecsResult {
 		encoders: string[];
 	}[];
 };
-export interface EncoderDetail {
-	generalCapabilities: string[];
-	threadingCapabilities: string;
-	supportedPixelFormats?: string[];	// 视频
-	supportedSampleRates?: number[];	// 音频
-	supportedSampleFormats?: string[];	// 音频
-	supportedChannelLayouts?: string[];	// 音频
-	options: {
-		name: string;
-		type: 'int' | 'float' | 'boolean' | 'string' | 'dictionary' | 'flags';
-		description: string;
-		options?: { name?: string, value: string | number, description?: string }[];
-		min?: number;
-		max?: number;
-		default?: string | number | boolean;
-	}[];
-}
 
 interface FFmpegInvokerEvent {
 	data: (arg: { content: string }) => void;
@@ -430,13 +414,20 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					if (!option.options) {
 						option.options = [];
 					}
-					const value = option.type === 'flags' ? flagsRegx[1] : intRegx[2];
+					const value = option.type === 'flags' ? flagsRegx[1] : +intRegx?.[2];
 					const name = option.type === 'int' ? intRegx[1] : undefined;
-					const description = option.type === 'flags' ? flagsRegx[3] : intRegx[4];
+					const description = option.type === 'flags' ? flagsRegx[3] : intRegx?.[4];
+					if (option.type === 'flags' && !isNaN(+option.default) && option.default == this.readingAVOption.options.length) {
+						// flags 的 default 有几种表达形式：string（不用处理，default 直接就是这个 value）、string+string+…（不用处理）、int（如 h264_vulkan 的 usage）（表示选项的序号，需要把序号转换为字符串）
+						this.readingAVOption.default = value;
+					}
+					if (option.type === 'int' && isNaN(+option.default) && option.default == intRegx?.[1]) {
+						// int 则是把字符串转换为数字
+						this.readingAVOption.default = +intRegx?.[2];
+					}
 					this.readingAVOption.options.push({
 						value, name, description
 					});
-					// TODO flag 时的 default 处理
 				} else if (thisLine.startsWith('  ')) {
 					// 新的参数
 					//   -preset            <int>        E..V....... (from 1 to 7) (default medium)
@@ -444,7 +435,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					const basicInfoRegx = thisLine.match(/-([\w|-]+) +<(\w+)> +([\w|\.]+) (.+)/);
 					// 0：全文　1. 参数名称　2. 参数类型　3. 不知道是啥　4. 描述（含取值范围）
 					const minmaxRegx = thisLine.match(/\(from ([\w|-]+) to ([\w|-]+)\)/);
-					const defaultRegx = thisLine.match(/\(default ([\w|+|-]+)\)/);
+					const defaultRegx = thisLine.match(/\(default "?([\w|+|-]+)\)"?/);
 					const parseValue = (value: string) => {
 						const direct = [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MIN_VALUE, Number.MAX_VALUE, false, true, NaN][['INT_MIN', 'INT_MAX', 'FLT_MIN', 'FLT_MAX', 'false', 'true', 'NaN'].indexOf(value)];
 						if (direct !== undefined) {
@@ -452,7 +443,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 						} else if (!isNaN(+value)) {
 							return +value;
 						} else if (value !== undefined) {
-							return value
+							return value;
 						}
 					}
 					const min = minmaxRegx ? parseValue(minmaxRegx[1]) : undefined as any;
@@ -466,7 +457,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 						max,
 						default: defaultValue,
 					};
-					this.readingAVOption = option;	// flags 或者部分 int 情况下有多行
+					this.readingAVOption = option;	// flags 或者部分 int 情况下有多行（偶尔 boolean 也会有“auto”这种多行的情况）
 					this.encoderDetail.options.push(option);
 
 				}

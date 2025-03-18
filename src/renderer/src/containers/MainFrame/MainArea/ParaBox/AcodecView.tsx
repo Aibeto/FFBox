@@ -1,5 +1,6 @@
 import { computed, FunctionalComponent } from 'vue';
-import { acodecs, volSlider } from '@common/params/acodecs';
+import { acodecsList, volSlider, ACodecDetail } from '@common/params/acodecs';
+import { getMenuItemByValue } from '@common/menu';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -11,24 +12,13 @@ interface Props {}
 const AcodecView: FunctionalComponent<Props> = (props) => {
 	const appStore = useAppStore();
 
-	// aencoderList 中的项由 acodec 具体决定
-	const aencodersList = computed(() => {
-		const sName_acodec = appStore.globalParams.audio.acodec;
-		if (sName_acodec !== '禁用音频' && sName_acodec !== '自动' && sName_acodec !== '不重新编码') {
-			const acodec = acodecs.find((codec) => codec.value == sName_acodec);
-			return acodec?.encoders || [];
-		} else {
-			return []
-		}
-	});
-	const rateControlsList = computed(() => {
-		const sName_aencoder = appStore.globalParams.audio.aencoder;
-		const aencoder = aencodersList.value.find((encoder) => encoder.value == sName_aencoder);
-		return aencoder?.ratecontrol || [];
+	const acodec = computed(() => {
+		const acodecName = appStore.globalParams.audio.acodec;
+		return (getMenuItemByValue(acodecsList, acodecName) as any)?.extra as ACodecDetail;
 	});
 	// 根据当前选择的码率控制器显示具体使用何种 slider
 	const ratecontrolSlider = computed(() => {
-		const rList = rateControlsList.value;
+		const rList = acodec.value?.rateControl || [];
 		if (!rList.length) {
 			return null;
 		}
@@ -61,31 +51,23 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 			stringToNumber: slider.stringToNumber,
 		};
 	});
-	const parametersList = computed(() => {
-		const sName_aencoder = appStore.globalParams.audio.aencoder;
-		const aencoder = aencodersList.value.find((item) => item.value == sName_aencoder);
-		return aencoder?.parameters || [];
-	});
 
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
 		appStore.globalParams.audio[sName] = value;
 		appStore.applyParameters();
 		if (sName == 'acodec') {
-			// 更改 acodec 后将 aencoder 恢复为默认
-			appStore.globalParams.audio[sName] = value;
-			appStore.applyParameters();
-		}
-		if (sName == 'aencoder' || sName == 'acodec') {
-			// 更改 acodec 或 aencoder 后检查子组件的设置
-			for (const parameter of parametersList.value) {
+			// 更改 acodec 后检查子组件的设置
+			for (const parameter of (acodec.value?.parameters || [])) {
 				if (parameter.mode === 'combo') {
-					console.log(`参数 ${parameter.parameter} 重置为默认值或首项`);
-					appStore.globalParams.audio.detail[parameter.parameter] = parameter.default ?? parameter.items[0].value;
+					const defaultValue = parameter.default ?? parameter.items[0].value;
+					console.log(`参数 ${parameter.parameter} 重置为默认值或首项：${defaultValue}`);
+					appStore.globalParams.audio.detail[parameter.parameter] = defaultValue;
 					appStore.applyParameters();
 				} else if (parameter.mode == 'slider') {
-					console.log(`参数 ${parameter.parameter} 重置为默认值或 0.5`);
-					appStore.globalParams.audio.detail[parameter.parameter] = parameter.default ?? 0.5;
+					const defaultValue = parameter.default ?? 0.5;
+					console.log(`参数 ${parameter.parameter} 重置为默认值或 0.5：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
+					appStore.globalParams.audio.detail[parameter.parameter] = defaultValue;
 					appStore.applyParameters();
 				}
 			}
@@ -98,13 +80,12 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 	};
 	return (
 		<div class={style.container}>
-			<BoxedDropdownInput title="音频编码" text={appStore.globalParams.audio.acodec} list={acodecs} onChange={(value: string) => handleChange('acodec', value)} />
-			{['禁用音频', '不重新编码'].indexOf(appStore.globalParams.audio.acodec) === -1 && (
+			<BoxedDropdownInput title="音频编码器" text={appStore.globalParams.audio.acodec} list={acodecsList} onChange={(value: string) => handleChange('acodec', value)} />
+			{['禁用', 'copy'].indexOf(appStore.globalParams.audio.acodec) === -1 && (
 				<>
-					{appStore.globalParams.audio.acodec !== '自动' && (
-						<BoxedDropdownInput title="编码器" text={appStore.globalParams.audio.aencoder} list={aencodersList.value} onChange={(value: string) => handleChange('aencoder', value)} />
-					)}
-					<BoxedDropdownInput title="码率控制" text={appStore.globalParams.audio.ratecontrol} list={rateControlsList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
+					{(acodec.value?.rateControl || []).length ? (
+						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.audio.ratecontrol} list={acodec.value.rateControl} onChange={(value: string) => handleChange('ratecontrol', value)} />
+					) : null}
 					{ratecontrolSlider.value && (
 						<BoxedSlider
 							title={ratecontrolSlider.value.display}
@@ -116,7 +97,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 							onChange={(value: number) => handleChange('ratevalue', value)}
 						/>
 					)}
-					{parametersList.value.map((parameter) => {
+					{(acodec.value?.parameters || []).map((parameter) => {
 						if (parameter.mode === 'slider') {
 							return (
 								<BoxedSlider

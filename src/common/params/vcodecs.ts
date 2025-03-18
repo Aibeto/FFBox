@@ -1,5 +1,5 @@
 import { OutputParams_video } from "../types";
-import { SliderOptions, Parameter, RateControl } from './types';
+import { SliderOptions, Parameter, RateControl } from './parameter';
 import { getMenuItemByValue, MenuItem, NarrowedMenuItem } from '@common/menu';
 
 const VALUE = Symbol()
@@ -1844,8 +1844,8 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 				type: 'normal',
 				value: 'fetchFromService',
 				label: '获取服务器可用编码器',
-				onClick: () => alert('hello'),
-			}
+				onClick: () => window?.dispatchEvent(new CustomEvent('fetch-codecs')),
+			},
 		],
 	}
 ];

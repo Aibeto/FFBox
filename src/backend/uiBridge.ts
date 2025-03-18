@@ -283,6 +283,13 @@ function getRouter(): Router {
 		ctx.response.body = result;
 	});
 
+	// 获取已扫描的 FFmpeg 编码器信息
+	router.get('/codecs', async function (ctx) {
+		const result = ffboxService.ffmpegCodecs;
+		ctx.response.status = 200;
+		ctx.response.body = result;
+	});
+
 	// 获取服务器运行状态
 	router.get('/workingStatus', async function (ctx) {
 		const result = ffboxService.workingStatus;
