@@ -130,7 +130,7 @@ onMounted(async () => {
 					<button @click="handleTopBarButtonClicked(2)">使用条款</button>
 				</div>
 				<div class="versionInfo">
-					<div>版本：4.3&nbsp;&nbsp;(2025-01-01)</div>
+					<div>版本：4.4-alpha&nbsp;&nbsp;(2025-04-01)</div>
 				</div>
 			</div>
 			<div class="FFBox-topWrapper" :style="FFBoxTopWrapperStyle">
@@ -163,6 +163,7 @@ onMounted(async () => {
 								<p>你家电脑的外存为什么满得那么快？因为你下的转码软件十有八九都给您送了个 FFmpeg，下得越多，送得越多。</p>
 								<p>这好吗？这不好。那咋解决呢？Linux 的做法就很合适——先找一下你的电脑有没有 FFmpeg，有就直接用，无就先装上再用。FFBox 也是同样的思路。</p>
 								<p>再者，FFmpeg 与 FFBox 具有不同的 LICENSE，因此 FFBox 不包含 FFmpeg 代码的拷贝。并且为了偷懒，咱连二进制文件也不提供～</p>
+								<p><i style="opacity: 0.5;">(2025 更新)&nbsp;</i><font style="font-size: 1.5em">伸手党退散！</font></p>
 							</div>
 						</section>
 						<section class="faqbrick">
@@ -177,6 +178,7 @@ onMounted(async () => {
 							<div class="content">
 								<p>由于众所周知的原因，您可以将电脑搬到境外进行下载，这样下载速度会得到明显的提升。</p>
 								<p><s>我也希望我的用户具有一定的逃脱“信息茧房”的能力 ⊂( *･ω･ )⊃</s></p>
+								<p><i style="opacity: 0.5;">(2025 更新)&nbsp;</i>限制用户量！</p>
 							</div>
 						</section>
 						<section class="faqbrick">
@@ -189,7 +191,7 @@ onMounted(async () => {
 								<p>Yeah. There's a lot of fun things to do. But as you know, the green hat had kill most of my interests or to say abilities.</p>
 								<p>So what the fuck just do programming... My dream has been...?</p>
 								<p>Haven't you watch <i>onestop</i>? <a href="https://www.bilibili.com/video/av968582548/" target="_blank">Go watch it. </a>Parts of it were transcoded by FFBox. Totally worth a seen.</p>
-								<p><i>(2024/04/01 更新)</i> <s><strong>其实视频转码什么的功能已经不重要了。FFBox 的 LICENSE 才是我想要做的全部功能。</strong></s></p>
+								<p><i>(2024/04/01 更新)&nbsp;</i> <s><strong>其实视频转码什么的功能已经不重要了。FFBox 的 LICENSE 才是我想要做的全部功能。</strong></s></p>
 							</div>
 						</section>
 						<section class="faqbrick">
@@ -227,7 +229,7 @@ onMounted(async () => {
 						<section class="faqbrick">
 							<h2 class="title">有考虑过加入暗色模式吗？</h2>
 							<div class="content">
-								<p style="font-size: 1.2em">开发好了！</p>
+								<p><i style="opacity: 0.5;">(2024/04/01 更新)&nbsp;</i><font style="font-size: 1.3em">开发好了！</font></p>
 							</div>
 						</section>
 						<section class="faqbrick">
@@ -235,7 +237,7 @@ onMounted(async () => {
 							<div class="content">
 								<p>以后不是。</p>
 								<p>如您所见，在 FFBox 迭代的过程中，经历了那么多次技术重构。事实上，只有将开发环境搞好，才方便去做一些复杂的功能。这些功能将会在以后被加上。</p>
-								<p><i>(2024/04/01 更新)</i> <span style="opacity: 0.5;">预估是有点难度了。我在公司做过类似的编排组件，真的很不好搞。一段时间内这个功能是不会上线了。</span></p>
+								<p style="opacity: 0.5;"><i>(2024/04/01 更新)&nbsp;</i><span>预估是有点难度了。我在公司做过类似的编排组件，真的很不好搞。一段时间内这个功能是不会上线了。</span></p>
 							</div>
 						</section>
 						<section class="faqbrick">
@@ -497,7 +499,7 @@ onMounted(async () => {
 					margin: 20px;
 					line-height: 1.5em;
 					// font-family: "苹方 粗体", "PingFang SC", 苹方, 微软雅黑, "Segoe UI", Consolas, Avenir, Arial, Helvetica, sans-serif, 黑体;
-					font-size: 1.4em;
+					font-size: 22px;
 					font-weight: 600;
 				}
 				.content {
@@ -506,7 +508,7 @@ onMounted(async () => {
 						margin: 8px 0;
 						// font-family: "苹方 中等", "PingFang SC", 苹方, 微软雅黑, "Segoe UI", Consolas, Avenir, Arial, Helvetica, sans-serif, 黑体;
 						line-height: 1.8em;
-						font-size: 0.9em;
+						font-size: 14px;
 						font-weight: 500;
 					}
 				}

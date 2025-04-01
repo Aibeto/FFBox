@@ -21,6 +21,9 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 		appStore.selectedPanelIndex = 3;
 		return;
 	}
+	Popup({
+		message: '哈哈🤓愚人节快乐！4.4-alpha 是没有发包的，你将要下载的是 4.3 版本！🤡',
+	});
 	let url;
 	switch (os) {
 		case 'Windows':
@@ -86,23 +89,44 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 
 <template>
 	<div class="downloadPanel">
-		<h2>Windows<span>(x86-64)</span></h2>
-		<Button size="large" @click="handleDownloadClick('Windows', 0)"><IconMsi />完整安装包</Button>
-		<Button size="large" @click="handleDownloadClick('Windows', 1)"><IconNodejs />转码服务</Button>
-		<h2>Linux<span>(x86-64)</span></h2>
-		<Button size="large" @click="handleDownloadClick('Linux', 0)"><IconMsi />deb 完整安装包</Button>
-		<Button size="large" @click="handleDownloadClick('Linux', 1)"><IconApp />AppImage 便携程式</Button>
-		<Button size="large" @click="handleDownloadClick('Linux', 2)"><IconNodejs />转码服务</Button>
-		<h2>MacOS<span>(ARM64)</span></h2>
-		<Button size="large" @click="handleDownloadClick('MacOS', 0)"><IconApp />dmg 完整包</Button>
-		<Button size="large" @click="handleDownloadClick('MacOS', 1)"><IconNodejs />转码服务</Button>
-		<h2>网页<span>(不提供转码服务)</span></h2>
-		<Button size="large" @click="handleDownloadClick('web', 0)"><IconWeb />在线使用</Button>
-		<Button size="large" @click="handleDownloadClick('web', 1)"><IconZip />zip 自行部署</Button>
-		<h2>Android</h2>
-		<p>暂未有本地运行开发计划</p>
-		<h2>iOS</h2>
-		<p>暂未有本地运行开发计划</p>
+		<h2>完整客户端<span>(含转码服务和网页版)</span></h2>
+		<div class="oss">
+			<div class="os">
+				<span>Windows (x86-64)</span>
+				<Button size="large" @click="handleDownloadClick('Windows', 0)"><IconMsi />安装包</Button>
+			</div>
+			<div class="os">
+				<span>macOS (ARM64)</span>
+				<Button size="large" @click="handleDownloadClick('MacOS', 0)"><IconApp />dmg 包</Button>
+			</div>
+			<div class="os">
+				<span>Linux (x86-64)</span>
+				<Button size="large" @click="handleDownloadClick('Linux', 0)"><IconMsi />deb 安装包</Button>
+				<Button size="large" @click="handleDownloadClick('Linux', 1)"><IconApp />AppImage</Button>
+			</div>
+		</div>
+		<h2>转码服务<span>(含网页版)</span></h2>
+		<div class="oss">
+			<div class="os">
+				<span>Windows (x86-64)</span>
+				<Button size="large" @click="handleDownloadClick('Windows', 1)"><IconNodejs />二进制</Button>
+			</div>
+			<div class="os">
+				<span>macOS (ARM64)</span>
+				<Button size="large" @click="handleDownloadClick('MacOS', 1)"><IconNodejs />二进制</Button>
+			</div>
+			<div class="os">
+				<span>Linux (x86-64)</span>
+				<Button size="large" @click="handleDownloadClick('Linux', 2)"><IconNodejs />二进制</Button>
+			</div>
+		</div>
+		<h2>网页版</h2>
+		<div class="oss">
+			<div class="os">
+				<span>跨平台</span>
+				<Button size="large" @click="handleDownloadClick('web', 0)"><IconWeb />在线试用</Button>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -117,18 +141,40 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 		p {
 			margin-bottom: 4px;
 		}
-		span {
+		h2>span {
 			font-size: 0.5em;
 			opacity: 0.5;
 			margin-left: 1em;
 		}
-		button {
-			letter-spacing: 0px;
-			&>svg {
-				width: 20px;
-				height: 20px;
-				vertical-align: -4px;
-				margin-right: 6px;
+		.oss {
+			display: flex;
+			gap: 24px;
+			.os {
+				width: 190px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: 16px;
+				padding: 24px;
+				border-radius: 12px;
+				// border: 1.5px solid hwb(var(--highlight));
+				background-color: hwb(var(--hoverLightBg) / 0.15);
+				box-shadow: 0 4px 12px hwb(var(--opposite) / 0.05),	// 外发光
+							0 0 1px 1px hwb(var(--opposite) / 0.1) inset;	// 内边缘
+				span {
+					font-size: 12px;
+					opacity: 0.5;
+				}
+				button {
+					letter-spacing: 0px;
+					margin: 0;
+					&>svg {
+						width: 20px;
+						height: 20px;
+						vertical-align: -4px;
+						margin-right: 6px;
+					}
+				}
 			}
 		}
 	}
