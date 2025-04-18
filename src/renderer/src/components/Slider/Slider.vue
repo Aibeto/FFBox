@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, VNodeRef } from 'vue';
+import { computed, ref, VNodeRef, watch } from 'vue';
 import type { SliderOptions } from '@common/params/parameter';
 import { useAppStore } from '@renderer/stores/appStore';
 
@@ -7,37 +7,53 @@ const appStore = useAppStore();
 
 interface Props {
 	value: number | string;
+	min?: number;	// 不填为 0
+	max?: number;	// 不填为 1
 	tags?: [number, string][] | Map<number, string>;
-	step?: number;
-	valueToText: SliderOptions['valueToText'];
-	valueProcess?: SliderOptions['valueProcess'];
-	stringToNumber?: SliderOptions['stringToNumber'];
-	numberToParam?: SliderOptions['numberToParam'];	// 若指定 numberToParam，Slider 将认为 value 是字符串类型。使用滑块操作时，返回值将通过此函数计算出
+	mode?: 'number' | 'string';	// 决定了 onChange 返回时的值类型、tags 是否用于列表选项
+	arrowKeyStep?: number;	// 键盘方向键，不指定时按整数进行调整，指定时按步长倒数进行调整
+	adsorption?: 'int' | 'tags' | ((value: number) => number);	// 鼠标或触屏调整时吸附值，不指定时自动选择 tags
+	valueToDisplay?: { base?: number, type?: 'bitrate' | 'integer' | 'revertInteger' } | ((value: number | string) => string);	// 仅在 mode 为 number 时有效，指定显示在滑块旁边的结果
 	onChange?: (value: number | string) => any;
 }
 
 const props = defineProps<Props>();
 
-// 如果 props.value 是字符串，那么此处将其转换为对应值（如果有）
-const convertedValue = computed(() => {
+const sortedTags = computed(() => {
+	if (props.tags instanceof Map) {
+		return [...props.tags.entries()].sort((a, b) => a[0] - b[0]);
+	} else if (Array.isArray(props.tags)) {
+		return props.tags.sort((a, b) => a[0] - b[0]);
+	} else {
+		return undefined;
+	}
+});
+
+// 如果 props.value 是字符串，那么此处根据 tags 将其转换为对应值或者 undefined
+const numericalValue = computed(() => {
 	if (typeof props.value === 'string') {
-		if (!props.stringToNumber) {
-			debugger;
+		if (sortedTags.value?.length) {
+			const item = sortedTags.value.find((item) => item[1] === props.value);
+			return item?.[0];
 		}
-		return props.stringToNumber(props.value);
 	} else {
 		return props.value;
 	}
-})
+});
+const limitedValue = computed(() => {
+	if (typeof numericalValue.value === 'number') {
+		return (numericalValue.value - (props.min ?? 0)) / ((props.max ?? 1) - (props.min ?? 0));
+	}
+});
 
 const slipperRef = ref<VNodeRef>(null);
 
-const valueToTextConverter = (setting: Props['valueToText'], value: string | number) => {
+const valueToDisplayConverter = (setting?: Props['valueToDisplay']) => {
 	if (setting instanceof Function) {
-		return setting(value);
-	} else {
+		return setting(props.value);
+	} else if (setting) {
 		if (setting.type === 'bitrate') {
-			const bps = Math.round(setting.min * 2 ** ((value as number) * setting.power));
+			const bps = Math.round((setting.base ?? 0) * 2 ** (props.value as number));
 			if (window.frontendSettings.useIEC) {
 				if (bps >= 10 * 1024 ** 2) {
 					return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
@@ -52,14 +68,38 @@ const valueToTextConverter = (setting: Props['valueToText'], value: string | num
 				}
 			}
 		} else if (setting.type === 'integer') {
-			const range = setting.max - setting.min;
-			return (setting.min + range * (value as number)).toFixed(0);
+			return (props.value as number).toFixed(0);
+		} else if (setting.type === 'revertInteger') {
+			return ((props.max ?? 0) - (props.value as number)).toFixed(0);
 		} else {
-			const range = setting.max - setting.min;
-			return String(setting.min + range * (value as number));
+			return props.value;
+		}
+	} else {
+		if (props.mode === 'string') {
+			if (sortedTags.value?.length) {
+				const item = sortedTags.value.find((item) => item[1] === props.value);
+				return item?.[1];
+			}
+		} else {
+			return props.value;
 		}
 	}
 }
+
+const emitNewValue = (realValue: number | string) => {
+	const emitValue = (() => {
+		// 与 numericalValue 互为反逻辑
+		if (props.mode === 'string') {
+			if (sortedTags.value?.length) {
+				const item = sortedTags.value.find((item) => item[0] === realValue);
+				return item?.[1];
+			}
+		} else {
+			return realValue;
+		}
+	})();
+	(props.onChange || (() => {}))(emitValue);
+};
 
 const handleDragStart = (event: MouseEvent | TouchEvent) => {
 	event.preventDefault();
@@ -76,19 +116,46 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 		sliderWidth = event.target!.offsetWidth;
 		slipperOffsetX = 0;
 	}
-	// 添加鼠标事件捕获，将其独立为一个函数，以便于 mouseDown 直接触发 mouseMove
 	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
-		let value = (Math.floor((event as MouseEvent).pageX || (event as TouchEvent).touches[0].pageX) - sliderLeft - slipperOffsetX) / sliderWidth;	// event.pageX == 0 时短路逻辑失效，会报错，不影响使用
-		if (value > 1) {
-			value = 1;
-		} else if (value < 0) {
-			value = 0;
+		// 算出 limitedValue 和 realValue
+		let limitedValue = (Math.floor((event as MouseEvent).pageX ?? (event as TouchEvent).touches?.[0].pageX) - sliderLeft - slipperOffsetX) / sliderWidth;
+		if (limitedValue > 1) {
+			limitedValue = 1;
+		} else if (limitedValue < 0) {
+			limitedValue = 0;
 		}
-		value = props.valueProcess ? props.valueProcess(value) : value;
-		if (value != lastValue) {
-			const emitValue = props.numberToParam ? props.numberToParam(value) : value;
-			(props.onChange || (() => {}))(emitValue);
-			lastValue = value;
+		let realValue = (props.min ?? 0) + ((props.max ?? 1) - (props.min ?? 0)) * limitedValue;
+		// 根据 realValue 和配置进行吸附
+		if (props.adsorption == 'int') {
+			realValue = Math.round(realValue);
+		} else if (props.adsorption instanceof Function) {
+			realValue = props.adsorption(realValue);
+		} else if (props.mode === 'string') {
+			// 如果是字符串模式，吸附到 tags 上
+			if (sortedTags.value?.length) {
+				let minTag = [Number.MAX_VALUE, undefined];	// 距离，值
+				for (const tag of sortedTags.value) {
+					if (Math.abs(realValue - tag[0]) <= minTag[0]) {
+						minTag = [Math.abs(realValue - tag[0]), tag[0]];
+					}					
+				}
+				realValue = minTag[1];
+			}
+		} else if (sortedTags.value?.length) {
+			function approximation (number: number, numList: number[], threshold = 0.01) {
+				for (const num of numList) {
+					if (Math.abs(num - number) < threshold) {
+						number = num;
+					}
+				}
+				return number;
+			}
+			const range = (props.max ?? 1) - (props.min ?? 0);
+			realValue = approximation(realValue, sortedTags.value.map((item) => item[0]), 0.01 * range);
+		}
+		if (realValue != lastValue) {
+			emitNewValue(realValue);
+			lastValue = realValue;
 		}
 	}
 	const handleMouseUp = (event: MouseEvent | TouchEvent) => {
@@ -103,24 +170,26 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 
 const handleKeypress = (event: KeyboardEvent) => {
 	if (event.key == 'ArrowLeft' || event.key == 'ArrowRight') {
-		let direction, delta, sum;
+		let direction, delta, newRealValue;
 		if (event.key == 'ArrowLeft') {
 			direction = -1;
 		} else {
 			direction = 1;
 		}
-		if (props.step) {
-			delta = 1 / props.step;
+		const originalValue = numericalValue.value ?? ((props.max ?? 1) + (props.min ?? 0)) / 2;
+		const range = (props.max ?? 1) - (props.min ?? 0);
+		if (props.arrowKeyStep) {
+			delta = range / props.arrowKeyStep;
 		} else {
-			delta = 0.01;
+			delta = 1;
 		}
-		sum = (convertedValue.value !== undefined ? convertedValue.value : 0.5) + direction * delta;
-		if (sum < 0) {
-			sum = 0;
-		} else if (sum > 1) {
-			sum = 1;
+		newRealValue = originalValue + direction * delta;
+		if (newRealValue < (props.min ?? 0)) {
+			newRealValue = props.min ?? 0;
+		} else if (newRealValue > (props.max ?? 1)) {
+			newRealValue = props.max ?? 1;
 		}
-		(props.onChange || (() => {}))(sum);
+		emitNewValue(newRealValue);
 	}
 };
 
@@ -130,11 +199,17 @@ const handleKeypress = (event: KeyboardEvent) => {
 	<div class="slider" :data-color_theme="appStore.frontendSettings.colorTheme">
 		<div class="slider-module" @mousedown="handleDragStart">
 			<div class="slider-module-track"></div>
-			<div class="slider-module-track-background" :style="{ width: convertedValue * 100 + '%' }"></div>
-			<span v-for="(tag, index) in tags" :key="index" class="slider-module-mark" :style="{ left: tag[0] * 100 + '%' }">{{ tag[1] }}</span>
-			<button class="slider-module-slipper" v-bind:style="{ left: convertedValue * 100 + '%' }" ref="slipperRef" @keydown="handleKeypress" aria-label="滑块"></button>
+			<div class="slider-module-track-background" :style="{ width: limitedValue * 100 + '%' }"></div>
+			<span
+				v-for="(tag, index) in tags"
+				:key="index" class="slider-module-mark"
+				:style="{ left: (tag[0] - (props.min ?? 0)) / ((props.max ?? 1) - (props.min ?? 0)) * 100 + '%' }"
+			>
+				{{ tag[1] }}
+			</span>
+			<button class="slider-module-slipper" v-bind:style="{ left: limitedValue * 100 + '%' }" ref="slipperRef" @keydown="handleKeypress" aria-label="滑块"></button>
 		</div>
-		<div class="slider-text">{{ valueToTextConverter(props.valueToText, value) }}</div>
+		<div class="slider-text">{{ valueToDisplayConverter(props.valueToDisplay) }}</div>
 	</div>
 </template>
 

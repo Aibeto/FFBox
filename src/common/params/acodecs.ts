@@ -38,50 +38,35 @@ const Q: any = {
 
 // #region 预置 slider
 
-function approximation (number: number, numList: number[], threshould = 0.01) {
-	for (const num of numList) {
-		if (Math.abs(num - number) < threshould) {
-			number = num;
-		}
-	}
-	return number;
-}
-
 const abitrateSlider: SliderOptions = {
-	step: 60,
+	max: 6,
+	arrowKeyStep: 18,
 	tags: new Map([
-		[0.000, '8 Kbps'],
-		[0.167, '16 Kbps'],
-		[0.333, '32 Kbps'],
-		[0.500, '64 Kbps'],
-		[0.667, '128 Kbps'],
-		[0.833, '256 Kbps'],
-		[1.000, '512 Kbps']
+		[0, '8 Kbps'],
+		[1, '16 Kbps'],
+		[2, '32 Kbps'],
+		[3, '64 Kbps'],
+		[4, '128 Kbps'],
+		[5, '256 Kbps'],
+		[6, '512 Kbps']
 	]),
-	default: 0.5,
-	valueToText: { min: 8000, power: 6, type: 'bitrate' },
-	valueProcess: (value) => {
-		return approximation(value,
-				[0, 0.0975, 0.1667, 0.2642, 0.3333, 0.3870, 0.4308, 0.5, 0.5537, 0.5975, 0.6667, 0.7203, 0.7642, 0.8333, 0.8870, 0.9308, 1]);
-			//	 8    12      16      24      32      40      48     64    80      96      128     160     192     256     320     384  512
-	},
+	default: 4,
+	valueToDisplay: { base: 8000, type: 'bitrate' },
 	valueToParam: (value: number) => {
-		return Math.round(8 * Math.pow(2, value * 6)) + "k"
+		return Math.round(8 * Math.pow(2, value)) + "k"
 	}
 }
 const q100slider: SliderOptions = {
-	step: 0,
+	max: 100,
 	tags: new Map([
-		[0.000, '0'],
-		[1.000, '100'],
+		[0, '0'],
+		[1, '100'],
 	]),
-	default: 0.5,
-	valueToText: { min: 0, max: 100, type: 'integer' },
-	valueProcess: (value) => {
-		return Math.round(value * 100) / 100;
-	},
+	default: 50,
+	valueToDisplay: { type: 'integer' },
+	adsorption: 'int',
 	valueToParam: (value: number) => {
-		return (value * 100).toFixed(0);
+		return (value).toFixed(0);
 	},
 }
 
@@ -383,34 +368,29 @@ const lo_downmix: NarrowedMenuItem = {
 // #endregion
 
 const volSlider: SliderOptions = {
-	step: 96,
+	min: -48,
+	max: 48,
 	tags: new Map([
-		[0.000, '-48 dB'],
-		[0.125, '-36 dB'],
-		[0.250, '-24 dB'],
-		[0.375, '-12 dB'],
-		[0.500, '0 dB'],
-		[0.625, '+12 dB'],
-		[0.750, '+24 dB'],
-		[0.875, '+36 dB'],
-		[1.000, '+48 dB'],
+		[-48, '-48 dB'],
+		[-36, '-36 dB'],
+		[-24, '-24 dB'],
+		[-12, '-12 dB'],
+		[0, '0 dB'],
+		[12, '+12 dB'],
+		[24, '+24 dB'],
+		[36, '+36 dB'],
+		[48, '+48 dB'],
 	]),
-	default: 0.5,
-	valueToText: (value: number) => {
-		value *= 96;
-		if (value > 48) {
-			return '+ ' + (value - 48) + ' dB';
+	default: 0,
+	valueToDisplay: (value: number) => {
+		if (value > 0) {
+			return '+ ' + value + ' dB';
 		} else {
-			return (value - 48) + ' dB';
+			return value + ' dB';
 		}
 	},
-	valueProcess: (value) => {
-		value = Math.round(value * 96) / 96
-		return approximation(value,
-				[0.000, 0.125, 0.250, 0.375, 0.500, 0.625, 0.750, 0.875, 1.000]);
-	},
+	adsorption: 'int',
 	valueToParam: (value: number) => {
-		value = value * 96 - 48;
 		return Math.round(256 * Math.pow(10, (value) / 20));
 	}
 }
@@ -1082,12 +1062,12 @@ const generator = {
 				// 计算值
 				const floatValue = audioParams.ratevalue;
 				const value = (() => {
-					const vtt = ratecontrol.valueToText;
+					const vtt = ratecontrol.valueToDisplay;
 					if (vtt instanceof Function) {
 						return vtt(floatValue);
 					} else {
 						if (vtt.type === 'bitrate') {
-							const bps = Math.round(vtt.min * 2 ** ((floatValue as number) * vtt.power));
+							const bps = Math.round(vtt.base * 2 ** (floatValue as number));
 							if (window.frontendSettings.useIEC) {
 								if (bps >= 10 * 1024 ** 2) {
 									return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
@@ -1102,11 +1082,7 @@ const generator = {
 								}
 							}
 						} else if (vtt.type === 'integer') {
-							const range = vtt.max - vtt.min;
-							return (vtt.min + range * (floatValue as number)).toFixed(0);
-						} else {
-							const range = vtt.max - vtt.min;
-							return String(vtt.min + range * (floatValue as number));
+							return ratecontrol.value;
 						}
 					}
 				})();

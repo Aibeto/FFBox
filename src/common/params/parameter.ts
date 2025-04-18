@@ -6,19 +6,20 @@ export interface ComboOptions {
 	default?: any;
 }
 export interface SliderOptions {
-	step: number;	// 键盘步进的步长（如鼠标或触屏操作需使用 valueProcess 进行处理），如不需要则传 0
-	tags: Map<number, string>;
-	items?: NarrowedMenuItem[];	// 指定此项时，允许用户手动输入该项的值，Slider 内部将以字符串值而不是 0~1 数字进行返回
-	default?: number | string; // 值可以是数字或字符串。为字符串时将尝试通过 stringToNumber 转换为数字提供给滑块内部使用，否则不显示滑块
-	valueToText: { min: number, max?: number, power?: number, type?: 'bitrate' | 'integer' } | ((value: number | string) => string);	// 显示在滑杆旁边的文字，可以是指示值域的对象、转换函数
-	valueProcess: (value: number) => number;	// 拖动滑块时通过内部值进行吸附、整数化处理
-	valueToParam: (value: number | string) => string | number;	// 输出到 ffmpeg 参数的文字
-	stringToNumber?: (value: string) => number | undefined;	// 提供给 Slider 组件用于将字符串值处理成滑块进度的方法，需与 numberToParam 共同使用
-	numberToParam?: (value: number) => string | undefined;	// 提供给 Slider 组件用于将滑块进度处理成字符串值的方法。若指定，Slider 将使用 numberToParam 进行输出
+	min?: number;	// 不填为 0
+	max?: number;	// 不填为 1
+	tags?: Map<number, string>;
+	sliderMode?: 'number' | 'string';	// 决定了 onChange 返回时的值类型、tags 是否用于列表选项
+	arrowKeyStep?: number;	// 键盘步进的步长，默认 1
+	default?: number | string; // 值可以是数字或字符串。为字符串时将尝试通过 tags 转换为数字提供给滑块内部使用，否则不显示滑块
+	adsorption?: 'int' | 'tags' | ((value: number) => number);	// 鼠标或触屏调整时吸附值，不指定时自动选择 tags
+	valueToDisplay?: { base?: number, type?: 'bitrate' | 'integer' | 'revertInteger' } | ((value: number | string) => string);	// 显示在滑杆旁边的文字，可以是指示值域的对象、转换函数
+	valueToParam?: (value: number | string) => string | number;	// 输出到 ffmpeg 参数的文字
 }
 export interface BasicParameter {
 	parameter: string;	// 实际传给 ffmpeg 的参数
 	display: string;	// 显示于表单标题
+	description?: string;
 }
 export type Parameter = BasicParameter & (
 	({ mode: 'switch' } & { default: boolean }) |

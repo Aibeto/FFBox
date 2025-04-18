@@ -5,6 +5,7 @@ import DropdownInput from './DropdownInput.vue';
 
 interface Props {
 	title: string;
+	description?: string;
 	text: string;
 	list: MenuItem[];
 	readonly?: boolean;
@@ -20,7 +21,7 @@ const props = defineProps<Props>();
 </script>
 
 <template>
-    <ControlBox :title="props.title">
+    <ControlBox :title="props.title" :description="props.description" >
         <DropdownInput v-bind="$props" />
     </ControlBox>
 </template>

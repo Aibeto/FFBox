@@ -1,14 +1,17 @@
 <script setup lang="ts">
+import { useTooltip } from '@renderer/common/tooltipUtil';
+
 const props = defineProps<{
     title: string;
+	description?: string;
 	long?: boolean;
 }>();
 </script>
 
 <template>
     <div class="controlBox" :style="{ minWidth: props.long ? 'calc(100% - 28px)' : '210px' }">
-		<div class="controlBox-title">{{ props.title }}</div>
-            <slot></slot>
+		<div class="controlBox-title" v-bind="props.description ? useTooltip(props.description) : undefined">{{ props.title }}</div>
+        <slot></slot>
 	</div>
 </template>
 

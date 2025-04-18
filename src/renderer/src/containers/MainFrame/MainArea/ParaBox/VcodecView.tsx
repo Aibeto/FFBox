@@ -48,14 +48,14 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 				break;
 		}
 		return {
-			title, 
-			parameter: 'ratevalue',
-			step: slider.step,
+			title,
+			min: slider.min,
+			max: slider.max,
+			arrowKeyStep: slider.arrowKeyStep,
 			tags: slider.tags,
-			valueToText: slider.valueToText,
-			valueProcess: slider.valueProcess,
+			adsorption: slider.adsorption,
+			valueToDisplay: slider.valueToDisplay,
 			valueToParam: slider.valueToParam,
-			stringToNumber: slider.stringToNumber,
 		};
 	});
 
@@ -72,8 +72,8 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					appStore.globalParams.video.detail[parameter.parameter] = defaultValue;
 					appStore.applyParameters();
 				} else if (parameter.mode == 'slider') {
-					const defaultValue = parameter.default ?? 0.5;
-					console.log(`参数 ${parameter.parameter} 重置为默认值或 0.5：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
+					const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
+					console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
 					appStore.globalParams.video.detail[parameter.parameter] = defaultValue;
 					appStore.applyParameters();
 				}
@@ -97,12 +97,14 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					) : null}
 					{rateControlSlider.value && (
 						<BoxedSlider
-							title={rateControlSlider.value.title} 
+							title={rateControlSlider.value.title}
 							value={appStore.globalParams.video.ratevalue}
+							min={rateControlSlider.value.min}
+							max={rateControlSlider.value.max}
+							arrowKeyStep={rateControlSlider.value.arrowKeyStep}
 							tags={rateControlSlider.value.tags}
-							step={rateControlSlider.value.step}
-							valueToText={rateControlSlider.value.valueToText}
-							valueProcess={rateControlSlider.value.valueProcess}
+							valueToDisplay={rateControlSlider.value.valueToDisplay}
+							adsorption={rateControlSlider.value.adsorption}
 							onChange={(value: number) => handleChange('ratevalue', value)}
 						/>
 					)}
@@ -111,13 +113,15 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 							return (
 								<BoxedSlider
 									title={parameter.display}
+									description={parameter.description}
 									value={appStore.globalParams.video.detail[parameter.parameter]}
+									min={parameter.min}
+									max={parameter.max}
+									arrowKeyStep={parameter.arrowKeyStep}
 									tags={parameter.tags}
-									step={parameter.step}
-									valueToText={parameter.valueToText}
-									valueProcess={parameter.valueProcess}
-									stringToNumber={parameter.stringToNumber}
-									numberToParam={parameter.numberToParam}
+									mode={parameter.sliderMode}
+									adsorption={parameter.adsorption}
+									valueToDisplay={parameter.valueToDisplay}
 									onChange={(value: number) => handleDetailChange(parameter.parameter, value)}
 								/>
 							);
@@ -125,7 +129,8 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 							return (
 								<BoxedDropdownInput
 									title={parameter.display}
-									text={appStore.globalParams.video.detail[parameter.parameter]}
+									description={parameter.description}
+									text={appStore.globalParams.video.detail[parameter.parameter] + ''}
 									list={parameter.items}
 									onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
 								/>

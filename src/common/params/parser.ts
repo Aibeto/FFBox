@@ -36,6 +36,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 							parameters.push({
 								parameter: option.name,
 								display: option.name,
+								description: option.description,
 								mode: 'text',
 								default: option.default as string,
 							});
@@ -43,6 +44,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 							parameters.push({
 								parameter: option.name,
 								display: option.name,
+								description: option.description,
 								mode: 'switch',
 								default: option.default as boolean,
 							});
@@ -50,6 +52,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 							parameters.push({
 								parameter: option.name,
 								display: option.name,
+								description: option.description,
 								mode: 'combo',
 								items: option.options.map((option) => ({
 									type: 'normal',
@@ -74,23 +77,25 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 									parameters.push({
 										parameter: option.name,
 										display: option.name,
+										description: option.description,
 										mode: 'slider',
-										step: max - min,
-										tags: new Map([...options.map((option) => [min + +option.value / (max - min), option.name])]),
+										min, max,
+										tags: new Map([...options.map((option) => [+option.value, option.name] as [number, string])]),
+										sliderMode: 'number',
 										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
-										valueToText: { min, max, type: 'integer' },
-										valueProcess: (value) => Math.round(value * (max - min)) / (max - min),
-										valueToParam: (value) => min + +value * (max - min),
+										adsorption: 'int',
 									})									
 								} else {
 									parameters.push({
 										parameter: option.name,
 										display: option.name,
+										description: option.description,
 										mode: 'combo',
 										items: option.options.map((option) => ({
 											type: 'normal',
 											value: option.value,
 											label: option.name,
+											tooltip: option.description,
 										})),
 										default: option.default,
 									});
@@ -100,18 +105,20 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 									parameters.push({
 										parameter: option.name,
 										display: option.name,
+										description: option.description,
 										mode: 'slider',
-										step: option.max - option.min,
+										min: option.min,
+										max: option.max,
 										tags: new Map(),
+										sliderMode: 'number',
 										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
-										valueToText: { min: option.min, max: option.max, type: 'integer' },
-										valueProcess: (value) => value,
-										valueToParam: (value) => option.min + +value * (option.max - option.min),
+										adsorption: 'int',
 									});
 								} else {
 									parameters.push({
 										parameter: option.name,
 										display: option.name,
+										description: option.description,
 										mode: 'text',
 										type: 'int',
 										default: option.default + '',
@@ -123,18 +130,19 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 								parameters.push({
 									parameter: option.name,
 									display: option.name,
+									description: option.description,
 									mode: 'slider',
-									step: 0,
+									min: option.min,
+									max: option.max,
 									tags: new Map(),
+									sliderMode: 'number',
 									default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
-									valueToText: { min: option.min, max: option.max, type: 'integer' },
-									valueProcess: (value) => value,
-									valueToParam: (value) => value,
 								});
 							} else {
 								parameters.push({
 									parameter: option.name,
 									display: option.name,
+									description: option.description,
 									mode: 'text',
 									type: 'int',
 									default: option.default + '',

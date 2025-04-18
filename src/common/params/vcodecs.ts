@@ -23,13 +23,13 @@ const CRF: any = {
 	type: 'normal',
 	value: 'CRF',
 	label: 'CRF',
-	tooltip: 'Constant Rate Factor - 恒定速率因子：根据画面内容决定码率大小，画质恒定。如果您想获得最佳编码质量而不关心文件大小，请使用此模式。',
-	cmd: ['-crf', VALUE]
+	tooltip: 'Constant Rate Factor - 恒定速率因子：根据画面内容决定码率大小。如果您对输出文件大小没有明确的目标，使用此项可获得视觉上最稳定的画质。相较于 CQP，CRF 会考虑帧间的动态关系，在人眼更容易捕捉的静态画面分配更低的 QP，从而节省码率并且获得更好的视觉效果。',
+	cmd: ['-crf', VALUE],
 }
 const CQP: any = {
 	value: 'CQP',
 	label: 'CQP',
-	tooltip: 'Constant Quantization Parameter - 恒定量化参数：与 CRF 类似，最简单的码率控制方式，相同码率下画质较 CRF 低，一般仅在显卡编码时使用。',
+	tooltip: 'Constant Quantization Parameter - 恒定量化参数：根据画面内容决定码率大小。如果您对输出文件大小没有明确的目标，使用此项可获得最稳定的画质。相较于 CRF，CQP 的 QP 是恒定的，每帧的画质相同，因此相同码率下视觉画质较 CRF 低，一般仅在显卡编码时使用。',
 	cmd: ['-qp', VALUE]
 }
 /*
@@ -63,193 +63,151 @@ const Q: any = {
 
 // #region 预置 slider
 
-function approximation (number: number, numList: number[], threshold = 0.01) {
-	for (const num of numList) {
-		if (Math.abs(num - number) < threshold) {
-			number = num;
-		}
-	}
-	return number;
-}
-
 // valueToText：显示在滑杆旁边的文字　　valueProcess：进行吸附、整数化处理　　valueToParam：输出到 ffmpeg 参数的文字
 
-const H264265crfSlider: SliderOptions = {
-	step: 51,
-	tags: new Map([
-		[0.000, '51（最低画质）'],
-		[0.411, '30（低画质）'],
-		[0.529, '24（中画质）'],
-		[0.647, '18（高画质）'],
-		[0.765, '12（肉眼无损）'],
-		[1.000, '0（最高画质）'],
-	]),
-	default: 0.4510, // 23
-	valueToText: { min: 51, max: 0, type: 'integer' },
-	valueProcess: (value) => {
-		return Math.round(value * 51) / 51;
-	},
-	valueToParam: (value: number) => {
-		return 51 - Math.round(value * 51);
-	},
-}
 const crf63slider: SliderOptions = {
-	step: 63,
+	max: 63,
 	tags: new Map([
-		[0.000, '63（最低画质）'],
-		[1.000, '0（最高画质）'],
+		[0, '63（最低画质）'],
+		[63, '0（最高画质）'],
 	]),
-	default: 0.3651, // 23
-	valueToText: { min: 63, max: 0, type: 'integer' },
-	valueProcess: (value) => {
-		return Math.round(value * 63) / 63;
-	},
+	default: 40, // 60 - 23
+	valueToDisplay: { type: 'revertInteger' },
+	adsorption: 'int',
 	valueToParam: (value: number) => {
-		return 63 - Math.round(value * 63);
+		return 63 - Math.round(value);
 	},
 }
 const crf51slider: SliderOptions = {
-	step: 51,
+	max: 51,
 	tags: new Map([
-		[0.000, '51（最低画质）'],
-		[0.411, '30（低画质）'],
-		[0.529, '24（中画质）'],
-		[0.647, '18（高画质）'],
-		[0.765, '12（肉眼无损）'],
-		[1.000, '0（自动）'],
+		[0, '51（最低画质）'],
+		[21, '30（低画质）'],
+		[27, '24（中画质）'],
+		[33, '18（高画质）'],
+		[39, '12（肉眼无损）'],
+		[51, '0（最高画质）'],
 	]),
-	default: 0.4510, // 23
-	valueToText: { min: 51, max: 0, type: 'integer' },
-	valueProcess: (value) => {
-		return Math.round(value * 51) / 51;
-	},
+	default: 28,	// 51 - 23
+	valueToDisplay: { type: 'revertInteger' },
+	adsorption: 'int',
 	valueToParam: (value: number) => {
-		return 51 - Math.round(value * 51);
+		return 51 - Math.round(value);
 	},
 }
 const qp70slider: SliderOptions = {
-	step: 70,
+	max: 70,
 	tags: new Map([
-		[0.000, '70（最低画质）'],
-		[1.000, '0（最高画质）'],
+		[70, '70（最低画质）'],
+		[0, '0（最高画质）'],
 	]),
-	default: 0.4286, // 30
-	valueToText: { min: 70, max: 0, type: 'integer' },
-	valueProcess: (value) => {
-		return Math.round(value * 70) / 70;
-	},
+	default: 40, // 70 - 30
+	valueToDisplay: { type: 'revertInteger' },
+	adsorption: 'int',
 	valueToParam: (value: number) => {
-		return 70 - Math.round(value * 70);
+		return 70 - Math.round(value);
+	},
+}
+const qp63slider: SliderOptions = {
+	max: 63,
+	tags: new Map([
+		[0, '63（最低画质）'],
+		[63, '0（最高画质）'],
+	]),
+	default: 39, // 63 - 24
+	valueToDisplay: { type: 'revertInteger' },
+	adsorption: 'int',
+	valueToParam: (value: number) => {
+		return 63 - Math.round(value);
 	},
 }
 const qp51slider: SliderOptions = {
-	step: 51,
+	max: 51,
 	tags: new Map([
-		[0.000, '51（最低画质）'],
-		[1.000, '0（最高画质）'],
+		[0, '51（最低画质）'],
+		[51, '0（最高画质）'],
 	]),
-	default: 0.4510, // 23
-	valueToText: { min: 51, max: 0, type: 'integer' },
-	valueProcess: (value) => {
-		return Math.round(value * 51) / 51;
-	},
+	default: 28, // 51 - 23
+	valueToDisplay: { type: 'revertInteger' },
+	adsorption: 'int',
 	valueToParam: (value: number) => {
-		return 51 - Math.round(value * 51);
+		return 51 - Math.round(value);
 	},
 }
 const vbitrateSlider: SliderOptions = {
-	step: 0,
+	max: 12,
+	arrowKeyStep: 24,
 	tags: new Map([
-		[0.000, '62.5 Kbps'],
-		[0.250, '500 Kbps'],
-		[0.500, '4 Mbps'],
-		[0.750, '32 Mbps'],
-		[1.000, '256 Mbps'],
+		[0, '62.5 Kbps'],
+		[3, '500 Kbps'],
+		[6, '4 Mbps'],
+		[9, '32 Mbps'],
+		[12, '256 Mbps'],
 	]),
-	default: 0.5,
-	valueToText: { min: 62500, power: 12, type: 'bitrate' },
-	valueProcess: (value) => {
-		return approximation(value,
-			[0, 0.0833, 0.1667, 0.25, 0.3333, 0.4167, 0.5, 0.5833, 0.6667, 0.75, 0.8333, 0.9167, 1]);
-		//	 62.5k 125k  250k   500k    1M      2M     4M    8M      16M    32M    64M   128M  256M
-	},
+	default: 6,
+	valueToDisplay: { base: 62500, type: 'bitrate' },
 	valueToParam: (value: number) => {
-		return Math.round(62.5 * Math.pow(2, value * 12)) + "k"
+		return Math.round(62.5 * Math.pow(2, value)) + "k"
 	},
 }
 const q100slider: SliderOptions = {
-	step: 0,
+	max: 100,
 	tags: new Map([
-		[0.000, '0'],
-		[1.000, '100'],
+		[0, '0'],
+		[1, '100'],
 	]),
-	default: 0.5,
-	valueToText: { min: 0, max: 100, type: 'integer' },
-	valueProcess: (value) => {
-		return Math.round(value * 100) / 100;
-	},
+	default: 50,
+	valueToDisplay: { type: 'integer' },
+	adsorption: 'int',
 	valueToParam: (value: number) => {
-		return (value * 100).toFixed(0);
+		return (value).toFixed(0);
+	},
+}
+const q255slider: SliderOptions = {
+	max: 256,
+	tags: new Map([
+		[0, '0'],
+		[255, '255'],
+	]),
+	default: 50,
+	valueToDisplay: { type: 'integer' },
+	adsorption: 'int',
+	valueToParam: (value: number) => {
+		return (value).toFixed(0);
 	},
 }
 const H264265presetSlider: SliderOptions = {
-	step: 9,
+	max: 9,
 	tags: new Map([
-		[0 / 9, 'ultrafast'],
-		[1 / 9, 'superfast'],
-		[2 / 9, 'veryfast'],
-		[3 / 9, 'faster'],
-		[4 / 9, 'fast'],
-		[5 / 9, 'medium'],
-		[6 / 9, 'slow'],
-		[7 / 9, 'slower'],
-		[8 / 9, 'veryslow'],
-		[9 / 9, 'placebo'],
+		[0, 'ultrafast'],
+		[1, 'superfast'],
+		[2, 'veryfast'],
+		[3, 'faster'],
+		[4, 'fast'],
+		[5, 'medium'],
+		[6, 'slow'],
+		[7, 'slower'],
+		[8, 'veryslow'],
+		[9, 'placebo'],
 	]),
+	sliderMode: 'string',
 	default: 'medium',
-	valueToText: (value: string) => value,
-	valueProcess: function (value) {
-		return Math.round(value * 9) / 9;
-	},
 	valueToParam: (value) => value,
-	stringToNumber: (value) => {
-		return [0 / 9, 1 / 9, 2 / 9, 3 / 9, 4 / 9, 5 / 9, 6 / 9, 7 / 9, 8 / 9, 9 / 9][
-			['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow', 'placebo'].indexOf(value)
-		];
-	},
-	numberToParam: (value) => {
-		return ['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow', 'placebo'][
-			[0 / 9, 1 / 9, 2 / 9, 3 / 9, 4 / 9, 5 / 9, 6 / 9, 7 / 9, 8 / 9, 9 / 9].indexOf(value)
-		];
-	},
 }
 const qsvPresetSlider: SliderOptions = {
-	step: 6,
+	max: 6,
 	tags: new Map([
-		[0 / 6, 'veryfast'],
-		[1 / 6, 'faster'],
-		[2 / 6, 'fast'],
-		[3 / 6, 'medium'],
-		[4 / 6, 'slow'],
-		[5 / 6, 'slower'],
-		[6 / 6, 'veryslow'],
+		[0, 'veryfast'],
+		[1, 'faster'],
+		[2, 'fast'],
+		[3, 'medium'],
+		[4, 'slow'],
+		[5, 'slower'],
+		[6, 'veryslow'],
 	]),
+	sliderMode: 'string',
 	default: 'medium',
-	valueToText: (value: string) => value,
-	valueProcess: function (value) {
-		return Math.round(value * 6) / 6
-	},
 	valueToParam: (value) => value,
-	stringToNumber: (value) => {
-		return [0 / 6, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 6 / 6][
-			['veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'].indexOf(value)
-		];
-	},
-	numberToParam: (value) => {
-		return ['veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'][
-			[0 / 6, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 6 / 6].indexOf(value)
-		];
-	},
 }
 
 // #endregion
@@ -1009,10 +967,78 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 					parameters: [
 						{
 							mode: "combo", parameter: "pix_fmt", display: "像素格式",
-							items: [ 自动, yuv420p, yuv422p, yuv444p, yuv420p10le, yuv422p10le, yuv444p10le, yuv420p12le, yuv422p12le, yuv444p12le ],
+							items: [ 自动, yuv420p, yuv422p, yuv444p, gbrp, yuv420p10le, yuv422p10le, yuv444p10le, yuv420p12le, yuv422p12le, yuv444p12le, gbrp10le, gbrp12le, gray, gray10le, gbrp12le ],
+						},
+						{
+							mode: "slider", parameter: "cpu-used", display: "编码质量",
+								max: 8,
+								tags: new Map([
+									[0, '8（低质量，快）'],
+									[8, '0（高质量，慢）'],
+								]),
+								default: 0,
+								valueToDisplay: { type: 'revertInteger' },
+								adsorption: 'int',
+								valueToParam: (value: number) => {
+									return 8 - Math.round(value * 8);
+								},
 						},
 					],
-					strict2: true,
+				}
+			},
+			{
+				type: 'normal',
+				value: 'libsvtav1',
+				label: 'libsvtav1',
+				tooltip: '',
+				extra: {
+					rateControl: [
+						{ ...CQP, ...qp63slider },
+						{ ...CRF, ...crf63slider },
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, yuv420p, yuv420p10le ],
+						},
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+								max: 13,
+								tags: new Map([
+									[0, '13（低质量，快）'],
+									[13, '0（高质量，慢）'],
+								]),
+								default: 6, // 13 - 7
+								valueToDisplay: { type: 'revertInteger' },
+								adsorption: 'int',
+								valueToParam: (value: number) => {
+									return 13 - Math.round(value);
+								},
+						},
+					],
+				}
+			},
+			{
+				type: 'normal',
+				value: 'av1_qsv',
+				label: 'av1_qsv',
+				tooltip: 'Intel 硬件加速编码器',
+				extra: {
+					rateControl: [
+						{ ...Q, ...q255slider },	// 255 以上的数值依然有效，但影响甚微
+						{ ...ABR, ...vbitrateSlider },
+					],
+					parameters: [
+						{
+							mode: "combo", parameter: "pix_fmt", display: "像素格式",
+							items: [ 自动, nv12, p010le, qsv ],
+						},
+						{
+							mode: "slider", parameter: "preset", display: "编码质量",
+							...qsvPresetSlider,
+						},
+					],
 				}
 			},
 		],
@@ -1029,7 +1055,7 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CRF, ...H264265crfSlider },
+						{ ...CRF, ...crf51slider },
 						{ ...CQP, ...qp70slider },
 						{ ...ABR, ...vbitrateSlider },
 					],
@@ -1060,7 +1086,7 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 				tooltip: 'Intel 硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...CQP, ...qp51slider, cmd: ['-q', VALUE] },
+						{ ...Q, ...qp63slider, cmd: ['-q', VALUE] },
 						{ ...ABR, ...vbitrateSlider },
 					],
 					parameters: [
@@ -1128,28 +1154,15 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 					parameters: [
 						{
 							mode: "slider", parameter: "preset", display: "编码质量",
-							step: 2,
+							max: 2,
 							tags: new Map([
-								[0 / 2, 'speed'],
-								[1 / 2, 'balanced'],
-								[2 / 2, 'quality'],
+								[0, 'speed'],
+								[1, 'balanced'],
+								[2, 'quality'],
 							]),
+							sliderMode: 'string',
 							default: 'balanced',
-							valueToText: (value: string) => value,
-							valueProcess: (value) => {
-								return Math.round(value * 2) / 2;
-							},
 							valueToParam: (value) => value,
-							stringToNumber: (value) => {
-								return [0 / 2, 1 / 2, 2 / 2][
-									['speed', 'balanced', 'quality'].indexOf(value)
-								];
-							},
-							numberToParam: (value) => {
-								return ['speed', 'balanced', 'quality'][
-									[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-								];
-							},
 						},
 						{
 							mode: "combo", parameter: "tune", display: "编码倾重",
@@ -1226,7 +1239,7 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CRF, ...H264265crfSlider },
+						{ ...CRF, ...crf51slider },
 						{ ...CQP, ...qp70slider },
 						{ ...CBR, cmd: ['-b:v', VALUE, '-minrate', VALUE, '-maxrate', VALUE], ...vbitrateSlider },	
 						{ ...ABR, ...vbitrateSlider },
@@ -1262,7 +1275,7 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CRF, ...H264265crfSlider },
+						{ ...CRF, ...crf51slider },
 						{ ...CQP, ...qp70slider },
 						{ ...CBR, cmd: ['-b:v', VALUE, '-minrate', VALUE, '-maxrate', VALUE], ...vbitrateSlider },	
 						{ ...ABR, ...vbitrateSlider },
@@ -1294,7 +1307,7 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 				tooltip: 'Intel 硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...CQP, ...qp51slider, cmd: ['-q', VALUE] },
+						{ ...Q, ...qp63slider, cmd: ['-q', VALUE] },
 						{ ...ABR, ...vbitrateSlider },
 					],
 					parameters: [
@@ -1308,7 +1321,7 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 						},
 						{
 							mode: "combo", parameter: "pix_fmt", display: "像素格式",
-							items: [ 自动, nv12, p010le, qsv ],
+							items: [ 自动, nv12, qsv ],
 						},
 					],
 				},
@@ -1363,28 +1376,15 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 					parameters: [
 						{
 							mode: "slider", parameter: "preset", display: "编码质量",
-							step: 2,
+							max: 2,
 							tags: new Map([
-								[0 / 2, 'speed'],
-								[1 / 2, 'balanced'],
-								[2 / 2, 'quality'],
+								[0, 'speed'],
+								[1, 'balanced'],
+								[2, 'quality'],
 							]),
+							sliderMode: 'string',
 							default: 'balanced',
-							valueToText: (value: string) => value,
-							valueProcess: (value) => {
-								return Math.round(value * 2) / 2;
-							},
 							valueToParam: (value) => value,
-							stringToNumber: (value) => {
-								return [0 / 2, 1 / 2, 2 / 2][
-									['speed', 'balanced', 'quality'].indexOf(value)
-								];
-							},
-							numberToParam: (value) => {
-								return ['speed', 'balanced', 'quality'][
-									[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-								];
-							},
 						},
 						{
 							mode: "combo", parameter: "tune", display: "编码倾重",
@@ -1470,28 +1470,15 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 					parameters: [
 						{
 							mode: "slider", parameter: "preset", display: "编码质量",
-							step: 2,
+							max: 2,
 							tags: new Map([
-								[0 / 2, 'realtime'],
-								[1 / 2, 'good'],
-								[2 / 2, 'best'],
+								[0, 'realtime'],
+								[1, 'good'],
+								[2, 'best'],
 							]),
-							default: 'balanced',
-							valueToText: (value: string) => value,
-							valueProcess: (value) => {
-								return Math.round(value * 2) / 2;
-							},
+							sliderMode: 'string',
+							default: 'good',
 							valueToParam: (value) => value,
-							stringToNumber: (value) => {
-								return [0 / 2, 1 / 2, 2 / 2][
-									['realtime', 'good', 'best'].indexOf(value)
-								];
-							},
-							numberToParam: (value) => {
-								return ['realtime', 'good', 'best'][
-									[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-								];
-							},
 						},
 						{
 							mode: "combo", parameter: "pix_fmt", display: "像素格式",
@@ -1520,28 +1507,15 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 					parameters: [
 						{
 							mode: "slider", parameter: "preset", display: "编码质量",
-							step: 2,
+							max: 2,
 							tags: new Map([
-								[0 / 2, 'realtime'],
-								[1 / 2, 'good'],
-								[2 / 2, 'best'],
+								[0, 'realtime'],
+								[1, 'good'],
+								[2, 'best'],
 							]),
-							default: 'balanced',
-							valueToText: (value: string) => value,
-							valueProcess: (value) => {
-								return Math.round(value * 2) / 2;
-							},
+							sliderMode: 'string',
+							default: 'good',
 							valueToParam: (value) => value,
-							stringToNumber: (value) => {
-								return [0 / 2, 1 / 2, 2 / 2][
-									['realtime', 'good', 'best'].indexOf(value)
-								];
-							},
-							numberToParam: (value) => {
-								return ['realtime', 'good', 'best'][
-									[0 / 2, 1 / 2, 2 / 2].indexOf(value)
-								];
-							},
 						},
 						{
 							mode: "combo", parameter: "pix_fmt", display: "像素格式",
@@ -2035,7 +2009,7 @@ const generator = {
 					} else if (parameter.mode == 'slider') {
 						ret.push('-' + parameter.parameter);
 						const floatValue = videoParams.detail[parameter.parameter];
-						const value = parameter.valueToParam(floatValue);
+						const value = parameter.valueToParam ? parameter.valueToParam(floatValue) : floatValue;
 						ret.push(value);
 					}
 				}
@@ -2110,12 +2084,12 @@ const generator = {
 				// 计算值
 				const floatValue = videoParams.ratevalue;
 				const value = (() => {
-					const vtt = ratecontrol.valueToText;
+					const vtt = ratecontrol.valueToDisplay;
 					if (vtt instanceof Function) {
 						return vtt(floatValue);
 					} else {
 						if (vtt.type === 'bitrate') {
-							const bps = Math.round(vtt.min * 2 ** ((floatValue as number) * vtt.power));
+							const bps = Math.round(vtt.base * 2 ** (floatValue as number));
 							if (window.frontendSettings.useIEC) {
 								if (bps >= 10 * 1024 ** 2) {
 									return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
@@ -2130,11 +2104,7 @@ const generator = {
 								}
 							}
 						} else if (vtt.type === 'integer') {
-							const range = vtt.max - vtt.min;
-							return (vtt.min + range * (floatValue as number)).toFixed(0);
-						} else {
-							const range = vtt.max - vtt.min;
-							return String(vtt.min + range * (floatValue as number));
+							return ratecontrol.value;
 						}
 					}
 				})();

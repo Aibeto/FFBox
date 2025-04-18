@@ -24,6 +24,7 @@
 3. `pnpm`：它是本项目推荐使用的依赖管理器。
 4. `pnpm set registry ___` `pnpm set ELECTRON_MIRROR`：如果您无法正常下载依赖，请配置源。
 5. `Visual Studio 2022`：如果您要在 Windows 平台上编译 FFBoxHelper，那么这是必须的。
+6. `Inno Setup 6`: 如果要在 Windows 平台上制作安装包，那么需要将软件放置在环境变量中。另外，`ChineseSimplified.isl` 也需要另行准备放在该软件目录下。
 
 ## FFmpeg
 

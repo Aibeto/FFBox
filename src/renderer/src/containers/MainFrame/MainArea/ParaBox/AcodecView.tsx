@@ -17,7 +17,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 		return (getMenuItemByValue(acodecsList, acodecName) as any)?.extra as ACodecDetail;
 	});
 	// 根据当前选择的码率控制器显示具体使用何种 slider
-	const ratecontrolSlider = computed(() => {
+	const rateControlSlider = computed(() => {
 		const rList = acodec.value?.rateControl || [];
 		if (!rList.length) {
 			return null;
@@ -31,24 +31,24 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 			appStore.applyParameters();
 		}
 		const slider = rList[index];
-		let display;
+		let title;
 		switch (slider.value) {
 			case 'CBR/ABR':
-				display = '码率'
+				title = '码率'
 				break;
 			case 'Q':
-				display = '质量参数'
+				title = '质量参数'
 				break;
 		}
 		return {
-			display, 
-			parameter: 'ratevalue',
-			step: slider.step,
+			title,
+			min: slider.min,
+			max: slider.max,
+			arrowKeyStep: slider.arrowKeyStep,
 			tags: slider.tags,
-			valueToText: slider.valueToText,
-			valueProcess: slider.valueProcess,
+			adsorption: slider.adsorption,
+			valueToDisplay: slider.valueToDisplay,
 			valueToParam: slider.valueToParam,
-			stringToNumber: slider.stringToNumber,
 		};
 	});
 
@@ -65,8 +65,8 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					appStore.globalParams.audio.detail[parameter.parameter] = defaultValue;
 					appStore.applyParameters();
 				} else if (parameter.mode == 'slider') {
-					const defaultValue = parameter.default ?? 0.5;
-					console.log(`参数 ${parameter.parameter} 重置为默认值或 0.5：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
+					const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
+					console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
 					appStore.globalParams.audio.detail[parameter.parameter] = defaultValue;
 					appStore.applyParameters();
 				}
@@ -86,14 +86,16 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					{(acodec.value?.rateControl || []).length ? (
 						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.audio.ratecontrol} list={acodec.value.rateControl} onChange={(value: string) => handleChange('ratecontrol', value)} />
 					) : null}
-					{ratecontrolSlider.value && (
+					{rateControlSlider.value && (
 						<BoxedSlider
-							title={ratecontrolSlider.value.display}
+							title={rateControlSlider.value.title}
 							value={appStore.globalParams.audio.ratevalue}
-							tags={ratecontrolSlider.value.tags}
-							step={ratecontrolSlider.value.step}
-							valueToText={ratecontrolSlider.value.valueToText}
-							valueProcess={ratecontrolSlider.value.valueProcess}
+							min={rateControlSlider.value.min}
+							max={rateControlSlider.value.max}
+							arrowKeyStep={rateControlSlider.value.arrowKeyStep}
+							tags={rateControlSlider.value.tags}
+							valueToDisplay={rateControlSlider.value.valueToDisplay}
+							adsorption={rateControlSlider.value.adsorption}
 							onChange={(value: number) => handleChange('ratevalue', value)}
 						/>
 					)}
@@ -102,13 +104,15 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 							return (
 								<BoxedSlider
 									title={parameter.display}
+									description={parameter.description}
 									value={appStore.globalParams.audio.detail[parameter.parameter]}
+									min={parameter.min}
+									max={parameter.max}
+									arrowKeyStep={parameter.arrowKeyStep}
 									tags={parameter.tags}
-									step={parameter.step}
-									valueToText={parameter.valueToText}
-									valueProcess={parameter.valueProcess}
-									stringToNumber={parameter.stringToNumber}
-									numberToParam={parameter.numberToParam}
+									mode={parameter.sliderMode}
+									adsorption={parameter.adsorption}
+									valueToDisplay={parameter.valueToDisplay}
 									onChange={(value: number) => handleDetailChange(parameter.parameter, value)}
 								/>
 							);
@@ -125,11 +129,13 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					})}
 					<BoxedSlider
 						title="音量"
+						description='请注意新版 ffmpeg 不再支持 -vol 参数，请换用滤镜进行音量处理'
 						value={appStore.globalParams.audio.vol}
+						min={volSlider.min}
+						max={volSlider.max}
 						tags={volSlider.tags}
-						step={volSlider.step}
-						valueToText={volSlider.valueToText}
-						valueProcess={volSlider.valueProcess}
+						valueToDisplay={volSlider.valueToDisplay}
+						adsorption={volSlider.adsorption}
 						onChange={(value: number) => handleChange('vol', value)}
 					/>
 				</>
