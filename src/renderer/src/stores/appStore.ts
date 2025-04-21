@@ -7,6 +7,9 @@ import { Server } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
 import { getInitialUITask, randomString, replaceOutputParams } from '@common/utils';
+import { getMenuItemByValue } from '@common/menu';
+import { VCodecDetail, vcodecsList } from '@common/params/vcodecs';
+import { ACodecDetail, acodecsList } from '@common/params/acodecs';
 import path from '@common/path';
 import { parseFFmpegCodecsToCodecsList } from '@common/params/parser';
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from './eventsHandler';
@@ -327,15 +330,17 @@ export const useAppStore = defineStore('app', {
 		applyParameters(isUserInteraction = true) {
 			const 这 = useAppStore();
 			// 更改到一些不匹配的值后会导致 getFFmpegParaArray 出错，但是修正代码就在后面，因此仅需忽略它，让它继续运行下去，不要急着更新
-			// let currentServer = state.servers[state.currentServerName];
-			// let currentBridge = state.serviceBridges[state.currentServerName];
+
+			// 变更预设参数
+			if (isUserInteraction) {
+				这.globalParams.extra.presetName = '';
+				这.presetName = '';
+			}
+
 			const entity = 这.currentServer?.entity;
 			const data = 这.currentServer?.data;
 			if (data) {
-				if (isUserInteraction) {
-					这.globalParams.extra.presetName = '';
-				}
-				这.globalParams
+				// 这.globalParams
 				// 收集需要批量更新的输出参数，交给 service。同时本地替换一次 task.after
 				let needToUpdateIds: number[] = [];
 				for (const id of 这.selectedTask) {
@@ -360,11 +365,49 @@ export const useAppStore = defineStore('app', {
 				nodeBridge.localStorage.set('output', 这.globalParams.output);
 				console.log('参数已保存');
 			}, 700);
-
-			// 变更预设参数
-			if (isUserInteraction) {
-				这.presetName = '';
+		},
+		/**
+		 * 切换编码器之后或者第一次使用 FFBox 需要预置一些默认值，通过调用此函数进行
+		 */
+		checkAndApplyCodecDefaults(who: { video?: true, audio?: true }) {
+			const 这 = useAppStore();
+			if (who.video) {
+				const v = 这.globalParams.video;
+				const vcodec = (getMenuItemByValue(vcodecsList, v.vcodec) as any)?.extra as VCodecDetail;
+				for (const parameter of (vcodec?.parameters || [])) {
+					if (parameter.optional) {
+						continue;	// 默认不启用可选参数。在勾选后才读取默认值
+					}
+					if (parameter.mode === 'combo') {
+						const defaultValue = parameter.default ?? parameter.items[0].value;
+						console.log(`参数 ${parameter.parameter} 重置为默认值或首项：${defaultValue}`);
+						v.detail[parameter.parameter] = defaultValue;
+					} else if (parameter.mode == 'slider') {
+						const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
+						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
+						v.detail[parameter.parameter] = defaultValue;
+					}
+				}
 			}
+			if (who.audio) {
+				const a = 这.globalParams.audio;
+				const acodec = (getMenuItemByValue(acodecsList, a.acodec) as any)?.extra as ACodecDetail;
+				for (const parameter of (acodec?.parameters || [])) {
+					if (parameter.optional) {
+						continue;	// 默认不启用可选参数。在勾选后才读取默认值
+					}
+					if (parameter.mode === 'combo') {
+						const defaultValue = parameter.default ?? parameter.items[0].value;
+						console.log(`参数 ${parameter.parameter} 重置为默认值或首项：${defaultValue}`);
+						a.detail[parameter.parameter] = defaultValue;
+					} else if (parameter.mode == 'slider') {
+						const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
+						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
+						a.detail[parameter.parameter] = defaultValue;
+					}
+				}
+			}
+			这.applyParameters();
 		},
 		/**
 		 * 检查有多少参数是非“不重新编码”的，以此更改界面显示形式（paramsVisibility）
@@ -498,6 +541,17 @@ export const useAppStore = defineStore('app', {
 				}).then((response) => {
 					response.json().then((result: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }) => {
 						parseFFmpegCodecsToCodecsList(result);
+						nodeBridge.localStorage.set('ffmpegCodecs', result);
+						Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.video.length} 种视频编码、${result.audio.length} 种音频编码`, level: NotificationLevel.ok });
+						// 当 Parabox 停留在视频/音频编码界面时，由于整个 vcodecsList/acodecsList 被替换，使得界面中监听的是不会被再更新的老 list，因此需要刷一下
+						const vcodec = 这.globalParams.video.vcodec;
+						const acodec = 这.globalParams.audio.acodec;
+						这.globalParams.video.vcodec = undefined;
+						这.globalParams.audio.acodec = undefined;
+						setTimeout(() => {
+							这.globalParams.video.vcodec = vcodec;
+							这.globalParams.audio.acodec = acodec;								
+						}, 0);
 					});
 				});
 			}

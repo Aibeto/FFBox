@@ -2011,6 +2011,16 @@ const generator = {
 						const floatValue = videoParams.detail[parameter.parameter];
 						const value = parameter.valueToParam ? parameter.valueToParam(floatValue) : floatValue;
 						ret.push(value);
+					} else if (parameter.mode === 'switch') {
+						if (videoParams.detail[parameter.parameter] !== undefined) {
+							ret.push('-' + parameter.parameter);
+							ret.push(videoParams.detail[parameter.parameter]);
+						}
+					} else if (parameter.mode === 'text') {
+						if (videoParams.detail[parameter.parameter] && videoParams.detail[parameter.parameter] != '默认' && videoParams.detail[parameter.parameter] != '自动') {
+							ret.push('-' + parameter.parameter);
+							ret.push(videoParams.detail[parameter.parameter]);
+						}
 					}
 				}
 								// 调试用↓

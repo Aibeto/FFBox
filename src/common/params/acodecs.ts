@@ -1005,8 +1005,18 @@ const generator = {
 					} else if (parameter.mode == 'slider') {
 						ret.push('-' + parameter.parameter);
 						const floatValue = audioParams.detail[parameter.parameter];
-						const value = parameter.valueToParam(floatValue);
+						const value = parameter.valueToParam ? parameter.valueToParam(floatValue) : floatValue;
 						ret.push(value);
+					} else if (parameter.mode === 'switch') {
+						if (audioParams.detail[parameter.parameter] !== undefined) {
+							ret.push('-' + parameter.parameter);
+							ret.push(audioParams.detail[parameter.parameter]);
+						}
+					} else if (parameter.mode === 'text') {
+						if (audioParams.detail[parameter.parameter] && audioParams.detail[parameter.parameter] != '默认' && audioParams.detail[parameter.parameter] != '自动') {
+							ret.push('-' + parameter.parameter);
+							ret.push(audioParams.detail[parameter.parameter]);
+						}
 					}
 				}
 				const ratecontrol = (acodecDetail.rateControl || []).find((item) => item.value === audioParams.ratecontrol);
@@ -1030,7 +1040,7 @@ const generator = {
 			}
 		} // 如果编码为自动，则不设置 acodec 参数，返回空 Array
 		if (audioParams.acodec !== '禁用' && audioParams.acodec !== 'copy') {
-			if (audioParams.vol !== 0.5) {
+			if (audioParams.vol !== 0) {
 				ret.push('-vol');
 				ret.push(volSlider.valueToParam(audioParams.vol));
 			}

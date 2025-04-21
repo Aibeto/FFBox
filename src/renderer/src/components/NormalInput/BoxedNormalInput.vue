@@ -4,9 +4,10 @@ import NormalInput from './NormalInput.vue';
 
 interface Props {
 	title: string;
-	type?: 'text' | 'password';
-	value?: string;
+	description?: string;
 	long?: boolean;
+	value?: string;
+	type?: 'text' | 'password';
 	disabled?: boolean;
 	placeholder?: string;
 	validator?: (value: string) => string;
@@ -19,7 +20,7 @@ const props = defineProps<Props>();
 </script>
 
 <template>
-    <ControlBox :title="props.title" :long="$props.long">
+    <ControlBox :title="props.title" :description="props.description" :long="$props.long">
         <NormalInput v-bind="$props" />
     </ControlBox>
 </template>

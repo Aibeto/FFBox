@@ -1,11 +1,12 @@
 import { computed, FunctionalComponent } from 'vue';
 import { vcodecsList, resolution, framerate, VCodecDetail } from '@common/params/vcodecs';
 import { getMenuItemByValue } from '@common/menu';
+import { useAppStore } from '@renderer/stores/appStore';
+import { framerateValidator, numberValidator } from '../../../../components/validatorAndFixer';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
-import { framerateValidator } from '../../../../components/validatorAndFixer';
-import { useAppStore } from '@renderer/stores/appStore';
+import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import style from './index.module.less';
 
 interface Props {}
@@ -64,20 +65,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 		appStore.globalParams.video[sName] = value;
 		appStore.applyParameters();
 		if (sName == 'vcodec') {
-			// 更改 vcodec 后检查子组件的设置
-			for (const parameter of (vcodec.value?.parameters || [])) {
-				if (parameter.mode === 'combo') {
-					const defaultValue = parameter.default ?? parameter.items[0].value;
-					console.log(`参数 ${parameter.parameter} 重置为默认值或首项：${defaultValue}`);
-					appStore.globalParams.video.detail[parameter.parameter] = defaultValue;
-					appStore.applyParameters();
-				} else if (parameter.mode == 'slider') {
-					const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
-					console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
-					appStore.globalParams.video.detail[parameter.parameter] = defaultValue;
-					appStore.applyParameters();
-				}
-			}
+			appStore.checkAndApplyCodecDefaults({ video: true });
 		}
 	};
 	const handleDetailChange = (sName: string, value: any) => {
@@ -133,6 +121,25 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 									text={appStore.globalParams.video.detail[parameter.parameter] + ''}
 									list={parameter.items}
 									onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
+								/>
+							);
+						} else if (parameter.mode === 'switch') {
+							return (
+								<BoxedSwitch
+									title={parameter.display}
+									description={parameter.description}
+									checked={appStore.globalParams.video.detail[parameter.parameter]}
+									onChange={(value: boolean) => handleDetailChange(parameter.parameter, value)}
+								/>
+							);
+						} else if (parameter.mode === 'text') {
+							return (
+								<BoxedNormalInput
+									title={parameter.display}
+									description={parameter.description}
+									value={appStore.globalParams.video.detail[parameter.parameter]}
+									onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
+									validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
 								/>
 							);
 						}

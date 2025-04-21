@@ -75,8 +75,8 @@ class ElectronApp {
 
 	createMainWindow(): void {
 		const mainWindow = new BrowserWindow({
-			width: 1080,
-			height: 720,
+			width: buildInfo.isDev ? 1440 : 1080,
+			height: buildInfo.isDev ? 900 : 720,
 			minWidth: 600,
 			minHeight: 300,
 			show: false,

@@ -15,7 +15,10 @@ export function durationValidator(value: string) {
 }
 
 export function numberValidator(value: string) {
-    return value.match(/^\d+(.\d+)?$/) ? undefined : INVALID_TEXT;
+    return value.match(/^-?\d+(.\d+)?$/) ? undefined : INVALID_TEXT;
+}
+numberValidator.integer = function(value: string) {
+    return value.match(/^-?\d+$/) ? undefined : INVALID_TEXT;
 }
 
 export function framerateValidator(value: string) {

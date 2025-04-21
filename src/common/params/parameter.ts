@@ -20,6 +20,7 @@ export interface BasicParameter {
 	parameter: string;	// 实际传给 ffmpeg 的参数
 	display: string;	// 显示于表单标题
 	description?: string;
+	optional?: true;	// 通过扫描 ffmpeg 编码列表得到的参数都应允许关闭
 }
 export type Parameter = BasicParameter & (
 	({ mode: 'switch' } & { default: boolean }) |

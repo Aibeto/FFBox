@@ -7,14 +7,20 @@ import { handleDownloadStatusChange, handleDownloadProgress, handleCloseConfirm 
 import { TransferStatus } from '@common/types';
 import { Server } from './types';
 import { buildNumber, version } from '@common/constants';
-import { randomString } from '@common/utils';
+import { parseFFmpegCodecsToCodecsList } from '@common/params/parser';
 import Popup from './components/Popup/Popup';
-import MainFrame from './containers/MainFrame.vue';
 import nodeBridge from './bridges/nodeBridge';
+import MainFrame from './containers/MainFrame.vue';
 
 const appStore = useAppStore();
 
 onMounted(async () => {
+	// 挂载调试变量
+	if (buildInfo.isDev) {
+		(window as any).appStore = appStore;
+		(window as any).nodeBridge = nodeBridge;
+	}
+
 	// 初始化本地服务器
 	const firstServerId = appStore.addServer();
 	if (nodeBridge.env === 'electron') {
@@ -64,6 +70,11 @@ onMounted(async () => {
 	window.frontendSettings = {};
 	appStore.loadPresetList();
 	(async () => {
+		const ffmpegCodecs = await nodeBridge.localStorage.get('ffmpegCodecs');
+		if (ffmpegCodecs) {
+			parseFFmpegCodecsToCodecsList(ffmpegCodecs);
+		}
+
 		const gp = appStore.globalParams;
 		const storedBuildNumber = await nodeBridge.localStorage.get('version.buildNumber');
 		if (!storedBuildNumber || storedBuildNumber != buildNumber) {
@@ -72,12 +83,13 @@ onMounted(async () => {
 				level: 0,
 			});
 			nodeBridge.localStorage.set('version.buildNumber', buildNumber);
+			appStore.checkAndApplyCodecDefaults({ video: true, audio: true });
 		} else {
-			gp.input = await nodeBridge.localStorage.get('input') || gp.input;
-			gp.video = await nodeBridge.localStorage.get('video') || gp.video;
-			gp.audio = await nodeBridge.localStorage.get('audio') || gp.audio;
-			gp.output = await nodeBridge.localStorage.get('output') || gp.output;
-
+			const [input, video, audio, output] = await Promise.all(['input', 'video', 'audio', 'output'].map((i) => nodeBridge.localStorage.get(i)));
+			gp.input = input || gp.input;
+			gp.video = video || gp.video;
+			gp.audio = audio || gp.audio;
+			gp.output = output || gp.output;
 		}
 		appStore.frontendSettings = await nodeBridge.localStorage.get('frontendSettings') || appStore.frontendSettings;
 		appStore.applyFrontendSettings(false);
