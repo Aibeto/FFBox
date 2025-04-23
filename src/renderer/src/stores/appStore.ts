@@ -476,6 +476,7 @@ export const useAppStore = defineStore('app', {
 					这.globalParams = JSON.parse(JSON.stringify(defaultParams));
 					这.presetName = name;
 					这.applyParameters(false);
+					这.checkAndApplyCodecDefaults({ video: true, audio: true });
 					resolve(undefined);
 				})
 			} else {
@@ -535,7 +536,7 @@ export const useAppStore = defineStore('app', {
 		fetchCodecs() {
 			const 这 = useAppStore();
 			const entity = 这.currentServer?.entity;
-			if (entity) {
+			if (entity?.status === ServiceBridgeStatus.Connected) {
 				fetch(`http://${entity.ip}:${entity.port}/codecs`, {
 					method: 'get',
 				}).then((response) => {
@@ -554,6 +555,8 @@ export const useAppStore = defineStore('app', {
 						}, 0);
 					});
 				});
+			} else {
+				Popup({ message: '请先连接当前标签的服务器', level: NotificationLevel.error });
 			}
 		},
 		// #endregion 参数处理

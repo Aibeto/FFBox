@@ -60,7 +60,7 @@ const q100slider: SliderOptions = {
 	max: 100,
 	tags: new Map([
 		[0, '0'],
-		[1, '100'],
+		[100, '100'],
 	]),
 	default: 50,
 	valueToDisplay: { type: 'integer' },
@@ -991,7 +991,9 @@ const generator = {
 					strict2 = true;
 				}
 				for (const parameter of acodecDetail.parameters || []) {
-					// 普通的详细参数
+					if (parameter.optional && audioParams.detail[parameter.parameter] === undefined) {
+						continue;
+					}
 					if (parameter.mode === 'combo') {
 						if (audioParams.detail[parameter.parameter] != '默认' && audioParams.detail[parameter.parameter] != '自动') {
 							ret.push('-' + parameter.parameter);

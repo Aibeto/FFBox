@@ -6,7 +6,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
 
 interface Props {
-	text: string | number;
+	text?: string | number;
 	list: MenuItem[];
 	readonly?: boolean;
 	deletable?: boolean;
@@ -116,7 +116,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 // 监听 props 中的 text，并在其更新时依此更新 data 中的 inputText（与输入框双向绑定）
 watch(() => props.text, (newValue, oldValue) => {
-	inputText.value = newValue + '';
+	inputText.value = newValue !== undefined ? newValue + '' : '';
 });
 watch(inputText, (newValue, oldValue) => {
 	if (props.validator) {
@@ -127,7 +127,7 @@ watch(inputText, (newValue, oldValue) => {
 }, { immediate: true });
 
 onMounted(() => {
-	inputText.value = props.text + '';
+	inputText.value = props.text !== undefined ? props.text + '' : '';
 });
 
 </script>

@@ -393,7 +393,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					const encodersRegx = thisLine.match(/\(encoders: ([\w| |-]+)\)/);
 					let encoders: string[] = [];
 					if (encodersRegx) {
-						encoders = encodersRegx[1].split(' ').slice(0, -1);
+						encoders = encodersRegx[1].split(' ').filter((item) => item);	// 在旧版 ffmpeg 上会多出来一项空白的
 					}
 					const encodersStringPos = basicInfoRegx[8].indexOf(' (encoders') > 0 ? basicInfoRegx[8].indexOf(' (encoders') : Number.MAX_SAFE_INTEGER;
 					const decodersStringPos = basicInfoRegx[8].indexOf(' (decoders') > 0 ? basicInfoRegx[8].indexOf(' (decoders') : Number.MAX_SAFE_INTEGER;
@@ -409,8 +409,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				if (thisLine.startsWith('     ')) {
 					// 上一个参数
 					const option = this.readingAVOption;
-					const flagsRegx = thisLine.match(/([\w|+|-]+) +([\w|\.]+) ?(.+)?/);
-					const intRegx = thisLine.match(/([\w|+|-]+) +([-+]?\d+) +([\w|\.]+) ?(.+)?/);
+					const flagsRegx = thisLine.match(/([\w|+|-|\.]+) +([\w|\.]+) ?(.+)?/);
+					const intRegx = thisLine.match(/([\w|+|-|\.]+) +([-+]?\d+) +([\w|\.]+) ?(.+)?/);
 					if (!option.options) {
 						option.options = [];
 					}
@@ -435,9 +435,9 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					const basicInfoRegx = thisLine.match(/-([\w|-]+) +<(\w+)> +([\w|\.]+) (.+)/);
 					// 0：全文　1. 参数名称　2. 参数类型　3. 不知道是啥　4. 描述（含取值范围）
 					const minmaxRegx = thisLine.match(/\(from ([\w|-]+) to ([\w|-]+)\)/);
-					const defaultRegx = thisLine.match(/\(default "?([\w|+|-]+)\)"?/);
+					const defaultRegx = thisLine.match(/\(default "?([\w+-\.]+)\)"?/);
 					const parseValue = (value: string) => {
-						const direct = [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MIN_VALUE, Number.MAX_VALUE, false, true, NaN][['INT_MIN', 'INT_MAX', 'FLT_MIN', 'FLT_MAX', 'false', 'true', 'NaN'].indexOf(value)];
+						const direct = [-2147483648, 2147483647, Number.MIN_VALUE, Number.MAX_VALUE, false, true, NaN][['INT_MIN', 'INT_MAX', 'FLT_MIN', 'FLT_MAX', 'false', 'true', 'NaN'].indexOf(value)];
 						if (direct !== undefined) {
 							return direct;
 						} else if (!isNaN(+value)) {

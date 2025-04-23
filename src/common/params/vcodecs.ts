@@ -154,7 +154,7 @@ const q100slider: SliderOptions = {
 	max: 100,
 	tags: new Map([
 		[0, '0'],
-		[1, '100'],
+		[100, '100'],
 	]),
 	default: 50,
 	valueToDisplay: { type: 'integer' },
@@ -980,7 +980,7 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 								valueToDisplay: { type: 'revertInteger' },
 								adsorption: 'int',
 								valueToParam: (value: number) => {
-									return 8 - Math.round(value * 8);
+									return 8 - Math.round(value);
 								},
 						},
 					],
@@ -1995,7 +1995,9 @@ const generator = {
 					strict2 = true;
 				}
 				for (const parameter of vcodecDetail.parameters || []) {
-					// 逐个遍历详细参数
+					if (parameter.optional && videoParams.detail[parameter.parameter] === undefined) {
+						continue;
+					}
 					if (parameter.mode === 'combo') {
 						if (videoParams.detail[parameter.parameter] != '默认' && videoParams.detail[parameter.parameter] != '自动') {
 							ret.push('-' + parameter.parameter);

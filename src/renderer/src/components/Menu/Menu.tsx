@@ -14,7 +14,7 @@ export interface MenuOptions {
 	container?: HTMLElement;	// 指定外侧容器，如不指定则默认全屏展示
 	triggerRect?: { xMin: number, yMin: number, xMax: number, yMax: number };	// 触发菜单的控件的坐标，用于计算菜单弹出方向和大小
 	disableOnClick?: boolean;
-	onSelect?: (event: Event, value: any, checked?: boolean) => void;
+	onSelect?: (event: Event, value: any, checked?: boolean) => void | false;	// action 模式时，不定义此项或返回 false 则触发 menuItem 的 onClick
 	onCancel?: (event: Event) => void | false;	// mask 点击的情况会触发 onCancel，若返回 false 则不关闭菜单
 	onClose?: () => void;
 	onKeyDown?: (event: KeyboardEvent) => void;
@@ -43,13 +43,16 @@ const showMenu = function (options?: MenuOptions) {
 		/**
 		 * 菜单组件鼠标弹起、方向键、Enter 键，只要 menuItem 有 value，且有效（没有 disabled）都会触发 handleItemSelect
 		 * 此时需要判断：1. 是否向上触发 onSelect；2. 是否需要关闭菜单；3. 是否需要调用 menuItem 自身的 onClick
-		 * 对于 action 类型的菜单，只有点击或 Enter 键，才会触发 onSelect（目前默认关闭菜单）。而 onClick 不需要处理，因为这个操作可以由 onSelect 交给外界处理
+		 * 对于 action 类型的菜单，只有点击或 Enter 键，才会触发 onSelect（目前默认关闭菜单）。而 onClick 是否要触发则取决于 onSelect
 		 * 对于 select 类型的菜单，如果定义了 onClick，它就是一个例外的 action，在点击或 Enter 键的情况下在此处处理 onClick（目前默认关闭菜单）。否则 Enter、方向键都会触发 onSelect，但只有点击、Enter 会关闭菜单
 		 */
 		const isClickEvent = event.type === 'mouseup' || (event.type === 'keydown' && (event as KeyboardEvent).key === 'Enter');
 		if (type === 'action') {
 			if (isClickEvent) {
-				(options.onSelect || (() => {}))(event, menuItem.value, menuItem.type !== 'normal' ? menuItem.checked : undefined);
+				const result = options.onSelect ? options.onSelect(event, menuItem.value, menuItem.type !== 'normal' ? menuItem.checked : undefined) : false;
+				if (result === false) {
+					(menuItem.onClick || (() => {}))(event, menuItem.value);
+				}
 				handleClose();
 			}
 		} else if (type === 'select') {

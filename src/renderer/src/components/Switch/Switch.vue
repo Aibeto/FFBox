@@ -2,7 +2,7 @@
 import { ref, VNodeRef } from 'vue';
 
 interface Props {
-	checked: boolean;
+	checked?: boolean;
 	onChange?: (value: boolean) => any;
 }
 
@@ -72,6 +72,7 @@ const handleKeyup = (event: KeyboardEvent) => {
 	<div class="checkbox-track" @mousedown="handleDragStart">
 		<div class="checkbox-track-background" :style="props.checked ? 'width: 100%;' : 'width: 0%'"></div>
 		<button
+			v-if="props.checked !== undefined"
 			ref="slipperRef"
 			class="checkbox-slipper"
 			:style="props.checked ? 'left: 64px;' : 'left: 0px'"

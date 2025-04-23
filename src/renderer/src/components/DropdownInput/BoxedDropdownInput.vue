@@ -6,7 +6,8 @@ import DropdownInput from './DropdownInput.vue';
 interface Props {
 	title: string;
 	description?: string;
-	text: string;
+	text?: string;
+	optionalDefault?: any;
 	list: MenuItem[];
 	readonly?: boolean;
 	deletable?: boolean;
@@ -17,11 +18,18 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const handleEnabledChange = (checked: boolean) => {
+	if (checked) {
+		props.onChange && props.onChange(props.optionalDefault);
+	} else {
+		props.onChange && props.onChange(undefined);
+	}
+};
 
 </script>
 
 <template>
-    <ControlBox :title="props.title" :description="props.description" >
+    <ControlBox :title="props.title" :description="props.description" :optional="props.optionalDefault !== undefined ? true : false" :hasValue="props.text !== undefined ? true : false" :onEnabledChange="handleEnabledChange" >
         <DropdownInput v-bind="$props" />
     </ControlBox>
 </template>

@@ -68,14 +68,18 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 						} else if (option.type === 'int') {
 							/**
 							 * int 类型具有最多的目的
-							 * 如果是间距为 1 的等差数列，可以认为是挡位调节（如 preset）（适用 slider），也有可能是枚举（如 tune）（适用 dropdownInput，但无法识别这种情况，所以也使用 slider）
+							 * 如果是间距为 1 或 0 的等差数列，可以认为是挡位调节（如 preset）（适用 slider），也有可能是枚举（如 tune）（适用 dropdownInput）。从 slider 占用和容纳空间考虑，设定为上下限差 4~10 之间的使用 slider，否则使用 dropwownInput
 							 * 如果不等差，基本可以认定是枚举（如 level）（适用 dropdownInput）
 							 * 如果没有选项，有可能是可调节范围（如 max_b_frames (from -1 to 3) (default -1)）（适用 slider），或者是别的（如 b-bias (from INT_MIN to INT_MAX) (default INT_MIN)）(适用 NormalInput)
 							 */
 							if (option.options) {
 								const options = option.options;
-								const isEqualDiff = options.map((o) => +o.value).every((option, index, array) => index === 0 || Math.abs(option - array[index - 1]) === 1);
-								if (isEqualDiff) {
+								const isEqualDiff = options.map((o) => +o.value).every((option, index, array) => index === 0 || Math.abs(option - array[index - 1]) <= 1);
+								const minmaxDiff4to10 = isEqualDiff && Math.abs(+options[0].value - +options[options.length - 1].value) >= 4 && Math.abs(+options[0].value - +options[options.length - 1].value) <= 10;
+								// if (minmaxDiff4to10) {
+								// 	console.log('minmaxDiff4to10', encoder.name, option.name);
+								// }
+								if (isEqualDiff && minmaxDiff4to10) {
 									const min = Math.min(+options[0].value, +options[options.length - 1].value);
 									const max = Math.max(+options[0].value, +options[options.length - 1].value);
 									parameters.push({
@@ -85,7 +89,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 										optional: true,
 										mode: 'slider',
 										min, max,
-										tags: new Map([...options.map((option) => [+option.value, option.name] as [number, string])]),
+										tags: new Map([[min, min + ''], [max, max + ''], [+option.default, '默认值'], ...options.map((option) => [+option.value, option.name] as [number, string])]),
 										sliderMode: 'number',
 										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
 										adsorption: 'int',
@@ -116,7 +120,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 										mode: 'slider',
 										min: option.min,
 										max: option.max,
-										tags: new Map(),
+										tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
 										sliderMode: 'number',
 										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
 										adsorption: 'int',
@@ -143,7 +147,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 									mode: 'slider',
 									min: option.min,
 									max: option.max,
-									tags: new Map(),
+									tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
 									sliderMode: 'number',
 									default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
 								});
@@ -234,14 +238,18 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 						} else if (option.type === 'int') {
 							/**
 							 * int 类型具有最多的目的
-							 * 如果是间距为 1 的等差数列，可以认为是挡位调节（适用 slider），也有可能是枚举（适用 dropdownInput，但无法识别这种情况，所以也使用 slider）
+							 * 如果是间距为 1 或 0 的等差数列，可以认为是挡位调节（如 preset）（适用 slider），也有可能是枚举（如 tune）（适用 dropdownInput）。从 slider 占用和容纳空间考虑，设定为上下限差 4~10 之间的使用 slider，否则使用 dropwownInput
 							 * 如果不等差，基本可以认定是枚举（适用 dropdownInput）
 							 * 如果没有选项，有可能是可调节范围（适用 slider），或者是别的(适用 NormalInput)
 							 */
 							if (option.options) {
 								const options = option.options;
-								const isEqualDiff = options.map((o) => +o.value).every((option, index, array) => index === 0 || Math.abs(option - array[index - 1]) === 1);
-								if (isEqualDiff) {
+								const isEqualDiff = options.map((o) => +o.value).every((option, index, array) => index === 0 || Math.abs(option - array[index - 1]) <= 1);
+								const minmaxDiff4to10 = isEqualDiff && Math.abs(+options[0].value - +options[options.length - 1].value) >= 4 && Math.abs(+options[0].value - +options[options.length - 1].value) <= 10;
+								// if (minmaxDiff4to10) {
+								// 	console.log('minmaxDiff4to10', encoder.name, option.name);
+								// }
+								if (isEqualDiff && minmaxDiff4to10) {
 									const min = Math.min(+options[0].value, +options[options.length - 1].value);
 									const max = Math.max(+options[0].value, +options[options.length - 1].value);
 									parameters.push({
@@ -251,7 +259,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 										optional: true,
 										mode: 'slider',
 										min, max,
-										tags: new Map([...options.map((option) => [+option.value, option.name] as [number, string])]),
+										tags: new Map([[min, min + ''], [max, max + ''], [+option.default, '默认值'], ...options.map((option) => [+option.value, option.name] as [number, string])]),
 										sliderMode: 'number',
 										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
 										adsorption: 'int',
@@ -282,7 +290,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 										mode: 'slider',
 										min: option.min,
 										max: option.max,
-										tags: new Map(),
+										tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
 										sliderMode: 'number',
 										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
 										adsorption: 'int',
@@ -309,7 +317,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 									mode: 'slider',
 									min: option.min,
 									max: option.max,
-									tags: new Map(),
+									tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
 									sliderMode: 'number',
 									default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
 								});

@@ -19,6 +19,9 @@ const invalidMsg = ref<string>(undefined);
 
 const selectorStyle = computed(() => {
 	const ret: any = {};
+	if (props.value === undefined) {
+		return ret;
+	}
 	// 校验有误的情况下背景和边框都变红
 	if (invalidMsg.value) {
 		ret.border = 'var(--errorBorder) 1px solid';

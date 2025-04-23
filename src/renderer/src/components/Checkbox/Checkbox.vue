@@ -4,12 +4,13 @@ import IconTick from './tick.svg?component';
 const props = defineProps<{
     checked: boolean | 'partial';
     disabled?: boolean;
+    onChange?: (checked: boolean) => any;
 }>();
 
 </script>
 
 <template>
-    <div :class="`box ${props.checked ? 'boxSelected' : ''}`">
+    <div :class="`box ${props.checked ? 'boxSelected' : ''}`" @click="() => !disabled && props.onChange && props.onChange(!props.checked)" :style="{ cursor: props.disabled ? 'not-allowed' : 'pointer' }">
         <IconTick />
     </div>
 </template>

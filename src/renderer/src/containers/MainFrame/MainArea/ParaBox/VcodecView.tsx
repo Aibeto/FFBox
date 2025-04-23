@@ -73,6 +73,64 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 		appStore.globalParams.video.detail[sName] = value;
 		appStore.applyParameters();
 	};
+
+	const renderDetailParameters = (optional: boolean) => (
+		(vcodec.value?.parameters || []).filter((parameter) => optional ? parameter.optional : !parameter.optional).map((parameter) => {
+			if (parameter.mode === 'slider') {
+				return (
+					<BoxedSlider
+						title={parameter.display}
+						description={parameter.description}
+						value={appStore.globalParams.video.detail[parameter.parameter]}
+						optionalDefault={parameter.optional ? parameter.default : undefined}
+						min={parameter.min}
+						max={parameter.max}
+						arrowKeyStep={parameter.arrowKeyStep}
+						tags={parameter.tags}
+						mode={parameter.sliderMode}
+						adsorption={parameter.adsorption}
+						valueToDisplay={parameter.valueToDisplay}
+						onChange={(value: number) => handleDetailChange(parameter.parameter, value)}
+					/>
+				);
+			} else if (parameter.mode === 'combo') {
+				return (
+					<BoxedDropdownInput
+						title={parameter.display}
+						description={parameter.description}
+						text={appStore.globalParams.video.detail[parameter.parameter]}
+						optionalDefault={parameter.optional ? parameter.default : undefined}
+						list={parameter.items}
+						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
+					/>
+				);
+			} else if (parameter.mode === 'switch') {
+				return (
+					<BoxedSwitch
+						title={parameter.display}
+						description={parameter.description}
+						checked={appStore.globalParams.video.detail[parameter.parameter]}
+						optionalDefault={parameter.optional ? parameter.default : undefined}
+						onChange={(value: boolean) => handleDetailChange(parameter.parameter, value)}
+					/>
+				);
+			} else if (parameter.mode === 'text') {
+				return (
+					<BoxedNormalInput
+						title={parameter.display}
+						description={parameter.description}
+						value={appStore.globalParams.video.detail[parameter.parameter]}
+						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
+						optionalDefault={parameter.optional ? parameter.default : undefined}
+						validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
+					/>
+				);
+			}
+			return null;
+		})
+	);
+
+	// console.log(vcodec.value?.parameters);
 	return (
 		<div class={style.container}>
 			<BoxedDropdownInput title="视频编码器" text={appStore.globalParams.video.vcodec} list={vcodecsList} onChange={(value: string) => handleChange('vcodec', value)} />
@@ -96,57 +154,16 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 							onChange={(value: number) => handleChange('ratevalue', value)}
 						/>
 					)}
-					{(vcodec.value?.parameters || []).map((parameter) => {
-						if (parameter.mode === 'slider') {
-							return (
-								<BoxedSlider
-									title={parameter.display}
-									description={parameter.description}
-									value={appStore.globalParams.video.detail[parameter.parameter]}
-									min={parameter.min}
-									max={parameter.max}
-									arrowKeyStep={parameter.arrowKeyStep}
-									tags={parameter.tags}
-									mode={parameter.sliderMode}
-									adsorption={parameter.adsorption}
-									valueToDisplay={parameter.valueToDisplay}
-									onChange={(value: number) => handleDetailChange(parameter.parameter, value)}
-								/>
-							);
-						} else if (parameter.mode === 'combo') {
-							return (
-								<BoxedDropdownInput
-									title={parameter.display}
-									description={parameter.description}
-									text={appStore.globalParams.video.detail[parameter.parameter] + ''}
-									list={parameter.items}
-									onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
-								/>
-							);
-						} else if (parameter.mode === 'switch') {
-							return (
-								<BoxedSwitch
-									title={parameter.display}
-									description={parameter.description}
-									checked={appStore.globalParams.video.detail[parameter.parameter]}
-									onChange={(value: boolean) => handleDetailChange(parameter.parameter, value)}
-								/>
-							);
-						} else if (parameter.mode === 'text') {
-							return (
-								<BoxedNormalInput
-									title={parameter.display}
-									description={parameter.description}
-									value={appStore.globalParams.video.detail[parameter.parameter]}
-									onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
-									validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
-								/>
-							);
-						}
-					})}
+					{renderDetailParameters(false)}
 				</>
 			)}
 			<BoxedNormalInput title="自定义参数" value={appStore.globalParams.video.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			{(vcodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
+				<>
+					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
+					{renderDetailParameters(true)}
+				</>
+			) || null}
 		</div>
 	);
 };

@@ -6,7 +6,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 const appStore = useAppStore();
 
 interface Props {
-	value: number | string;
+	value?: number | string;
 	min?: number;	// 不填为 0
 	max?: number;	// 不填为 1
 	tags?: [number, string][] | Map<number, string>;
@@ -199,7 +199,7 @@ const handleKeypress = (event: KeyboardEvent) => {
 	<div class="slider" :data-color_theme="appStore.frontendSettings.colorTheme">
 		<div class="slider-module" @mousedown="handleDragStart">
 			<div class="slider-module-track"></div>
-			<div class="slider-module-track-background" :style="{ width: limitedValue * 100 + '%' }"></div>
+			<div class="slider-module-track-background" :style="{ width: Math.max(0, (limitedValue ?? 0) * 100) + '%' }"></div>
 			<span
 				v-for="(tag, index) in tags"
 				:key="index" class="slider-module-mark"
@@ -207,7 +207,7 @@ const handleKeypress = (event: KeyboardEvent) => {
 			>
 				{{ tag[1] }}
 			</span>
-			<button class="slider-module-slipper" v-bind:style="{ left: limitedValue * 100 + '%' }" ref="slipperRef" @keydown="handleKeypress" aria-label="滑块"></button>
+			<button v-if="props.value !== undefined" class="slider-module-slipper" v-bind:style="{ left: limitedValue * 100 + '%' }" ref="slipperRef" @keydown="handleKeypress" aria-label="滑块"></button>
 		</div>
 		<div class="slider-text">{{ valueToDisplayConverter(props.valueToDisplay) }}</div>
 	</div>

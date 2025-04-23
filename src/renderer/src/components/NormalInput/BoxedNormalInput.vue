@@ -7,6 +7,7 @@ interface Props {
 	description?: string;
 	long?: boolean;
 	value?: string;
+	optionalDefault?: any;
 	type?: 'text' | 'password';
 	disabled?: boolean;
 	placeholder?: string;
@@ -16,11 +17,18 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const handleEnabledChange = (checked: boolean) => {
+	if (checked) {
+		props.onChange && props.onChange(props.optionalDefault);
+	} else {
+		props.onChange && props.onChange(undefined);
+	}
+};
 
 </script>
 
 <template>
-    <ControlBox :title="props.title" :description="props.description" :long="$props.long">
+    <ControlBox :title="props.title" :description="props.description" :optional="props.optionalDefault !== undefined ? true : false" :hasValue="props.value !== undefined ? true : false" :onEnabledChange="handleEnabledChange" :long="$props.long">
         <NormalInput v-bind="$props" />
     </ControlBox>
 </template>

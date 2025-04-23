@@ -119,7 +119,6 @@ onMounted(async () => {
 		-webkit-font-smoothing: grayscale;
 		-moz-osx-font-smoothing: grayscale;
 		text-align: center;
-		color: hsl(0, 0%, 20%);
 		position: relative;
 		overflow: hidden;
 		user-select: none;

@@ -6,7 +6,8 @@ import Slider from './Slider.vue';
 interface Props {
     title: string;
 	description?: string;
-	value: number | string;
+	value?: number | string;
+	optionalDefault?: any;
 	min?: number;	// 不填为 0
 	max?: number;	// 不填为 1
 	tags?: [number, string][] | Map<number, string>;
@@ -18,11 +19,18 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const handleEnabledChange = (checked: boolean) => {
+	if (checked) {
+		props.onChange && props.onChange(props.optionalDefault);
+	} else {
+		props.onChange && props.onChange(undefined);
+	}
+};
 
 </script>
 
 <template>
-    <ControlBox :title="props.title" :description="props.description" :long="true">
+    <ControlBox :title="props.title" :description="props.description" :optional="props.optionalDefault !== undefined ? true : false" :hasValue="props.value !== undefined ? true : false" :onEnabledChange="handleEnabledChange" :long="true">
         <Slider v-bind="$props" />
     </ControlBox>
 </template>

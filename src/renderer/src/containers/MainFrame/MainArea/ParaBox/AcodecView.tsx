@@ -67,6 +67,63 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 		appStore.globalParams.audio.detail[sName] = value;
 		appStore.applyParameters();
 	};
+
+	const renderDetailParameters = (optional: boolean) => (
+		(acodec.value?.parameters || []).filter((parameter) => optional ? parameter.optional : !parameter.optional).map((parameter) => {
+			if (parameter.mode === 'slider') {
+				return (
+					<BoxedSlider
+						title={parameter.display}
+						description={parameter.description}
+						value={appStore.globalParams.audio.detail[parameter.parameter]}
+						optionalDefault={parameter.optional ? parameter.default : undefined}
+						min={parameter.min}
+						max={parameter.max}
+						arrowKeyStep={parameter.arrowKeyStep}
+						tags={parameter.tags}
+						mode={parameter.sliderMode}
+						adsorption={parameter.adsorption}
+						valueToDisplay={parameter.valueToDisplay}
+						onChange={(value: number) => handleDetailChange(parameter.parameter, value)}
+					/>
+				);
+			} else if (parameter.mode === 'combo') {
+				return (
+					<BoxedDropdownInput
+						title={parameter.display}
+						description={parameter.description}
+						text={appStore.globalParams.audio.detail[parameter.parameter]}
+						optionalDefault={parameter.optional ? parameter.default : undefined}
+						list={parameter.items}
+						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
+					/>
+				);
+			} else if (parameter.mode === 'switch') {
+				return (
+					<BoxedSwitch
+						title={parameter.display}
+						description={parameter.description}
+						checked={appStore.globalParams.audio.detail[parameter.parameter]}
+						optionalDefault={parameter.optional ? parameter.default : undefined}
+						onChange={(value: boolean) => handleDetailChange(parameter.parameter, value)}
+					/>
+				);
+			} else if (parameter.mode === 'text') {
+				return (
+					<BoxedNormalInput
+						title={parameter.display}
+						description={parameter.description}
+						value={appStore.globalParams.audio.detail[parameter.parameter]}
+						optionalDefault={parameter.optional ? parameter.default : undefined}
+						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
+						validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
+					/>
+				);
+			}
+		})
+	);
+
+	// console.log(acodec.value?.parameters);
 	return (
 		<div class={style.container}>
 			<BoxedDropdownInput title="音频编码器" text={appStore.globalParams.audio.acodec} list={acodecsList} onChange={(value: string) => handleChange('acodec', value)} />
@@ -88,53 +145,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 							onChange={(value: number) => handleChange('ratevalue', value)}
 						/>
 					)}
-					{(acodec.value?.parameters || []).map((parameter) => {
-						if (parameter.mode === 'slider') {
-							return (
-								<BoxedSlider
-									title={parameter.display}
-									description={parameter.description}
-									value={appStore.globalParams.audio.detail[parameter.parameter]}
-									min={parameter.min}
-									max={parameter.max}
-									arrowKeyStep={parameter.arrowKeyStep}
-									tags={parameter.tags}
-									mode={parameter.sliderMode}
-									adsorption={parameter.adsorption}
-									valueToDisplay={parameter.valueToDisplay}
-									onChange={(value: number) => handleDetailChange(parameter.parameter, value)}
-								/>
-							);
-						} else if (parameter.mode === 'combo') {
-							return (
-								<BoxedDropdownInput
-									title={parameter.display}
-									text={appStore.globalParams.audio.detail[parameter.parameter]}
-									list={parameter.items}
-									onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
-								/>
-							);
-						} else if (parameter.mode === 'switch') {
-							return (
-								<BoxedSwitch
-									title={parameter.display}
-									description={parameter.description}
-									checked={appStore.globalParams.audio.detail[parameter.parameter]}
-									onChange={(value: boolean) => handleDetailChange(parameter.parameter, value)}
-								/>
-							);
-						} else if (parameter.mode === 'text') {
-							return (
-								<BoxedNormalInput
-									title={parameter.display}
-									description={parameter.description}
-									value={appStore.globalParams.audio.detail[parameter.parameter]}
-									onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
-									validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
-								/>
-							);
-						}
-					})}
+					{renderDetailParameters(false)}
 					<BoxedSlider
 						title="音量"
 						description='请注意新版 ffmpeg 不再支持 -vol 参数，请换用滤镜进行音量处理'
@@ -149,6 +160,12 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 				</>
 			)}
 			<BoxedNormalInput title="自定义参数" value={appStore.globalParams.audio.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			{(acodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
+				<>
+					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
+					{renderDetailParameters(true)}
+				</>
+			) || null}
 		</div>
 	);
 };
