@@ -59,7 +59,7 @@ async function buildBackend() {
 	});
 	const cmdName = process.platform === 'win32' ? 'win' : (process.platform === 'darwin' ? 'mac' : 'linux');
 	if (!process.env.disable_pkg) {
-		const buildProcess = spawnSync(npmExecutablePath, ['run', `pkg:backend:${cmdName}`], { stdio: 'inherit' });
+		const buildProcess = spawnSync(npmExecutablePath, ['run', `pkg:backend:${cmdName}`], { stdio: 'inherit', 'shell': true });
 	}
 	// buildProcess.once('exit', process.exit);
 }

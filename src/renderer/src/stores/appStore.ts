@@ -327,12 +327,12 @@ export const useAppStore = defineStore('app', {
 		 * 函数将修改后的全局参数应用到当前选择的任务项，然后保存到本地磁盘
 		 * 对于用户操作，将预设参数置为未保存
 		 */
-		applyParameters(isUserInteraction = true) {
+		applyParameters(resetCurrentPreset = true) {
 			const 这 = useAppStore();
 			// 更改到一些不匹配的值后会导致 getFFmpegParaArray 出错，但是修正代码就在后面，因此仅需忽略它，让它继续运行下去，不要急着更新
 
 			// 变更预设参数
-			if (isUserInteraction) {
+			if (resetCurrentPreset) {
 				这.globalParams.extra.presetName = '';
 				这.presetName = '';
 			}
@@ -368,6 +368,7 @@ export const useAppStore = defineStore('app', {
 		},
 		/**
 		 * 切换编码器之后或者第一次使用 FFBox 需要预置一些默认值，通过调用此函数进行
+		 * 并会调用一次 applyParameters(false) 以存储并将当前配置应用到所选任务上
 		 */
 		checkAndApplyCodecDefaults(who: { video?: true, audio?: true }) {
 			const 这 = useAppStore();
@@ -407,7 +408,7 @@ export const useAppStore = defineStore('app', {
 					}
 				}
 			}
-			这.applyParameters();
+			这.applyParameters(false);
 		},
 		/**
 		 * 检查有多少参数是非“不重新编码”的，以此更改界面显示形式（paramsVisibility）
@@ -475,7 +476,6 @@ export const useAppStore = defineStore('app', {
 				return new Promise((resolve) => {
 					这.globalParams = JSON.parse(JSON.stringify(defaultParams));
 					这.presetName = name;
-					这.applyParameters(false);
 					这.checkAndApplyCodecDefaults({ video: true, audio: true });
 					resolve(undefined);
 				})

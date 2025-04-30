@@ -148,7 +148,7 @@ const onDrop = (event: DragEvent) => {	//
 			/>
 		</div>
 		<div
-			v-if="appStore.currentServer?.data.ffmpegInfo"
+			v-if="appStore.currentServer?.data.ffmpegInfo.version"
 			class="dropfilesdiv"
 			@click="appStore.selectedTask = new Set()"
 			@mousedown="debugLauncher($event)"

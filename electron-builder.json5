@@ -75,5 +75,5 @@
       },
     ],
   },
-  "afterAllArtifactBuild": "./scripts/postPackage-Windows.cjs",
+  "afterAllArtifactBuild": "./scripts/postPackage.cjs",
 }

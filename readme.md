@@ -4,6 +4,10 @@
 
 软件介绍请转到 [FFBox 官网](http://ffbox.ttqf.tech/)。
 
+![总下载量](https://img.shields.io/github/downloads/ttqftech/FFBox/total)
+![最新版下载量](https://img.shields.io/github/downloads/ttqftech/FFBox/latest/total)
+![网站状态](https://img.shields.io/website?url=http%3A%2F%2Fffbox.ttqf.tech)
+
 ![软件截图](https://github.com/ttqftech/FFBox/assets/31009285/8659b34d-4aac-4caa-9ea3-dfdb81ce1f68)
 
 ## 工程简介

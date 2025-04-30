@@ -976,7 +976,7 @@ const generator = {
 	getAudioParam: function (audioParams: OutputParams_audio) {
 		const ret = [];
 		let strict2 = false;
-		if (audioParams.acodec == '音频') {
+		if (audioParams.acodec == '禁用') {
 			ret.push('-an');
 		} else if (audioParams.acodec == 'copy') {
 			ret.push('-acodec');
