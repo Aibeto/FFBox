@@ -109,7 +109,7 @@ onMounted(async () => {
 <template>
 	<div class="mainFrame" :data-color_theme="appStore.colorTheme">
 		<div class="topBar lrMargin">
-			<a class="nav" style="float: left;" href="http://www.ttqf.tech/" title="滔滔清风科技馆主页">
+			<a class="nav" style="float: left;" href="http://www.ttqf.tech/" title="滔滔清风科技馆主页（七年没更新，没啥东西看的）" onclick="alert('七年没更新，没啥东西看的')">
 				<div class="ttqftechlogo"></div>
 			</a>
 			<a class="nav" style="float: right;" href="https://github.com/ttqftech/FFBox/" target="_blank" title="FFBox GitHub 主页">
@@ -130,7 +130,7 @@ onMounted(async () => {
 					<button @click="handleTopBarButtonClicked(2)">使用条款</button>
 				</div>
 				<div class="versionInfo">
-					<div>版本：4.4-alpha&nbsp;&nbsp;(2025-04-01)</div>
+					<div>版本：4.4&nbsp;&nbsp;(2025-05-01)</div>
 				</div>
 			</div>
 			<div class="FFBox-topWrapper" :style="FFBoxTopWrapperStyle">

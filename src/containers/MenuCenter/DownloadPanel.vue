@@ -21,22 +21,19 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 		appStore.selectedPanelIndex = 3;
 		return;
 	}
-	Popup({
-		message: '哈哈🤓愚人节快乐！4.4-alpha 是没有发包的，你将要下载的是 4.3 版本！🤡',
-	});
 	let url;
 	switch (os) {
 		case 'Windows':
 			url = [
-				'https://github.com/ttqftech/FFBox/releases/download/v4.3/Windows_x86-64_FFBox_4.3.exe',
-				'https://github.com/ttqftech/FFBox/releases/download/v4.3/Windows_x86-64_FFBoxService_4.3.exe',
+				'https://github.com/ttqftech/FFBox/releases/download/v4.4/Windows_x86-64_FFBox_4.4.exe',
+				'https://github.com/ttqftech/FFBox/releases/download/v4.4/Windows_x86-64_FFBoxService+webUI_4.4.zip',
 			][selection];
 			window.open(url, '__blank');
 			break;
 		case 'MacOS':
 			url = [
-				'https://github.com/ttqftech/FFBox/releases/download/v4.3/macOS_ARM64_FFBox_4.3.dmg',
-				'https://github.com/ttqftech/FFBox/releases/download/v4.3/macOS_ARM64_FFBoxService_4.3',
+				'https://github.com/ttqftech/FFBox/releases/download/v4.4/macOS_ARM64_FFBox_4.4.dmg',
+				'https://github.com/ttqftech/FFBox/releases/download/v4.4/macOS_ARM64_FFBoxService+webUI_4.4.zip',
 			][selection];
 			Msgbox({
 				image: h(IconPointOut),
@@ -56,22 +53,22 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 			break;
 		case 'Linux':
 			url = [
-				'https://github.com/ttqftech/FFBox/releases/download/v4.3/Linux_x86-64_FFBox_4.3.deb',
-				'https://github.com/ttqftech/FFBox/releases/download/v4.3/Linux_x86-64_FFBox_4.3.AppImage',
-				'https://github.com/ttqftech/FFBox/releases/download/v4.3/Linux_x86-64_FFBoxService_4.3',
+				'https://github.com/ttqftech/FFBox/releases/download/v4.4/Linux_x86-64_FFBox_4.4.deb',
+				'https://github.com/ttqftech/FFBox/releases/download/v4.4/Linux_x86-64_FFBox_4.4.AppImage',
+				'https://github.com/ttqftech/FFBox/releases/download/v4.4/Linux_x86-64_FFBoxService+webUI_4.4.zip',
 			][selection];
 			window.open(url, '__blank');
 			break;
 		case 'web':
 			url = [
 				'./online',
-				'./FFBox_v4.3_web.zip',
+				'./FFBox_v4.4_web.zip',
 			][selection];
 			if (selection === 0) {
 				Msgbox({
 					image: h(IconPointOut),
 					title: '您将要使用一个尚未完善的网页版～',
-					content: h('div', { style: `text-align: center` }, ['4.3 版本尚未对网页运行进行针对性优化，因此网页版只能用于体验功能，可能无法正常使用', h('br'), '同时，建议自行部署以获得更佳体验～']),
+					content: h('div', { style: `text-align: center` }, ['4.4 版本尚未对网页运行进行针对性优化，因此网页版只能用于体验功能，可能无法正常使用', h('br'), '同时，建议自行部署以获得更佳体验～']),
 					buttons: [
 						{ text: `我已知悉，继续`, type: ButtonType.Primary, callback: () => window.open(url, '__blank') && true },
 					]
@@ -123,7 +120,6 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 		<h2>网页版</h2>
 		<div class="oss">
 			<div class="os">
-				<span>跨平台</span>
 				<Button size="large" @click="handleDownloadClick('web', 0)"><IconWeb />在线试用</Button>
 			</div>
 		</div>
