@@ -1,9 +1,11 @@
-import { strict2 } from "./params/parameter";
+import { VNode } from 'vue';
+import { strict2 } from './params/parameter';
 
 export type MenuItem<E = any> = {
     type: 'normal';
 	value: any;
 	label: string;
+	icon?: VNode;
 	tooltip?: string;
 	disabled?: boolean;
 	onClick?: (event: Event, value: any) => boolean | void;	// true 值用于关闭菜单面板（但返回值似乎还没用到）

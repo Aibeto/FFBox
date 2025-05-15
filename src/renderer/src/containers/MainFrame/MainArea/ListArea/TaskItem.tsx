@@ -8,8 +8,7 @@ import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import showMenu from '@renderer/components/Menu/Menu';
 import { showProgressInfo } from '@renderer/components/misc/ProgressInfo';
 import nodeBridge from '@renderer/bridges/nodeBridge';
-import { stringifyTimeValue } from '@common/utils';
-import { getOutputDuration } from '@renderer/common/dashboardCalc';
+import { getOutputDuration, stringifyTimeValue } from '@common/utils';
 import IconIdle from '@renderer/assets/mainArea/taskStatus/idle.svg';
 import IconIdleQueued from '@renderer/assets/mainArea/taskStatus/idle_queued.svg';
 import IconRunning from '@renderer/assets/mainArea/taskStatus/running.svg';
@@ -403,25 +402,29 @@ export const TaskItem = defineComponent((props: Props) => {
 				},
 				{ type: 'separator' },
 				...([TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
-					{ type: 'normal' as any, label: props.task.status === TaskStatus.idle ? '开始转码' : '立即开始转码', value: '开始', onClick: () => { appStore.currentServer.entity.taskStart(props.id) } },
+					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.idle ? '开始转码' : '立即开始转码', value: '开始', onClick: () => { appStore.currentServer.entity.taskStart(props.id) } },
 				] : []),
 				...([TaskStatus.running, TaskStatus.paused_queued].includes(props.task.status) ? [
-					{ type: 'normal', label: props.task.status === TaskStatus.running ? '暂停转码' : '保持暂停', value: '暂停', onClick: () => { appStore.currentServer.entity.taskPause(props.id) } },
+					{ type: 'normal' as const, icon: <span>⏸️</span>, label: props.task.status === TaskStatus.running ? '暂停转码' : '保持暂停', value: '暂停', onClick: () => { appStore.currentServer.entity.taskPause(props.id) } },
 				] : []),
 				...([TaskStatus.paused, TaskStatus.paused_queued].includes(props.task.status) ? [
-					{ type: 'normal', label: props.task.status === TaskStatus.paused ? '继续转码' : '立即继续转码', value: '继续', onClick: () => { appStore.currentServer.entity.taskResume(props.id) } },
+					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.paused ? '继续转码' : '立即继续转码', value: '继续', onClick: () => { appStore.currentServer.entity.taskResume(props.id) } },
 				] : []),
 				...([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(props.task.status) ? [
-					{ type: 'normal', label: '软停止转码', value: '停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
+					{ type: 'normal' as const, icon: <span>⏹️</span>, label: '软停止转码', value: '停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
 				] : []),
 				...([TaskStatus.stopping].includes(props.task.status) ? [
-					{ type: 'normal', label: '硬停止转码', value: '硬停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
+					{ type: 'normal' as const, icon: <span>🛑</span>, label: '硬停止转码', value: '硬停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
 				] : []),
 				...([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
-					{ type: 'normal', label: '重置任务', value: '重置', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
+					{ type: 'normal' as const, icon: <span>🔙</span>, label: '重置任务', value: '重置', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
 				] : []),
 				...([TaskStatus.initializing, TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
-					{ type: 'normal', label: '删除任务', value: '停止', onClick: () => { appStore.currentServer.entity.taskDelete(props.id) } },
+					{ type: 'normal' as const, icon: <span>🗑️</span>, label: '删除任务', value: '停止', onClick: () => { appStore.currentServer.entity.taskDelete(props.id) } },
+				] : []),
+				...(![TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
+					{ type: 'separator' as const },
+					{ type: 'normal' as const, icon: <span>📈</span>, label: '查看图表', value: '查看图表', onClick: () => showProgressInfo(props.task, props.id, 'progress') },
 				] : []),
 			],
 			type: 'action',

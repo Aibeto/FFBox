@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import os from 'os';
 import fs from 'fs';
 import fsPromise from 'fs/promises';
+import { utimes } from 'utimes';
 import path from 'path';
 import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail } from '@common/types';
 import { getFFmpegParaArray, getFFmpegParaArrayOutputPath } from '@common/getFFmpegParaArray';
@@ -10,7 +11,7 @@ import { generator as fGenerator } from '@common/params/formats';
 import { defaultParams } from '@common/defaultParams';
 import localConfig from '@common/localConfig';
 import { parseFFmpegCodecsToCodecsList } from '@common/params/parser';
-import { getInitialServiceTask, convertAnyTaskToTask, TypedEventEmitter, replaceOutputParams, randomString } from '@common/utils';
+import { getInitialServiceTask, convertAnyTaskToTask, TypedEventEmitter, replaceOutputParams, randomString, getOutputDuration, parseTimeString } from '@common/utils';
 import { vcodecsList } from '@common/params/vcodecs';
 import { getMachineId, log } from './utils';
 import { FFmpeg } from './FFmpegInvoke';
@@ -422,7 +423,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.outputFile = getFFmpegParaArrayOutputPath(task.after);
 			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray(task.after, false));
 		}
-		newFFmpeg.on('closed', (errorCode, errors, runningResult) => {
+		newFFmpeg.on('closed', async (errorCode, errors, runningResult) => {
 			if (errorCode) {
 				if (runningResult === 'failed') {
 					log.error(`[任务 ${id}] 出错：${task.fileBaseName}。`);
@@ -434,9 +435,61 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				task.status = TaskStatus.error;
 			} else {
 				log.info(`[任务 ${id}] 完成：${task.fileBaseName}。`);
+				let hasTimeError = false;
+				if (task.after.output.keepFileTime) {
+					try {
+						// 如果输入文件不可读取，或者 utimes 失败，或者 FFBox 无法正确计算文件时间，都会产生 hasTimeError
+						const oroginalFilePath = task.after.input.files[0]?.filePath;
+						await fsPromise.access(oroginalFilePath, fs.constants.R_OK);
+						const { atime, birthtime, mtime } = fs.statSync(oroginalFilePath);
+						if (task.after.output.keepFileTime === 'original') {
+							// 原样复制文件时间。输出文件的创建时间、修改时间、访问时间将从输入文件的时间原样复制
+							await utimes(task.outputFile, { btime: birthtime, mtime, atime });
+						} else {
+							const startTime1 = parseTimeString(task.after.input.begin);
+							const startTime2 = parseTimeString(task.after.output.begin);
+							const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
+							const duration = (getOutputDuration(task) || 0) * 1000;
+							if (task.after.output.keepFileTime === 'autoShift') {
+								// 复制修正后的文件时间。输出文件的访问时间将从输入文件的时间原样复制，创建时间、修改时间将按照剪裁位置自动调整后进行修改
+								const newCreateTime = birthtime.getTime() + startTime;
+								const newModifyTime = birthtime.getTime() + startTime + duration;
+								await utimes(task.outputFile, { btime: newCreateTime, mtime: newModifyTime, atime });
+							} else if (task.after.output.keepFileTime === 'fixCTbyMTandShift' && task.before.duration > 0) {
+								// 根据修改时间修正新文件时间。用于修复拷贝后创建时间丢失的问题，将通过修改时间和剪裁位置自动调整后进行修改
+								const newModifyTime = mtime.getTime() - task.before.duration * 1000 + startTime;
+								const newCreateTime = mtime.getTime() - task.before.duration * 1000 + startTime + duration;
+								await utimes(task.outputFile, { btime: newCreateTime, mtime: newModifyTime, atime });
+							} else if (task.after.output.keepFileTime === 'fixByFilenameAndShift') {
+								// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
+								const regExp1 = /(\d\d\d\d).?([01]\d).?([0123]\d).?([012]\d).?([0-5]\d).?([0-5]\d)?/;
+								const regExp2 = /(\d\d\d\d) ?年? ?([01]?\d) ?月? ?([0123]?\d) ?日? ?([012]?\d) ?时? ?([0-5]?\d) ?分? ?([0-5]?\d)? ?秒? ?/;
+								const r = oroginalFilePath.match(regExp1) || oroginalFilePath.match(regExp2);
+								if (r) {
+									const oldCreateTime = new Date(`${r[1]}-${r[2]}-${r[3]} ${r[4]}:${r[5]}:${r[6] || 0}`);
+									if (oldCreateTime.getTime()) {
+										const newCreateTime = oldCreateTime.getTime() + startTime;
+										const newModifyTime = oldCreateTime.getTime() + startTime + duration;
+										await utimes(task.outputFile, { btime: newCreateTime, mtime: newModifyTime, atime });
+									}
+								} else {
+									hasTimeError = true;
+								}
+							} else {
+								hasTimeError = true;
+							}
+						}
+					} catch (error) {
+						hasTimeError = true;
+					}
+				}
 				task.status = TaskStatus.finished;
 				task.progressLog.elapsed = new Date().getTime() / 1000 - task.progressLog.lastStarted;
-				this.setNotification(id, `任务「${task.fileBaseName}」已转码完成`, NotificationLevel.ok);
+				if (hasTimeError) {
+					this.setNotification(id, '任务「' + task.fileBaseName + '」已转码完成，但修改文件时间失败。请检查文件权限。', NotificationLevel.warning);
+				} else {
+					this.setNotification(id, `任务「${task.fileBaseName}」已转码完成`, NotificationLevel.ok);
+				}
 			}
 			this.emitTaskUpdate(id, task);
 			this.queueAssign();

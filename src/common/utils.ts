@@ -379,6 +379,32 @@ export function getInitialUITask(fileName: string, outputParams?: OutputParams):
 	return task;
 }
 
+export function getOutputDuration(task: Task): number {
+	let duration = task.before.duration;
+	if (isNaN(duration)) {
+		return NaN;
+	}
+	if (task.after.input.begin || task.after.input.end) {
+		const begin = task.after.input.begin ? parseTimeString(task.after.input.begin) : 0;
+		let end = task.after.input.end ? parseTimeString(task.after.input.end) : duration;
+		if (begin === -1 || end === -1 || begin > end || begin > duration) {
+			return NaN;
+		}
+		end = Math.min(end, duration);
+		duration = end - begin;
+	}
+	if (task.after.output.begin || task.after.output.end) {
+		const begin = task.after.output.begin ? parseTimeString(task.after.output.begin) : 0;
+		let end = task.after.output.end ? parseTimeString(task.after.output.end) : duration;
+		if (begin === -1 || end === -1 || begin > end || begin > duration) {
+			return NaN;
+		}
+		end = Math.min(end, duration);
+		duration = end - begin;
+	}
+	return duration;
+}
+
 /**
  * 任务信息在进行网络传送前调用此函数，过滤掉仅存在于 ServiceTask | UITask 的属性
  */

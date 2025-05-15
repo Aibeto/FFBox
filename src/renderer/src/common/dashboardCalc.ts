@@ -1,32 +1,6 @@
 import { SingleProgressLog, TaskStatus, TransferStatus } from '@common/types';
-import { parseTimeString } from '@common/utils';
-import { ServerData, UITask } from '@renderer/types'
-
-export function getOutputDuration(task: UITask): number {
-	let duration = task.before.duration;
-	if (isNaN(duration)) {
-		return NaN;
-	}
-	if (task.after.input.begin || task.after.input.end) {
-		const begin = task.after.input.begin ? parseTimeString(task.after.input.begin) : 0;
-		let end = task.after.input.end ? parseTimeString(task.after.input.end) : duration;
-		if (begin === -1 || end === -1 || begin > end || begin > duration) {
-			return NaN;
-		}
-		end = Math.min(end, duration);
-		duration = end - begin;
-	}
-	if (task.after.output.begin || task.after.output.end) {
-		const begin = task.after.output.begin ? parseTimeString(task.after.output.begin) : 0;
-		let end = task.after.output.end ? parseTimeString(task.after.output.end) : duration;
-		if (begin === -1 || end === -1 || begin > end || begin > duration) {
-			return NaN;
-		}
-		end = Math.min(end, duration);
-		duration = end - begin;
-	}
-	return duration;
-}
+import { getOutputDuration, parseTimeString } from '@common/utils';
+import { ServerData, UITask } from '@renderer/types';
 
 /**
  * 计算整体进度的 timer，根据计算结果修改 currentServer.progress

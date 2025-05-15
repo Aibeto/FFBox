@@ -133,6 +133,63 @@ const hwaccels: Hwaccel[] = [
 	},
 ]
 
+const keepMeatadataList: NarrowedMenuItem[] = [
+	{
+		type: 'normal',
+		value: false,
+		label: '无',
+	},
+	{
+		type: 'normal',
+		value: 'map',
+		label: 'map metadata',
+		tooltip: '该方式主要用于保留大多数标签、描述信息，如创建时间、作者信息、编码器信息等元数据',
+	},
+	{
+		type: 'normal',
+		value: 'movflags',
+		label: 'move flags',
+		tooltip: '该方式主要用于某些特定元数据，如对于 MP4/MOV 容器，FFmpeg 将内部 metadata 映射为 QuickTime 的 udta 元数据',
+	},
+	{
+		type: 'normal',
+		value: 'both',
+		label: '两者',
+	},
+];
+
+const keepFileTimeList: NarrowedMenuItem[] = [
+	{
+		type: 'normal',
+		value: false,
+		label: '无',
+	},
+	{
+		type: 'normal',
+		value: 'original',
+		label: '原样复制文件时间',
+		tooltip: '输出文件的创建时间、修改时间、访问时间将从输入文件的时间原样复制',
+	},
+	{
+		type: 'normal',
+		value: 'autoShift',
+		label: '复制修正后的文件时间',
+		tooltip: '输出文件的访问时间将从输入文件的时间原样复制，创建时间、修改时间将按照剪裁位置自动调整后进行修改',
+	},
+	{
+		type: 'normal',
+		value: 'fixCTbyMTandShift',
+		label: '根据修改时间修正新文件时间',
+		tooltip: '用于修复拷贝后创建时间丢失的问题，将通过修改时间和剪裁位置自动调整后进行修改',
+	},
+	{
+		type: 'normal',
+		value: 'fixByFilenameAndShift',
+		label: '根据文件名修正新文件时间',
+		tooltip: '用于修复文件时间丢失的问题，将通过识别文件名中的时间作为创建时间（按当前系统时区），根据剪裁位置自动调整后进行修改\n仅支持年月日时分秒顺序',
+	},
+];
+
 const generator = {
 	/**
 	 * 连接并补充扩展名的文件名
@@ -197,6 +254,20 @@ const generator = {
 				ret.push('-to')
 				ret.push(outputParams.end)
 			}
+			if (outputParams.keepMetadata) {
+				if (outputParams.keepMetadata === 'map') {
+					ret.push('-map_metadata');
+					ret.push('0');
+				} else if (outputParams.keepMetadata === 'movflags') {
+					ret.push('-movflags');
+					ret.push('use_metadata_tags');
+				} else if (outputParams.keepMetadata === 'both') {
+					ret.push('-map_metadata');
+					ret.push('0');
+					ret.push('-movflags');
+					ret.push('use_metadata_tags');
+				}
+			}
 			let outputFileName;
 			if (overrideFilePath) {
 				outputFileName = overrideFilePath;
@@ -250,4 +321,4 @@ const generator = {
 		return ret;
 	}
 }
-export { formats, hwaccels, generator }
+export { formats, hwaccels, keepMeatadataList, keepFileTimeList, generator }

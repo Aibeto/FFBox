@@ -2,9 +2,10 @@ import { computed, defineComponent, onMounted, onUnmounted, ref } from "vue";
 import { TaskStatus, TransferStatus } from "@common/types";
 import { UITask } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
-import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
+import { calcDashboard } from "@renderer/common/dashboardCalc";
+import { getOutputDuration } from "@common/utils";
 import Msgbox from "../Msgbox/Msgbox";
-import { calcDashboard, getOutputDuration } from "@renderer/common/dashboardCalc";
+import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
 import style from './ProgressInfo.tsx.module.less';
 
 type ChartType = 'progress' | 'size' | 'bitrate' | 'speed' | 'transferProgress' | 'transferSpeed';

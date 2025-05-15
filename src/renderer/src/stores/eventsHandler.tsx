@@ -55,9 +55,13 @@ export function handleTasklistUpdate(server: Server, content: Array<number>) {
             remoteI++;
         } else if (remoteI >= remoteKeys.length) {
             // 远端下标越界，说明远端删除了最后面的若干个任务
+            for (let i = localI; i < localKeys.length; i++) {
+                这.selectedTask.delete(localKeys[i]);
+            }
             break;
         } else if (localKey < remoteKey) {
             // 远端跳号了，说明远端删除了中间的任务
+            这.selectedTask.delete(localKey);
             localI++;
         } else if (localKey === remoteKey) {
             // 从 local 处直接复制

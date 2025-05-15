@@ -122,6 +122,8 @@ export type OutputParams_output = {
 	filename: string;
 	begin?: string;
 	end?: string;
+	keepMetadata?: false | 'map' | 'movflags' | 'both';
+	keepFileTime?: false | 'original' | 'autoShift' | 'fixCTbyMTandShift' | 'fixByFilenameAndShift';
 	custom?: string;
 };
 
