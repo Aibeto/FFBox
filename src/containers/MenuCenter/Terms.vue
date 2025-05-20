@@ -46,10 +46,11 @@ const handleCheckboxClicked = () => {
 		const behavior2 = '- 通过隐瞒、欺骗他人等方式满足自身情感需求';
 		const behavior3 = '- 操纵或滥用他人感情（如过度控制或索取）';
 		const behavior4 = '- 对他人进行情感上的信任背离（含背叛、空洞承诺等）行为';
-		const behavior5 = '- 拒绝他人理性参与讨论';
+		const behavior5 = '- 拒绝他人理性参与讨论、坚持使用主观想法代表客观世界';
+		const behavior6 = '- 无中生有编造他人言论或想法或客观事实';
 		const licenseSlice = h(
 			'div',
-			['您是否', 未曾存在, '以下行为致他人受到未明确作出谅解的伤害：', h('br'), ...[behavior1, behavior2, behavior3, behavior4, behavior5].reduce((prev, curr) => prev.concat([curr, h('br')]), []).slice(0, -1)]
+			['您是否', 未曾存在, '以下行为致他人受到未明确作出谅解的伤害：', h('br'), ...[behavior1, behavior2, behavior3, behavior4, behavior5, behavior6].reduce((prev, curr) => prev.concat([curr, h('br')]), []).slice(0, -1)]
 		);
 		Msgbox({
 			image: h(IconReadBook),

@@ -27,8 +27,27 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 			url = [
 				'https://github.com/ttqftech/FFBox/releases/download/v4.4/Windows_x86-64_FFBox_4.4.exe',
 				'https://github.com/ttqftech/FFBox/releases/download/v4.4/Windows_x86-64_FFBoxService+webUI_4.4.zip',
+				'./directDownload/ffmpegOnekey_Windows.ps1'
 			][selection];
-			window.open(url, '__blank');
+			if (selection === 2) {
+				Msgbox({
+					image: h(IconPointOut),
+					title: '使用说明',
+					content: h('div', { style: `text-align: center` }, ['一般情况下，Windows 会对从互联网上下载的 Powershell 脚本在运行前进行询问，同意后即可运行', h('br'), '如果您的 Windows 安全设置较高，则会提示“此系统上禁止运行脚本”。您需要使用管理员身份执行 Set-ExecutionPolicy RemoteSigned 后才可运行该脚本']),
+					buttons: [
+						{ text: `我已知悉，继续`, type: ButtonType.Primary, callback: () => {
+							const a = document.createElement('a');
+							a.href = url;
+							a.download = 'ffmpegOnekey_Windows.ps1';
+							document.body.appendChild(a);
+							a.click();
+							document.body.removeChild(a);
+						} },
+					]
+				});
+			} else {
+				window.open(url, '__blank');
+			}
 			break;
 		case 'MacOS':
 			url = [
@@ -106,15 +125,15 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 		<div class="oss">
 			<div class="os">
 				<span>Windows (x86-64)</span>
-				<Button size="large" @click="handleDownloadClick('Windows', 1)"><IconNodejs />二进制</Button>
+				<Button size="large" @click="handleDownloadClick('Windows', 1)"><IconZip />service + webUI</Button>
 			</div>
 			<div class="os">
 				<span>macOS (ARM64)</span>
-				<Button size="large" @click="handleDownloadClick('MacOS', 1)"><IconNodejs />二进制</Button>
+				<Button size="large" @click="handleDownloadClick('MacOS', 1)"><IconZip />service + webUI</Button>
 			</div>
 			<div class="os">
 				<span>Linux (x86-64)</span>
-				<Button size="large" @click="handleDownloadClick('Linux', 2)"><IconNodejs />二进制</Button>
+				<Button size="large" @click="handleDownloadClick('Linux', 2)"><IconZip />service + webUI</Button>
 			</div>
 		</div>
 		<h2>网页版</h2>
@@ -123,6 +142,14 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 				<Button size="large" @click="handleDownloadClick('web', 0)"><IconWeb />在线试用</Button>
 			</div>
 		</div>
+		<h2>ffmpeg 一键安装脚本<span>(但从下载到运行脚本的操作不是一键的)</span></h2>
+		<div class="oss">
+			<div class="os">
+				<span>Windows (x86-64)</span>
+				<Button size="large" @click="handleDownloadClick('Windows', 2)"><img src="../../assets/menuCenter/downloadPanel/gyan.dev.png">gyan.dev<br/>release essentials</Button>
+			</div>
+		</div>
+		<div style="height: 32px;"></div>
 	</div>
 </template>
 
@@ -164,7 +191,7 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 				button {
 					letter-spacing: 0px;
 					margin: 0;
-					&>svg {
+					&>svg, &>img {
 						width: 20px;
 						height: 20px;
 						vertical-align: -4px;
