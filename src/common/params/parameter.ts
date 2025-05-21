@@ -28,4 +28,4 @@ export type Parameter = BasicParameter & (
 	({ mode: 'combo' } & ComboOptions) |
 	({ mode: 'slider' } & SliderOptions)
 );
-export type RateControl = NarrowedMenuItem & { cmd: (string | Symbol)[] } & SliderOptions;
+export type RateControl = { cmd: (string | Symbol)[] } & SliderOptions;

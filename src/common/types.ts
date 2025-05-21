@@ -91,6 +91,7 @@ export type OutputParams_input = {
 	// 暂定 begin end 仅支持在独立模式下切割时长
 	begin?: string;
 	end?: string;
+	realtime?: boolean;
 } & {
 	files: Array<InputFile>;
 	hwaccel: string;

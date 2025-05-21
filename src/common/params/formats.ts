@@ -313,6 +313,9 @@ const generator = {
 				ret.push('-to');
 				ret.push(inputParams.end);
 			}
+			if (inputParams.realtime) {
+				ret.push('-re');
+			}
 			ret.push('-i');
 			let quoteStr = withQuotes ? `"` : '';
 			let filePath = inputParams.files.length && inputParams.files[0].filePath || '[输入文件路径]';

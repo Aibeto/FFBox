@@ -23,6 +23,7 @@
     "name": "滔滔清风",
     "email": "ttqf.tech@qq.com"
   },
+  "homepage": "http://ffbox.ttqf.tech",
   "license": "SEE LICENSE IN <LICENSE>",
   "devDependencies": {
     "@types/crypto-js": "^4.1.1",

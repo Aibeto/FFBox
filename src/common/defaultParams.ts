@@ -7,6 +7,7 @@ export const defaultParams: OutputParams = {
 		files: [],
 		begin: '',
 		end: '',
+		realtime: false,
 	},
 	video: {
 		vcodec: 'libx265',

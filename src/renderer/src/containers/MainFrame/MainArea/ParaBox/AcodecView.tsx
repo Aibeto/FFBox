@@ -1,8 +1,10 @@
 import { computed, FunctionalComponent } from 'vue';
 import { acodecsList, volSlider, ACodecDetail } from '@common/params/acodecs';
+import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
 import { numberValidator } from '../../../../components/validatorAndFixer';
+import { showRateControlRecommendation } from '@renderer/components/misc/RateControlRecommendation';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -18,23 +20,37 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 		const acodecName = appStore.globalParams.audio.acodec;
 		return (getMenuItemByValue(acodecsList, acodecName) as any)?.extra as ACodecDetail;
 	});
+	const rateControlList = computed(() => {
+		return [
+			...acodec.value.rateControl,
+			{ type: 'separator' as const },
+			{
+				type: 'normal' as const,
+				value: 'fetchFromService',
+				label: '我应调整到什么值？...',
+				icon: <span>🤔</span>,
+				onClick: () => showRateControlRecommendation(),
+			},
+		];
+	});
 	// 根据当前选择的码率控制器显示具体使用何种 slider
 	const rateControlSlider = computed(() => {
 		const rList = acodec.value?.rateControl || [];
 		if (!rList.length) {
 			return null;
 		}
-		const sName_ratecontrol = appStore.globalParams.audio.ratecontrol
-		let index = rList.findIndex((item) => item.value === sName_ratecontrol);
-		// 切换编码器后没有原来的码率控制模式了
+		const rateControlName = appStore.globalParams.audio.ratecontrol;
+		let index = rList.findIndex((item) => item.type === 'normal' && item.value === rateControlName);
+		// 切换编码器后没有原来的码率控制模式了，默认设定为列表第一项
 		if (index == -1) {
 			index = 0
-			appStore.globalParams.video.ratecontrol = rList[0].value;
+			appStore.globalParams.video.ratecontrol = (rList[0] as any).value;
 			appStore.applyParameters();
 		}
-		const slider = rList[index];
+		const item = rList[index] as any;
+		const slider = item.extra as RateControl;
 		let title;
-		switch (slider.value) {
+		switch (item.value) {
 			case 'CBR/ABR':
 				title = '码率'
 				break;
@@ -130,7 +146,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 			{['禁用', 'copy'].indexOf(appStore.globalParams.audio.acodec) === -1 && (
 				<>
 					{(acodec.value?.rateControl || []).length ? (
-						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.audio.ratecontrol} list={acodec.value.rateControl} onChange={(value: string) => handleChange('ratecontrol', value)} />
+						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.audio.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
 					) : null}
 					{rateControlSlider.value && (
 						<BoxedSlider

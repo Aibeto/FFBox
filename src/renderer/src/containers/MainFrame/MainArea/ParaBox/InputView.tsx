@@ -1,6 +1,7 @@
 import { FunctionalComponent } from 'vue';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
+import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import { durationFixer, durationValidator } from '../../../../components/validatorAndFixer';
 import { hwaccels, generator } from '@common/params/formats'
 import { useAppStore } from '@renderer/stores/appStore';
@@ -21,6 +22,7 @@ const InputView: FunctionalComponent<Props> = (props) => {
 			<BoxedDropdownInput title="硬件解码" text={appStore.globalParams.input.hwaccel} list={hwaccels} onChange={(value: string) => handleChange('hwaccel', value)} />
 			<BoxedNormalInput title="剪辑起点" value={appStore.globalParams.input.begin} onChange={(value: string) => handleChange('begin', value)} validator={durationValidator} inputFixer={durationFixer} />
 			<BoxedNormalInput title="剪辑终点" value={appStore.globalParams.input.end} onChange={(value: string) => handleChange('end', value)} validator={durationValidator} inputFixer={durationFixer} />
+			<BoxedSwitch title="限制一倍速" checked={appStore.globalParams.input.realtime} onChange={(value: boolean) => handleChange('realtime', value)} />
 			<BoxedNormalInput title="自定义参数" value={appStore.globalParams.input.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 		</div>
 	);

@@ -9,6 +9,7 @@ import showMenu from '@renderer/components/Menu/Menu';
 import { showProgressInfo } from '@renderer/components/misc/ProgressInfo';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { getOutputDuration, stringifyTimeValue } from '@common/utils';
+import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import IconIdle from '@renderer/assets/mainArea/taskStatus/idle.svg';
 import IconIdleQueued from '@renderer/assets/mainArea/taskStatus/idle_queued.svg';
 import IconRunning from '@renderer/assets/mainArea/taskStatus/running.svg';
@@ -421,6 +422,14 @@ export const TaskItem = defineComponent((props: Props) => {
 				] : []),
 				...([TaskStatus.initializing, TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
 					{ type: 'normal' as const, icon: <span>🗑️</span>, label: '删除任务', value: '停止', onClick: () => { appStore.currentServer.entity.taskDelete(props.id) } },
+				] : []),
+				...(![TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
+					{ type: 'normal' as const, icon: <span>➕</span>, label: '复制任务', value: '复制任务', onClick: () => {
+						const entity = appStore.currentServer.entity;
+						if (entity?.status === ServiceBridgeStatus.Connected) {
+							entity.taskAdd(props.task.fileBaseName, props.task.after);
+						}
+					} },
 				] : []),
 				...(![TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
 					{ type: 'separator' as const },

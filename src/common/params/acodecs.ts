@@ -5,7 +5,7 @@ import { strict2, SliderOptions, Parameter, RateControl } from './parameter';
 const VALUE = Symbol()
 
 export interface ACodecDetail {
-	rateControl: RateControl[];
+	rateControl: MenuItem<RateControl>[];
 	parameters: Parameter[];
 	strict2?: true;
 }
@@ -19,20 +19,26 @@ const 自动: NarrowedMenuItem = {
 
 // #region 预置码率控制模式 combo
 
-const CBR_ABR: any = {
-	type: 'normal',
-	value: 'CBR/ABR',
-	label: 'CBR/ABR',
-	tooltip: '指定预期码率大小',
-	cmd: ['-b:a', VALUE]
-}
-const Q: any = {
-	type: 'normal',
+const Q = (extra: any) => ({
+	type: 'normal' as const,
 	value: 'Q',
 	label: 'Q',
 	tooltip: '指定音频质量',
-	cmd: ['-q:a', VALUE]
-}
+	extra: {
+		cmd: ['-q:a', VALUE],
+		...extra,
+	},
+});
+const CBR_ABR = (extra: any) => ({
+	type: 'normal' as const,
+	value: 'CBR',
+	label: 'CBR',
+	tooltip: '指定预期码率大小',
+	extra: {
+		cmd: ['-b:a', VALUE],
+		...extra,
+	},
+});
 
 // #endregion
 
@@ -428,8 +434,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -451,8 +457,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -477,8 +483,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -527,8 +533,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [],
 					strict2: true,
@@ -541,8 +547,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [],
 					strict2: true,
@@ -562,8 +568,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -584,8 +590,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -613,8 +619,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -635,8 +641,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -657,8 +663,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -712,8 +718,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -756,8 +762,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -807,8 +813,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [],
 					strict2: true,
@@ -828,8 +834,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -854,8 +860,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [],
 				},
@@ -874,8 +880,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -899,8 +905,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
 						{
@@ -928,8 +934,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [],
 				},
@@ -948,8 +954,8 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q, ...q100slider },
-						{ ...CBR_ABR, ...abitrateSlider },
+						{ ...Q(q100slider) },
+						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [],
 				},
@@ -1021,8 +1027,9 @@ const generator = {
 						}
 					}
 				}
-				const ratecontrol = (acodecDetail.rateControl || []).find((item) => item.value === audioParams.ratecontrol);
-				if (ratecontrol) {
+				const ratecontrolItem = (acodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === audioParams.ratecontrol) as any;
+				if (ratecontrolItem) {
+					const ratecontrol = ratecontrolItem.extra as RateControl;
 					// 计算值
 					const floatValue = audioParams.ratevalue;
 					const value = ratecontrol.valueToParam(floatValue);
@@ -1067,10 +1074,11 @@ const generator = {
 				return ret;
 			}
 			// 找到 ratecontrol 参数
-			const ratecontrol = acodecDetail.rateControl.find((item) => {
-				return item.value == audioParams.ratecontrol;
-			})
-			if (ratecontrol != null) {
+			const ratecontrolItem = acodecDetail.rateControl.find((item) => {
+				return item.type === 'normal' && item.value == audioParams.ratecontrol;
+			}) as any;
+			if (ratecontrolItem) {
+				const ratecontrol = ratecontrolItem.extra as RateControl;
 				// 计算值
 				const floatValue = audioParams.ratevalue;
 				const value = (() => {
@@ -1094,11 +1102,11 @@ const generator = {
 								}
 							}
 						} else if (vtt.type === 'integer') {
-							return ratecontrol.value;
+							return ratecontrolItem.value;
 						}
 					}
 				})();
-				ret = { mode: ratecontrol.value, value };
+				ret = { mode: ratecontrolItem.value, value };
 			}
 			return ret;
 		}

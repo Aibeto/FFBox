@@ -1,8 +1,10 @@
 import { computed, FunctionalComponent } from 'vue';
 import { vcodecsList, resolution, framerate, VCodecDetail } from '@common/params/vcodecs';
+import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
 import { framerateValidator, numberValidator } from '../../../../components/validatorAndFixer';
+import { showRateControlRecommendation } from '@renderer/components/misc/RateControlRecommendation';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -18,6 +20,19 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 		const vcodecName = appStore.globalParams.video.vcodec;
 		return (getMenuItemByValue(vcodecsList, vcodecName) as any)?.extra as VCodecDetail;
 	});
+	const rateControlList = computed(() => {
+		return [
+			...vcodec.value.rateControl,
+			{ type: 'separator' as const },
+			{
+				type: 'normal' as const,
+				value: 'fetchFromService',
+				label: '我应调整到什么值？...',
+				icon: <span>🤔</span>,
+				onClick: () => showRateControlRecommendation(),
+			},
+		];
+	});
 	// 根据当前选择的码率控制器显示具体使用何种 slider
 	const rateControlSlider = computed(() => {
 		const rList = vcodec.value?.rateControl || [];
@@ -25,16 +40,17 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 			return null;
 		}
 		const rateControlName = appStore.globalParams.video.ratecontrol;
-		let index = rList.findIndex((item) => item.value === rateControlName);
-		// 切换编码器后没有原来的码率控制模式了
+		let index = rList.findIndex((item) => item.type === 'normal' && item.value === rateControlName);
+		// 切换编码器后没有原来的码率控制模式了，默认设定为列表第一项
 		if (index == -1) {
 			index = 0;
-			appStore.globalParams.video.ratecontrol = rList[0].value;
+			appStore.globalParams.video.ratecontrol = (rList[0] as any).value;
 			appStore.applyParameters();
 		}
-		const slider = rList[index];
+		const item = rList[index] as any;
+		const slider = item.extra as RateControl;
 		let title;
-		switch (slider.value) {
+		switch (item.value) {
 			case 'CRF':
 				title = 'CRF'
 				break;
@@ -44,7 +60,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 			case 'CBR': case 'ABR':
 				title = '码率'
 				break;
-			case 'Q':
+			case 'Q': case 'VBR_HQ':
 				title = '质量参数'
 				break;
 		}
@@ -139,7 +155,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedDropdownInput title="分辨率" text={appStore.globalParams.video.resolution} list={resolution} onChange={(value: string) => handleChange('resolution', value)} />
 					<BoxedDropdownInput title="输出帧速" text={appStore.globalParams.video.framerate} list={framerate} validator={framerateValidator} onChange={(value: string) => handleChange('framerate', value)} />
 					{(vcodec.value?.rateControl || []).length ? (
-						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.video.ratecontrol} list={vcodec.value.rateControl} onChange={(value: string) => handleChange('ratecontrol', value)} />
+						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.video.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
 					) : null}
 					{rateControlSlider.value && (
 						<BoxedSlider
