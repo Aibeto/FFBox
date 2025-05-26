@@ -136,8 +136,8 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 						title={parameter.display}
 						description={parameter.description}
 						value={appStore.globalParams.video.detail[parameter.parameter]}
-						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
+						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
 						validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
 					/>
 				);

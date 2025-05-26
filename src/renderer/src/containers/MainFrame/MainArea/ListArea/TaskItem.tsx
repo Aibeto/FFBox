@@ -238,7 +238,7 @@ export const TaskItem = defineComponent((props: Props) => {
 		return {
 			...(showDashboard.value && windowWidth.value >= 920 ? {} : { maxHeight: '26px', '-webkit-line-clamp': 1 }),
 			width,
-			...(!showDashboard.value ? { fontSize: '16px' } : {}),	// 不显示 dashboard 时不允许文字放大
+			...(!showDashboard.value ? { fontSize: '16px', lineHeight: '23px' } : {}),	// 不显示 dashboard 时不允许文字放大
 			...(props.shouldHandleHover ? { pointerEvents: 'all' } : undefined),
 		};
 	}) as any;
@@ -423,14 +423,12 @@ export const TaskItem = defineComponent((props: Props) => {
 				...([TaskStatus.initializing, TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
 					{ type: 'normal' as const, icon: <span>🗑️</span>, label: '删除任务', value: '停止', onClick: () => { appStore.currentServer.entity.taskDelete(props.id) } },
 				] : []),
-				...(![TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>➕</span>, label: '复制任务', value: '复制任务', onClick: () => {
-						const entity = appStore.currentServer.entity;
-						if (entity?.status === ServiceBridgeStatus.Connected) {
-							entity.taskAdd(props.task.fileBaseName, props.task.after);
-						}
-					} },
-				] : []),
+				{ type: 'normal' as const, icon: <span>➕</span>, label: '复制任务', value: '复制任务', onClick: () => {
+					const entity = appStore.currentServer.entity;
+					if (entity?.status === ServiceBridgeStatus.Connected) {
+						entity.taskAdd(props.task.fileBaseName, props.task.after);
+					}
+				} },
 				...(![TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
 					{ type: 'separator' as const },
 					{ type: 'normal' as const, icon: <span>📈</span>, label: '查看图表', value: '查看图表', onClick: () => showProgressInfo(props.task, props.id, 'progress') },

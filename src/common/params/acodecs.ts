@@ -1102,7 +1102,9 @@ const generator = {
 								}
 							}
 						} else if (vtt.type === 'integer') {
-							return ratecontrolItem.value;
+							return floatValue + '';
+						} else if (vtt.type === 'revertInteger') {
+							return ratecontrol.max - +floatValue + '';
 						}
 					}
 				})();

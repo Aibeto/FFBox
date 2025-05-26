@@ -11,9 +11,11 @@ const MsgboxComponent: FunctionalComponent<Props> = (props) => {
 	const show = ref(false);
 	const disable = ref(false);
 	const backgroundMouseDown = ref(false);
+	const dialogRef = ref<HTMLDivElement>();
 
 	setTimeout(() => {
 		show.value = true;
+		dialogRef.value.addEventListener('keydown', handleKeyPress);
 	}, 0);
 
 	const mouseDownTransformStyle = computed(() => (
@@ -23,18 +25,18 @@ const MsgboxComponent: FunctionalComponent<Props> = (props) => {
 	const handleKeyPress = (e: KeyboardEvent) => {
 		if (props.buttons.length === 1 && (e.key === 'Escape' || e.key === 'Enter')) {
 			handleButtonClick(props.buttons[0]);
-			e.stopImmediatePropagation();
+			e.stopPropagation();
 		} else if (e.key === 'Escape') {
 			const button = props.buttons.find((button) => button.role === 'cancel');
 			if (button) {
 				handleButtonClick(button);
-				e.stopImmediatePropagation();
+				e.stopPropagation();
 			}
 		} else if (e.key === 'Enter') {
 			const button = props.buttons.find((button) => button.role === 'confirm');
 			if (button) {
 				handleButtonClick(button);
-				e.stopImmediatePropagation();
+				e.stopPropagation();
 			}
 		}
 	}
@@ -55,10 +57,8 @@ const MsgboxComponent: FunctionalComponent<Props> = (props) => {
 		}
 	};
 
-	document.addEventListener('keypress', handleKeyPress);
-
 	return (
-		<dialog class={style.dialog}>
+		<dialog class={style.dialog} ref={dialogRef}>
 			<Transition
 				// name={style.bganimate}
 				on-after-leave={() => {

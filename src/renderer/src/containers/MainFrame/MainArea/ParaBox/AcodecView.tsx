@@ -23,14 +23,14 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 	const rateControlList = computed(() => {
 		return [
 			...acodec.value.rateControl,
-			{ type: 'separator' as const },
-			{
-				type: 'normal' as const,
-				value: 'fetchFromService',
-				label: '我应调整到什么值？...',
-				icon: <span>🤔</span>,
-				onClick: () => showRateControlRecommendation(),
-			},
+			// { type: 'separator' as const },
+			// {
+			// 	type: 'normal' as const,
+			// 	value: 'fetchFromService',
+			// 	label: '我应调整到什么值？...',
+			// 	icon: <span>🤔</span>,
+			// 	onClick: () => showRateControlRecommendation(),
+			// },
 		];
 	});
 	// 根据当前选择的码率控制器显示具体使用何种 slider
@@ -43,8 +43,8 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 		let index = rList.findIndex((item) => item.type === 'normal' && item.value === rateControlName);
 		// 切换编码器后没有原来的码率控制模式了，默认设定为列表第一项
 		if (index == -1) {
-			index = 0
-			appStore.globalParams.video.ratecontrol = (rList[0] as any).value;
+			index = 0;
+			appStore.globalParams.audio.ratecontrol = (rList[0] as any).value;
 			appStore.applyParameters();
 		}
 		const item = rList[index] as any;

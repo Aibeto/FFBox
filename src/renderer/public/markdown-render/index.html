@@ -111,9 +111,9 @@
 			box-sizing: border-box;
 			width: 100%;
 			height: 100%;
-			padding: 0 5%;
+			padding: 0 5% 0 calc(5% + 8px);
 			overflow: auto;
-			font-family: 冬青黑体简体中文, 冬青黑体, 思源黑体, Noto Sans S Chinese, 字语叙黑体, PingFang SC, 苹方, Helvetica, 黑体, sans-serif;
+			font-family: MiSans, MiSans VF, HarmonyOS Sans, HarmonyOS Sans SC, "OPPO Sans 4.0", 冬青黑体简体中文, 冬青黑体, Product Sans, 思源黑体, Noto Sans S Chinese, PingFang SC, 苹方, 字语叙黑体, Helvetica, 黑体, sans-serif;
 			font-size: 14px;
 		}
 		article>*:nth-child(1) {
@@ -121,6 +121,7 @@
 		}
 		article>h1 {
 			font-size: 28px;
+			font-weight: 600;
 		}
 		article>p {
 			position: relative;
@@ -128,7 +129,6 @@
 			line-height: 1.5em;
 			text-align: left;
 			/* margin: 10px 0; */
-			margin-left: 8px;
 		}
 		article>p::before {
 			content: '🔸';
@@ -157,10 +157,20 @@
 		tbody>tr:nth-child(2n-1) {
 			background-color: var(--articleLightBg);
 		}
-		table td, table th {
+		td, th {
 			border: var(--articleBorder) 1.5px solid;
 			border-collapse: collapse;
 			padding: 5px 12px;
+		}
+		th {
+			font-weight: 600;
+		}
+		code {
+			font-family: Consolas, monaco, "Noto Mono", "黑体", "苹方-简", "苹方", Roboto;
+			border: var(--articleBorder) 1.5px solid;
+			border-radius: 6px;
+			background-color: var(--articleLightBg);
+			padding: 1px 2px;
 		}
 		.noFile {
 			height: 100%;

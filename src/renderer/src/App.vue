@@ -115,7 +115,7 @@ onMounted(async () => {
 		height: 100vh;
 		margin: 0;
 		font-weight: 400;
-        font-family: "PingFang SC", 苹方, 微软雅黑, "Segoe UI", Consolas, Avenir, Arial, Helvetica, sans-serif, 黑体;
+        font-family: MiSans, PingFang SC, 苹方, 微软雅黑, HarmonyOS Sans, HarmonyOS Sans SC, Noto Sans S Chinese, 思源黑体, Product Sans, Segoe UI, Avenir, Arial, Consolas, Helvetica, sans-serif, 黑体;
 		-webkit-font-smoothing: grayscale;
 		-moz-osx-font-smoothing: grayscale;
 		text-align: center;

@@ -645,6 +645,7 @@ onMounted(() => {
 		left: calc(15% - 80px + 144px);
 		right: calc(15% - 80px);
 		font-size: 22px;
+		font-weight: 600;
 		text-align: center;
 		color: var(--titleText);
 	}

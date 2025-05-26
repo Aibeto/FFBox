@@ -40,11 +40,12 @@ onMounted(() => {
 		}
 		:deep(h1) {
 			font-size: 22px;
+			font-weight: 600;
 			margin-block-start: 0em;
 		}
-		:deep(di)v {
+		:deep(div) {
 			font-size: 14px;
-			line-height: 25px;
+			line-height: 24px;
 			text-align: left;
 			margin: 10px 0;
 		}

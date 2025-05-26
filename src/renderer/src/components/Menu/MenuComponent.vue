@@ -110,27 +110,58 @@ const getMenuPosition = (menu: InnerMenu) => {
 	const menuItemHeight = 32;
 	const menuSeparatorHeight = 9;
 	const menuPaddingY = 6;
-	const minWidth = 220;
-	const _triggerRect = openedSubMenuItemPos.value[menu.menuIndex] || props.triggerRect || { xMin: 0, yMin: 0, xMax: minWidth, yMax: 0 };
-	const isHorizontal = openedSubMenuItemPos.value[menu.menuIndex] !== undefined;	// 第一个菜单使用上下弹出
-
 	let ScreenWidth = document.documentElement.clientWidth;			// 使用 window.innerWidth 也行
 	let ScreenHeight = document.documentElement.clientHeight;
-	let listHeight = menu.menu.reduce((prev, curr) => prev + (curr.type === 'separator' ? menuSeparatorHeight : menuItemHeight), 0) + menuPaddingY * 2;
+
+	// const span = document.createElement('span');
+	// span.style.position = 'fixed';
+	// span.style.visibility = 'hidden';
+	// span.style.whiteSpace = 'nowrap';
+	// span.style.fontSize = '14px';
+	// document.body.appendChild(span);
+	// const listWidth1 = menu.menu.reduce((prev, curr) => {
+	// 	if ('label' in curr) {
+	// 		span.textContent = curr.label;
+	// 		const width = span.getBoundingClientRect().width;
+	// 		return Math.max(width, prev);
+	// 	} else {
+	// 		return prev;
+	// 	}
+	// }, 0);
+	// document.body.removeChild(span);
+	// 以下方法的速度是上面的七八倍
+	const canvas = document.createElement('canvas');
+	canvas.style.position = 'fixed';
+	canvas.style.top = '150px';
+	const context = canvas.getContext('2d');
+	context.font = getComputedStyle(document.body).font.replace(/\d+px/, '14px');
+	const listWidth2 = menu.menu.reduce((prev, curr) => {
+		if ('label' in curr) {
+			const metrics = context.measureText(curr.label);
+			context.fillText(curr.label, 0, Math.random() * 150);
+			return Math.max(metrics.width, prev);
+		} else {
+			return prev;
+		}
+	}, 0);
 	
+	const listWidth = Math.min(listWidth2 + 86, Math.min(window.innerWidth, 800));	// 86 包含 padding、左图标、右三角、scrollbar
+	const listHeight = menu.menu.reduce((prev, curr) => prev + (curr.type === 'separator' ? menuSeparatorHeight : menuItemHeight), 0) + menuPaddingY * 2;
+	const _triggerRect = openedSubMenuItemPos.value[menu.menuIndex] || props.triggerRect || { xMin: 0, yMin: 0, xMax: listWidth, yMax: 0 };
+	const isHorizontal = openedSubMenuItemPos.value[menu.menuIndex] !== undefined;	// 第一个菜单使用上下弹出
 	let finalPosition: CSSProperties = {};
 	// 计算水平位置
 	if (isHorizontal) {
 		// 左右弹出
 		const direction = ('preferDirection' in _triggerRect && _triggerRect.preferDirection === 'l') ? 'l' : 'r';
-		const finalLeft = direction === 'r' ? Math.min(_triggerRect.xMax, ScreenWidth - minWidth ) : Math.max(_triggerRect.xMin - minWidth, 0);
+		const finalLeft = direction === 'r' ? Math.min(_triggerRect.xMax, ScreenWidth - listWidth) : Math.max(_triggerRect.xMin - listWidth, 0);
 		finalPosition = {
 			left: `${finalLeft}px`,
-			width: `${minWidth}px`,
+			width: `${listWidth}px`,
 		};
 	} else {
 		// 上下弹出
-		const finalWidth = Math.max(minWidth, _triggerRect.xMax - _triggerRect.xMin);
+		const finalWidth = Math.max(listWidth, _triggerRect.xMax - _triggerRect.xMin);
 		const centralX = Math.max(finalWidth / 2, Math.min((_triggerRect.xMax + _triggerRect.xMin) / 2, ScreenWidth - finalWidth / 2));
 		finalPosition = {
 			left: `${centralX - finalWidth / 2}px`,
@@ -582,6 +613,9 @@ defineExpose({
 					left: 30px;
 					right: 30px;
 					line-height: 32px;
+					white-space: nowrap;
+					text-overflow: ellipsis;
+					overflow: hidden;
 				}
 				.iconArea {
 					position: absolute;

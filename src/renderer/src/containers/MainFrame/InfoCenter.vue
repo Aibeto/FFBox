@@ -151,7 +151,7 @@ const handleDelete = (serverId: string, notificationId: number) => {
 						margin: 10px 0 6px;
 						line-height: 22px;
 						font-size: 16px;
-						font-weight: 700;
+						font-weight: 600;
 						list-style-type: none;
 					}
 					.info {
