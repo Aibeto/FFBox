@@ -30,7 +30,22 @@ const handleParaButtonClicked = (index: number) => {
 	appStore.selectedPanelIndex = index;
 }
 
-onMounted(() => appStore.selectedPanelIndex = 0);
+const handleTopBarButtonClicked = (index: number) => {
+	if (index === 0) {
+		// 更新说明
+		appStore.showMenuCenter = 2;
+		appStore.selectedPanelIndex = 0;
+	} else if (index === 1) {
+		// 开发日志
+		window.open('https://github.com/ttqftech/FFBox/blob/4.0%2B/日志.md', '_blank');
+	} else if (index === 2) {
+		// 使用条款
+		appStore.showMenuCenter = 2;
+		appStore.selectedPanelIndex = 3;
+	}
+};
+
+onMounted(() => appStore.selectedPanelIndex = -1);
 
 </script>
 
@@ -46,6 +61,23 @@ onMounted(() => appStore.selectedPanelIndex = 0);
 	<div class="container">
 		<h1 class="title">{{ sidebarTexts[appStore.selectedPanelIndex] }}</h1>
 		<div class="content">
+			<Transition :name="animationName">
+				<div v-if="appStore.selectedPanelIndex === -1" class="intro">
+					<img class="title-1" src="../assets/软件图标v1.0.png" alt="FFBox 图标" width="368" height="184" />
+					<div class="actions">
+						<button @click="handleTopBarButtonClicked(0)">更新说明</button>
+						<div class="seperator"></div>
+						<button @click="handleTopBarButtonClicked(1)" class="涩话草坪">涩话草坪</button>
+						<div class="seperator"></div>
+						<button @click="handleTopBarButtonClicked(2)">使用条款</button>
+					</div>
+					<div class="versionInfo">
+						<div>版本：4.4&nbsp;&nbsp;(2025-05-01)</div>
+					</div>
+					<img class="screenshot" v-if="appStore.colorTheme === 'themeLight'" src="../assets/软件截图_中_浅色.png" />
+					<img class="screenshot" v-if="appStore.colorTheme === 'themeDark'" src="../assets/软件截图_中_深色.png" />
+				</div>
+			</Transition>
 			<Transition :name="animationName">
 				<Changelog v-if="appStore.selectedPanelIndex === 0" />
 			</Transition>
@@ -156,6 +188,63 @@ onMounted(() => appStore.selectedPanelIndex = 0);
 			::-webkit-scrollbar-track {
 				border-radius: 10px;
 				background: rgba(128, 128, 128, 0.1);
+			}
+		}
+		.intro {
+			text-align: center;
+			.title-1 {
+				width: 368px;
+				margin-top: calc(20vh - 150px);
+			}
+			.actions {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				isolation: isolate;
+				button {
+					padding: 6px 14px 6px 18px;
+					letter-spacing: 4px;
+					color: var(--66);
+					background: none;
+					border-radius: 6px;
+					border: 1px solid transparent;
+					z-index: 1;
+					transition: all 0.1s linear;
+					&:hover {
+						border-top: 1px solid rgba(0, 0, 0, 0.1);
+						border-left: 1px solid rgba(0, 0, 0, 0.1);
+						border-right: 1px solid rgba(0, 0, 0, 0.1);
+						border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+						background-color: hwb(var(--bg100));
+						color: var(--primaryColor);
+						transition: all 0.5s cubic-bezier(0.1, 2.5, 0.3, 1);
+						cursor: pointer;
+					}
+				}
+				.seperator {
+					display: inline-block;
+					width: 1px;
+					height: 16px;
+					margin: 0 -1px;
+					background-color: #777;
+				}
+			}
+			.versionInfo {
+				margin-top: 12px;
+				div {
+					display: inline-block;
+					padding: 12px 80px 0;
+					color: var(--66);
+					border-top: 1px solid hwb(var(--opposite80) / 0.5);
+					font-size: 12px;
+					opacity: 0.7;
+				}
+			}
+			.screenshot {
+				margin-top: 40px;
+				width: 90%;
+				border-radius: 1%;
+				box-shadow: 0 6px 16px hwb(0 0% 100% / 0.2);
 			}
 		}
 	}
