@@ -20,9 +20,6 @@
 	}
 	&:active {
 		transition: none;
-		background-color: hwb(var(--bg97));
-		box-shadow: 0 0px 2px 0.5px hwb(var(--hoverShadow) / 0.15), // 外部阴影
-					0 8px 12px hwb(var(--hoverShadow) / 0.1) inset; // 内部凹陷阴影
 		transform: translateY(0.5px);
 	}
 }
@@ -34,6 +31,10 @@
 					0 0 0 0.5px hwb(var(--highlight)) inset,	// 包边
 					0 1px 4px 0 hwb(var(--hoverShadow) / 0.4),	// 外部阴影
 	}
+	&:active {
+		box-shadow: 0 0px 2px 0.5px hwb(var(--hoverShadow) / 0.15), // 外部阴影
+					0 8px 12px hwb(var(--hoverShadow) / 0.1) inset; // 内部凹陷阴影
+	}
 }
 .button[data-color_theme="themeDark"] {
 	box-shadow: 0 0 1px 0.5px hwb(var(--bg99)),	// 柔和边缘
@@ -43,6 +44,10 @@
 		box-shadow: 0 0 1px 0.5px hwb(var(--bg99)),	// 柔和边缘
 					0 0 0 0.75px hwb(var(--highlight)) inset,	// 包边
 					0 1px 4px 0 hwb(var(--hoverShadow) / 0.4),	// 外部阴影
+	}
+	&:active {
+		box-shadow: 0 0px 2px 0.5px hwb(var(--hoverShadow) / 0.15), // 外部阴影
+					0 8px 12px hwb(var(--hoverShadow) / 0.4) inset; // 内部凹陷阴影
 	}
 }
 .small {

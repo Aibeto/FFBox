@@ -119,16 +119,9 @@ const handleCheckboxClicked = () => {
 		}
 	}
 	.agreeBar {
-		position: absolute;
-		bottom: 28px;
-		right: calc(8px + 5%);
-		// height: 32px;
-		// width: 100%;
-		// display: flex;
-		// align-items: center;
-		// justify-content: right;
-		// gap: 4px;
-		// border-top: #77777777 1px solid;
+		text-align: right;
+		margin-top: -40px;
+		padding: 0 5%;
 		button {
 			&>div {
 				vertical-align: middle;

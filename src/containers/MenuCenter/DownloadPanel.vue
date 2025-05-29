@@ -171,6 +171,7 @@ const handleDownloadClick = (os: 'Windows' | 'MacOS' | 'Linux' | 'web', selectio
 		}
 		.oss {
 			display: flex;
+			flex-wrap: wrap;
 			gap: 24px;
 			.os {
 				width: 190px;

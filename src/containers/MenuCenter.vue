@@ -5,19 +5,21 @@ import Changelog from './MenuCenter/Changelog.vue';
 import DownloadPanel from './MenuCenter/DownloadPanel.vue';
 import SponsorPanel from './MenuCenter/SponsorPanel.vue';
 import Terms from './MenuCenter/Terms.vue';
+import Faq from './MenuCenter/Faq.vue';
 import IconSidebarUpdate from '../assets/menuCenter/update2.svg?component';
 import IconSidebarDownload from '../assets/menuCenter/download.svg?component';
 import IconSidebarSponsor from '../assets/menuCenter/sponsor.svg?component';
 import IconSidebarTerm from '../assets/menuCenter/term.svg?component';
+import IconSidebarFaq from '../assets/menuCenter/faq.svg?component';
 
 const appStore = useAppStore();
 
-const sidebarIcons = [IconSidebarUpdate, IconSidebarDownload, IconSidebarSponsor, IconSidebarTerm];
-const sidebarTexts = ['更新说明', '下载地址', '支持作者', '使用条款'];
+const sidebarIcons = [IconSidebarUpdate, IconSidebarDownload, IconSidebarSponsor, IconSidebarTerm, IconSidebarFaq];
+const sidebarTexts = ['更新说明', '下载地址', '支持作者', '使用条款', '猜你想问'];
 const sidebarColors = computed(() => 
 	appStore.colorTheme === 'themeLight'
-		? ['hwb(20 20% 0%)', 'hwb(120 0% 20%)', 'hwb(315 0% 0%)', 'hwb(35 10% 10%)']
-		: ['hwb(20 5% 5%)', 'hwb(120 0% 15%)', 'hwb(315 20% 5%)', 'hwb(35 10% 20%)']
+		? ['hwb(20 20% 0%)', 'hwb(120 0% 20%)', 'hwb(315 0% 0%)', 'hwb(35 10% 10%)', 'hwb(180 10% 35%)']
+		: ['hwb(20 5% 5%)', 'hwb(120 0% 15%)', 'hwb(315 20% 5%)', 'hwb(35 10% 20%)', 'hwb(180 10% 40%)']
 );
 const animationName = ref('animationUp');
 
@@ -101,7 +103,7 @@ onMounted(() => appStore.selectedPanelIndex = 0);
 		<div class="lrCenter">
 			<div>
 				<div class="selectors">
-					<button v-for="index in [0, 1, 2, 3]" :key="index" :aria-label="sidebarTexts[index]" @click="handleParaButtonClicked(index)">
+					<button v-for="index in [0, 1, 2, 3, 4]" :key="index" :aria-label="sidebarTexts[index]" @click="handleParaButtonClicked(index)">
 						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
 						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>
 					</button>
@@ -118,6 +120,9 @@ onMounted(() => appStore.selectedPanelIndex = 0);
 					</Transition>
 					<Transition :name="animationName">
 						<Terms v-if="appStore.selectedPanelIndex === 3" />
+					</Transition>
+					<Transition :name="animationName">
+						<Faq v-if="appStore.selectedPanelIndex === 4" />
 					</Transition>
 				</div>
 			</div>
@@ -298,15 +303,17 @@ onMounted(() => appStore.selectedPanelIndex = 0);
 				left: 144px;
 				right: 0;
 				top: 0;
-				bottom: 0;
+				bottom: 2px;
 				&>* {
 					position: absolute;
 					width: 100%;
 					height: 100%;
 					overflow: auto;
+					box-sizing: border-box;
 				}
 				::-webkit-scrollbar {
 					width: 10px;
+					height: 10px;
 					background: transparent;
 				}
 				::-webkit-scrollbar-thumb {
