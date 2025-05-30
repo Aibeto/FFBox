@@ -50,7 +50,7 @@ const handleTopBarButtonClicked = (index: number) => {
 			Msgbox({
 				image: h(IconPointOut),
 				title: '您将要使用一个尚未完善的网页版～',
-				content: h('div', ['4.3 版本尚未对网页运行进行针对性优化，因此网页版只能用于体验功能，可能无法正常使用', h('br'), '同时，建议自行部署以获得更佳体验～']),
+				content: h('div', ['4.4 版本尚未对网页运行进行针对性优化，因此网页版只能用于体验功能，可能无法正常使用', h('br'), '同时，建议自行部署以获得更佳体验～']),
 				buttons: [
 					{ text: `我已知悉，继续`, type: ButtonType.Primary, callback: () => window.open('./online', '__blank') && true },
 				]
@@ -76,18 +76,11 @@ onMounted(async () => {
 	window.addEventListener('resize', listener);
 
 	// 浏览器检查
-	if (navigator.userAgent.includes('Firefox')) {
-		Popup({ message: 'Firefox 浏览器在浏览本页的时候，可能会出现部分元素缩放不正常的现象' });
-		sleep(1);
-		Popup({ message: '如影响到浏览，烦请更换 Chromium 内核的浏览器～' });
-	}
-	let zoomValue = 1;
-	if (document.body.clientWidth < 1080) {
-		zoomValue = document.body.clientWidth / 1080;
-	}
-	if (window.innerHeight < 720 * zoomValue + 40) {
-		Popup({ message: '您的浏览器窗口高度较小，可能无法正确排版，请减小缩放以正确显示页面～' });
-	}
+	// if (navigator.userAgent.includes('Firefox')) {
+	// 	Popup({ message: 'Firefox 浏览器在浏览本页的时候，可能会出现部分元素缩放不正常的现象' });
+	// 	sleep(1);
+	// 	Popup({ message: '如影响到浏览，烦请更换 Chromium 内核的浏览器～' });
+	// }
 })
 
 </script>
@@ -121,12 +114,12 @@ onMounted(async () => {
 			</div>
 			<div class="FFBox-topWrapper" :style="FFBoxTopWrapperStyle">
 				<div class="FFBox-wrapper">
-					<img v-if="appStore.colorTheme === 'themeLight' && windowWidth < 1000" src="../assets/软件截图_小_浅色.png" />
-					<img v-if="appStore.colorTheme === 'themeDark' && windowWidth < 1000" src="../assets/软件截图_小_深色.png" />
-					<img v-if="appStore.colorTheme === 'themeLight' && windowWidth >= 1000 && windowWidth < 1320" src="../assets/软件截图_中_浅色.png" />
-					<img v-if="appStore.colorTheme === 'themeDark' && windowWidth >= 1000 && windowWidth < 1320" src="../assets/软件截图_中_深色.png" />
-					<img v-if="appStore.colorTheme === 'themeLight' && windowWidth >= 1320" src="../assets/软件截图_大_浅色.png" />
-					<img v-if="appStore.colorTheme === 'themeDark' && windowWidth >= 1320" src="../assets/软件截图_大_深色.png" />
+					<img v-if="appStore.colorTheme === 'themeLight' && windowWidth < 1000" src="../assets/软件截图_小_浅色.webp" />
+					<img v-if="appStore.colorTheme === 'themeDark' && windowWidth < 1000" src="../assets/软件截图_小_深色.webp" />
+					<img v-if="appStore.colorTheme === 'themeLight' && windowWidth >= 1000 && windowWidth < 1320" src="../assets/软件截图_中_浅色.webp" />
+					<img v-if="appStore.colorTheme === 'themeDark' && windowWidth >= 1000 && windowWidth < 1320" src="../assets/软件截图_中_深色.webp" />
+					<img v-if="appStore.colorTheme === 'themeLight' && windowWidth >= 1320" src="../assets/软件截图_大_浅色.webp" />
+					<img v-if="appStore.colorTheme === 'themeDark' && windowWidth >= 1320" src="../assets/软件截图_大_深色.webp" />
 					<div class="FFBox">
 						<button @click="handleTopBarButtonClicked(3)" class="startbutton startbutton2 startbutton-cyan">🌐网页版</button>
 						<button @click="handleTopBarButtonClicked(4)" class="startbutton startbutton1 startbutton-green">⬇️下载</button>

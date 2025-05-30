@@ -96,10 +96,11 @@ onMounted(() => {
 		<section class="faqbrick" @click="handleBrickClick(6)" :style="brickStyle[6]">
 			<h2 class="title">🐢 就这么点功能，为什么软件的体积这么大？</h2>
 			<div class="content" :ref="el => setRef(el, 6)">
-				<p>其实，这在软件工程中，已经是一个老生常谈的话题了。<br />开发者的便利，与使用者的便利，总要有取舍。</p>
-				<p>FFBox 的体积，主要由 electron 和 node.js 两个第三方库。这是软件架构的基石，极难动摇。<br />您使用的很多软件，比如带有首选中文名的浏览器、Visual Studio Code、飞书、QQ，甚至包括了破烂微信，它们都使用了 electron 或相似技术的套壳浏览器。</p>
+				<p>这在软件工程中，已经是一个老生常谈的话题了。<br />开发者的便利与使用者的便利，总要有取舍。</p>
+				<p>FFBox 的体积，主要由 electron 和 node.js 两个第三方库占据。这是软件架构的基石，极难动摇。<br />您使用的很多软件，比如带有首选中文名的浏览器、Visual Studio Code、飞书、QQ，甚至包括了破烂微信，它们都使用了 electron 或相似技术的套壳浏览器。</p>
 				<p>您或许对 Qt 这类框架颇有青睐，但事实上 Qt 想要做得好用是相当相当困难的。在不进行特殊优化的情况下，Qt 做出来的 UI 操作起来都有种“笨笨的”的感觉。而本作者在公司的经历也表明：想要做好 Qt 应用，不是一般程序员能做到的事情。</p>
-				<p>为了响应用户的呼声，我为 FFBox 加上了浏览器的支持，这样就可以不必使用 electron 了。但这样的用户有多少呢？<br />chromium 内核的流畅性已经相当好。权衡下来，没有必要硬抠那一点空间。对此造成的不便，作者表示抱歉 (。・＿・。)ﾉ</p>
+				<p>软件工程以人为本。尽管 C++、C# 可以实现比 js 高得多的最高性能，但按现实情况，使用浏览器内核的程序的流畅性往往远高于使用 C++、C# 的程序（游戏框架程序除外），“electron 速度慢”只是少数用户的边缘案例。因此为了追求更顺滑的 UI，FFBox 只能选用类似框架。</p>
+				<p>受限于时间的原因，作者目前仅学习了 electron，未有其他类似框架的开发经验。但 FFBox 在设计代码时，就已考虑将“electron”作为第三方库，允许脱离 electron 运行，因此目前 FFBox 可以直接在浏览器中运行。</p>
 			</div>
 		</section>
 		<section class="faqbrick" @click="handleBrickClick(7)" :style="brickStyle[7]">
@@ -145,7 +146,7 @@ onMounted(() => {
 		<section class="faqbrick" @click="handleBrickClick(11)" :style="brickStyle[11]">
 			<h2 class="title">🤥 做了这么长时间，有多少收入？</h2>
 			<div class="content" :ref="el => setRef(el, 11)">
-				<p><i>或许有两百多？我不怎么关心这个。</i></p>
+				<p><i>应该有六百多？我不怎么关心这个。</i></p>
 			</div>
 		</section>
 		<section class="faqbrick" @click="handleBrickClick(12)" :style="brickStyle[12]">

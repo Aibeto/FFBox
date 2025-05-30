@@ -74,8 +74,8 @@ onMounted(() => appStore.selectedPanelIndex = -1);
 					<div class="versionInfo">
 						<div>版本：4.4&nbsp;&nbsp;(2025-05-01)</div>
 					</div>
-					<img class="screenshot" v-if="appStore.colorTheme === 'themeLight'" src="../assets/软件截图_中_浅色.png" />
-					<img class="screenshot" v-if="appStore.colorTheme === 'themeDark'" src="../assets/软件截图_中_深色.png" />
+					<img class="screenshot" v-if="appStore.colorTheme === 'themeLight'" src="../assets/软件截图_中_浅色_完整.webp" />
+					<img class="screenshot" v-if="appStore.colorTheme === 'themeDark'" src="../assets/软件截图_中_深色_完整.webp" />
 				</div>
 			</Transition>
 			<Transition :name="animationName">
