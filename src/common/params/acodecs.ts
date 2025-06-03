@@ -179,105 +179,105 @@ const lo_mono: NarrowedMenuItem = {
 	type: 'normal',
 	value: 'mono',
 	label: 'mono',
-	tooltip: '单声道<br />FC',
+	tooltip: '单声道\nFC',
 }
 
 const lo_stereo: NarrowedMenuItem = {
 	type: 'normal',
 	value: 'stereo',
 	label: 'stereo',
-	tooltip: '立体声<br />FL+FR',
+	tooltip: '立体声\nFL+FR',
 }
 
 const lo_2_1: NarrowedMenuItem = {
 	type: 'normal',
 	value: '2.1',
 	label: '2.1',
-	tooltip: '左右前置 + 重低音<br />FL+FR+LFE',
+	tooltip: '左右前置 + 重低音\nFL+FR+LFE',
 }
 
 const lo_3_0: NarrowedMenuItem = {
 	type: 'normal',
 	value: '3.0',
 	label: '3.0',
-	tooltip: '左右前置 + 前中置<br />FL+FR+FC',
+	tooltip: '左右前置 + 前中置\nFL+FR+FC',
 }
 
 const lo_3_0_back: NarrowedMenuItem = {
 	type: 'normal',
 	value: '3.0(back)',
 	label: '3.0(back)',
-	tooltip: '左右前置 + 后中置<br />FL+FR+BC',
+	tooltip: '左右前置 + 后中置\nFL+FR+BC',
 }
 
 const lo_4_0: NarrowedMenuItem = {
 	type: 'normal',
 	value: '4.0',
 	label: '4.0',
-	tooltip: '左右前置 + 前后中置<br />FL+FR+FC+BC',
+	tooltip: '左右前置 + 前后中置\nFL+FR+FC+BC',
 }
 
 const lo_quad: NarrowedMenuItem = {
 	type: 'normal',
 	value: 'quad',
 	label: 'quad',
-	tooltip: '左右前置 + 左右后置<br />FL+FR+BL+BR',
+	tooltip: '左右前置 + 左右后置\nFL+FR+BL+BR',
 }
 
 const lo_quad_side: NarrowedMenuItem = {
 	type: 'normal',
 	value: 'quad(side)',
 	label: 'quad(side)',
-	tooltip: '左右前置 + 左右侧置<br />FL+FR+SL+SR',
+	tooltip: '左右前置 + 左右侧置\nFL+FR+SL+SR',
 }
 
 const lo_3_1: NarrowedMenuItem = {
 	type: 'normal',
 	value: '3.1',
 	label: '3.1',
-	tooltip: '左中右前置 + 重低音<br />FL+FR+FC+LFE',
+	tooltip: '左中右前置 + 重低音\nFL+FR+FC+LFE',
 }
 
 const lo_5_0: NarrowedMenuItem = {
 	type: 'normal',
 	value: '5.0',
 	label: '5.0',
-	tooltip: '左中右前置 + 左右后置<br />FL+FR+FC+BL+BR',
+	tooltip: '左中右前置 + 左右后置\nFL+FR+FC+BL+BR',
 }
 
 const lo_5_0_side: NarrowedMenuItem = {
 	type: 'normal',
 	value: '5.0(side)',
 	label: '5.0(side)',
-	tooltip: '左中右前置 + 左右侧置<br />FL+FR+FC+SL+SR',
+	tooltip: '左中右前置 + 左右侧置\nFL+FR+FC+SL+SR',
 }
 
 const lo_4_1: NarrowedMenuItem = {
 	type: 'normal',
 	value: '4.1',
 	label: '4.1',
-	tooltip: '左右前置 + 前后中置 + 重低音<br />FL+FR+FC+LFE+BC',
+	tooltip: '左右前置 + 前后中置 + 重低音\nFL+FR+FC+LFE+BC',
 }
 
 const lo_5_1: NarrowedMenuItem = {
 	type: 'normal',
 	value: '5.1',
 	label: '5.1',
-	tooltip: '左中右前置 + 左右后置 + 重低音<br />FL+FR+FC+LFE+BL+BR',
+	tooltip: '左中右前置 + 左右后置 + 重低音\nFL+FR+FC+LFE+BL+BR',
 }
 
 const lo_5_1_side: NarrowedMenuItem = {
 	type: 'normal',
 	value: '5.1(side)',
 	label: '5.1(side)',
-	tooltip: '左中右前置 + 左右侧置 + 重低音<br />FL+FR+FC+LFE+SL+SR',
+	tooltip: '左中右前置 + 左右侧置 + 重低音\nFL+FR+FC+LFE+SL+SR',
 }
 
 const lo_6_0: NarrowedMenuItem = {
 	type: 'normal',
 	value: '6.0',
 	label: '6.0',
-	tooltip: '左右前置 + 前后中置 + 左右侧置<br />FL+FR+FC+BC+SL+SR',
+	tooltip: '左右前置 + 前后中置 + 左右侧置\nFL+FR+FC+BC+SL+SR',
 }
 
 const lo_6_0_front: NarrowedMenuItem = {
@@ -291,21 +291,21 @@ const lo_hexagonal: NarrowedMenuItem = {
 	type: 'normal',
 	value: 'hexagonal',
 	label: 'hexagonal',
-	tooltip: '左中右前置 + 左中右后置<br />FL+FR+FC+BL+BR+BC',
+	tooltip: '左中右前置 + 左中右后置\nFL+FR+FC+BL+BR+BC',
 }
 
 const lo_6_1: NarrowedMenuItem = {
 	type: 'normal',
 	value: '6.1',
 	label: '6.1',
-	tooltip: '左右前置 + 前后中置 + 左右侧置 + 重低音<br />FL+FR+FC+LFE+BC+SL+SR',
+	tooltip: '左右前置 + 前后中置 + 左右侧置 + 重低音\nFL+FR+FC+LFE+BC+SL+SR',
 }
 
 const lo_6_1_back: NarrowedMenuItem = {
 	type: 'normal',
 	value: '6.1(back)',
 	label: '6.1(back)',
-	tooltip: '左中右前置 + 左中右后置 + 重低音<br />FL+FR+FC+LFE+BL+BR+BC',
+	tooltip: '左中右前置 + 左中右后置 + 重低音\nFL+FR+FC+LFE+BL+BR+BC',
 }
 
 const lo_6_1_front: NarrowedMenuItem = {
@@ -319,7 +319,7 @@ const lo_7_0: NarrowedMenuItem = {
 	type: 'normal',
 	value: '7.0',
 	label: '7.0',
-	tooltip: '左中右前置 + 左右后置 + 左右侧置<br />FL+FR+FC+BL+BR+SL+SR',
+	tooltip: '左中右前置 + 左右后置 + 左右侧置\nFL+FR+FC+BL+BR+SL+SR',
 }
 
 const lo_7_0_front: NarrowedMenuItem = {
@@ -333,7 +333,7 @@ const lo_7_1: NarrowedMenuItem = {
 	type: 'normal',
 	value: '7.1',
 	label: '7.1',
-	tooltip: '左中右前置 + 左右后置 + 左右侧置 + 重低音<br />FL+FR+FC+LFE+BL+BR+SL+SR',
+	tooltip: '左中右前置 + 左右后置 + 左右侧置 + 重低音\nFL+FR+FC+LFE+BL+BR+SL+SR',
 }
 
 const lo_7_1_wide: NarrowedMenuItem = {
@@ -354,14 +354,14 @@ const lo_octagonal: NarrowedMenuItem = {
 	type: 'normal',
 	value: 'octagonal',
 	label: 'octagonal',
-	tooltip: '左中右前置 + 左中右后置 + 左右侧置<br />FL+FR+FC+BL+BR+BC+SL+SR',
+	tooltip: '左中右前置 + 左中右后置 + 左右侧置\nFL+FR+FC+BL+BR+BC+SL+SR',
 }
 
 const lo_hexadecagonal: NarrowedMenuItem = {
 	type: 'normal',
 	value: 'hexadecagonal',
 	label: 'hexadecagonal',
-	tooltip: '这个就很牛逼了<br />FL+FR+FC+BL+BR+BC+SL+SR+TFL+TFC+TFR+TBL+TBC+TBR+WL+WR',
+	tooltip: '这个就很牛逼了\nFL+FR+FC+BL+BR+BC+SL+SR+TFL+TFC+TFR+TBL+TBC+TBR+WL+WR',
 }
 
 const lo_downmix: NarrowedMenuItem = {

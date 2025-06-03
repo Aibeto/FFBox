@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { StyleValue, VNode } from 'vue';
+import { computed, Fragment, h, StyleValue, VNode } from 'vue';
 
 interface Props {
     content: string | VNode;
@@ -10,6 +10,15 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const newLinedContent = computed(() => {
+	return (typeof props.content == 'string'
+		? h(
+			Fragment,
+			props.content.split('\n').reduce((prev, curr) => prev.concat(curr, h('br')), [])
+		) : props.content
+	);
+});
+
 </script>
 
 <template>
@@ -17,8 +26,8 @@ const props = defineProps<Props>();
 		<Transition name="tooltipanimate">
 			<div v-if="props.show" class="tooltip-box">
 				<div class="tooltip-message">
-					<span v-if="typeof props.content === 'string'">{{ props.content }}</span>
-					<component v-else :is="props.content" />
+					<span v-if="typeof newLinedContent === 'string'">{{ newLinedContent }}</span>
+					<component v-else :is="newLinedContent" />
 				</div>
 			</div>
 		</Transition>

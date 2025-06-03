@@ -22,8 +22,8 @@ const 自动: NarrowedMenuItem = {
 const CRF = (extra: any) => ({
 	type: 'normal' as const,
 	value: 'CRF',
-	label: 'CRF',
-	tooltip: 'Constant Rate Factor - 恒定速率因子：根据画面内容决定码率大小。如果您对输出文件大小没有明确的目标，使用此项可获得视觉上最稳定的画质。相较于 CQP，CRF 会考虑帧间的动态关系，在人眼更容易捕捉的静态画面分配更低的 QP，从而节省码率并且获得更好的视觉效果。',
+	label: '恒定质量 CRF',
+	tooltip: 'Constant Rate Factor - 恒定速率因子\n指定视觉画质，而码率因画面内容而异，性价比最高。\n如果您对输出文件大小没有明确的目标，使用此项可获得视觉上最稳定的画质。相较于 CQP，CRF 会考虑帧间的动态关系，在人眼更容易捕捉的静态画面分配更低的 QP，从而节省码率并且获得更好的视觉效果。',
 	extra: {
 		cmd: ['-crf', VALUE],
 		...extra,
@@ -32,8 +32,8 @@ const CRF = (extra: any) => ({
 const CQP = (extra: any) => ({
 	type: 'normal' as const,
 	value: 'CQP',
-	label: 'CQP',
-	tooltip: 'Constant Quantization Parameter - 恒定量化参数：根据画面内容决定码率大小。如果您对输出文件大小没有明确的目标，使用此项可获得最稳定的画质。相较于 CRF，CQP 的 QP 是恒定的，每帧的画质相同，因此相同码率下视觉画质较 CRF 低，一般仅在显卡编码时使用。',
+	label: '恒定量化 CQP',
+	tooltip: 'Constant Quantization Parameter - 恒定量化参数\n指定每帧的画质，而码率因画面内容而异，可作为 CRF 的备选方案。\n如果您对输出文件大小没有明确的目标，使用此项可获得最稳定的画质。相较于 CRF，CQP 的 QP 是恒定的，每帧的画质相同，因此相同码率下视觉画质较 CRF 低，一般仅在显卡编码时使用。',
 	extra: {
 		cmd: ['-qp', VALUE],
 		...extra,
@@ -42,8 +42,8 @@ const CQP = (extra: any) => ({
 const CBR = (extra: any) => ({
 	type: 'normal' as const,
 	value: 'CBR',
-	label: 'CBR',
-	tooltip: 'Constant Bit Rate - 恒定码率：将码率恒定在一个值。',
+	label: '固定码率 CBR',
+	tooltip: 'Constant Bit Rate - 恒定码率\n将码率恒定在指定值，仅允许极小或没有波动，性价比最低，一般仅应用于直播等需要数据速率稳定的场景。',
 	extra: {
 		cmd: ['-b:v', VALUE],
 		...extra,
@@ -52,8 +52,8 @@ const CBR = (extra: any) => ({
 const ABR = (extra: any) => ({
 	type: 'normal' as const,
 	value: 'ABR',
-	label: 'ABR',
-	tooltip: 'Average Bit Rate - 平均码率：根据画面内容决定大致码率大小，将码率控制在指定值附近。',
+	label: '平均码率 ABR',
+	tooltip: 'Average Bit Rate - 平均码率\n将码率控制在指定值左右，一般应用于限定文件大小但又不希望像 CBR 那样死板的场景。',
 	extra: {
 		cmd: ['-b:v', VALUE],
 		...extra,
@@ -62,8 +62,8 @@ const ABR = (extra: any) => ({
 const VBR = (extra: any) => ({
 	type: 'normal' as const,
 	value: 'VBR',
-	label: 'VBR',
-	tooltip: 'Variable Bit Rate - 可变码率：指定比特率或画质参数，并控制比特率范围',
+	label: '动态码率 VBR',
+	tooltip: 'Variable Bit Rate - 可变码率\n指定比特率或画质参数，并控制比特率范围。',
 	extra: {
 		cmd: ['-rc', 'vbr', '-cq', VALUE],
 		...extra,
@@ -72,8 +72,8 @@ const VBR = (extra: any) => ({
 const VBR_HQ = (extra: any) => ({
 	type: 'normal' as const,
 	value: 'VBR_HQ',
-	label: 'VBR_HQ',
-	tooltip: 'Variable Bit Rate - 可变码率：指定比特率或画质参数，并控制比特率范围。对于 TURING 及以上显卡，使用 VBR_HQ 可获得更高的画质',
+	label: '动态码率 VBR_HQ',
+	tooltip: 'Variable Bit Rate - 可变码率\n指定比特率或画质参数，并控制比特率范围。该项是 NVIDIA 特有选项，在编码时间几乎不变的情况下略微提高质量。',
 	extra: {
 		cmd: ['-rc', 'vbr_hq', '-cq', VALUE],
 		...extra,
@@ -82,8 +82,8 @@ const VBR_HQ = (extra: any) => ({
 const Q = (extra: any) => ({
 	type: 'normal' as const,
 	value: 'Q',
-	label: 'Q',
-	tooltip: 'Q - 质量：指定画质，具体值对应的画质由具体编码器决定。',
+	label: '指定质量 Q',
+	tooltip: 'Q - 质量\n指定画质，具体值对应的画质由具体编码器决定。',
 	extra: {
 		cmd: ['-q:v', VALUE],
 		...extra,
@@ -497,121 +497,121 @@ const h264Level: NarrowedMenuItem[] = [
 		type: 'normal',
 		value: '1',
 		label: '1',
-		tooltip: '高清晰度@最高帧率：<br />128×96@30<br />176×144@15',
+		tooltip: '高清晰度@最高帧率：\n128×96@30\n176×144@15',
 	},
 	{
 		type: 'normal',
 		value: '1b',
 		label: '1b',
-		tooltip: '高清晰度@最高帧率：<br />128×96@30<br />176×144@15',
+		tooltip: '高清晰度@最高帧率：\n128×96@30\n176×144@15',
 	},
 	{
 		type: 'normal',
 		value: '1.1',
 		label: '1.1',
-		tooltip: '高清晰度@最高帧率：<br />128×96@60<br />176×144@30<br />352×288@7.5',
+		tooltip: '高清晰度@最高帧率：\n128×96@60\n176×144@30\n352×288@7.5',
 	},
 	{
 		type: 'normal',
 		value: '1.2',
 		label: '1.2',
-		tooltip: '高清晰度@最高帧率：<br />128×96@120<br />176×144@60<br />352×288@15',
+		tooltip: '高清晰度@最高帧率：\n128×96@120\n176×144@60\n352×288@15',
 	},
 	{
 		type: 'normal',
 		value: '1.3',
 		label: '1.3',
-		tooltip: '高清晰度@最高帧率：<br />128×96@172<br />176×144@120<br />352×288@30',
+		tooltip: '高清晰度@最高帧率：\n128×96@172\n176×144@120\n352×288@30',
 	},
 	{
 		type: 'normal',
 		value: '2',
 		label: '2',
-		tooltip: '高清晰度@最高帧率：<br />128×96@172<br />176×144@120<br />352×288@30',
+		tooltip: '高清晰度@最高帧率：\n128×96@172\n176×144@120\n352×288@30',
 	},
 	{
 		type: 'normal',
 		value: '2.1',
 		label: '2.1',
-		tooltip: '高清晰度@最高帧率：<br />176×144@172<br />352×240@60<br />352×288@50<br />352×480@30<br />352×576@25',
+		tooltip: '高清晰度@最高帧率：\n176×144@172\n352×240@60\n352×288@50\n352×480@30\n352×576@25',
 	},
 	{
 		type: 'normal',
 		value: '2.2',
 		label: '2.2',
-		tooltip: '高清晰度@最高帧率：<br />176×144@172<br />352×480@30<br />352×576@25<br />720×480@15<br />720×576@12.5',
+		tooltip: '高清晰度@最高帧率：\n176×144@172\n352×480@30\n352×576@25\n720×480@15\n720×576@12.5',
 	},
 	{
 		type: 'normal',
 		value: '3',
 		label: '3',
-		tooltip: '高清晰度@最高帧率：<br />176×144@172<br />352×240@120<br />352×480@60<br />720×480@30<br />720×576@25',
+		tooltip: '高清晰度@最高帧率：\n176×144@172\n352×240@120\n352×480@60\n720×480@30\n720×576@25',
 	},
 	{
 		type: 'normal',
 		value: '3.1',
 		label: '3.1',
-		tooltip: '高清晰度@最高帧率：<br />352×288@172<br />352×576@130<br />640×480@90<br />720×576@60<br />1280×720@30',
+		tooltip: '高清晰度@最高帧率：\n352×288@172\n352×576@130\n640×480@90\n720×576@60\n1280×720@30',
 	},
 	{
 		type: 'normal',
 		value: '3.2',
 		label: '3.2',
-		tooltip: '高清晰度@最高帧率：<br />640×480@172<br />720×480@160<br />720×576@130<br />1280×720@60',
+		tooltip: '高清晰度@最高帧率：\n640×480@172\n720×480@160\n720×576@130\n1280×720@60',
 	},
 	{
 		type: 'normal',
 		value: '4',
 		label: '4',
-		tooltip: '高清晰度@最高帧率：<br />720×480@172<br />720×576@150<br />1280×720@60<br />2048×1024@30',
+		tooltip: '高清晰度@最高帧率：\n720×480@172\n720×576@150\n1280×720@60\n2048×1024@30',
 	},
 	{
 		type: 'normal',
 		value: '4.1',
 		label: '4.1',
-		tooltip: '高清晰度@最高帧率：<br />720×480@172<br />720×576@150<br />1280×720@60<br />2048×1024@30',
+		tooltip: '高清晰度@最高帧率：\n720×480@172\n720×576@150\n1280×720@60\n2048×1024@30',
 	},
 	{
 		type: 'normal',
 		value: '4.2',
 		label: '4.2',
-		tooltip: '高清晰度@最高帧率：<br />720×576@172<br />1280×720@140<br />2048×1080@60',
+		tooltip: '高清晰度@最高帧率：\n720×576@172\n1280×720@140\n2048×1080@60',
 	},
 	{
 		type: 'normal',
 		value: '5',
 		label: '5',
-		tooltip: '高清晰度@最高帧率：<br />1024×768@172<br />1280×720@160<br />2048×1080@60<br />2560×1920@30<br />3680×1536@25',
+		tooltip: '高清晰度@最高帧率：\n1024×768@172\n1280×720@160\n2048×1080@60\n2560×1920@30\n3680×1536@25',
 	},
 	{
 		type: 'normal',
 		value: '5.1',
 		label: '5.1',
-		tooltip: '高清晰度@最高帧率：<br />1280×720@172<br />1920×1080@120<br />2048×1536@80<br />4096×2048@30',
+		tooltip: '高清晰度@最高帧率：\n1280×720@172\n1920×1080@120\n2048×1536@80\n4096×2048@30',
 	},
 	{
 		type: 'normal',
 		value: '5.2',
 		label: '5.2',
-		tooltip: '高清晰度@最高帧率：<br />1920×1080@172<br />2048×1536@160<br />4096×2048@60',
+		tooltip: '高清晰度@最高帧率：\n1920×1080@172\n2048×1536@160\n4096×2048@60',
 	},
 	{
 		type: 'normal',
 		value: '6',
 		label: '6',
-		tooltip: '高清晰度@最高帧率：<br />2048×1536@300<br />4096×2160@120<br />8192×4320@30',
+		tooltip: '高清晰度@最高帧率：\n2048×1536@300\n4096×2160@120\n8192×4320@30',
 	},
 	{
 		type: 'normal',
 		value: '6.1',
 		label: '6.1',
-		tooltip: '高清晰度@最高帧率：<br />2048×1536@300<br />4096×2160@240<br />8192×4320@60',
+		tooltip: '高清晰度@最高帧率：\n2048×1536@300\n4096×2160@240\n8192×4320@60',
 	},
 	{
 		type: 'normal',
 		value: '6.2',
 		label: '6.2',
-		tooltip: '高清晰度@最高帧率：<br />4096×2304@300<br />8192×4320@120',
+		tooltip: '高清晰度@最高帧率：\n4096×2304@300\n8192×4320@120',
 	},
 ]
 const hevcLevel: NarrowedMenuItem[] = [
@@ -625,79 +625,79 @@ const hevcLevel: NarrowedMenuItem[] = [
 		type: 'normal',
 		value: '1',
 		label: '1',
-		tooltip: '高清晰度@最高帧率：<br />128×96@33.7<br />176×144@15.0',
+		tooltip: '高清晰度@最高帧率：\n128×96@33.7\n176×144@15.0',
 	},
 	{
 		type: 'normal',
 		value: '2',
 		label: '2',
-		tooltip: '高清晰度@最高帧率：<br />176×144@100.0<br />320×240@45.0<br />352×240@37.5<br />352×288@30.0',
+		tooltip: '高清晰度@最高帧率：\n176×144@100.0\n320×240@45.0\n352×240@37.5\n352×288@30.0',
 	},
 	{
 		type: 'normal',
 		value: '2.1',
 		label: '2.1',
-		tooltip: '高清晰度@最高帧率：<br />320×240@90.0<br />352×240@75.0<br />352×288@60.0<br />352×480@37.5<br />352×576@33.3<br />640×360@30.0',
+		tooltip: '高清晰度@最高帧率：\n320×240@90.0\n352×240@75.0\n352×288@60.0\n352×480@37.5\n352×576@33.3\n640×360@30.0',
 	},
 	{
 		type: 'normal',
 		value: '3',
 		label: '3',
-		tooltip: '高清晰度@最高帧率：<br />352×480@84.3<br />352×576@75.0<br />640×360@67.5<br />720×480@42.1<br />720×576@37.5<br />960×540@30.0',
+		tooltip: '高清晰度@最高帧率：\n352×480@84.3\n352×576@75.0\n640×360@67.5\n720×480@42.1\n720×576@37.5\n960×540@30.0',
 	},
 	{
 		type: 'normal',
 		value: '3.1',
 		label: '3.1',
-		tooltip: '高清晰度@最高帧率：<br />720×480@84.3<br />720×576@75.0<br />960×540@60.0<br />1280×720@33.7',
+		tooltip: '高清晰度@最高帧率：\n720×480@84.3\n720×576@75.0\n960×540@60.0\n1280×720@33.7',
 	},
 	{
 		type: 'normal',
 		value: '4',
 		label: '4',
-		tooltip: '高清晰度@最高帧率：<br />1280×720@68.0<br />1280×1024@51.0<br />1920×1080@32.0<br />2048×1080@30.0',
+		tooltip: '高清晰度@最高帧率：\n1280×720@68.0\n1280×1024@51.0\n1920×1080@32.0\n2048×1080@30.0',
 	},
 	{
 		type: 'normal',
 		value: '4.1',
 		label: '4.1',
-		tooltip: '高清晰度@最高帧率：<br />1280×720@136.0<br />1280×1024@102.0<br />1920×1080@64.0<br />2048×1080@60.0',
+		tooltip: '高清晰度@最高帧率：\n1280×720@136.0\n1280×1024@102.0\n1920×1080@64.0\n2048×1080@60.0',
 	},
 	{
 		type: 'normal',
 		value: '5',
 		label: '5',
-		tooltip: '高清晰度@最高帧率：<br />1920×1080@128.0<br />2048×1024@127.5<br />2048×1080@120.0<br />2048×1536@85.0<br />2560×1920@54.4<br />3672×1536@46.8<br />3840×2160@32.0<br />4096×2160@30.0',
+		tooltip: '高清晰度@最高帧率：\n1920×1080@128.0\n2048×1024@127.5\n2048×1080@120.0\n2048×1536@85.0\n2560×1920@54.4\n3672×1536@46.8\n3840×2160@32.0\n4096×2160@30.0',
 	},
 	{
 		type: 'normal',
 		value: '5.1',
 		label: '5.1',
-		tooltip: '高清晰度@最高帧率：<br />1920×1080@256.0<br />2048×1024@255.0<br />2048×1080@240.0<br />2048×1536@170.0<br />2560×1920@108.8<br />3672×1536@93.7<br />3840×2160@64.0<br />4096×2160@60.0',
+		tooltip: '高清晰度@最高帧率：\n1920×1080@256.0\n2048×1024@255.0\n2048×1080@240.0\n2048×1536@170.0\n2560×1920@108.8\n3672×1536@93.7\n3840×2160@64.0\n4096×2160@60.0',
 	},
 	{
 		type: 'normal',
 		value: '5.2',
 		label: '5.2',
-		tooltip: '高清晰度@最高帧率：<br />1920×1080@300.0<br />2048×1024@300.0<br />2048×1080@300.0<br />2048×1536@300.0<br />2560×1920@217.6<br />3672×1536@187.5<br />3840×2160@128.0<br />4096×2160@120.0',
+		tooltip: '高清晰度@最高帧率：\n1920×1080@300.0\n2048×1024@300.0\n2048×1080@300.0\n2048×1536@300.0\n2560×1920@217.6\n3672×1536@187.5\n3840×2160@128.0\n4096×2160@120.0',
 	},
 	{
 		type: 'normal',
 		value: '6',
 		label: '6',
-		tooltip: '高清晰度@最高帧率：<br />3840×2160@128.0<br />4096×2048@127.5<br />4096×2160@120.0<br />4096×2304@113.3<br />7680×4320@32.0<br />8192×4320@30.0',
+		tooltip: '高清晰度@最高帧率：\n3840×2160@128.0\n4096×2048@127.5\n4096×2160@120.0\n4096×2304@113.3\n7680×4320@32.0\n8192×4320@30.0',
 	},
 	{
 		type: 'normal',
 		value: '6.1',
 		label: '6.1',
-		tooltip: '高清晰度@最高帧率：<br />3840×2160@256.0<br />4096×2048@255.0<br />4096×2160@240.0<br />4096×2304@226.6<br />7680×4320@64.0<br />8192×4320@60.0',
+		tooltip: '高清晰度@最高帧率：\n3840×2160@256.0\n4096×2048@255.0\n4096×2160@240.0\n4096×2304@226.6\n7680×4320@64.0\n8192×4320@60.0',
 	},
 	{
 		type: 'normal',
 		value: '6.2',
 		label: '6.2',
-		tooltip: '高清晰度@最高帧率：<br />3840×2160@300.0<br />4096×2048@300.0<br />4096×2160@300.0<br />4096×2304@300.0<br />7680×4320@128.0<br />8192×4320@120.0',
+		tooltip: '高清晰度@最高帧率：\n3840×2160@300.0\n4096×2048@300.0\n4096×2160@300.0\n4096×2304@300.0\n7680×4320@128.0\n8192×4320@120.0',
 	},
 ]
 
@@ -2053,16 +2053,16 @@ const framerate: MenuItem[] = [
 		{ type: 'normal', label: '2', value: '2', tooltip: '二帧流畅' },
 		{ type: 'normal', label: '1', value: '1', tooltip: '一帧能玩' },
 	] },
-	{ type: 'submenu', label: '隔行扫描', tooltip: '上场优先的隔行扫描<br />注意 ffmpeg 将先处理帧率，再将每帧扩展为上下场，因此您无法使用此方法进行常规的逐行转隔行处理', subMenu: [
+	{ type: 'submenu', label: '隔行扫描', tooltip: '上场优先的隔行扫描\n注意 ffmpeg 将先处理帧率，再将每帧扩展为上下场，因此您无法使用此方法进行常规的逐行转隔行处理', subMenu: [
 		{ type: 'normal', label: '60i', value: '60i', tooltip: '场频 60，帧频 30' },
 		{ type: 'normal', label: '50i', value: '50i', tooltip: '场频 50，帧频 25' },
 	] },
 	{ type: 'submenu', label: '慎用帧率', tooltip: '', subMenu: [
 		{ type: 'submenu', label: 'NTSC 邪教帧率', tooltip: '由美国国家电视标准委员会（NTSC）推出的相关帧率标准', subMenu: [
-			{ type: 'submenu', label: '重要信息 1', tooltip: '在 NTSC 早期标准（1941）中，帧率为 30 帧/秒。<br />在后来的标准（1953）中，色度信号的引入容易导致音频信号与视频信号发生串扰，故将帧率降低 0.1%，即降低到 29.97 帧/秒。<br />wikipedia<br />In December 1953, the FCC unanimously approved what is now called the NTSC color television standard (later defined as RS-170a). The compatible color standard retained full backward compatibility with then-existing black-and-white television sets. Color information was added to the black-and-white image by introducing a color subcarrier of precisely 315/88 MHz (usually described as 3.579545 MHz±10 Hz). The precise frequency was chosen so that horizontal line-rate modulation components of the chrominance signal fall exactly in between the horizontal line-rate modulation components of the luminance signal, such that the chrominance signal could easily be filtered out of the luminance signal on new television sets, and that it would be minimally visible in existing televisions. Due to limitations of frequency divider circuits at the time the color standard was promulgated, the color subcarrier frequency was constructed as composite frequency assembled from small integers, in this case 5×7×9/(8×11) MHz. The horizontal line rate was reduced to approximately 15,734 lines per second (3.579545×2/455 MHz = 9/572 MHz) from 15,750 lines per second, and the frame rate was reduced to 30/1.001 ≈ 29.970 frames per second (the horizontal line rate divided by 525 lines/frame) from 30 frames per second. These changes amounted to 0.1 percent and were readily tolerated by then-existing television receivers.', subMenu: [
-				{ type: 'submenu', label: '重要信息 2', tooltip: '该方案为旧时代工程师在对应时代受电气特性限制为黑白电视与彩色电视所实现的兼容性设计。<br />请注意，使用 NTSC 标准的美国电台已于 2021-07-13 全数进行了切换，即不再有电台使用该标准。<br />故除非有极其特殊的场合，均不应再大规模应用该帧率。', subMenu: [
-					{ type: 'submenu', label: '重要信息 3', tooltip: '非整数倍的帧率在非线性编辑软件中往往容易产生问题，如跳帧或重复帧、素材偏移或无法对齐等。<br />您使用了 FFBox，代表了您已使用数字形式进行多媒体信息的处理，无需按照模拟信号时代的标准处理素材。', subMenu: [
-						{ type: 'submenu', label: '重要信息 4', tooltip: '如果您使用的是部分日本相机品牌（如索尼、佳能等）制造的微单相机，或部分中国相机品牌（如大疆），您可能会发现相机中仅有 29.97 帧/秒相关的选项，或者界面上显示为 30 帧/秒但实际摄录帧率为 29.97 帧/秒的情况。<br />这种情况是厂商设计有误所致，往往会对后期素材的剪辑工作流造成严重影响。<br />您可尝试联系厂商修复此问题，或自行编写相机操作系统刷入机身以解决此问题。', subMenu: [
+			{ type: 'submenu', label: '重要信息 1', tooltip: '在 NTSC 早期标准（1941）中，帧率为 30 帧/秒。\n在后来的标准（1953）中，色度信号的引入容易导致音频信号与视频信号发生串扰，故将帧率降低 0.1%，即降低到 29.97 帧/秒。\nwikipedia\nIn December 1953, the FCC unanimously approved what is now called the NTSC color television standard (later defined as RS-170a). The compatible color standard retained full backward compatibility with then-existing black-and-white television sets. Color information was added to the black-and-white image by introducing a color subcarrier of precisely 315/88 MHz (usually described as 3.579545 MHz±10 Hz). The precise frequency was chosen so that horizontal line-rate modulation components of the chrominance signal fall exactly in between the horizontal line-rate modulation components of the luminance signal, such that the chrominance signal could easily be filtered out of the luminance signal on new television sets, and that it would be minimally visible in existing televisions. Due to limitations of frequency divider circuits at the time the color standard was promulgated, the color subcarrier frequency was constructed as composite frequency assembled from small integers, in this case 5×7×9/(8×11) MHz. The horizontal line rate was reduced to approximately 15,734 lines per second (3.579545×2/455 MHz = 9/572 MHz) from 15,750 lines per second, and the frame rate was reduced to 30/1.001 ≈ 29.970 frames per second (the horizontal line rate divided by 525 lines/frame) from 30 frames per second. These changes amounted to 0.1 percent and were readily tolerated by then-existing television receivers.', subMenu: [
+				{ type: 'submenu', label: '重要信息 2', tooltip: '该方案为旧时代工程师在对应时代受电气特性限制为黑白电视与彩色电视所实现的兼容性设计。\n请注意，使用 NTSC 标准的美国电台已于 2021-07-13 全数进行了切换，即不再有电台使用该标准。\n故除非有极其特殊的场合，均不应再大规模应用该帧率。', subMenu: [
+					{ type: 'submenu', label: '重要信息 3', tooltip: '非整数倍的帧率在非线性编辑软件中往往容易产生问题，如跳帧或重复帧、素材偏移或无法对齐等。\n您使用了 FFBox，代表了您已使用数字形式进行多媒体信息的处理，无需按照模拟信号时代的标准处理素材。', subMenu: [
+						{ type: 'submenu', label: '重要信息 4', tooltip: '如果您使用的是部分日本相机品牌（如索尼、佳能等）制造的微单相机，或部分中国相机品牌（如大疆），您可能会发现相机中仅有 29.97 帧/秒相关的选项，或者界面上显示为 30 帧/秒但实际摄录帧率为 29.97 帧/秒的情况。\n这种情况是厂商设计有误所致，往往会对后期素材的剪辑工作流造成严重影响。\n您可尝试联系厂商修复此问题，或自行编写相机操作系统刷入机身以解决此问题。', subMenu: [
 							{ type: 'submenu', label: '重要信息 5', tooltip: '如果无法进行此操作，建议将素材先以某种方式处理成 30 帧/秒相关的倍数再进行后续操作。', subMenu: [
 								{ type: 'submenu', label: '重要信息 6', tooltip: '如您已知悉上述重要提示，并执意要使用此类帧率，请选择。', subMenu: [
 									{ type: 'normal', label: '29.97', value: '29.97', tooltip: '29.97p' },

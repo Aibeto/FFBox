@@ -405,9 +405,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				if (ratevalue > 0.75 || ratevalue < 0.25) {
 					this.setNotification(
 						id,
-						`任务「${task.fileBaseName}」设置的视频码率已被限制<br/>` +
-							'💔您的用户等级在 ABR/CBR 模式下的视频码率仅支持 500Kbps ~ 32Mbps<br/>' +
-							'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！<br/>' +
+						`任务「${task.fileBaseName}」设置的视频码率已被限制\n` +
+							'💔您的用户等级在 ABR/CBR 模式下的视频码率仅支持 500Kbps ~ 32Mbps\n' +
+							'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
 							'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了，记得保持微笑✅',	
 							NotificationLevel.warning,
 					);
@@ -836,9 +836,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const task = this.tasklist[id];
 		this.setNotification(
 			id,
-			`任务「${task.fileBaseName}」转码达到时长上限了${byFrontend ? '（前端）' : '（后端）'}<br/>` +
-			'💔您的用户等级最高支持 11:11 的媒体时长和 11:11 的处理耗时<br/>' +
-			'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！<br/>' +
+			`任务「${task.fileBaseName}」转码达到时长上限了${byFrontend ? '（前端）' : '（后端）'}\n` +
+			'💔您的用户等级最高支持 11:11 的媒体时长和 11:11 的处理耗时\n' +
+			'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
 			'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了，记得保持微笑✅',	
 			NotificationLevel.error,
 		);

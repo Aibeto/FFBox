@@ -7,7 +7,7 @@ import nodeBridge from '@renderer/bridges/nodeBridge';
 import showMenu from '@renderer/components/Menu/Menu';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import { showServerConfig } from '@renderer/components/misc/ServerConfig';
-import IconX from '@renderer/assets/titleBar/×.svg?component';
+import IconX from '@renderer/assets/×.svg?component';
 
 const appStore = useAppStore();
 
@@ -59,6 +59,12 @@ const handleTabClicked = (serverId: string) => {
 	appStore.currentServerId = serverId;
 };
 
+const handleTabMouseUp = (server: Server, event: MouseEvent) => {
+	if (event.button === 1) {
+		handleTabCloseClicked(server, event);
+	}
+}
+
 const handleTabContextMenu = (event: MouseEvent, server: Server) => {
 	let tabElem = event.target;
 	while (tabElem.className.includes('tab')) {
@@ -89,10 +95,12 @@ const handleTabContextMenu = (event: MouseEvent, server: Server) => {
 };
 
 // 点击关闭标签页
-const handleTabCloseClicked = (serverId: string, event: MouseEvent) => {
-	appStore.removeServer(serverId);
-	event.stopPropagation();
-}
+const handleTabCloseClicked = (server: Server, event: MouseEvent) => {
+	if (server.entity.ip !== 'localhost' && appStore.servers.length > 1) {
+		appStore.removeServer(server.data.id);
+		event.stopPropagation();
+	}
+};
 
 </script>
 
@@ -105,13 +113,14 @@ const handleTabCloseClicked = (serverId: string, event: MouseEvent) => {
 					:key="server.data.id"
 					class="tabWrapper"
 					@click="handleTabClicked(server.data.id)"
+					@mouseup="handleTabMouseUp(server, $event)"
 					@contextmenu="handleTabContextMenu($event, server)"
 				>
 					<div class="tab" :class="appStore.currentServerId === server.data.id ? 'selected' : 'unselected'">
 						<div class="progress progress-green" :style="{...serverStyle[server.data.id].colorStyle, opacity: serverStyle[server.data.id].status === 'running' ? 1 : 0}" />
 						<div class="progress progress-yellow" :style="{...serverStyle[server.data.id].colorStyle, opacity: serverStyle[server.data.id].status === 'paused' ? 1 : 0}" />
 						<span>{{ serverStyle[server.data.id].text }}</span>
-						<div class="close" v-if="server.entity.ip !== 'localhost' && appStore.servers.length > 1" @click="handleTabCloseClicked(server.data.id, $event)">
+						<div class="close" v-if="server.entity.ip !== 'localhost' && appStore.servers.length > 1" @click="handleTabCloseClicked(server, $event)">
 							<IconX />
 						</div>
 					</div>

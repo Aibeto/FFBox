@@ -4,7 +4,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { ServerData } from '@renderer/types';
 import { Notification } from '@common/types';
 import { getTimeString } from '@common/utils';
-import IconDelete from '@renderer/assets/titleBar/×.svg?component';
+import IconDelete from '@renderer/assets/×.svg?component';
 import IconInfo from '@renderer/assets/infoCenter/info.svg?component';
 import IconTick from '@renderer/assets/infoCenter/tick.svg?component';
 import IconWarning from '@renderer/assets/infoCenter/warning.svg?component';

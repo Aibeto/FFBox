@@ -31,7 +31,7 @@ const Popup = function (options: PopupOptions) {
 		level: options.level ?? 0,
 		verticalOffset: 0,
 		index: instances.length,
-		onWillClose: handleOnClose.bind(null, id),
+		onWillClose: (isUserInteraction?: boolean) => handleOnWillClose(id, isUserInteraction),
 		onClose: () => {
 			render(null, DOM);
 			container.removeChild(DOM);
@@ -45,14 +45,14 @@ const Popup = function (options: PopupOptions) {
 	return instance;
 }
 
-function handleOnClose(id: number) {
+function handleOnWillClose(id: number, isUserInteraction?: boolean) {
 	let index = instances.findIndex((item) => {
 		return item.id === id;
 	});
 	instances.splice(index, 1);
 	setTimeout(() => {
 		reCalcVerticalOffset();
-	}, 300);
+	}, isUserInteraction ? 0 : 300);
 }
 
 function reCalcVerticalOffset() {
