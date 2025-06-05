@@ -30,5 +30,6 @@ onMounted(() => {
 	body {
 		margin: 0;
 		background: hwb(var(--bg94));
+		overflow-x: hidden;
 	}
 </style>

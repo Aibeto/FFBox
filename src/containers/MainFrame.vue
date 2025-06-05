@@ -13,6 +13,8 @@ const appStore = useAppStore();
 const windowWidth = ref(0);
 const bigDownloadButtonZoomValue = ref(1);
 const showBigDownloadButton = ref(false);
+const screenshotClickCount = ref(0);
+const lastScreenshotClickTime = ref(new Date().getTime());
 
 const FFBoxTopWrapperStyle = computed(() => {
 	if (appStore.showMenuCenter) {
@@ -64,6 +66,39 @@ const handleTopBarButtonClicked = (index: number) => {
 	}
 };
 
+const handleScreenshotClicked = () => {
+	const n = new Date().getTime() - lastScreenshotClickTime.value > 10000 ? 0 : screenshotClickCount.value;
+	if (n === 0) {
+		Popup({ message: '这个是截图，点了也不会动的啦～' });
+	} else if (n === 1) {
+		Popup({ message: '都说了是截图咯～🌚' });
+	} else if (n === 2) {
+		Popup({ message: '哎呀你还想怎样让截图动起来😔' });
+	} else if (n === 3) {
+		Popup({ message: '您其实可以亲自把软件装到电脑里跑，这样它就能动起来了☺️' });
+	} else if (n === 4) {
+		Popup({ message: '您知道不，您看到的是一张截图，但我要对大、中、小、掌上四种屏幕大小分别做适配，每种尺寸要做浅色和深色两种模式，所以一共要截 8 张图🙂‍↕️' });
+	} else if (n === 5) {
+		Popup({ message: '问就是懒🌝，现在我连网页版都做出来了，我就不给大家做演示视频了，何况是 8 个视频' });
+	} else if (n === 6) {
+		Popup({ message: '我不乐意～🙂‍↔️' });
+	} else if (n === 7) {
+		Popup({ message: '您说以前啊，以前截图的位置确实是个视频，但今时不同往日了呢🤔' });
+	} else if (n >= 8) {
+		Popup({ message: '这倒是可以看看的🙂‍↕️' });
+		Msgbox({
+			image: h(IconPointOut),
+			content: '您想要探寻曾经的 FFBox 吗？',
+			buttons: [
+				{ text: `穿越`, type: ButtonType.Primary, callback: () => window.open('./FFBoxSite-v1') && true },
+				{ text: `不了`, role: 'cancel' }
+			]
+		});
+	}
+	screenshotClickCount.value = n + 1;
+	lastScreenshotClickTime.value = new Date().getTime();
+}
+
 onMounted(async () => {
 	const sleep = (ms: number) => new Promise((r) => setTimeout(() => r, ms));
 
@@ -114,12 +149,14 @@ onMounted(async () => {
 			</div>
 			<div class="FFBox-topWrapper" :style="FFBoxTopWrapperStyle">
 				<div class="FFBox-wrapper">
-					<img v-if="appStore.colorTheme === 'themeLight' && windowWidth < 1000" src="../assets/软件截图_小_浅色.webp" />
-					<img v-if="appStore.colorTheme === 'themeDark' && windowWidth < 1000" src="../assets/软件截图_小_深色.webp" />
-					<img v-if="appStore.colorTheme === 'themeLight' && windowWidth >= 1000 && windowWidth < 1320" src="../assets/软件截图_中_浅色.webp" />
-					<img v-if="appStore.colorTheme === 'themeDark' && windowWidth >= 1000 && windowWidth < 1320" src="../assets/软件截图_中_深色.webp" />
-					<img v-if="appStore.colorTheme === 'themeLight' && windowWidth >= 1320" src="../assets/软件截图_大_浅色.webp" />
-					<img v-if="appStore.colorTheme === 'themeDark' && windowWidth >= 1320" src="../assets/软件截图_大_深色.webp" />
+					<div class="img" @click="() => handleScreenshotClicked()">
+						<img v-if="appStore.colorTheme === 'themeLight' && windowWidth < 1000" src="../assets/软件截图_小_浅色.webp" />
+						<img v-if="appStore.colorTheme === 'themeDark' && windowWidth < 1000" src="../assets/软件截图_小_深色.webp" />
+						<img v-if="appStore.colorTheme === 'themeLight' && windowWidth >= 1000 && windowWidth < 1320" src="../assets/软件截图_中_浅色.webp" />
+						<img v-if="appStore.colorTheme === 'themeDark' && windowWidth >= 1000 && windowWidth < 1320" src="../assets/软件截图_中_深色.webp" />
+						<img v-if="appStore.colorTheme === 'themeLight' && windowWidth >= 1320" src="../assets/软件截图_大_浅色.webp" />
+						<img v-if="appStore.colorTheme === 'themeDark' && windowWidth >= 1320" src="../assets/软件截图_大_深色.webp" />
+					</div>
 					<div class="FFBox">
 						<button @click="handleTopBarButtonClicked(3)" class="startbutton startbutton2 startbutton-cyan">🌐网页版</button>
 						<button @click="handleTopBarButtonClicked(4)" class="startbutton startbutton1 startbutton-green">⬇️下载</button>
@@ -129,7 +166,7 @@ onMounted(async () => {
 			</div>
 		</div>
 		<div v-else class="mobileScreen">
-			<MobileScreen />
+			<MobileScreen :onScreenshotClicked="handleScreenshotClicked" />
 		</div>
 		<div class="bigDownloadButton" v-if="showBigDownloadButton">
 			<div class="mask"></div>
@@ -297,9 +334,14 @@ onMounted(async () => {
 				box-shadow: 0 10px 28px hwb(0 0% 100% / 0.3);
 				border-radius: 8px;
 				overflow: hidden;
-				&>img {
+				&>.img {
 					position: absolute;
 					width: 100%;
+					user-select: none;
+					img {
+						width: 100%;
+						pointer-events: none;
+					}
 				}
 				.FFBox {
 					position: absolute;
@@ -309,6 +351,10 @@ onMounted(async () => {
 					border-radius: 8px;
 					text-align: center;
 					overflow: hidden;
+					pointer-events: none;
+					:deep(&>*) {
+						pointer-events: initial;
+					}
 					.startbutton {
 						position: absolute;
 						top: 46px;

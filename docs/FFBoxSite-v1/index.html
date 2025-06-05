@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="utf-8" />
+		<title>FFBox - 滔滔清风科技馆</title>
+		<link rel="icon" href="img/icon.png">
+		<meta name="description" content="一个多媒体转码百宝箱 / 一个 FFmpeg 的套壳 / 开源软件 / 格式转换 / Windows/Linux/macOS">
+		<style>
+			/* 全局通用属性 */
+			body {
+				font-family: 微软雅黑, "PingFang SC", 苹方, "Segoe UI", Consolas, Avenir, Arial, Helvetica, sans-serif, 黑体;
+				color: #333;
+				background: #F7F7F7;
+				overflow: hidden;
+				margin: 0;
+				padding: 0;
+			}
+			a {
+				text-decoration: none;
+			}
+			#content-wrapper {
+				position: absolute;
+				width: 100%;
+				/* user-select: none; */
+				overflow: hidden auto;
+			}
+
+			/* 自适应布局项 */
+			@media only screen and (max-width: 1079.9px) {
+				.lrmargin {
+					width: 100%;
+				}
+
+				#firstscreen {
+					position: unset;
+				}
+					#buttons {
+						position: relative;
+						margin: 96px auto 0;
+					}
+					#screenshot {
+						position: relative;
+						display: block;
+						width: 85vw;
+						height: calc(85vw / 1.5);
+						left: 0;
+						right: 0;
+						margin: 96px auto 32px;
+						border-radius: 1.5vw;
+						overflow: hidden;
+						box-shadow: 0px 12px 24px #DDD;
+					}
+					#hiddentext {
+						display: inline-block;
+						width: 100%;
+						text-align: center;
+						color: #AAA;
+						font-size: 14px;
+						letter-spacing: 4px;
+						margin-bottom: 24px;
+					}
+
+				#faqbrick-wrapper {
+					column-count: 1;
+				}
+			}
+			@media only screen and (min-width: 1080px) {
+				.lrmargin {
+					padding-left: calc(30% - 300px);
+					padding-right: calc(30% - 300px);
+				}
+
+				#firstscreen {
+					height: calc(100vh - 80px);
+				}
+					#buttons {
+						position: absolute;
+						left: calc(30% - 300px);
+						top: 50%;
+						width: 368px;
+						transform: translateY(-50%);
+					}
+					#screenshot {
+						position: absolute;
+						width: 960px;
+						height: 640px;
+						top: calc(52% - 360px);
+						border-radius: 15px;
+						overflow: hidden;
+						z-index: 1;
+						transition: right 0.5s cubic-bezier(0.1, 0, 0.2, 1),
+									box-shadow 0.5s ease-out;
+					}
+					.screenshot-normal {
+						right: calc(20% - 600px);
+						box-shadow: 0px 12px 24px #DDD;
+					}
+					.screenshot-normal:hover {
+						right: calc(50% - 850px);
+						box-shadow: 0px 12px 24px #BBB;
+					}
+					.screenshot-historied {
+						right: calc(50% - 850px);
+						box-shadow: 0px 12px 24px #DDD;
+					}
+					#hiddentext {
+						display: none;
+						position: absolute;
+						left: 50%;
+						top: 50%;
+						transform: translateY(-50%);
+						color: #AAA;
+						font-size: 14px;
+						writing-mode: tb;
+						letter-spacing: 4px;
+					}
+
+				#faqbrick-wrapper {
+					column-count: 2;
+				}
+
+			}
+
+			@media only screen and (max-width: 599.9px) {
+				#ttqftechlogo {
+					width: 40px;
+				}
+			}
+			@media only screen and (min-width: 600px) {
+				#ttqftechlogo {
+					width: 240px;
+				}
+			}
+
+			/* 固定布局项——顶栏 */
+			#topbar {
+				position: relative;
+				height: 80px;
+				background-color: hsla(0, 0%, 97%, 0.8);
+				z-index: 50;
+			}
+				.topbar-nav {
+					display: inline-block;
+					height: 80px;
+					transform: translateY(-4px);
+					padding: 0px 16px;
+					opacity: 0.95;
+					color: inherit;
+					transition: transform 0.2s ease, background 0.2s ease;
+				}
+				.topbar-nav:hover {
+					transform: translateY(0px);
+					background: linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0));
+				}
+					.topbar-nav>* {
+						height: 40px;
+						line-height: 40px;
+						margin-top: 24px;
+					}
+				#ttqftechlogo {
+					background-image: url(img/ttqftechlogo.png);
+					background-repeat: no-repeat;
+					background-size: cover;
+				}
+
+			/* 固定布局项——首屏按钮组合 */
+			#buttons {
+				width: 368px;
+				text-align: center;
+			}
+				#title-1 {
+					display: inline-block;
+					width: 368px;
+				}
+				#downloadbtn {
+					display: inline-block;
+					width: 320px;
+					height: 80px;
+					box-sizing: content-box;
+				}
+
+			/* 固定布局项——软件截图 */
+			#screenshot-img {
+				width: 100%;
+			}
+			#screenshot-video {
+				position: absolute;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+			}
+
+			/* 固定布局项——更新历史 */
+			#updatelog-box {
+				position: absolute;
+				background: #F7F7F7;
+				top: 4.4%;
+				bottom: 3.75%;
+				left: 0;
+				right: 0;
+				padding: 4vw;
+				box-shadow: 0 2vw 2vw -2vw rgba(0,0,0,0.2) inset;
+				font-size: 14px;
+				overflow: auto;
+				font-family: "苹方 中等", "PingFang SC", 苹方, 微软雅黑, "Segoe UI", Consolas, Avenir, Arial, Helvetica, sans-serif, 黑体;
+				font-weight: 500;
+				transition: opacity 0.3s linear;
+			}
+			.screenshot-normal #updatelog-box {
+				opacity: 0;
+				pointer-events: none;
+			}
+			.screenshot-historied #updatelog-box {
+				opacity: 1;
+			}
+				#updatelog-box h1 {
+					line-height: 2em;
+					margin-top: 0;
+					border-bottom: lightgray 1px solid;
+				}
+					#changelog-btn_2 {
+						float: right;
+						padding: 10px 12px;
+						margin-top: 12px;
+						font-size: 0.45em;
+						line-height: 1em;
+						border-radius: 4px;
+						border: 1px solid transparent;
+						transition: all 0.1s linear;
+						opacity: 0.5;
+					}
+						#changelog-btn_2:hover {
+							border-top: 1px solid rgba(0, 0, 0, 0.1);
+							border-left: 1px solid rgba(0, 0, 0, 0.1);
+							border-right: 1px solid rgba(0, 0, 0, 0.1);
+							border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+							background-color: white;
+							opacity: 1;
+						}
+				#updatelog-box ul {
+					padding-inline-start: 1.5em;
+					line-height: 1.5em;
+				}
+				#updatelog-box li {
+					margin-bottom: 4px;
+				}
+				#updatelog-box span {
+					font-size: 0.5em;
+					opacity: 0.5;
+					margin-left: 1em;
+				}
+
+			/* 固定布局项——文章区 */
+			.article {
+				margin: 0 36px;
+			}
+				.article h1 {
+					text-align: center;
+					font-size: 2em;
+				}
+
+			/* 固定布局项——FAQ */
+			#faqbrick-wrapper {
+				column-gap: 20px;
+				padding-bottom: 20px;
+			}
+				.faqbrick {
+					position: relative;
+					padding: 8px 0;
+					margin-bottom: 20px;
+					background-color: white;
+					box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+					border-radius: 8px;
+					break-inside: avoid;
+				}
+					.faqbrick>.title {
+						margin: 20px;
+						line-height: 1.5em;
+						font-family: "苹方 粗体", "PingFang SC", 苹方, 微软雅黑, "Segoe UI", Consolas, Avenir, Arial, Helvetica, sans-serif, 黑体;
+						font-size: 1.4em;
+						font-weight: 600;
+					}
+					.faqbrick>.content {
+						margin: 20px;
+					}
+						.faqbrick>.content>p {
+							margin: 8px 0;
+							font-family: "苹方 中等", "PingFang SC", 苹方, 微软雅黑, "Segoe UI", Consolas, Avenir, Arial, Helvetica, sans-serif, 黑体;
+							line-height: 1.8em;
+							font-size: 0.9em;
+							font-weight: 500;
+						}
+
+			/* 组件 */
+			.msgbutton {
+				position: relative;
+				box-sizing: content-box;
+				border-radius: 16px;
+				text-align: center;
+				-webkit-user-select: none;
+				color: white;
+				font-size: 18px;
+				padding: 16px 24px;
+				cursor: pointer;
+			}
+			.msgbutton:hover:before, .smallbutton:hover:before {
+				position: absolute;
+				display: inline-block;
+				left: 0;
+				top: 0;
+				content: "";
+				width: 100%;
+				height: 100%;
+				border-radius: 16px;
+				background: -webkit-linear-gradient(-90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+			}
+			.msgbutton-skyblue {
+				background: linear-gradient(180deg, hsl(210, 100%, 75%), hsl(210, 82%, 65%));
+				box-shadow: 0px -1px 1px 0px rgba(255, 255, 255, 0.3),
+							0px 1px 1px 0px rgba(16, 16, 16, 0.15),
+							0px 2px 6px 0px rgba(0, 0, 0, 0.15),
+							0px 4px 16px -4px hsl(210, 100%, 75%);
+			}
+			.msgbutton-skyblue:hover {
+				box-shadow: 0px -1px 1px 0px rgba(255, 255, 255, 0.3),
+							0px 1px 1px 0px rgba(16, 16, 16, 0.15),
+							0px 2px 6px 0px rgba(0, 0, 0, 0.15),
+							0px 4px 24px 0px hsl(210, 100%, 75%);
+			}
+			.msgbutton-skyblue:active {
+				background: linear-gradient(180deg, hsl(210, 55%, 55%), hsl(210, 80%, 65%));
+			}
+			.msgbutton-deepgreen {
+				background: linear-gradient(180deg, hsl(120, 35%, 60%), hsl(120, 35%, 50%));
+				box-shadow: 0px -1px 1px 0px rgba(255, 255, 255, 0.3),
+							0px 1px 1px 0px rgba(16, 16, 16, 0.15),
+							0px 2px 6px 0px rgba(0, 0, 0, 0.15),
+							0px 4px 16px -4px hsl(120, 35%, 60%);
+			}
+			.msgbutton-deepgreen:hover {
+				box-shadow: 0px -1px 1px 0px rgba(255, 255, 255, 0.3),
+							0px 1px 1px 0px rgba(16, 16, 16, 0.15),
+							0px 2px 6px 0px rgba(0, 0, 0, 0.15),
+							0px 4px 24px 0px hsl(120, 35%, 60%);
+			}
+			.msgbutton-deepgreen:active {
+				background: linear-gradient(180deg, hsl(120, 35%, 40%), hsl(120, 35%, 50%));
+			}
+			.msgbutton-white {
+				background: linear-gradient(180deg, hsl(0, 0%, 97.5%), hsl(0, 0%, 90%));
+				box-shadow: 0px -1px 1px 0px rgba(255, 255, 255, 0.3),
+							0px 1px 1px 0px rgba(16, 16, 16, 0.15),
+							0px 2px 6px 0px rgba(0, 0, 0, 0.15),
+							0px 4px 16px -4px #FFF;
+			}
+			.msgbutton-white:hover {
+				box-shadow: 0px -1px 1px 0px rgba(255, 255, 255, 0.3),
+							0px 1px 1px 0px rgba(16, 16, 16, 0.15),
+							0px 2px 6px 0px rgba(0, 0, 0, 0.15),
+							0px 4px 24px 0px #FFF;
+			}
+			.msgbutton-white:active {
+				background: linear-gradient(180deg, hsl(0, 0%, 80%), hsl(0, 0%, 90%));
+			}
+			.smallbutton {
+				position: sticky;		/* 使用 relative 定位时，它会跑偏位置 */
+				box-sizing: content-box;
+				border-radius: 16px;
+				width: 112px;
+				margin: auto 8px;
+				text-align: center;
+				-webkit-user-select: none;
+				color: #444;
+				border: none;
+				outline: none;
+				font-size: 14px;
+				padding: 8px 24px;
+				cursor: pointer;
+			}
+		</style>
+		<meta name="viewport" content="width=device-width, initial-scale=0.75" />
+	</head>
+	<body>
+		<div id="content-wrapper">
+			<div id="topbar" class="lrmargin">
+				<a class="topbar-nav" style="float: left;" href="http://ttqf.tech/" title="滔滔清风科技馆主页">
+					<div id="ttqftechlogo"></div>
+				</a>
+				<a class="topbar-nav" style="float: right;" href="https://github.com/ttqftech/FFBox/" target="_blank" title="FFBox GitHub 主页">
+					<svg height="40" width="40" viewBox="0 0 16 16" version="1.1" style="fill: #333;"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+				</a>
+				<a class="topbar-nav" style="float: right;" href="https://gitee.com/ttqf/FFBox" target="_blank" title="FFBox Gitee 主页">
+					<img height="40" width="40" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBzdGFuZGFsb25lPSJubyI/PjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+PHN2ZyB0PSIxNjI4Njk5NTExMTgyIiBjbGFzcz0iaWNvbiIgdmlld0JveD0iMCAwIDEwMjQgMTAyNCIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHAtaWQ9IjU1MSIgd2lkdGg9IjEyOCIgaGVpZ2h0PSIxMjgiIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48ZGVmcz48c3R5bGUgdHlwZT0idGV4dC9jc3MiPjwvc3R5bGU+PC9kZWZzPjxwYXRoIGQ9Ik01MTIgMTAyNEMyMjkuMjQ4IDEwMjQgMCA3OTQuNzUyIDAgNTEyUzIyOS4yNDggMCA1MTIgMHM1MTIgMjI5LjI0OCA1MTIgNTEyLTIyOS4yNDggNTEyLTUxMiA1MTJ6IG0yNTkuMTY4LTU2OC44OTZoLTI5MC43NTJhMjUuMjggMjUuMjggMCAwIDAtMjUuMjggMjUuMjhsLTAuMDMyIDYzLjIzMmMwIDEzLjk1MiAxMS4yOTYgMjUuMjggMjUuMjggMjUuMjhoMTc3LjAyNGEyNS4yOCAyNS4yOCAwIDAgMSAyNS4yOCAyNS4yOHYxMi42NGE3NS44NCA3NS44NCAwIDAgMS03NS44NCA3NS44NGgtMjQwLjIyNGEyNS4yOCAyNS4yOCAwIDAgMS0yNS4yOC0yNS4yOHYtMjQwLjE5MmE3NS44NCA3NS44NCAwIDAgMSA3NS44NC03NS44NGgzNTMuOTJhMjUuMjggMjUuMjggMCAwIDAgMjUuMjgtMjUuMjhsMC4wNjQtNjMuMmEyNS4zMTIgMjUuMzEyIDAgMCAwLTI1LjI4LTI1LjMxMkg0MTcuMTg0YTE4OS42MzIgMTg5LjYzMiAwIDAgMC0xODkuNjMyIDE4OS42djM1My45NTJjMCAxMy45NTIgMTEuMzI4IDI1LjI4IDI1LjI4IDI1LjI4aDM3Mi45MjhhMTcwLjY1NiAxNzAuNjU2IDAgMCAwIDE3MC42NTYtMTcwLjY1NnYtMTQ1LjM3NmEyNS4yOCAyNS4yOCAwIDAgMC0yNS4yOC0yNS4yOHoiIHAtaWQ9IjU1MiIgZmlsbD0iI2Q5MDAxMyI+PC9wYXRoPjwvc3ZnPg==" alt="">
+				</a>
+				<a id="ffmpegmanual" class="topbar-nav" style="float: right;" target="_blank" href="https://www.bilibili.com/video/av114341424731451">
+					<div style="color: #AAA">新手教程</div>
+				</a>
+			</div>
+			<div id="firstscreen">
+				<div id="buttons">
+					<img id="title-1" src="./img/软件图标v1.0.png" alt="FFBox 图标" width="368" height="184"></img>
+					<div style="height: 48px;"></div>
+					<a href="https://github.com/ttqftech/FFBox/releases/download/v3.0/FFBox_Installation_v3.0.msi" title="FFBox Windows x64 下载链接">
+						<div id="downloadbtn" class="msgbutton msgbutton-skyblue">
+							<img width="320" height="80" src="data:image/svg+xml;base64,PHN2ZyBpZD0i5Zu+5bGCXzEiIGRhdGEtbmFtZT0i5Zu+5bGCIDEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDMyMCA4MCI+PGRlZnM+PHN0eWxlPi5jbHMtMSwuY2xzLTJ7ZmlsbDojZmZmO30uY2xzLTJ7Zm9udC1zaXplOjI2cHg7Zm9udC1mYW1pbHk6TWljcm9zb2Z0WWFIZWksIE1pY3Jvc29mdCBZYUhlaTt9LmNscy0ze2ZvbnQtc2l6ZToxNnB4O30uY2xzLTR7Zm9udC1zaXplOjEwcHg7fTwvc3R5bGU+PC9kZWZzPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTM2LjQsMTMuNTg3LDY5LjgyOCw4LjkxNlYzOC41NDJIMzYuNFoiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik02OS44MjcsNzEuMDg0LDM2LjQ1LDY2LjQyNVY0MS40SDY5LjgyN1oiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0zMy4zNTksMzguNTUySDguMDQxVjE3LjU3NmwyNS4zMTgtMy41N1oiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0zMy4zNzUsNDEuMzg5VjY1Ljk1N0w4LDYyLjQxMVY0MS4zODlaIi8+PHRleHQgY2xhc3M9ImNscy0yIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSg4NS44MTYgMzIpIj5XaW5kb3dzIHg2NCDkuIvovb08dHNwYW4gY2xhc3M9ImNscy0zIj48dHNwYW4geD0iNDMuNjk5IiB5PSIzNiI+54mI5pys77yaMy4wPC90c3Bhbj48dHNwYW4gY2xhc3M9ImNscy00IiB4PSIxMTQuMzE2IiB5PSIzNSIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+ICAoMjAyMi0wNi0yMyk8L3RzcGFuPjwvdHNwYW4+PC90ZXh0Pjwvc3ZnPg==" alt="" />
+						</div>	
+					</a>
+					<div style="height: 8px;"></div>
+					<a href="https://ffmpeg.org/download.html" target="_blank" title="FFmpeg 下载链接">
+						<div id="ffmpegbtn" class="msgbutton msgbutton-deepgreen" aria-hidden="true">
+							下载 FFmpeg
+							<span style="font-size: 8px;">　　版本：自选</span>
+						</div>
+					</a>
+					<div style="height: 24px;"></div>
+					<button id="updatelog-btn" class="smallbutton msgbutton-white">更新历史 <span style="color: red;">•</span></button>
+					<a href="https://gitee.com/ttqf/FFBox/blob/3.0+/FFBox%20Changelog.md" target="_blank"><button id="changelog-btn_1" class="smallbutton msgbutton-white">开发日志 <span style="color: red;">•</span></button></a>
+				</div>
+				<div class="screenshot-normal" id="screenshot">
+					<img id="screenshot-img" src="./img/软件截图.png" alt="软件截图" />
+					<video id="screenshot-video" src="" autoplay muted loop title="软件演示"></video>
+					<div id="updatelog-box" aria-hidden="true">
+						<h1>更新历史
+							<a id="changelog-btn_2" href="https://gitee.com/ttqf/FFBox/blob/3.0+/FFBox%20Changelog.md" target="_blank">＞详细开发日志<span style="color: red;">•</span></a>
+						</h1>
+						<h2>版本 3.0<span>(2022-06-23)</span></h2>
+						<ul>
+							<li>软件架构分离为转码调度逻辑层（后台）和前端展示层（前台），前后台运行互不干扰，增强健壮性！</li>
+							<li>支持远程转码，您终于可以用 FFBox 私有化部署转码平台了！</li>
+							<li>添加了一个丝滑的启动动画！</li>
+							<li>Windows 端添加了毛玻璃特效！</li>
+							<li>优化了气泡组件的动画效果，添加了消失倒计时！</li>
+							<li>优化了组合下拉框的操作逻辑和动画！</li>
+							<li>优化了任务项的文件名显示、时间（进度）显示！</li>
+							<li>转码完成后的文件可以双击打开了！</li>
+							<li>ffmpeg 的异常终止现可以被正确识别了！</li>
+							<li>把 VB 编写的 PauseAndResumeProcess 改成了 C++ 编写的 FFBoxHelper！</li>
+							<li>编程语言加入了 TypeScript！</li>
+							<li>修复了设置音频采样率导致出错的问题</li>
+							<li>修复了输出纯音频文件不能显示进度的问题</li>
+							<li>修复了不识别 MKV 容器的问题</li>
+							<li>打赏中心增加了 Gitee 和 Ko-fi 链接</li>
+							<li>增加了激活机制（打赏中心按钮那能去掉这玩意，您研究下……）</li>
+						</ul>
+						<h2>版本 2.6<span>(2021-01-05)</span></h2>
+						<ul>
+							<li>增加了 macOS 系统的相关支持</li>
+							<li>优化了“输出文件名”参数的相关功能</li>
+						</ul>
+						<h2>版本 2.5<span>(2020-09-26)</span></h2>
+						<ul>
+							<li>新增恢复默认参数功能</li>
+							<li>打赏中心更名“支持作者”面板，并新增支付宝红包二维码和 github 链接</li>
+							<li>修复升级或第一次启动后无法初始化参数的 bug</li>
+							<li>新增时间剪辑参数、输出文件名参数</li>
+						</ul>
+						<h2>版本 2.4<span>(2020-09-21)</span></h2>
+						<ul>
+							<li>优化了添加文件的逻辑以加快速度</li>
+							<li>重新进行了参数分类</li>
+						</ul>
+						<h2>版本 2.3<span>(2020-08-24)</span></h2>
+						<ul>
+							<li>调整了资源文件的布局</li>
+							<li>实现了 Linux 平台上的任务暂停功能</li>
+							<li>优化了 combomenu、slider、checkbox 等的键盘操作逻辑</li>
+							<li>新增了打赏中心</li>
+						</ul>
+						<h2>版本 2.2<span>(2020-08-19)</span></h2>
+						<ul>
+							<li>优化了错误识别，修改了一些参数项</li>
+							<li>combobox 新增手动输入功能，combomenu 新增键盘操控支持</li>
+						</ul>
+						<h2>版本 2.1<span>(2020-08-06)</span></h2>
+						<ul>
+							<li>修复了任务结束后不能开始下一个任务的 bug</li>
+							<li>修复了任务栏进度、外部关闭信号、消息弹窗的 bug</li>
+							<li>分离了视频和音频的码率控制参数</li>
+						</ul>
+						<h2>版本 2.0<span>(2020-07-30)</span></h2>
+						<ul>
+							<li>使用 vue-cli 重构本项目，代码量增加了，运行开销增大了，但是结构好多了，方便其他人参与项目了（虽然并不会有</li>
+							<li>“为以后版本铺垫的东西”其中一部分指皮肤更换功能。现在重构了，这功能就难做多了，所以白铺垫了</li>
+							<li>优化了可访问性，读屏器可以更好地读出 FFBox 的窗口内容了</li>
+							<li>增大了窗口三大金刚按钮和任务暂停删除重置按钮的识别范围</li>
+							<li>微调了外观颜色</li>
+							<li>统一了 Tooltip 样式</li>
+							<li>combo 菜单外观优化</li>
+							<li>新增窗口元素全局拖拽捕获，拖动元素时鼠标在容器外也可捕获</li>
+							<li>增加了视频和音频编码选项“自动”和“禁用”，可以选择单独禁用视频或音频了</li>
+							<li>“硬件编码”入口改为“编码器”，支持选择更多编码器</li>
+							<li>大幅精简了分辨率列表</li>
+							<li>补充了少量编码器的详细参数</li>
+							<li>任务列表排版不再有 js 参与，性能会稍微好一丢丢</li>
+							<li>当然因为 vue 的原因，性能又会变差一点</li>
+							<li>暂时移除了“快捷”中的参数预览功能</li>
+							<li>“指令”中的 FFmpeg 输出现在可以显示单个任务或全局的命令行输出了</li>
+							<li>“指令”中的 FFmpeg 输出在隐藏时停止刷新，减少布局重流导致的 CPU 占用</li>
+							<li>新增了程序新版本检查功能</li>
+						</ul>
+						<h2>版本 1.1<span>(2020-05-12)</span></h2>
+						<ul>
+							<li>对 FFmpeg 状态的识别更加准确了，消除了令人烦恼的设计缺陷</li>
+							<li>增加了弹窗和气泡的动效，改善了选中任务的动效</li>
+							<li>增加强制结束 FFmpeg 功能</li>
+							<li>增加硬件解码模式“自动”</li>
+							<li>做了一些为以后版本铺垫的东西【反正你们看不懂 (｀・ω・´)</li>
+						</ul>
+						<h2>版本 1.0<span>(2019-11-11)</span></h2>
+					</div>
+				</div>
+				<span id="hiddentext">可能是地球上最漂亮的多媒体转码软件</span>
+			</div>
+			
+			<div style="height: 24px;"></div>
+
+			<div class="lrmargin">
+				<div class="article">
+					<iframe title="FFBox 在 Bilibili 上的介绍视频" style="width: 100%; height: 56.25vw;" src="https://player.bilibili.com/player.html?aid=75295999&cid=128794635&page=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"> </iframe>
+
+					<div style="height: 16px;"></div>
+
+					<h1><s>FAQ</s>（自问自答）</h1>
+
+					<div style="height: 16px;"></div>
+
+					<div id="faqbrick-wrapper">
+						<section class="faqbrick">
+							<h2 class="title">FFBox 跟其他转码软件有什么不同？</h2>
+							<div class="content">
+								<p>市面上大多数转码软件说白了就是个套壳 FFmpeg。咱这不一样，FFBox 它直接就是个壳，不给您赠送 FFmpeg。</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">我打开软件看到熊猫头了。为什么不附带 FFmpeg？</h2>
+							<div class="content">
+								<p>你家电脑的外存为什么满得那么快？因为你下的转码软件十有八九都给您送了个 FFmpeg，下得越多，送得越多。</p>
+								<p>这好吗？这不好。那咋解决呢？Linux 的 CLI 软件就做到了——先找一下你的电脑有没有 FFmpeg，有就直接用，无就先装上再用。FFBox 也是同样的思路。</p>
+								<p>再者，FFmpeg 是 GPL + LGPL 协议的复合体，而 FFBox 并不是完全免费的项目，因此 FFBox 不包含 FFmpeg 代码的拷贝。并且为了偷懒，咱连二进制文件也不提供～</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">容器格式是啥？编码是啥？不会用怎么办？有教程吗？</h2>
+							<div class="content">
+								<p>如您所见，咱这软件连 FFmpeg 都不附带，显然就不是给新手用的呀～</p>
+								<p>但是我是一定不希望放弃这部分用户的！在未来，FFBox 会推出“简易模式”，方便大家在无需过多了解视频参数的情况下轻松使用。</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">下载链接速度好慢，或者下载不了？</h2>
+							<div class="content">
+								<p>由于众所周知的原因，您可以将电脑搬到境外进行下载，这样下载速度会得到明显的提升。</p>
+								<p>如果您认为出境太过麻烦，您也可以通过<a href="https://pan.baidu.com/s/1qY9edeJP2Ae6aFuIYQKTYA" target="_blank" onclick="alert('提取码：ntdn')">百度网盘下载（2.6 版本）</a>。</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">FFBox 的起名有什么含义吗？</h2>
+							<div class="content">
+								<p>FFBox is a box of FFmpeg. This is the most accurate explanation.</p>
+								<p>And, think of what FFF means. Not so popular? Consider which day is the initial release date of FFBox.</p>
+								<p>It's strange that some people have stereotypes of programmers. Griddy T-shirts, treating computer as a companion, and so on what the fuck... That's really good programmers! If he isn't, he's nerd.</p>
+								<p>If you know my previous avatar you may know I'm not really a programmer. Making things on computers is just for fun.</p>
+								<p>Yeah. There's a lot of fun things to do. But as you know, the green hat had kill most of my interests or to say abilities.</p>
+								<p>So what the fuck just do programming... My dream has been...?</p>
+								<p>Haven't you watch <i>onestop</i>? <a href="https://www.bilibili.com/video/av968582548/" target="_blank">Go watch it. </a>Parts of it were transcoded by FFBox. Totally worth a seen.</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">FFBox 的中文名是“丹参盒”吗？</h2>
+							<div class="content">
+								<p>众所周知，如果一款软件有首选的中文名，它就大概率是不好用的软件。加水印、DPI 不适配、功能简陋，等等都有。这就是为什么我要做 FFBox，但又不给它写中文名的原因。</p>
+								<p>至于标题栏上写“丹参盒”，只是因为中文的方块字形在标题栏上搭配的视觉效果比英文更和谐而已。</p>
+								<p>那么如何给它写一个临时的名字呢？结合问题“FFBox 的起名有什么含义吗？”你就能看懂这个名字的妙处。</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">为什么软件的体积这么大？</h2>
+							<div class="content">
+								<p>您使用的很多软件，比如带有首选中文名的浏览器、Visual Studio Code、飞书，甚至包括了微信，它们其实都是套壳浏览器。由于技术原因，这一层套壳确实就没有办法像 FFmpeg 套壳那样避免，所以占主要体积的是浏览器。</p>
+								<p>但是这个问题并非无法解决。FFBox 即将推出远程转码管理功能，这将支持在浏览器上直接操作。</p>
+								<p>（别问我什么时候开发好，这个我也不知道）</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">FFBox 的版本更迭经历了什么改变？</h2>
+							<div class="content">
+								<p>1.x 版本的 FFBox，是经典的“html + css + js”前端三件套，属于初出茅庐的作品，没有工程化和模块化，一个 js 文件两千多行，逻辑是分散的，直接操作 DOM，甚至无法正确处理 FFmpeg 的状态，因此出道即瓶颈，只经历了 1.1 一个可用性改善的版本就进入了 2.x 版本的开发。</p>
+								<p>中途很长时间没更新，因为正在制作<a href="https://www.bilibili.com/video/av968582548/" target="_blank"> onestop</a>。</p>
+								<p>2.x 版本是使用 vue 2 进行工程化、模块化开发的重构作品。其模块化程度相对 1.x 版本是一个飞跃，但仍处于相当糟糕的阶段。大量控制逻辑集中在状态管理器上，总线上挤满了逻辑，相当于过度中心化的同心圆城市结构，组件分离但不独立。处于能正常开发，但走不太远的状态。因此在此处累积了 7 个版本，才进入 3.x 版本的开发。</p>
+								<p>中途由于去了工作，所以更新被搁置。不过同时也积累了在 macOS 方面的经验，使其能在 macOS 上运行，当然也吸纳了更优秀的模块化开发经验。你猜是哪家大厂？</p>
+								<p>3.x 版本目前仍处于开发未完成阶段。此版本分离了转码服务和 UI，即支持远程转码。改用了更佳的模块化方案，使不少组件得到独立。同时更换编程语言为 TypeScript，提供了更优秀的开发环境。（别问我什么时候开发好，这个我也不知道）</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">有考虑过加入暗色模式吗？</h2>
+							<div class="content">
+								<p>不仅是您想，我也想啊！</p>
+								<p>但是如您所见，在 FFBox 迭代的过程中，经历了那么多次技术重构。</p>
+								<p>更换皮肤的功能，需要依靠模块化的 CSS 去实现。而这个具体该如何实现，这与框架是息息相关的。如果不确定一个合适的框架，那么皮肤切换功能也无从落地。</p>
+								<p>因此在 3.0 上，虽然没能实现皮肤切换的功能，但是也给了个毛玻璃（Windows）给您过过瘾。</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">“快捷”模块和“滤镜”模块是个装饰？</h2>
+							<div class="content">
+								<p>以后不是。</p>
+								<p>如您所见，在 FFBox 迭代的过程中，经历了那么多次技术重构。事实上，只有将开发环境搞好，才方便去做一些复杂的功能。这些功能将会在以后被加上。</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">有女朋友吗？</h2>
+							<div class="content">
+								<p>没有。</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">有联系方式吗？</h2>
+							<div class="content">
+								<p>您找找。还蛮好找的🤓。</p>
+							</div>
+						</section>
+						<section class="faqbrick">
+							<h2 class="title">有……？</h2>
+							<div class="content">
+								<p>别问了，庄园里的小摩尔都钻进被窝里环游星空了。</p>
+								<p>走吧，页面到底儿了。</p>
+							</div>
+						</section>
+					</div>
+				</div>	
+			</div>
+		</div>
+		
+		<script>
+			/* 窗口大小适应 */
+			
+			var ScreenHeight, ScreenWidth;
+			function ChangeSize() {
+				ScreenHeight = document.documentElement.clientHeight;
+				ScreenWidth = document.documentElement.clientWidth;
+				document.getElementById("content-wrapper").style.height = ScreenHeight + "px";
+				// if (ScreenWidth > 1080) {
+				// 	document.getElementById("content-collapse").style.marginTop = ScreenHeight + "px";
+				// } else {
+				// 	document.getElementById("content-collapse").style.marginTop = "0";
+				// }
+				console.log("窗口大小：" + document.documentElement.clientWidth + "x" + ScreenHeight);
+				// document.getElementById("article-backgroundfade").style.height = ScreenHeight * 0.2 + "px"
+			}
+			ChangeSize();
+			window.onresize = ChangeSize;
+
+			/* 隐藏文字显示 */
+			document.getElementById("screenshot").addEventListener("click", function (event) {
+				document.getElementById("hiddentext").style.display = "inline-block";
+			})
+
+			/* 更新历史显示 */
+			document.getElementById("updatelog-btn").addEventListener("click", function (event) {
+				var updatelog_box = document.getElementById("screenshot");
+				if (updatelog_box.classList.contains("screenshot-historied")) {	// 点击隐藏
+					event.target.innerHTML = "更新历史";
+					updatelog_box.classList.replace("screenshot-historied", "screenshot-normal");
+					document.getElementById("updatelog-box").setAttribute('aria-hidden', true);
+				} else {
+					event.target.innerHTML = "隐藏更新历史";
+					updatelog_box.classList.replace("screenshot-normal", "screenshot-historied");
+					document.getElementById("updatelog-box").setAttribute('aria-hidden', false);
+				}
+			})
+
+			document.getElementById('changelog-btn_1').addEventListener("click", function (event) {
+				event.target.innerHTML = "开发日志"
+			})
+		</script>
+		<script src="./Browser-min.js"></script>
+		<script>
+			let browser = new Browser();
+			if (browser.browser === 'Safari') {
+				document.getElementById('screenshot-video').setAttribute('src', './img/软件演示_hevc.mp4');
+			} else {
+				document.getElementById('screenshot-video').setAttribute('src', './img/软件演示_av1.mp4');
+			}
+		</script>
+	</body>
+</html>

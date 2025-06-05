@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, Fragment, h, onMounted, ref, watch } from 'vue';
 import { useAppStore } from '../../stores/appStore';
+import IconX from '../../assets/×.svg?component';
 
 const appStore = useAppStore();
 
@@ -8,7 +9,7 @@ interface Props {
     message: string;
 	level: 0 | 1 | 2 | 3;
 	verticalOffset: number;	// px
-    onWillClose: () => void;
+    onWillClose: (isUserInteraction?: boolean) => void;	// 由本组件调用，通知外部倒计时后调整气泡位置
     onClose: () => void;	// 由本组件调用，外部将本组件销毁
 	index: number;			// 用于计算 delayedVerticalOffset
 }
@@ -20,6 +21,12 @@ const duration = ref(0);
 const timeLeft = ref(0);
 const mouseIn = ref(false);
 const delayedVerticalOffset = ref(0);
+const popupAnimateName = ref('popupanimate');	// 用户主动关闭时换一个动画
+
+const newLinedMessage = computed(() => h(
+	Fragment,
+	props.message.split('\n').reduce((prev, curr) => prev.concat(curr, h('br')), [])
+));
 
 const bgClass = computed(() => {
 	switch (props.level) {
@@ -33,7 +40,7 @@ const bgClass = computed(() => {
 			return 'popup-box'
 	}
 });
-const color = computed(() => {
+const strokeColor = computed(() => {
 	switch (props.level) {
 		case 1:
 			return '#FFFFFF'
@@ -45,6 +52,20 @@ const color = computed(() => {
 			return 'currentColor'
 	}
 });
+
+const close = (isUserInteraction?: boolean) => {
+	if (isUserInteraction) {
+		popupAnimateName.value = 'popupanimateUser';
+	}
+	show.value = false;
+	props.onWillClose(isUserInteraction);
+}
+
+const handleMouseUp = (event: MouseEvent) => {
+	if (event.button === 1) {
+		close(true);
+	}
+}
 
 onMounted(() => {
 	// 设置动画并自动退出
@@ -58,11 +79,10 @@ onMounted(() => {
 		if (!mouseIn.value) {
 			timeLeft.value = timeLeft.value - (now - lastTime);
 			if (timeLeft.value <= 0) {
-				show.value = false;
-				props.onWillClose();
+				close();
 			}
 		} else {
-			timeLeft.value = Math.min(timeLeft.value + (now - lastTime) * 2, duration.value);
+			timeLeft.value += (duration.value - timeLeft.value) * 0.2;
 		}
 		if (show.value) {
 			if (powerSave) {
@@ -92,21 +112,24 @@ watch(() => props.verticalOffset, (newValue) => {
 		@mouseleave="mouseIn = false"
 		:style="{ transform: `translateY(${-delayedVerticalOffset}px)` }"
 	>
-		<Transition name="popupanimate" @after-leave="props.onClose()">
-			<div v-if="show" :class="bgClass">
+		<Transition :name="popupAnimateName" @after-leave="props.onClose()">
+			<div v-if="show" :class="bgClass" @mouseup="handleMouseUp">
 				<div class="popup-progress">
 					<svg viewBox="-24 -24 48 48" class="popup-progress-circle">
 						<circle
 							fill="transparent"
 							stroke-width="6"
-							:stroke="color"
+							:stroke="strokeColor"
 							stroke-dasharray="125.664"
 							:stroke-dashoffset=" - 125.664 * (1 - timeLeft / duration)"
 							r="20"
 						></circle>
 					</svg>
+					<IconX class="popup-progress-x" :style="{ color: strokeColor }" @click="() => close(true)" />
 				</div>
-				<div class="popup-message" v-html="message"></div>
+				<div class="popup-message">
+					<component :is="newLinedMessage" />
+				</div>
 			</div>
 		</Transition>
 	</div>
@@ -130,12 +153,12 @@ watch(() => props.verticalOffset, (newValue) => {
 		z-index: 10;
 		.popupanimate-enter-from {
 			opacity: 0;
-			transform: scale(0.5);
+			transform: scale(0.0) translateY(120px);
 		}
 		.popupanimate-enter-active {
 			transition: transform 0.5s cubic-bezier(0.4, 1.3, 0.4, 1), opacity 0.2s linear;
 		}
-		.popupanimate-enter-to, .popupanimate-leave-from {
+		.popupanimate-enter-to, .popupanimate-leave-from, .popupanimateUser-leave-from {
 			opacity: 1;
 			transform: scale(1);
 		}
@@ -146,38 +169,76 @@ watch(() => props.verticalOffset, (newValue) => {
 			opacity: 0;
 			transform: scale(0.5);
 		}
+		.popupanimateUser-leave-active {
+			transition: all 0.5s linear;
+		}
+		.popupanimateUser-leave-to {
+			opacity: 0;
+			transform: scale(0.5) translateX(calc(100vw + 400px));
+		}
 
 		.popup-box {
 			width: fit-content;
 			display: flex;
-			align-items: center;
-			padding: 12px;
+			align-items: stretch;
+			padding: 8px;
 			background: hwb(var(--bg98));
-			will-change: transform, opacity;
 			border: hsl(0, 0%, 67%) 1px solid;
 			border-radius: 12px;
+			overflow: hidden;
 			box-shadow: 0px 4px 8px hwb(0 0% 100% / 0.3);
-
+			&:hover {
+				.popup-progress .popup-progress-circle {
+					opacity: 0;
+					transform: rotate(-90deg) scale(0.5);
+				}
+				.popup-progress .popup-progress-x {
+					opacity: 1;
+					transform: translateX(0);
+				}
+			}
 			.popup-message {
-				display: inline-block;
+				margin: 4px;
 				font-size: 16px;
 				line-height: 1.3em;
 				text-align: center;
 				word-break: break-word;
 			}
 			.popup-progress {
-				display: inline-block;
 				position: relative;
-				/* top: 2.5px; */
-				margin-right: 8px;
-				width: 16px;
-				height: 16px;
-				line-height: 1.3em;
+				width: 24px;
+				height: auto;
+				display: flex;
+				justify-content: center;
+				align-items: center;
 				opacity: 0.8;
 				.popup-progress-circle {
 					width: 16px;
 					height: 16px;
-					transform: rotate(-90deg);
+					transform: rotate(-90deg) scale(1);
+					transition: transform 0.3s cubic-bezier(0.1, 0.8, 0.3, 1), opacity 0.3s cubic-bezier(0.1, 0.8, 0.3, 1);
+					&:hover {
+						visibility: hidden;
+					}
+				}
+				.popup-progress-x {
+					position: absolute;
+					width: 24px;
+					height: 100%;
+					margin: auto;
+					border-radius: 4px;
+					opacity: 0;
+					transform: translateX(-32px);
+					transition: transform 0.3s cubic-bezier(0.1, 0.8, 0.3, 1), opacity 0.3s cubic-bezier(0.1, 0.8, 0.3, 1);
+					&:hover {
+						box-shadow: 0 1px 4px hwb(var(--hoverShadow) / 0.2),
+									0 4px 2px -2px hwb(var(--highlight) / 0.5) inset;
+					}
+					&:active {
+						box-shadow: 0 0px 1px hwb(var(--hoverShadow) / 0.2),
+									0 15px 20px -10px hwb(var(--hoverShadow) / 0.15) inset;
+						transform: translateY(0.25px);
+					}
 				}
 			}
 		}

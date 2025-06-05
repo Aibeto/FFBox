@@ -12,6 +12,12 @@ import IconSidebarSponsor from '../assets/menuCenter/sponsor.svg?component';
 import IconSidebarTerm from '../assets/menuCenter/term.svg?component';
 import IconSidebarFaq from '../assets/menuCenter/faq.svg?component';
 
+interface Props {
+	onScreenshotClicked: () => any
+}
+
+const props = defineProps<Props>()
+
 const appStore = useAppStore();
 
 const sidebarIcons = [IconSidebarUpdate, IconSidebarDownload, IconSidebarSponsor, IconSidebarTerm, IconSidebarFaq];
@@ -74,8 +80,10 @@ onMounted(() => appStore.selectedPanelIndex = -1);
 					<div class="versionInfo">
 						<div>版本：4.4&nbsp;&nbsp;(2025-05-01)</div>
 					</div>
-					<img class="screenshot" v-if="appStore.colorTheme === 'themeLight'" src="../assets/软件截图_中_浅色_完整.webp" />
-					<img class="screenshot" v-if="appStore.colorTheme === 'themeDark'" src="../assets/软件截图_中_深色_完整.webp" />
+					<div class="screenshot" @click="props.onScreenshotClicked">
+						<img v-if="appStore.colorTheme === 'themeLight'" src="../assets/软件截图_中_浅色_完整.webp" />
+						<img v-if="appStore.colorTheme === 'themeDark'" src="../assets/软件截图_中_深色_完整.webp" />
+					</div>
 				</div>
 			</Transition>
 			<Transition :name="animationName">
@@ -241,10 +249,13 @@ onMounted(() => appStore.selectedPanelIndex = -1);
 				}
 			}
 			.screenshot {
-				margin-top: 40px;
+				margin: 40px auto;
 				width: 90%;
 				border-radius: 1%;
 				box-shadow: 0 6px 16px hwb(0 0% 100% / 0.2);
+				img {
+					width: 100%;
+				}
 			}
 		}
 	}
