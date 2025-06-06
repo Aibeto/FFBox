@@ -173,14 +173,14 @@ const keepFileTimeList: NarrowedMenuItem[] = [
 	{
 		type: 'normal',
 		value: 'autoShift',
-		label: '复制修正后的文件时间',
-		tooltip: '输出文件的访问时间将从输入文件的时间原样复制，创建时间、修改时间将按照剪裁位置自动调整后进行修改',
+		label: '复制修正后的文件时间（依创建时间）',
+		tooltip: '输出文件的创建时间、修改时间将以创建时间为基准，按照剪裁位置自动调整后进行修改',
 	},
 	{
 		type: 'normal',
 		value: 'fixCTbyMTandShift',
-		label: '根据修改时间修正新文件时间',
-		tooltip: '用于修复拷贝后创建时间丢失的问题，将通过修改时间和剪裁位置自动调整后进行修改',
+		label: '复制修正后的文件时间（依修改时间）',
+		tooltip: '输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题',
 	},
 	{
 		type: 'normal',

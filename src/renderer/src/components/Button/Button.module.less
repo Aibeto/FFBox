@@ -121,6 +121,31 @@
 					0 4px 6px hwb(0 0% 100% / 0.2) inset; // 内部凹陷阴影
 	}
 }
+.noBg[data-color_theme="themeLight"] {
+	background: none;
+	box-shadow: none;
+	&:hover {
+		box-shadow: 0 1.5px 4px 0 hwb(var(--hoverShadow) / 0.15),	// 外部阴影
+					0 1px 0.5px 0px hwb(var(--hoverLightBg)) inset;	// 上高光
+	}
+	&:active {
+		box-shadow: 0 0 2px 1px hwb(var(--hoverShadow) / 0.05), // 外部阴影
+					0 6px 12px hwb(var(--hoverShadow) / 0.1) inset; // 内部凹陷阴影
+	}
+}
+.noBg[data-color_theme="themeDark"] {
+	background: none;
+	box-shadow: none;
+	&:hover {
+		box-shadow: 0 0 1.5px 0.5px hwb(var(--hoverLightBg)),	// 包边
+					0 1.5px 4px 0 hwb(var(--hoverShadow) / 0.3),	// 外部阴影
+					0 1px 0.5px 0px hwb(var(--hoverLightBg)) inset;	// 上高光
+	}
+	&:active {
+		box-shadow: 0 0 2px 1px hwb(var(--hoverShadow) / 0.05), // 外部阴影
+					0 6px 18px hwb(var(--hoverShadow) / 0.4) inset; // 内部凹陷阴影
+	}
+}
 .disabled {
 	pointer-events: none;
 	opacity: 0.6;

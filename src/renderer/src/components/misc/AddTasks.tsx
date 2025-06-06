@@ -34,6 +34,7 @@ interface P {
     exportFunctions: (fs: any) => void;
 }
 const Comp = defineComponent((props: P) => {
+	const appStore = useAppStore();
 	const text = ref('');
 	const computing = ref(0);	// 0：空闲　负随机数：正在计算　正整数：等待下一次触发计算的计时器序号
 	const confirming = ref(false);
@@ -58,9 +59,10 @@ const Comp = defineComponent((props: P) => {
 			// const u = categorized.value.unknowns.length;
 			const { localFilesCount: lf, localDirsCount: ld, remotesCount: r, unknownsCount: u } = categorized.value;
 			if (lf + ld + r + u === 0) {
-				return '您未添加文件';
+				return '您未填入文件';
 			} else {
-				return `您已添加${lf ? ` ${lf} 个本地${window.jsb ? '文件' : '路径'}，` : ''}${ld ? ` ${ld} 个本地文件夹，` : ''}${r ? ` ${r} 个远程路径，` : ''}${u ? ` ${u} 个未知文件，` : ''}`.slice(0, -1);
+				return `您已填入${lf ? ` ${lf} 个本地${window.jsb ? '文件' : '路径'}，` : ''}${ld ? ` ${ld} 个本地文件夹，` : ''}${r ? ` ${r} 个远程路径，` : ''}${u ? ` ${u} 个未知文件，` : ''}`.slice(0, -1) +
+						(appStore.functionLevel < 40 ? '。（上限 66 个）' : appStore.functionLevel < 60 ? '。（上限 99 个）' : '');
 			}
 		}
 	});

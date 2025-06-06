@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "FFBox"
-#define MyAppVersion "4.4"
+#define MyAppVersion "4.5"
 #define MyAppPublisher "滔滔清风"
 #define MyAppURL "http://ttqf.tech"
 ; #define MyCopyright "版权所有"
@@ -11,7 +11,7 @@
 
 ; 安装包输出文件夹
 #define MySetupOutDir "./output"
-#define MySetupOutBaseFilename "Windows_x86-64_FFBox_4.4"
+#define MySetupOutBaseFilename "Windows_x86-64_FFBox_4.5"
 
 ; 安装包所用的资源文件夹
 #define MyResDir "./res"

@@ -255,6 +255,20 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits tasklistUpdate
 	 */
 	public taskAdd(taskName: string, outputParams: OutputParams): Promise<number> {
+		const maxTaskCount = this.functionLevel < 40 ? 66 : this.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
+		if (Object.keys(this.tasklist).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
+			this.setNotification(
+				-1,
+				`😞任务数量达到上限了（后端）\n` +
+				`💔您的用户等级最高支持在任务列表中放入 ${maxTaskCount} 个任务，您可以先删除一些任务再添加\n` +
+				'🤫开发者设计该项限制的意图是避免超出合理范围的操作导致前端卡顿（实测 100 个任务同时运行一遍或能导致前端卡顿半小时），\n' +
+				'　并给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
+				'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
+				NotificationLevel.warning,
+			);
+			return;
+		}
+
 		const id = this.latestTaskId++;
 		// 目前只处理单输入的情况
 		const filePath = outputParams.input.files[0].filePath;
@@ -408,7 +422,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						`任务「${task.fileBaseName}」设置的视频码率已被限制\n` +
 							'💔您的用户等级在 ABR/CBR 模式下的视频码率仅支持 500Kbps ~ 32Mbps\n' +
 							'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
-							'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了，记得保持微笑✅',	
+							'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
 							NotificationLevel.warning,
 					);
 					videoParam.ratevalue = ratevalue > 0.75 ? 0.75 : 0.25;
@@ -451,14 +465,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 							const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
 							const duration = (getOutputDuration(task) || 0) * 1000;
 							if (task.after.output.keepFileTime === 'autoShift') {
-								// 复制修正后的文件时间。输出文件的访问时间将从输入文件的时间原样复制，创建时间、修改时间将按照剪裁位置自动调整后进行修改
+								// 复制修正后的文件时间（依创建时间）。输出文件的创建时间、修改时间将以创建时间为基准，按照剪裁位置自动调整后进行修改
 								const newCreateTime = birthtime.getTime() + startTime;
 								const newModifyTime = birthtime.getTime() + startTime + duration;
 								await utimes(task.outputFile, { btime: newCreateTime, mtime: newModifyTime, atime });
 							} else if (task.after.output.keepFileTime === 'fixCTbyMTandShift' && task.before.duration > 0) {
-								// 根据修改时间修正新文件时间。用于修复拷贝后创建时间丢失的问题，将通过修改时间和剪裁位置自动调整后进行修改
-								const newModifyTime = mtime.getTime() - task.before.duration * 1000 + startTime;
-								const newCreateTime = mtime.getTime() - task.before.duration * 1000 + startTime + duration;
+								// 复制修正后的文件时间（依修改时间）。输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题
+								const newCreateTime = mtime.getTime() - task.before.duration * 1000 + startTime;
+								const newModifyTime = mtime.getTime() - task.before.duration * 1000 + startTime + duration;
 								await utimes(task.outputFile, { btime: newCreateTime, mtime: newModifyTime, atime });
 							} else if (task.after.output.keepFileTime === 'fixByFilenameAndShift') {
 								// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
@@ -675,8 +689,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private queueAssign(): number {
 		if (this.workingStatus === WorkingStatus.running) {
 			let runningCount = Object.values(this.tasklist).reduce((prev, curr) => curr.status === TaskStatus.running ? prev + 1 : prev, 0);
+			const maxThreads = Math.min(this.maxThreads, this.functionLevel < 40 ? 6 : this.functionLevel < 60 ? 9 : Number.MAX_SAFE_INTEGER);
 			for (const [id, task] of Object.entries(this.tasklist)) {
-				if (runningCount >= this.maxThreads || id === '-1') {
+				if (runningCount >= maxThreads || id === '-1') {
 					break;
 				}
 				if (task.status === TaskStatus.idle_queued) {
@@ -839,7 +854,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			`任务「${task.fileBaseName}」转码达到时长上限了${byFrontend ? '（前端）' : '（后端）'}\n` +
 			'💔您的用户等级最高支持 11:11 的媒体时长和 11:11 的处理耗时\n' +
 			'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
-			'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了，记得保持微笑✅',	
+			'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
 			NotificationLevel.error,
 		);
 		task.status = TaskStatus.stopping;

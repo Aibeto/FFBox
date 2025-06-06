@@ -9,9 +9,10 @@ export interface ButtonProps {
 	size?: 'small' | 'normal' | 'large';
 }[];
 export enum ButtonType {
-	Normal = 0,
-	Primary = 1,
-	Danger = 2,
+	Normal = 'normal',
+	Primary = 'primary',
+	Danger = 'danger',
+	NoBg = 'noBg',
 };
 
 const getButtonClass = (type?: ButtonType, disabled?: boolean, size?: ButtonProps['size']) => {
@@ -21,6 +22,8 @@ const getButtonClass = (type?: ButtonType, disabled?: boolean, size?: ButtonProp
 		classText += style['primary'];
 	} else if (type === ButtonType.Danger) {
 		classText += style['danger'];
+	} else if (type === ButtonType.NoBg) {
+		classText += style['noBg'];
 	}
 	classText += ' ';
 	if (size) {

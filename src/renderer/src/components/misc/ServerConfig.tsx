@@ -1,4 +1,4 @@
-import { defineComponent, onMounted, ref } from "vue";
+import { computed, defineComponent, onMounted, ref } from "vue";
 import { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import { useTooltip } from "@renderer/common/tooltipUtil";
@@ -46,6 +46,7 @@ interface P {
     exportFunctions: (fs: any) => void;
 }
 const Comp = defineComponent((props: P) => {
+	const appStore = useAppStore();
 	const maxThreadsValue = ref<string>();
 	const customFFmpegPathValue = ref<string>();
 	const preserveUnfinishedTasksValue = ref(true);
@@ -59,6 +60,8 @@ const Comp = defineComponent((props: P) => {
 			};
 		}
 	};
+
+	const maxThreadsLimit = computed(() => appStore.functionLevel < 40 ? 6 : appStore.functionLevel < 60 ? 9 : 0);
 
 	onMounted(() => {
 		props.exportFunctions(exports);
@@ -76,7 +79,7 @@ const Comp = defineComponent((props: P) => {
 		<div class={style.serverConfig}>
 			<BoxedNormalInput
 				title="同时转码任务数量" value={maxThreadsValue.value} onChange={(value: string) => maxThreadsValue.value = value} inputFixer={posIntegerFixer} placeholder="1"
-				{ ...useTooltip('开始转码队列后，会使所有未完成任务进入排队状态，并持续挑选最靠前的任务开始运行。同时运行的任务数量受此控制', 't') }
+				{ ...useTooltip(`开始转码队列后，会使所有未完成任务进入排队状态，并持续挑选最靠前的任务开始运行。同时运行的任务数量受此控制${maxThreadsLimit.value ? `\n（您的用户等级最高支持同时运行 ${maxThreadsLimit.value} 个任务）` : ''}`, 't') }
 			/>
 			<BoxedSwitch
 				title="保留未完成任务" checked={preserveUnfinishedTasksValue.value} onChange={(value: boolean) => preserveUnfinishedTasksValue.value = value}

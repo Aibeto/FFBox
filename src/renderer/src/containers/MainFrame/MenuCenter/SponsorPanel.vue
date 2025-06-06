@@ -192,7 +192,7 @@ onMounted(() => {
 				</div>
 			</div>
 		</div>
-		<p>如果还想把我喂胖，扫下面几个🐴也行 _(:з」∠)_（只要你喜欢</p>
+		<p>如果您不愿奶茶被平台抽掉一口，那就用下面 3 个🙃</p>
 		<div class="paragram">
 			<div class="QRscreen QRscreen-alipay" v-bind="useTooltip('（你有没有发现，我把支付宝跟微信支付的标语互换了👀')">
 				<div class="QRuppertext">推荐使用<strong>支付宝</strong></div>
@@ -225,8 +225,42 @@ onMounted(() => {
 				</div>
 			</div>
 		</div>
-		<h2>功能解锁</h2>
-		<p v-bind="useTooltip('限制了 11:11 的转码和媒体时长、特别高和特别低的码率设定值、文件上传大小', 't')">FFBox 是一款试用、有源、捐赠混合的软件。出厂状况下，本软件存在部分功能的使用限制</p>
+		<h2>功能解限</h2>
+		<div class="yourLevel">
+			<div class="yourLevel-text">您的用户等级</div>
+			<div class="yourLevel-bar">
+				<div :style="{ width: `${appStore.functionLevel}%` }"></div>
+			</div>
+		</div>
+		<table>
+			<tbody>
+				<tr v-if="appStore.functionLevel < 50">
+					<td>媒体时长上限</td>
+					<td>11:11</td>
+				</tr>
+				<tr v-if="appStore.functionLevel < 50">
+					<td>转码时长上限</td>
+					<td>11:11</td>
+				</tr>
+				<tr v-if="appStore.functionLevel < 50">
+					<td>视频 ABR/CBR 码率设定限制</td>
+					<td>500Kbps ~ 32Mbps</td>
+				</tr>
+				<tr>
+					<td>远程单文件上传大小上限</td>
+					<td>{{ appStore.functionLevel < 60 ? 127 : 192 }} MB</td>
+				</tr>
+				<tr v-if="appStore.functionLevel < 60">
+					<td>任务列表数量上限</td>
+					<td>{{ appStore.functionLevel < 40 ? 66 : 99 }}</td>
+				</tr>
+				<tr v-if="appStore.functionLevel < 60">
+					<td>同时转码任务数量设定上限</td>
+					<td>{{ appStore.functionLevel < 40 ? 6 : 9 }}</td>
+				</tr>
+			</tbody>
+		</table>
+		<p>FFBox 是一款试用、有源、捐赠混合的软件。出厂状况下，本软件存在部分功能的使用限制</p>
 		<p>您可以通过激活码去除这些限制，详情请到官网或官方信息发布平台查询～</p>
 		<BoxedNormalInput :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" style="margin: 0" title="激活码" :long="true" placeholder="一份激活码对应唯一的机器码，请您输入与本机机器码对应的激活码进行激活🫡" @change="(value) => activateCode = value" />
 		<Button :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" @click="handleActivateButtonClick">激活</Button>
@@ -336,6 +370,52 @@ onMounted(() => {
 		font-size: 20px;
 		margin: 2em 0 1em;
 		color: var(--titleText);
+	}
+	.yourLevel {
+		position: relative;
+		display: flex;
+		justify-content: stretch;
+		align-items: center;
+		gap: 8px;
+		padding: 8px calc(-100px + 30%);
+		font-size: 14px;
+		.yourLevel-text {
+			width: 120px;
+		}
+		.yourLevel-bar {
+			width: 100%;
+			height: 8px;
+			flex: auto 1 1;
+			border-radius: 6px;
+			padding: 1.5px;
+			box-shadow: 0 0 8px 0px hwb(var(--hoverShadow) / 0.15) inset; 	// 内阴影
+			// outline: red 1px solid;
+			div {
+				height: 8px;
+				border-radius: 4px;
+				background: linear-gradient(180deg, hwb(50 15% 0%), hwb(50 5% 5%));
+				box-shadow: 0 0 6px 0 hwb(50 5% 5% / 0.9),	// 外发光
+							0 0.75px 0.75px 0 hwb(50 80% 0% / 0.6) inset;	// 上高光
+			}
+		}
+	}
+	table {
+		margin: 2em auto;
+		border-spacing: 0;
+		border-collapse: collapse;
+		font-size: 14px;
+		box-shadow: 0px 2px 4px var(--articleLightBg);
+		tbody>tr:nth-child(2n-1) {
+			background-color: var(--articleLightBg);
+		}
+		td, th {
+			border: var(--articleBorder) 1.5px solid;
+			border-collapse: collapse;
+			padding: 5px 12px;
+		}
+		th {
+			font-weight: 600;
+		}
 	}
 </style>
 

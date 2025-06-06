@@ -3,8 +3,18 @@ import { computed } from 'vue';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { WorkingStatus } from '@common/types';
+import Button, { ButtonType } from '@renderer/components/Button/Button';
+import IconSelectAll from '@renderer/assets/actionBar/selectAll.svg?component';
 
 const appStore = useAppStore();
+const selectionDescription = computed(() => {
+	if (!appStore.currentServer || appStore.currentServer.entity.status !== ServiceBridgeStatus.Connected) {
+		return '未连接到服务器';
+	}
+	return Object.keys(appStore.currentServer?.data.tasks || []).length > 1 && !appStore.selectedTask.size && appStore.taskSelectionModified
+		? '您修改了参数' + (window.innerWidth > 740 ? '，但并未应用到任务，是否' : '')
+		: `${Object.keys(appStore.currentServer?.data.tasks || []).length - 1} 个任务` + (appStore.selectedTask.size ? `，已选择 ${appStore.selectedTask.size} 个` : '')	// 注意去掉 1 个全局任务
+});
 const startButtonClass = computed(() => {
 	if (!appStore.currentServer || appStore.currentServer.entity.status !== ServiceBridgeStatus.Connected) {
 		return 'startbutton-gray';
@@ -18,16 +28,39 @@ const startButtonText = computed(() => {
 	return appStore.currentServer.data.workingStatus === WorkingStatus.running ? '⏸暂停' : '▶开始';
 });
 
+const handleSelectAllClick = () => {
+	const newSet = new Set([...Object.keys(appStore.currentServer.data.tasks).map(Number)]);
+	newSet.delete(-1);
+	appStore.selectedTask = newSet;
+	appStore.taskSelectionModified = false;
+};
+const handleApplyAllClick = () => {
+	const newSet = new Set([...Object.keys(appStore.currentServer.data.tasks).map(Number)]);
+	newSet.delete(-1);
+	appStore.applyParameters(true, newSet);
+	appStore.taskSelectionModified = false;
+};
+
 </script>
 
 <template>
 	<div class="actionbar" :data-color_theme="appStore.frontendSettings.colorTheme">
 		<div class="left">
-				<!-- <button class="startbutton startbutton-gray" @click="appStore.initTemp()">➕添加</button> -->
+			<Button :disabled="!appStore.currentServer || appStore.currentServer.entity.status !== ServiceBridgeStatus.Connected" :type="ButtonType.NoBg" @click="handleSelectAllClick"><IconSelectAll />全选</Button>
+			<div class="description">{{ selectionDescription }}</div>
+			<Button
+				v-if="Object.keys(appStore.currentServer?.data.tasks || []).length > 1 && (appStore.taskSelectionModified || appStore.selectedTask.size)"
+				:type="ButtonType.Primary"
+				size="small"
+				class="smallButton"
+				@click="handleApplyAllClick"
+			>
+				应用参数到全部任务
+			</Button>
 			</div>
-			<div class="right">
-				<button class="startbutton" :class="startButtonClass" @click="appStore.startNpause()">{{ startButtonText }}</button>
-			</div>
+		<div class="right">
+			<button class="startbutton" :class="startButtonClass" @click="appStore.startNpause()">{{ startButtonText }}</button>
+		</div>
 	</div>
 </template>
 
@@ -56,6 +89,23 @@ const startButtonText = computed(() => {
 		}
 		.left {
 			padding-left: 96px;
+			opacity: 0.9;
+			button:not(.smallButton) {
+				height: 32px;
+				min-width: unset;
+				font-size: 13px;
+				svg {
+					width: 18px;
+					height: 18px;
+					vertical-align: -4px;
+					margin-right: 4px;
+					color: var(--primaryColor);
+				}
+			}
+			.description {
+				font-size: 13px;
+				margin-right: 16px;
+			}
 		}
 		.right {
 			padding-right: 16px;

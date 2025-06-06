@@ -150,7 +150,7 @@ const onDrop = (event: DragEvent) => {	//
 		<div
 			v-if="appStore.currentServer?.data.ffmpegInfo.version"
 			class="dropfilesdiv"
-			@click="appStore.selectedTask = new Set()"
+			@click="appStore.selectedTask = new Set(); appStore.taskSelectionModified = false;"
 			@mousedown="debugLauncher($event)"
 			@dblclick="nodeBridge.env === 'electron' ? showAddTaskPrompt() : showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList))"
 		>

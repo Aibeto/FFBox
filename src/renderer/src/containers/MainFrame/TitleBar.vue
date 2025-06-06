@@ -57,6 +57,7 @@ watch(
 // 点击标签页
 const handleTabClicked = (serverId: string) => {
 	appStore.currentServerId = serverId;
+	appStore.selectedTask.clear();
 };
 
 const handleTabMouseUp = (server: Server, event: MouseEvent) => {

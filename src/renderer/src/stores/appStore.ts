@@ -50,6 +50,7 @@ interface StoreState {
 	servers: Server[];
 	currentServerId: string;
 	selectedTask: Set<number>,
+	taskSelectionModified: boolean;	// 修改参数后显示提示是否应用到所有任务，更改 selectedTask 时去除显示
 	globalParams: OutputParams;
 	presetName: string | undefined;
 	availablePresets: string[];
@@ -95,6 +96,7 @@ export const useAppStore = defineStore('app', {
 			servers: [],
 			currentServerId: undefined,
 			selectedTask: new Set(),
+			taskSelectionModified: false,
 			globalParams: JSON.parse(JSON.stringify(defaultParams)),
 			presetName: '',
 			availablePresets: [],
@@ -208,8 +210,34 @@ export const useAppStore = defineStore('app', {
 			const isRemoteService = server.entity.ip !== 'localhost';
 			const newlyAddedTaskIds: Promise<number>[] = [];
 			let dropDelayCount = 0;
+			const maxTaskCount = 这.functionLevel < 40 ? 66 : 这.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
+			function allTimerFinish() {
+				Promise.all(newlyAddedTaskIds).then((ids) => {
+					这.selectedTask = new Set(ids);
+					// addTask 函数已经把当前的 globalParams 传了过去，因此后端在处理完成之后参数设置就与前端一样，无需 applySelectedTask
+					// 在进行到这个步骤的时候，还没有收到 taskUpdate，因此不能 applySelectedTask，否则会导致参数为空
+					// 这.applySelectedTask();
+				})
+			}
+			let needStopCuzLimit = false;
 			for (const input of inputList) {
 				setTimeout(async () => {	// v2.4 版本开始完全可以不要延时，但是太生硬，所以加个动画
+					if (needStopCuzLimit) {
+						return;
+					}
+					if (Object.keys(server.data.tasks).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
+						needStopCuzLimit = true;
+						这.pushMsg(
+							`😞任务数量达到上限了（前端）\n` +
+							`💔您的用户等级最高支持在任务列表中放入 ${maxTaskCount} 个任务，您可以先删除一些任务再添加\n` +
+							'🤫开发者设计该项限制的意图是避免超出合理范围的操作导致前端卡顿（实测 100 个任务同时运行一遍或能导致前端卡顿半小时），\n' +
+							'　并给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
+							'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
+							NotificationLevel.warning
+						);
+						allTimerFinish();
+						return;
+					}
 					const filename = typeof input === 'string' ? path.parse(input).name : input.name;
 					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
 					const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
@@ -235,12 +263,7 @@ export const useAppStore = defineStore('app', {
 					}
 					newlyAddedTaskIds.push(promise);
 					if (newlyAddedTaskIds.length === inputList.length) {
-						Promise.all(newlyAddedTaskIds).then((ids) => {
-							这.selectedTask = new Set(ids);
-							// addTask 函数已经把当前的 globalParams 传了过去，因此后端在处理完成之后参数设置就与前端一样，无需 applySelectedTask
-							// 在进行到这个步骤的时候，还没有收到 taskUpdate，因此不能 applySelectedTask，否则会导致参数为空
-							// 这.applySelectedTask();
-						})
+						allTimerFinish();
 					}
 				}, dropDelayCount);
 				// console.log(dropDelayCount)
@@ -327,7 +350,7 @@ export const useAppStore = defineStore('app', {
 		 * 函数将修改后的全局参数应用到当前选择的任务项，然后保存到本地磁盘
 		 * 对于用户操作，将预设参数置为未保存
 		 */
-		applyParameters(resetCurrentPreset = true) {
+		applyParameters(resetCurrentPreset = true, selection?: Set<number>) {
 			const 这 = useAppStore();
 			// 更改到一些不匹配的值后会导致 getFFmpegParaArray 出错，但是修正代码就在后面，因此仅需忽略它，让它继续运行下去，不要急着更新
 
@@ -343,7 +366,7 @@ export const useAppStore = defineStore('app', {
 				// 这.globalParams
 				// 收集需要批量更新的输出参数，交给 service。同时本地替换一次 task.after
 				let needToUpdateIds: number[] = [];
-				for (const id of 这.selectedTask) {
+				for (const id of selection || 这.selectedTask) {
 					let task = data.tasks[id];
 					task.after = replaceOutputParams(这.globalParams, task.after);
 					needToUpdateIds.push(id);
@@ -354,6 +377,8 @@ export const useAppStore = defineStore('app', {
 					// 注意回填本地时也会产生一次 task.after 更新
 					entity.setParameter(needToUpdateIds, 这.globalParams);
 				}
+
+				这.taskSelectionModified = true;
 			}
 
 			// 存盘
