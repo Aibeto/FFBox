@@ -124,7 +124,7 @@ onMounted(() => {
 				</div>
 			</div>
 		</div>
-		<p>如果还想把我喂胖，扫下面几个🐴也行 _(:з」∠)_（只要你喜欢</p>
+		<p>如果您不愿奶茶被平台抽掉一口，那就用下面 3 个🙃</p>
 		<div class="paragram">
 			<div class="QRscreen QRscreen-alipay" @mouseleave="Tooltip.hide()" @mouseenter="handleElementHover($event, '（你有没有发现，我把支付宝跟微信支付的标语互换了👀')">
 				<div class="QRuppertext">推荐使用<strong>支付宝</strong></div>

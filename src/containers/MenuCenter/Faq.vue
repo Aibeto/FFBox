@@ -4,7 +4,7 @@ import { useAppStore } from '../../stores/appStore';
 
 const appStore = useAppStore();
 
-const brickCount = 15;
+const brickCount = 16;
 const brickOpenState = ref(Array(brickCount).fill(false));
 const brickHeight = ref(Array(brickCount).fill(0));
 const brickStyle = computed(() => {
@@ -94,8 +94,15 @@ onMounted(() => {
 			</div>
 		</section>
 		<section class="faqbrick" @click="handleBrickClick(6)" :style="brickStyle[6]">
-			<h2 class="title">🐢 就这么点功能，为什么软件的体积这么大？</h2>
+			<h2 class="title">🤷 我按照说明放置了 ffmpeg，但依然提示找不到</h2>
 			<div class="content" :ref="el => setRef(el, 6)">
+				<p>node.js 有一个诡异的问题：运行部分程序会出现“EPREM”错误，一个很常见的解决方法是多运行几次</p>
+				<p>您可以尝试多运行几次、直接运行 ffmpeg 以排查权限问题（比如操作系统会对从互联网上下载的文件做标记，需要用户手动运行确认一次）、关闭杀毒软件</p>
+			</div>
+		</section>
+		<section class="faqbrick" @click="handleBrickClick(7)" :style="brickStyle[7]">
+			<h2 class="title">🐢 就这么点功能，为什么软件的体积这么大？</h2>
+			<div class="content" :ref="el => setRef(el, 7)">
 				<p>这在软件工程中，已经是一个老生常谈的话题了。<br />开发者的便利与使用者的便利，总要有取舍。</p>
 				<p>FFBox 的体积，主要由 electron 和 node.js 两个第三方库占据。这是软件架构的基石，极难动摇。<br />您使用的很多软件，比如带有首选中文名的浏览器、Visual Studio Code、飞书、QQ，甚至包括了破烂微信，它们都使用了 electron 或相似技术的套壳浏览器。</p>
 				<p>您或许对 Qt 这类框架颇有青睐，但事实上 Qt 想要做得好用是相当相当困难的。在不进行特殊优化的情况下，Qt 做出来的 UI 操作起来都有种“笨笨的”的感觉。而本作者在公司的经历也表明：想要做好 Qt 应用，不是一般程序员能做到的事情。</p>
@@ -103,9 +110,9 @@ onMounted(() => {
 				<p>受限于时间的原因，作者目前仅学习了 electron，未有其他类似框架的开发经验。但 FFBox 在设计代码时，就已考虑将“electron”作为第三方库，允许脱离 electron 运行，因此目前 FFBox 可以直接在浏览器中运行。</p>
 			</div>
 		</section>
-		<section class="faqbrick" @click="handleBrickClick(7)" :style="brickStyle[7]">
+		<section class="faqbrick" @click="handleBrickClick(8)" :style="brickStyle[8]">
 			<h2 class="title">🤥 FFBox 的起名有什么含义吗？</h2>
-			<div class="content" :ref="el => setRef(el, 7)">
+			<div class="content" :ref="el => setRef(el, 8)">
 				<p>FFBox is a box of FFmpeg. This is the most accurate explanation.</p>
 				<p>And, think of what FFF... means. Not so popular? Consider which day is the initial release date of FFBox.</p>
 				<p>It's strange that some people have stereotypes of programmers. Griddy T-shirts, treating computer as a companion, and so on what the fuck... That's really good programmers! If he isn't, he's nerd.</p>
@@ -116,17 +123,17 @@ onMounted(() => {
 				<p><i>(2024/04/01 更新)&nbsp;</i> <s><strong>其实视频转码什么的功能已经不重要了。FFBox 的 LICENSE 才是我想要做的全部功能。</strong></s></p>
 			</div>
 		</section>
-		<section class="faqbrick" @click="handleBrickClick(8)" :style="brickStyle[8]">
+		<section class="faqbrick" @click="handleBrickClick(9)" :style="brickStyle[9]">
 			<h2 class="title">🤔 为什么不给 FFBox 起一个中文名？</h2>
-			<div class="content" :ref="el => setRef(el, 8)">
+			<div class="content" :ref="el => setRef(el, 9)">
 				<p>众所周知，如果一款软件有首选的中文名，它就大概率是不好用的软件。加水印、DPI 不适配、功能简陋，等等都有。这就是我不给它写中文名的原因。</p>
 				<p>那么如何给它写一个临时的名字呢？结合问题“FFBox 的起名有什么含义吗？”你就能看懂这个名字的妙处。</p>
 				<p><i>如果你记得 FFBox 的待选中文名，那你就是我的老用户！(๑•̀ㅂ•́)و✧</i></p>
 			</div>
 		</section>
-		<section class="faqbrick" @click="handleBrickClick(9)" :style="brickStyle[9]">
+		<section class="faqbrick" @click="handleBrickClick(10)" :style="brickStyle[10]">
 			<h2 class="title">📋 这些年来，FFBox 的版本更迭都经历了什么？</h2>
-			<div class="content" :ref="el => setRef(el, 9)">
+			<div class="content" :ref="el => setRef(el, 10)">
 				<p>1.x 版本的 FFBox，是经典的“html + css + js”前端三件套，属于初出茅庐的作品，没有工程化和模块化，一个 js 文件两千多行，逻辑是分散的，直接操作 DOM，甚至无法正确处理 FFmpeg 的状态，因此出道即瓶颈，只经历了 1.1 一个可用性改善的版本就进入了 2.x 版本的开发。</p>
 				<p>1.x 版本中途很长时间没更新，因为正在制作 <a href="https://www.bilibili.com/video/av968582548/" target="_blank">onestop</a>。</p>
 				<p>2.x 版本是使用 vue 2 进行工程化、模块化开发的重构作品。其模块化程度相对 1.x 版本是一个飞跃，但仍处于相当糟糕的阶段。大量控制逻辑集中在状态管理器上，总线上挤满了逻辑，相当于过度中心化的同心圆城市结构，组件分离但不独立。处于能正常开发，但走不太远的状态。因此在此处累积了 7 个版本，才进入 3.x 版本的开发。</p>
@@ -136,34 +143,34 @@ onMounted(() => {
 				<p>4.x 版本使用了最现代的技术架构——vue 3、vite、less，靠纯自行编写实现了整个项目的开发与打包脚本，同时也彻底分离了前后端，也尝试了一些像 DirectX 那样的新奇玩意。界面上也结合了我多年以来对功能性、易用性、美观性的理解，融合了各家的习惯，设计了全新的 UI。虽然没有太多实质功能性上的更新，但各处都有不小的改变。可以说整个研发周期内是踩坑不断。我也使用了日志的形式将这些经验积累了起来，可以说它甚至比软件本身能做到的事情更为重要。它记录了我的踩坑经历、事件感慨、人生感悟……无需多言，这款软件，主打好看实用，您用便是！无需理会日志这种无人知晓的内容~</p>
 			</div>
 		</section>
-		<section class="faqbrick" @click="handleBrickClick(10)" :style="brickStyle[10]">
+		<section class="faqbrick" @click="handleBrickClick(11)" :style="brickStyle[11]">
 			<h2 class="title">🙋 我想要“滤镜”功能！</h2>
-			<div class="content" :ref="el => setRef(el, 10)">
+			<div class="content" :ref="el => setRef(el, 11)">
 				<p>这个功能至今还没做好，是因为我在公司做过类似的编排组件，真的很不好搞。😫</p>
 				<p>但是，我已经大致想好要怎么做了。还请您耐心等待～</p>
 			</div>
 		</section>
-		<section class="faqbrick" @click="handleBrickClick(11)" :style="brickStyle[11]">
+		<section class="faqbrick" @click="handleBrickClick(12)" :style="brickStyle[12]">
 			<h2 class="title">🤥 做了这么长时间，有多少收入？</h2>
-			<div class="content" :ref="el => setRef(el, 11)">
+			<div class="content" :ref="el => setRef(el, 12)">
 				<p><i>应该有六百多？我不怎么关心这个。</i></p>
 			</div>
 		</section>
-		<section class="faqbrick" @click="handleBrickClick(12)" :style="brickStyle[12]">
+		<section class="faqbrick" @click="handleBrickClick(13)" :style="brickStyle[13]">
 			<h2 class="title">🫣 有女朋友吗？</h2>
-			<div class="content" :ref="el => setRef(el, 12)">
+			<div class="content" :ref="el => setRef(el, 13)">
 				<p>一定程度上的母单。</p>
 			</div>
 		</section>
-		<section class="faqbrick" @click="handleBrickClick(13)" :style="brickStyle[13]">
+		<section class="faqbrick" @click="handleBrickClick(14)" :style="brickStyle[14]">
 			<h2 class="title">🫣 有联系方式吗？</h2>
-			<div class="content" :ref="el => setRef(el, 13)">
+			<div class="content" :ref="el => setRef(el, 14)">
 				<p>(∩❛ڡ❛∩)</p>
 			</div>
 		</section>
-		<section class="faqbrick" @click="handleBrickClick(14)" :style="brickStyle[14]">
+		<section class="faqbrick" @click="handleBrickClick(15)" :style="brickStyle[15]">
 			<h2 class="title">🫣 有……？</h2>
-			<div class="content" :ref="el => setRef(el, 14)">
+			<div class="content" :ref="el => setRef(el, 15)">
 				<p>别问了，庄园里的小摩尔都钻进被窝里环游星空了。</p>
 				<p>走吧，页面到底儿了。</p>
 			</div>
