@@ -13,8 +13,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Fetch release data
+      - name: git fetch pull 和 curl GitHub API
         run: |
+          git fetch
+          git pull
           curl -s https://api.github.com/repos/ttqftech/FFBox/releases > public/releases.json
           cp public/releases.json docs/releases.json
 
@@ -24,8 +26,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/releases.json
           git commit -m "Update releases.json [auto]" || echo "No changes to commit"
-          git pull --rebase
-          git checkout docs/releases.json   # 保留本地 D 的内容
-          git add <冲突文件>
-          git rebase --continue
           git push
