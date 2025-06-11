@@ -189,13 +189,11 @@ const handleSetShowByTimeRatio = () => {
 
 onMounted(() => {
 	fetch('./downloadCount/releases.json').then(async (res) => {
-		console.time('a');
 		const releases = await res.json() as Releases;
-		console.timeEnd('a');
 		releases.reverse();
 		await fetch('./downloadCount/time').then(async (res) => {
 			const timeText = await res.text();
-			const t = new Date(timeText);
+			const t = new Date(timeText.trim());
 			releaseTime.value = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}（中国国标）`;
 		});
 
