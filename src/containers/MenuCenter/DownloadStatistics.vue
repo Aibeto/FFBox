@@ -25,6 +25,7 @@ type ProcessedRelease = {
 
 const appStore = useAppStore();
 const processedReleases = ref<ProcessedRelease[]>();
+const releaseTime = ref('未知时间');
 const canvas1Ref = ref();
 const canvas2Ref = ref();
 const canvas3Ref = ref();
@@ -187,9 +188,16 @@ const handleSetShowByTimeRatio = () => {
 }
 
 onMounted(() => {
-	fetch('./releases.json').then(async (res) => {
+	fetch('./downloadCount/releases.json').then(async (res) => {
+		console.time('a');
 		const releases = await res.json() as Releases;
+		console.timeEnd('a');
 		releases.reverse();
+		await fetch('./downloadCount/time').then(async (res) => {
+			const timeText = await res.text();
+			const t = new Date(timeText);
+			releaseTime.value = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}（中国国标）`;
+		});
 
 		/**
 		 * 请生成以下几个图表：
@@ -282,7 +290,7 @@ onUnmounted(() => {
 <template>
 	<div class="downloadStatistics">
 		<div id="downloadStatisticsLoading" v-if="!processedReleases?.length">正在加载</div>
-		<p>以下数据统计自 GitHub，每小时更新</p>
+		<p>以下数据统计自 GitHub，上次更新：{{ releaseTime }}</p>
 		<Button class="checkButton" @click="handleSetShowByTimeRatio">
 			<Checkbox :checked="showByTimeRatio" />
 			<span>按时间缩放</span>
@@ -338,6 +346,7 @@ onUnmounted(() => {
 			}
 		}
 		h2 {
+			margin-bottom: 8px;
 			&>div {
 				display: inline-block;
 				font-size: 0.5em;
@@ -357,6 +366,7 @@ onUnmounted(() => {
 			position: relative;
 			width: calc(100% - 16px);
 			height: 400px;
+			margin-bottom: 32px;
 			canvas {
 				width: 100%;
 				height: 100%;

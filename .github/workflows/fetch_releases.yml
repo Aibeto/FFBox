@@ -17,13 +17,14 @@ jobs:
         run: |
           git fetch
           git pull
-          curl -s https://api.github.com/repos/ttqftech/FFBox/releases > public/releases.json
-          cp public/releases.json docs/releases.json
+          curl -s https://api.github.com/repos/ttqftech/FFBox/releases > docs/downloadCount/releases.json
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > docs/downloadCount/time
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/releases.json
+          git add docs/downloadCount/releases.json
+          git add docs/downloadCount/time
           git commit -m "Update releases.json [auto]" || echo "No changes to commit"
           git push
