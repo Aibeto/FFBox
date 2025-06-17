@@ -1,4 +1,4 @@
-import { computed, FunctionalComponent } from 'vue';
+import { computed, defineComponent } from 'vue';
 import { vcodecsList, resolution, framerate, VCodecDetail } from '@common/params/vcodecs';
 import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
@@ -11,13 +11,17 @@ import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import style from './index.module.less';
 
-interface Props {}
+interface Props {
+	editingOutputIndex: number;
+}
 
-const VcodecView: FunctionalComponent<Props> = (props) => {
+const VcodecView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
+	
+	const videoParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex].video);
 
 	const vcodec = computed(() => {
-		const vcodecName = appStore.globalParams.video.vcodec;
+		const vcodecName = videoParams.value.vcodec;
 		return (getMenuItemByValue(vcodecsList, vcodecName) as any)?.extra as VCodecDetail;
 	});
 	const rateControlList = computed(() => {
@@ -39,12 +43,12 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 		if (!rList.length) {
 			return null;
 		}
-		const rateControlName = appStore.globalParams.video.ratecontrol;
+		const rateControlName = videoParams.value.ratecontrol;
 		let index = rList.findIndex((item) => item.type === 'normal' && item.value === rateControlName);
 		// 切换编码器后没有原来的码率控制模式了，默认设定为列表第一项
 		if (index == -1) {
 			index = 0;
-			appStore.globalParams.video.ratecontrol = (rList[0] as any).value;
+			videoParams.value.ratecontrol = (rList[0] as any).value;
 			appStore.applyParameters();
 		}
 		const item = rList[index] as any;
@@ -78,7 +82,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
-		appStore.globalParams.video[sName] = value;
+		videoParams.value[sName] = value;
 		appStore.applyParameters();
 		if (sName == 'vcodec') {
 			appStore.checkAndApplyCodecDefaults({ video: true });
@@ -86,7 +90,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 	};
 	const handleDetailChange = (sName: string, value: any) => {
 		// @ts-ignore
-		appStore.globalParams.video.detail[sName] = value;
+		videoParams.value.detail[sName] = value;
 		appStore.applyParameters();
 	};
 
@@ -97,7 +101,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedSlider
 						title={parameter.display}
 						description={parameter.description}
-						value={appStore.globalParams.video.detail[parameter.parameter]}
+						value={videoParams.value.detail[parameter.parameter]}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
 						min={parameter.min}
 						max={parameter.max}
@@ -114,7 +118,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedDropdownInput
 						title={parameter.display}
 						description={parameter.description}
-						text={appStore.globalParams.video.detail[parameter.parameter]}
+						text={videoParams.value.detail[parameter.parameter]}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
 						list={parameter.items}
 						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
@@ -125,7 +129,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedSwitch
 						title={parameter.display}
 						description={parameter.description}
-						checked={appStore.globalParams.video.detail[parameter.parameter]}
+						checked={videoParams.value.detail[parameter.parameter]}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
 						onChange={(value: boolean) => handleDetailChange(parameter.parameter, value)}
 					/>
@@ -135,7 +139,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedNormalInput
 						title={parameter.display}
 						description={parameter.description}
-						value={appStore.globalParams.video.detail[parameter.parameter]}
+						value={videoParams.value.detail[parameter.parameter]}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
 						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
 						validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
@@ -147,20 +151,20 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 	);
 
 	// console.log(vcodec.value?.parameters);
-	return (
+	return () => (
 		<div class={style.container}>
-			<BoxedDropdownInput title="视频编码器" text={appStore.globalParams.video.vcodec} list={vcodecsList} onChange={(value: string) => handleChange('vcodec', value)} />
-			{['禁用', 'copy'].indexOf(appStore.globalParams.video.vcodec) === -1 && (
+			<BoxedDropdownInput title="视频编码器" text={videoParams.value.vcodec} list={vcodecsList} onChange={(value: string) => handleChange('vcodec', value)} />
+			{['禁用', 'copy'].indexOf(videoParams.value.vcodec) === -1 && (
 				<>
-					<BoxedDropdownInput title="分辨率" text={appStore.globalParams.video.resolution} list={resolution} onChange={(value: string) => handleChange('resolution', value)} />
-					<BoxedDropdownInput title="输出帧速" text={appStore.globalParams.video.framerate} list={framerate} validator={framerateValidator} onChange={(value: string) => handleChange('framerate', value)} />
+					<BoxedDropdownInput title="分辨率" text={videoParams.value.resolution} list={resolution} onChange={(value: string) => handleChange('resolution', value)} />
+					<BoxedDropdownInput title="输出帧速" text={videoParams.value.framerate} list={framerate} validator={framerateValidator} onChange={(value: string) => handleChange('framerate', value)} />
 					{(vcodec.value?.rateControl || []).length ? (
-						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.video.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
+						<BoxedDropdownInput title="码率控制" text={videoParams.value.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
 					) : null}
 					{rateControlSlider.value && (
 						<BoxedSlider
 							title={rateControlSlider.value.title}
-							value={appStore.globalParams.video.ratevalue}
+							value={videoParams.value.ratevalue}
 							min={rateControlSlider.value.min}
 							max={rateControlSlider.value.max}
 							arrowKeyStep={rateControlSlider.value.arrowKeyStep}
@@ -173,7 +177,7 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 					{renderDetailParameters(false)}
 				</>
 			)}
-			<BoxedNormalInput title="自定义参数" value={appStore.globalParams.video.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			<BoxedNormalInput title="自定义参数" value={videoParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 			{(vcodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
 				<>
 					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
@@ -182,6 +186,8 @@ const VcodecView: FunctionalComponent<Props> = (props) => {
 			) || null}
 		</div>
 	);
-};
+}, {
+	props: ['editingOutputIndex'],
+});
 
 export default VcodecView;

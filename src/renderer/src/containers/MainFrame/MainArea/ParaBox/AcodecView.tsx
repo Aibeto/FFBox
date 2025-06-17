@@ -1,4 +1,4 @@
-import { computed, FunctionalComponent } from 'vue';
+import { computed, defineComponent } from 'vue';
 import { acodecsList, volSlider, ACodecDetail } from '@common/params/acodecs';
 import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
@@ -11,13 +11,17 @@ import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import style from './index.module.less';
 
-interface Props {}
+interface Props {
+	editingOutputIndex: number;
+}
 
-const AcodecView: FunctionalComponent<Props> = (props) => {
+const AcodecView = defineComponent((props) => {
 	const appStore = useAppStore();
 
+	const audioParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex].audio);
+
 	const acodec = computed(() => {
-		const acodecName = appStore.globalParams.audio.acodec;
+		const acodecName = audioParams.value.acodec;
 		return (getMenuItemByValue(acodecsList, acodecName) as any)?.extra as ACodecDetail;
 	});
 	const rateControlList = computed(() => {
@@ -39,12 +43,12 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 		if (!rList.length) {
 			return null;
 		}
-		const rateControlName = appStore.globalParams.audio.ratecontrol;
+		const rateControlName = audioParams.value.ratecontrol;
 		let index = rList.findIndex((item) => item.type === 'normal' && item.value === rateControlName);
 		// 切换编码器后没有原来的码率控制模式了，默认设定为列表第一项
 		if (index == -1) {
 			index = 0;
-			appStore.globalParams.audio.ratecontrol = (rList[0] as any).value;
+			audioParams.value.ratecontrol = (rList[0] as any).value;
 			appStore.applyParameters();
 		}
 		const item = rList[index] as any;
@@ -72,7 +76,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
-		appStore.globalParams.audio[sName] = value;
+		audioParams.value[sName] = value;
 		appStore.applyParameters();
 		if (sName == 'acodec') {
 			appStore.checkAndApplyCodecDefaults({ audio: true });
@@ -80,7 +84,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 	};
 	const handleDetailChange = (sName: string, value: any) => {
 		// @ts-ignore
-		appStore.globalParams.audio.detail[sName] = value;
+		audioParams.value.detail[sName] = value;
 		appStore.applyParameters();
 	};
 
@@ -91,7 +95,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedSlider
 						title={parameter.display}
 						description={parameter.description}
-						value={appStore.globalParams.audio.detail[parameter.parameter]}
+						value={audioParams.value.detail[parameter.parameter]}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
 						min={parameter.min}
 						max={parameter.max}
@@ -108,7 +112,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedDropdownInput
 						title={parameter.display}
 						description={parameter.description}
-						text={appStore.globalParams.audio.detail[parameter.parameter]}
+						text={audioParams.value.detail[parameter.parameter]}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
 						list={parameter.items}
 						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
@@ -119,7 +123,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedSwitch
 						title={parameter.display}
 						description={parameter.description}
-						checked={appStore.globalParams.audio.detail[parameter.parameter]}
+						checked={audioParams.value.detail[parameter.parameter]}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
 						onChange={(value: boolean) => handleDetailChange(parameter.parameter, value)}
 					/>
@@ -129,7 +133,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedNormalInput
 						title={parameter.display}
 						description={parameter.description}
-						value={appStore.globalParams.audio.detail[parameter.parameter]}
+						value={audioParams.value.detail[parameter.parameter]}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
 						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
 						validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
@@ -140,18 +144,18 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 	);
 
 	// console.log(acodec.value?.parameters);
-	return (
+	return () => (
 		<div class={style.container}>
-			<BoxedDropdownInput title="音频编码器" text={appStore.globalParams.audio.acodec} list={acodecsList} onChange={(value: string) => handleChange('acodec', value)} />
-			{['禁用', 'copy'].indexOf(appStore.globalParams.audio.acodec) === -1 && (
+			<BoxedDropdownInput title="音频编码器" text={audioParams.value.acodec} list={acodecsList} onChange={(value: string) => handleChange('acodec', value)} />
+			{['禁用', 'copy'].indexOf(audioParams.value.acodec) === -1 && (
 				<>
 					{(acodec.value?.rateControl || []).length ? (
-						<BoxedDropdownInput title="码率控制" text={appStore.globalParams.audio.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
+						<BoxedDropdownInput title="码率控制" text={audioParams.value.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
 					) : null}
 					{rateControlSlider.value && (
 						<BoxedSlider
 							title={rateControlSlider.value.title}
-							value={appStore.globalParams.audio.ratevalue}
+							value={audioParams.value.ratevalue}
 							min={rateControlSlider.value.min}
 							max={rateControlSlider.value.max}
 							arrowKeyStep={rateControlSlider.value.arrowKeyStep}
@@ -165,7 +169,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					<BoxedSlider
 						title="音量"
 						description='请注意新版 ffmpeg 不再支持 -vol 参数，请换用滤镜进行音量处理'
-						value={appStore.globalParams.audio.vol}
+						value={audioParams.value.vol}
 						min={volSlider.min}
 						max={volSlider.max}
 						tags={volSlider.tags}
@@ -175,7 +179,7 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 					/>
 				</>
 			)}
-			<BoxedNormalInput title="自定义参数" value={appStore.globalParams.audio.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			<BoxedNormalInput title="自定义参数" value={audioParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 			{(acodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
 				<>
 					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
@@ -184,6 +188,8 @@ const AcodecView: FunctionalComponent<Props> = (props) => {
 			) || null}
 		</div>
 	);
-};
+}, {
+	props: ['editingOutputIndex'],
+});
 
 export default AcodecView;

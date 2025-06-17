@@ -64,10 +64,10 @@ export const TaskItem = defineComponent((props: Props) => {
 	const durationBefore = computed(() => stringifyTimeValue(props.task.before.duration));
 	const durationAfter = computed(() => stringifyTimeValue(outputDuration.value));
 	const smpteBefore = computed(() => props.task.before.vresolution && props.task.before.vframerate ? `${props.task.before.vresolution.replace('<br />', '×')}@${props.task.before.vframerate}` : '-');
-	const videoRateControlValue = computed(() => vGenerator.getRateControlParam(props.task.after.video).value);
-	const audioRateControlValue = computed(() => aGenerator.getRateControlParam(props.task.after.audio).value);
-	const videoRateControl = computed(() => (videoRateControlValue.value === '-' ? '' : `@${props.task.after.video.ratecontrol} ${videoRateControlValue.value}`));
-	const audioRateControl = computed(() => (audioRateControlValue.value === '-' ? '' : `@${props.task.after.audio.ratecontrol} ${audioRateControlValue.value}`));
+	const videoRateControlValue = computed(() => vGenerator.getRateControlParam(props.task.after.outputs[0]?.video)?.value);
+	const audioRateControlValue = computed(() => aGenerator.getRateControlParam(props.task.after.outputs[0]?.audio)?.value);
+	const videoRateControl = computed(() => (videoRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.video.ratecontrol} ${videoRateControlValue.value}`));
+	const audioRateControl = computed(() => (audioRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.audio.ratecontrol} ${audioRateControlValue.value}`));
 	const videoInputBitrate = computed(() => props.task.before.vbitrate > 0 ? `@${beforeBitrateFilter(props.task.before.vbitrate)}` : '');
 	const audioInputBitrate = computed(() => props.task.before.abitrate > 0 ? `@${beforeBitrateFilter(props.task.before.abitrate)}` : '');
 
@@ -374,16 +374,20 @@ export const TaskItem = defineComponent((props: Props) => {
 		const bridge = appStore.currentServer.entity;
 		if (props.task.status === TaskStatus.finished && props.task.transferStatus === TransferStatus.normal) {
 			if (appStore.currentServer.entity.ip === 'localhost') {
-				nodeBridge.openFile(`"${props.task.outputFile}"`);
+				for (const file of props.task.outputFiles) {
+					nodeBridge.openFile(`"${file}"`);
+				}
 			} else {
-				const url = `http://${bridge.ip}:${bridge.port}/download/${props.task.outputFile}`;
-				if (nodeBridge.env === 'electron') {
-					nodeBridge.ipcRenderer?.send('downloadFile', { url, serverName, taskId: props.id });
-					appStore.downloadMap.set(url, { serverId: appStore.currentServer.data.id, taskId: props.id });
-				} else {
-					const elem = document.createElement('a');
-					elem.href = url;
-					elem.click();
+				for (const file of props.task.outputFiles) {
+					const url = `http://${bridge.ip}:${bridge.port}/download/${file}`;
+					if (nodeBridge.env === 'electron') {
+						nodeBridge.ipcRenderer?.send('downloadFile', { url, serverName, taskId: props.id });
+						appStore.downloadMap.set(url, { serverId: appStore.currentServer.data.id, taskId: props.id });
+					} else {
+						const elem = document.createElement('a');
+						elem.href = url;
+						elem.click();
+					}
 				}
 			}
 			Tooltip.hide();
@@ -454,13 +458,14 @@ export const TaskItem = defineComponent((props: Props) => {
 	const handleParaAreaMouseEnter = (event: MouseEvent) => {
 		const paramAreaPos = paramAreaRef.value.getBoundingClientRect();
 		const position = window.innerWidth >= 920 ? { right: `${Math.min(window.innerWidth - event.pageX, window.innerWidth - 400)}px`, top: `${paramAreaPos.top}px` } : { right: '48px', top: `${paramAreaPos.top}px` };
+		const firstOutput = props.task.after.outputs[0]
 		Tooltip.show({
 			content: <span>
 				时长：{durationBefore.value} → {durationAfter.value}<br />
-				容器：{props.task.before.format} → {props.task.after.output.format}<br />
-				规格：{smpteBefore.value} → {props.task.after.video.resolution}@{props.task.after.video.framerate}<br />
-				视频：{props.task.before.vcodec}{videoInputBitrate.value} → {props.task.after.video.vcodec}{videoRateControl.value}<br />
-				音频：{props.task.before.acodec}{audioInputBitrate.value} → {props.task.after.audio.acodec}{audioRateControl.value}<br />
+				容器：{props.task.before.format} → {firstOutput.mux.format}<br />
+				规格：{smpteBefore.value} → {firstOutput.video.resolution}@{firstOutput.video.framerate}<br />
+				视频：{props.task.before.vcodec}{videoInputBitrate.value} → {firstOutput.video.vcodec}{videoRateControl.value}<br />
+				音频：{props.task.before.acodec}{audioInputBitrate.value} → {firstOutput.audio.acodec}{audioRateControl.value}<br />
 			</span>,
 			style: position,
 			class: style.paraAreaTip,
@@ -519,71 +524,78 @@ export const TaskItem = defineComponent((props: Props) => {
 							onMouseenter={handleParaAreaMouseEnter}
 							onMouseleave={() => Tooltip.hide()}
 						>
-							{windowWidth.value >= 920 ? (
-								<>
-									{/* 时间 */}
-									<div class={style.divider}><div></div></div>
-									<div class={style.durationBefore}>{durationBefore.value}</div>
-									{settings.paramsVisibility.duration === 'all' && (
-										<>
-											<div class={style.durationTo}><IconRightArrow /></div>
-											<div class={style.durationAfter}>{durationAfter.value}</div>
-										</>
-									)}
-									{/* 容器 */}
-									<div class={style.divider}><div></div></div>
-									<div class={style.formatBefore}>{props.task.before.format}</div>
-									{settings.paramsVisibility.format === 'all' && (
-										<>
-											<div class={style.formatTo}><IconRightArrow /></div>
-											<div class={style.formatAfter}>{props.task.after.output.format}</div>
-										</>
-									)}
-									{/* 分辨率码率 */}
-									{settings.paramsVisibility.smpte !== 'none' && (
-										<>
-											<div class={style.divider}><div></div></div>
-											<div class={style.smpteBefore}>{smpteBefore.value}</div>
-											{settings.paramsVisibility.smpte === 'all' && (
-												<>
-													<div class={style.smpteTo}><IconRightArrow /></div>
-													<div class={style.smpteAfter}>{props.task.after.video.resolution}@{props.task.after.video.framerate}</div>
-												</>
-											)}
-										</>
-									)}
-									{/* 视频 */}
-									{settings.paramsVisibility.video !== 'none' && (
-										<>
-											<div class={style.divider}><div></div></div>
-											<div class={style.videoBefore}>{props.task.before.vcodec}{videoInputBitrate.value}</div>
-											{settings.paramsVisibility.video === 'all' && (
-												<>
-													<div class={style.videoTo}><IconRightArrow /></div>
-													<div class={style.videoAfter}>{props.task.after.video.vcodec}{videoRateControl.value}</div>
-												</>
-											)}
-										</>
-									)}
-									{/* 音频 */}
-									{settings.paramsVisibility.audio !== 'none' && (
-										<>
-											<div class={style.divider}><div></div></div>
-											<div class={style.audioBefore}>{props.task.before.acodec}{audioInputBitrate.value}</div>
-											{settings.paramsVisibility.audio === 'all' && (
-												<>
-													<div class={style.audioTo}><IconRightArrow /></div>
-													<div class={style.audioAfter}>{props.task.after.audio.acodec}{audioRateControl.value}</div>
-												</>
-											)}
-										</>
-									)}
-								</>
+							{props.task.after.input.files.length === 1 && props.task.after.outputs.length === 1 ? (
+								windowWidth.value >= 920 ? (
+									<>
+										{/* 时间 */}
+										<div class={style.divider}><div></div></div>
+										<div class={style.durationBefore}>{durationBefore.value}</div>
+										{settings.paramsVisibility.duration === 'all' && (
+											<>
+												<div class={style.durationTo}><IconRightArrow /></div>
+												<div class={style.durationAfter}>{durationAfter.value}</div>
+											</>
+										)}
+										{/* 容器 */}
+										<div class={style.divider}><div></div></div>
+										<div class={style.formatBefore}>{props.task.before.format}</div>
+										{settings.paramsVisibility.format === 'all' && (
+											<>
+												<div class={style.formatTo}><IconRightArrow /></div>
+												<div class={style.formatAfter}>{props.task.after.outputs[0].mux.format}</div>
+											</>
+										)}
+										{/* 分辨率码率 */}
+										{settings.paramsVisibility.smpte !== 'none' && (
+											<>
+												<div class={style.divider}><div></div></div>
+												<div class={style.smpteBefore}>{smpteBefore.value}</div>
+												{settings.paramsVisibility.smpte === 'all' && (
+													<>
+														<div class={style.smpteTo}><IconRightArrow /></div>
+														<div class={style.smpteAfter}>{props.task.after.outputs[0].video.resolution}@{props.task.after.outputs[0].video.framerate}</div>
+													</>
+												)}
+											</>
+										)}
+										{/* 视频 */}
+										{settings.paramsVisibility.video !== 'none' && (
+											<>
+												<div class={style.divider}><div></div></div>
+												<div class={style.videoBefore}>{props.task.before.vcodec}{videoInputBitrate.value}</div>
+												{settings.paramsVisibility.video === 'all' && (
+													<>
+														<div class={style.videoTo}><IconRightArrow /></div>
+														<div class={style.videoAfter}>{props.task.after.outputs[0].video.vcodec}{videoRateControl.value}</div>
+													</>
+												)}
+											</>
+										)}
+										{/* 音频 */}
+										{settings.paramsVisibility.audio !== 'none' && (
+											<>
+												<div class={style.divider}><div></div></div>
+												<div class={style.audioBefore}>{props.task.before.acodec}{audioInputBitrate.value}</div>
+												{settings.paramsVisibility.audio === 'all' && (
+													<>
+														<div class={style.audioTo}><IconRightArrow /></div>
+														<div class={style.audioAfter}>{props.task.after.outputs[0].audio.acodec}{audioRateControl.value}</div>
+													</>
+												)}
+											</>
+										)}
+									</>
+								) : (
+									<>
+										{/* 预设 */}
+										<div class={style.divider}><div></div></div>
+										<div class={style.videoBefore}>{props.task.after.extra?.presetName === undefined ? '查看配置' : props.task.after.extra.presetName || '自定义配置'}</div>
+									</>
+								)
 							) : (
 								<>
-									{/* 预设 */}
 									<div class={style.divider}><div></div></div>
-									<div class={style.videoBefore}>{props.task.after.extra?.presetName === undefined ? '查看配置' : props.task.after.extra.presetName || '自定义配置'}</div>
+									<div class={style.videoBefore}>{`${props.task.after.input.files.length} 个输入，${props.task.after.outputs.length} 个输出`}</div>
 								</>
 							)}
 						</div>

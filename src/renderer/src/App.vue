@@ -75,7 +75,6 @@ onMounted(async () => {
 			parseFFmpegCodecsToCodecsList(ffmpegCodecs);
 		}
 
-		const gp = appStore.globalParams;
 		const storedBuildNumber = await nodeBridge.localStorage.get('version.buildNumber');
 		if (!storedBuildNumber || storedBuildNumber != buildNumber) {
 			Popup({
@@ -85,11 +84,8 @@ onMounted(async () => {
 			nodeBridge.localStorage.set('version.buildNumber', buildNumber);
 			appStore.checkAndApplyCodecDefaults({ video: true, audio: true });
 		} else {
-			const [input, video, audio, output] = await Promise.all(['input', 'video', 'audio', 'output'].map((i) => nodeBridge.localStorage.get(i)));
-			gp.input = input || gp.input;
-			gp.video = video || gp.video;
-			gp.audio = audio || gp.audio;
-			gp.output = output || gp.output;
+			const globalParams = await nodeBridge.localStorage.get('globalParams');
+			appStore.globalParams = globalParams;;
 		}
 		appStore.frontendSettings = await nodeBridge.localStorage.get('frontendSettings') || appStore.frontendSettings;
 		appStore.applyFrontendSettings(false);

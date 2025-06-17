@@ -1,5 +1,5 @@
 import { NarrowedMenuItem } from "@common/menu";
-import { OutputParams_output, OutputParams_input } from "../types";
+import { OutputParams_mux, OutputParams_input } from "../types";
 
 export interface Format extends NarrowedMenuItem {
 	extension: string;
@@ -192,45 +192,9 @@ const keepFileTimeList: NarrowedMenuItem[] = [
 
 const generator = {
 	/**
-	 * 连接并补充扩展名的文件名
+	 * 获取输出参数的命令行（对每个输出均需调用一次）
 	 */
-	getOutputPathLocal: function (outputParams: OutputParams_output, fileDir: string, fileBasename: string) {
-		let extension;
-		if (outputParams.format.length && outputParams.format !== '无') {
-			let format = formats.find((item) => {
-				return item.value === outputParams.format;
-			});
-			if (format) {
-				extension = format.extension;
-			} else {	// 用户手动输入的格式
-				extension = outputParams.format;
-			}
-		}
-		let outputFileName = outputParams.filename;
-		outputFileName = outputFileName.replace(/\[filedir\]/g, fileDir);
-		outputFileName = outputFileName.replace(/\[filebasename\]/g, fileBasename);
-		outputFileName = outputFileName.replace(/\[fileext\]/g, extension);
-		return outputFileName;
-	},
-	getOutputPathRemote: function (outputParams: OutputParams_output, fileBasename: string) {
-		let extension;
-		if (outputParams.format.length && outputParams.format !== '无') {
-			let format = formats.find((item) => {
-				return item.value === outputParams.format;
-			});
-			if (format) {
-				extension = format.extension;
-			} else {	// 用户手动输入的格式
-				extension = outputParams.format;
-			}
-		}
-		let filePath = fileBasename;
-		if (extension) {
-			filePath += `.${extension}`;
-		}
-		return filePath;
-	},
-	getOutputParam: function (outputParams: OutputParams_output, filedir: string, filebasename: string, withQuotes = false, overrideFilePath: string) {
+	getOutputParam: function (outputParams: OutputParams_mux, filedir: string, filebasename: string, withQuotes = false, overrideFilePath: string) {
 		let ret = [];
 		if (outputParams.format.length && outputParams.format !== '无') {
 			let format = formats.find((item) => {
@@ -284,7 +248,7 @@ const generator = {
 		} else {
 			ret.push('-f')
 			ret.push('null')
-			ret.push('-')
+			ret.push('-');	// 这个就相当于输出文件名了，以这个或者输出文件名为分割，下一个输出文件可以接在后面
 			// ret.push('-benchmark')   // 可有可无
 		}
 		if (outputParams.custom) {
@@ -292,34 +256,48 @@ const generator = {
 		}
 		return ret;
 	},
+	/**
+	 * 获取输入参数的命令行（全局唯一）
+	 */
 	getInputParam: function (inputParams: OutputParams_input, withQuotes = false) {
 		let ret = [];
-		if (inputParams.custom) {
-			ret.push(...inputParams.custom.split(' '));
-		}
-		if (inputParams.hwaccel.length && inputParams.hwaccel !== '不使用') {
-			ret.push('-hwaccel');
-			let hwaccel = hwaccels.find((item) => {
-				return item.value == inputParams.hwaccel
-			})?.hwaccel;
-			ret.push(hwaccel);
-		}
-		if (inputParams.mode === 'standalone') {
-			if (inputParams.begin) {
-				ret.push('-ss');
-				ret.push(inputParams.begin);
+		const quoteStr = withQuotes ? `"` : '';
+		// 确保至少有一个输入
+		const files = inputParams.files.length ? inputParams.files : [{
+			filePath: '[输入文件路径]',
+			begin: '',
+			end: '',
+			custom: '',
+			hwaccel: '',
+			realtime: false,
+		}];
+		for (const file of files) {
+			// custom 参数（字符串直接拆分）
+			if (file.custom) {
+				ret.push(...file.custom.split(' '));
+			}	
+			// hwaccel 参数
+			if (file.hwaccel && file.hwaccel !== '不使用') {
+				ret.push('-hwaccel');
+				let hwaccel = hwaccels.find((item) => item.value === file.hwaccel)?.hwaccel;
+				ret.push(hwaccel);
 			}
-			if (inputParams.end) {
-				ret.push('-to');
-				ret.push(inputParams.end);
-			}
-			if (inputParams.realtime) {
+			// realtime 参数
+			if (file.realtime) {
 				ret.push('-re');
 			}
+			// 输入裁剪参数（放在 -i 前）
+			if (file.begin) {
+				ret.push('-ss');
+				ret.push(file.begin);
+			}
+			if (file.end) {
+				ret.push('-to');
+				ret.push(file.end);
+			}
+			// 输入路径
 			ret.push('-i');
-			let quoteStr = withQuotes ? `"` : '';
-			let filePath = inputParams.files.length && inputParams.files[0].filePath || '[输入文件路径]';
-			ret.push(quoteStr + filePath + quoteStr);
+			ret.push(quoteStr + file.filePath + quoteStr);
 		}
 		return ret;
 	}

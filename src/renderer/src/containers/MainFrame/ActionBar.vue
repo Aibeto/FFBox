@@ -37,7 +37,7 @@ const handleSelectAllClick = () => {
 const handleApplyAllClick = () => {
 	const newSet = new Set([...Object.keys(appStore.currentServer.data.tasks).map(Number)]);
 	newSet.delete(-1);
-	appStore.applyParameters(true, newSet);
+	appStore.applyParameters('applyToAllTasks', newSet);
 	appStore.taskSelectionModified = false;
 };
 

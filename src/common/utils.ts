@@ -282,31 +282,36 @@ export function getInitialTask(fileBaseName: string, outputParams?: OutputParams
 		},
 		after: {
 			input: {
-				mode: 'standalone',
-				hwaccel: '',
 				files: [],
 			},
-			video: {
-				vcodec: '',
-				resolution: '',
-				framerate: '',
-				ratecontrol: '',
-				ratevalue: NaN,
-				detail: {}
+			filter: {
+				nodes: [],
+				lines: [],
 			},
-			audio: {
-				acodec: '',
-				aencoder: '',
-				ratecontrol: '',
-				ratevalue: NaN,
-				vol: NaN,
-				detail: {}
-			},
-			output: {
-				format: '',
-				moveflags: false,
-				filename: '',
-			},
+			outputs: [
+				{
+					video: {
+						vcodec: '',
+						resolution: '',
+						framerate: '',
+						ratecontrol: '',
+						ratevalue: NaN,
+						detail: {}
+					},
+					audio: {
+						acodec: '',
+						ratecontrol: '',
+						ratevalue: NaN,
+						vol: NaN,
+						detail: {}
+					},
+					mux: {
+						format: '',
+						moveflags: false,
+						filename: '',
+					},
+				}
+			],
 			extra: {},
 		},
 		paraArray: [],
@@ -322,7 +327,7 @@ export function getInitialTask(fileBaseName: string, outputParams?: OutputParams
 		cmdData: '',
 		errorInfo: [],
 		// notifications: [],
-		outputFile: '',
+		outputFiles: [],
 	}
 	if (outputParams) {
 		Object.assign(task, { after: outputParams });
@@ -384,18 +389,23 @@ export function getOutputDuration(task: Task): number {
 	if (isNaN(duration)) {
 		return NaN;
 	}
-	if (task.after.input.begin || task.after.input.end) {
-		const begin = task.after.input.begin ? parseTimeString(task.after.input.begin) : 0;
-		let end = task.after.input.end ? parseTimeString(task.after.input.end) : duration;
+	const firstInput = task.after.input.files[0];
+	const firstOutput = task.after.outputs[0].mux;
+	if (!firstInput || !firstOutput) {
+		return NaN;
+	}
+	if (firstInput.begin || firstInput.end) {
+		const begin = firstInput.begin ? parseTimeString(firstInput.begin) : 0;
+		let end = firstInput.end ? parseTimeString(firstInput.end) : duration;
 		if (begin === -1 || end === -1 || begin > end || begin > duration) {
 			return NaN;
 		}
 		end = Math.min(end, duration);
 		duration = end - begin;
 	}
-	if (task.after.output.begin || task.after.output.end) {
-		const begin = task.after.output.begin ? parseTimeString(task.after.output.begin) : 0;
-		let end = task.after.output.end ? parseTimeString(task.after.output.end) : duration;
+	if (firstOutput.begin || firstOutput.end) {
+		const begin = firstOutput.begin ? parseTimeString(firstOutput.begin) : 0;
+		let end = firstOutput.end ? parseTimeString(firstOutput.end) : duration;
 		if (begin === -1 || end === -1 || begin > end || begin > duration) {
 			return NaN;
 		}
@@ -419,7 +429,7 @@ export function convertAnyTaskToTask(task: ServiceTask | UITask): Task {
 		cmdData: task.cmdData,
 		errorInfo: task.errorInfo,
 		// notifications: task.notifications,
-		outputFile: task.outputFile,
+		outputFiles: task.outputFiles,
 	};
 }
 
@@ -434,22 +444,66 @@ export function mergeTaskFromService(self: UITask, remote: Task): UITask {
 
 /**
  * 在不影响原有任务特有参数（如文件列表）的情况下替换 OutputParams，用于取代 JSON.parse(JSON.stringify())
+ * replaceOutputParams 在 3 个地方被使用：
+ * 1. service 的 setParameter，用于前端修改参数通知后端修改，需要【完全覆盖】
+ * 2. applySelectedTask 前端点击任务后，用任务参数【完全覆盖】全局参数
+ * 3. applyParameters 前端修改全局任务参数后将参数应用到每一个任务上：
+ *   3.1 点击“应用参数到全部任务”按钮时，【部分覆盖】所有已选任务
+ *   3.2 XXXView 在修改任务参数时，如果单选，则【完全覆盖】；如果多选，则【部分覆盖】
+ *   3.3 loadPreset 时，【部分覆盖】
+ * 【部分覆盖】的意义：参数中不仅带有转码详情，还带有输入文件的路径。其中输入文件有时候只希望更改每个文件的配置，而不是把路径和数量都改了。
+ * 【部分覆盖】：原参数（to）的 input.files 的每个项中的 begin, end, hwaccel, realtime, custom 都使用参数（from）同序号的项覆盖，而 filePath 保持不动（如果两组参数 input.files 不一样，超过的直接 break）。原参数（to）的 outputs 直接使用新字段的项覆盖。原参数（to）的 filter 使用新字段的项覆盖，但是检查 nodes 和 lines：nodes 中存在“输入”节点，其 node.name 规则为 in_\d。如果原参数并没有这么多输入，就删掉多余的 node；lines 记录了 node 之间的链接，如果删掉了 node，那么某些 line 的 line.prevNodeId 在 nodes 中就没有了。这种 line 也删掉。
  * @param from 新的参数列表
  * @param to 任务原有的参数列表
+ * 以下函数由 ChatGPT 4o 生成
  */
-export function replaceOutputParams(from: OutputParams, to: OutputParams) {
-	const ret: OutputParams = {
-		input: JSON.parse(JSON.stringify(from.input)),
-		video: JSON.parse(JSON.stringify(from.video)),
-		audio: JSON.parse(JSON.stringify(from.audio)),
-		output: JSON.parse(JSON.stringify(from.output)),
-		extra: JSON.parse(JSON.stringify(from.extra)),
-	};
-	// 以下参数更改为任务原有的参数
-	ret.input.mode = to.input.mode;
-	ret.input.files = to.input.files;
+export function replaceOutputParams(from: OutputParams, to: OutputParams, fullyReplace: boolean): OutputParams {
+	if (fullyReplace) {
+		// 全量替换，直接用 from 深拷贝
+		return JSON.parse(JSON.stringify(from));
+	}
+
+	// 部分替换：保留 to 的整体结构，仅替换部分内容
+	const ret: OutputParams = JSON.parse(JSON.stringify(to));
+
+	// input.files 部分字段替换：仅替换 begin, end, hwaccel, realtime, custom，不改 filePath
+	for (let i = 0; i < Math.min(to.input.files.length, from.input.files.length); i++) {
+		const fromFile = from.input.files[i];
+		const toFile = ret.input.files[i];
+		toFile.begin = fromFile.begin;
+		toFile.end = fromFile.end;
+		toFile.hwaccel = fromFile.hwaccel;
+		toFile.realtime = fromFile.realtime;
+		toFile.custom = fromFile.custom;
+	}
+
+	// outputs 整个替换
+	ret.outputs = JSON.parse(JSON.stringify(from.outputs));
+
+	// filter 替换，并处理 nodes/lines 清理逻辑
+	ret.filter = JSON.parse(JSON.stringify(from.filter));
+
+	const inputNodeCount = ret.input.files.length;
+	ret.filter.nodes = ret.filter.nodes.filter((node) => {
+		if (node.type !== 'input') return true;
+		const match = node.name?.match(/^in_(\d+)$/);
+		if (!match) return true;
+		const index = parseInt(match[1]);
+		return index < inputNodeCount;
+	});
+
+	// 同步移除断开的线
+	const existingNodeIds = new Set(ret.filter.nodes.map(n => n.id));
+	ret.filter.lines = ret.filter.lines.filter((line) =>
+		existingNodeIds.has(line.prevNodeId) && existingNodeIds.has(line.nextNodeId)
+	);
+
+	// extra 部分完整覆盖
+	ret.extra = JSON.parse(JSON.stringify(from.extra));
+
 	return ret;
 }
+
 
 // #endregion
 

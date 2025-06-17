@@ -4,10 +4,10 @@ import { getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import { useAppStore } from '@renderer/stores/appStore';
 import ShortcutView from './ParaBox/ShortcutView';
 import InputView from './ParaBox/InputView';
+import EffectView from './ParaBox/EffectView';
 import VcodecView from './ParaBox/VcodecView';
 import AcodecView from './ParaBox/AcodecView';
-import EffectView from './ParaBox/EffectView';
-import OutputView from './ParaBox/OutputView';
+import MuxView from './ParaBox/MuxView';
 import IconSidebarFavorite from '@renderer/assets/mainArea/paraBox/parabox_favorite.svg?component';
 import IconSidebarInput from '@renderer/assets/mainArea/paraBox/parabox_input.svg?component';
 import IconSidebarVideo from '@renderer/assets/mainArea/paraBox/parabox_video.svg?component';
@@ -15,17 +15,25 @@ import IconSidebarAudio from '@renderer/assets/mainArea/paraBox/parabox_audio.sv
 import IconSidebarEffect from '@renderer/assets/mainArea/paraBox/parabox_effect.svg?component';
 import IconSidebarOutput from '@renderer/assets/mainArea/paraBox/parabox_output.svg?component';
 import IconUpArrow from '@renderer/assets/mainArea/paraBox/uparrow.svg?component';
+import DropdownInput from '@renderer/components/DropdownInput/DropdownInput.vue';
 
 const appStore = useAppStore();
-const sidebarIcons = [IconSidebarFavorite, IconSidebarInput, IconSidebarVideo, IconSidebarAudio, IconSidebarEffect, IconSidebarOutput];
-const sidebarTexts = ['快捷', '输入', '视频', '音频', '效果', '输出'];
+const sidebarIcons = [IconSidebarFavorite, IconSidebarInput, IconSidebarEffect, IconSidebarVideo, IconSidebarAudio, IconSidebarOutput];
+const sidebarTexts = ['快捷', '输入', '滤镜', '视频', '音频', '封装'];
 const sidebarColors = computed(() => 
 	appStore.frontendSettings.colorTheme === 'themeLight'
-		? ['hwb(45 0% 5%)', 'hwb(195 0% 10%)', 'hwb(285 10% 0%)', 'hwb(120 0% 20%)', 'hwb(315 10% 5%)', 'hwb(0 30% 0%)']
-		: ['hwb(45 0% 5%)', 'hwb(195 5% 5%)', 'hwb(285 25% 0%)', 'hwb(120 0% 15%)', 'hwb(315 20% 5%)', 'hwb(0 30% 0%)']
+		? ['hwb(45 0% 5%)', 'hwb(195 0% 10%)', 'hwb(315 10% 5%)', 'hwb(285 10% 0%)', 'hwb(120 0% 20%)', 'hwb(0 30% 0%)']
+		: ['hwb(45 0% 5%)', 'hwb(195 5% 5%)', 'hwb(315 20% 5%)', 'hwb(285 25% 0%)', 'hwb(120 0% 15%)', 'hwb(0 30% 0%)']
 );
 const deviderRef = ref<Element>(null);
 const animationName = ref('animationLeft');
+const editingOutputIndex = ref(0);
+
+const outputSelectionList = computed(() => appStore.globalParams.outputs.map((output, index) => ({
+	type: 'normal' as const,
+	value: `输出 ${index}`,
+	label: `输出 ${index}`
+})));
 
 const globalParamsText = computed(() => {
 	const globalparamsArray = getFFmpegParaArray(appStore.globalParams);
@@ -62,6 +70,17 @@ const handleParaButtonClicked = (index: number) => {
 	appStore.paraSelected = index;
 }
 
+const handleOutputSelectionListChange = (value: string) => {
+	console.log(value);
+	const match = value.match(/^输出 (\d+)$/);
+	if (match) {
+		const index = Number(match[1]);
+		if (Number.isInteger(index) && index >= 0 && index < appStore.globalParams.outputs.length) {
+			editingOutputIndex.value = index;
+		}
+	}
+};
+
 const getButtonColorStyle = (index: number) => ({ color: appStore.paraSelected === index ? sidebarColors.value[index] : 'hwb(0 50% 50%)' });
 
 </script>
@@ -71,7 +90,14 @@ const getButtonColorStyle = (index: number) => ({ color: appStore.paraSelected =
 		<div class="upper" :style="{ height: appStore.showGlobalParams ? '64px' : undefined }">
 			<div class="devider" :ref="(el) => deviderRef = el as Element">
 				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
-					<button v-for="index in [0, 1, 2, 3, 4, 5]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="handleParaButtonClicked(index)">
+					<button v-for="index in [0, 1, 2]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="handleParaButtonClicked(index)">
+						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
+						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>
+					</button>
+					<div v-if="appStore.globalParams.outputs.length > 1 || true" class="outputSelection">
+						<DropdownInput :list="outputSelectionList" :text="`输出 ${editingOutputIndex}`" @change="handleOutputSelectionListChange" />
+					</div>
+					<button v-for="index in [3, 4, 5]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="handleParaButtonClicked(index)">
 						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
 						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>
 					</button>
@@ -87,22 +113,22 @@ const getButtonColorStyle = (index: number) => ({ color: appStore.paraSelected =
 		</div>
 		<div class="lower">
 			<transition :name="animationName">
-				<ShortcutView v-show="appStore.paraSelected == 0" />
+				<ShortcutView v-if="appStore.paraSelected == 0" />
 			</transition>
 			<transition :name="animationName">
-				<InputView v-show="appStore.paraSelected == 1" />
+				<InputView v-if="appStore.paraSelected == 1" />
 			</transition>
 			<transition :name="animationName">
-				<VcodecView v-show="appStore.paraSelected == 2" />
+				<EffectView v-if="appStore.paraSelected == 2" />
 			</transition>
 			<transition :name="animationName">
-				<AcodecView v-show="appStore.paraSelected == 3" />
+				<VcodecView v-if="appStore.paraSelected == 3" :editingOutputIndex="editingOutputIndex" />
 			</transition>
 			<transition :name="animationName">
-				<EffectView v-show="appStore.paraSelected == 4" />
+				<AcodecView v-if="appStore.paraSelected == 4" :editingOutputIndex="editingOutputIndex" />
 			</transition>
 			<transition :name="animationName">
-				<OutputView v-show="appStore.paraSelected == 5" />
+				<MuxView v-if="appStore.paraSelected == 5" :editingOutputIndex="editingOutputIndex" />
 			</transition>
 		</div>
 	</div>
@@ -177,8 +203,16 @@ const getButtonColorStyle = (index: number) => ({ color: appStore.paraSelected =
 				.buttons {
 					height: 28px;
 					overflow: hidden;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					.outputSelection {
+						// display: inline-block;
+						width: 72px;
+						cursor: initial;
+					}
 					button {
-						display: inline-block;
+						// display: inline-block;
 						text-align: center;
 						width: 80px;
 						height: 28px;

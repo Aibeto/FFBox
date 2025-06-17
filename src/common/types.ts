@@ -80,22 +80,24 @@ export interface EncoderDetail {
 
 export interface OutputParams {
 	input: OutputParams_input;
-	video: OutputParams_video;
-	audio: OutputParams_audio;
-	output: OutputParams_output;
+	filter: OutputParams_filter;
+	outputs: {
+		video: OutputParams_video;
+		audio: OutputParams_audio;
+		mux: OutputParams_mux;
+	}[];
 	extra: OutputParams_extra;
 }
 
 export type OutputParams_input = {
-	mode: 'standalone';
-	// 暂定 begin end 仅支持在独立模式下切割时长
-	begin?: string;
-	end?: string;
-	realtime?: boolean;
-} & {
-	files: Array<InputFile>;
-	hwaccel: string;
-	custom?: string;
+	// mode: 'standalone';
+	// } & {
+	files: InputFile[];
+};
+
+export type OutputParams_filter = {
+	nodes: FilterNode[];
+	lines: FilterLine[];
 };
 
 export type OutputParams_video = {
@@ -117,7 +119,7 @@ export type OutputParams_audio = {
 	custom?: string;
 };
 
-export type OutputParams_output = {
+export type OutputParams_mux = {
 	format: string;
 	moveflags: boolean;
 	filename: string;
@@ -133,7 +135,37 @@ export type OutputParams_extra = {
 }
 
 export interface InputFile {
+	// type: 'url';	// 将来支持 lavfi
+	hwaccel?: string;
 	filePath?: string;		// 本地模式下直接是文件全路径，网络模式下 merge 之后获得的文件名填充到此处
+	begin?: string;
+	end?: string;
+	realtime?: boolean;
+	custom?: string;
+}
+
+export interface FilterNode {
+	id: number;
+	name: string;	// 如果是滤镜节点，这里是滤镜本体名字；如果是输入节点，这里是 in_\d；如果是输出节点，这里是 out_\d
+	params: Record<string, any>;
+	x: number;
+	y: number;
+	type: 'input' | 'output' | 'v' | 'a' | 's' | 'd' | 't';	// s: subtitle, d: data, t: attachment
+	// inputPortNames: string[];	// 记录目的地的端口名。大多数节点仅支持单种类型，比如 v、a，此种情况为 ['0', '1', ...]；但输入节点可以由用户填写“流类型:流编号”
+	// outputPortNames: string[];	// 记录目的地的端口名。大多数节点仅支持单种类型，比如 v、a，此种情况为 ['1', '2', ...]；但输出节点可以由用户填写“流类型:流编号”
+	// inputPortConnections?: FilterNode[];	// 仅内部使用，表示它到上一个节点的引用。此项与 inputPortNames 按下标一一对应
+	// outputPortConnections?: FilterNode[];	// 仅内部使用，表示它到下一个节点的引用。此项与 outputPortNames 按下标一一对应
+	prevs?: FilterLine[];	// 仅内部使用，表示入口连接线的引用
+	nexts?: FilterLine[];	// 仅内部使用，表示出口连接线的引用
+}
+
+export interface FilterLine {
+	name: string;	// 相当于 ffmpeg 中括号内的内容。如果从输入节点出来，是 输入编号:流类型:流编号；如果从滤镜节点出来，这里是给 ffmpeg 用的一个随机或用户定义名字
+	prevNodeId: number;
+	prevNodePortIndex: number;
+	nextNodeId: number;
+	nextNodePortIndex: number;
+	// 对于普通滤镜的输出结果，name 是唯一的；只有对于输入节点的输出结果可以用 输入编号:流类型:流编号 反复使用。而对于媒体输入的输出节点，或者媒体输出的输出节点，并不需要关心 index，因为次序是没影响的
 }
 
 export enum TaskStatus {
@@ -218,7 +250,7 @@ export interface Task {
 	cmdData: string;
 	errorInfo: Array<string>;
 	// notifications: Array<Notification>;
-	outputFile: string;		// 对于本地任务，表示生成文件的绝对路径；对于远程任务，则为 basename（自动生成的字符串） + ext，在 taskAdd 和调节参数之后生成文件名。
+	outputFiles: string[];		// 对于本地任务，表示生成文件的绝对路径；对于远程任务，则为 basename（自动生成的字符串） + ext，在 taskAdd 和调节参数之后生成文件名，注意不包含目录。
 }
 
 export interface ServiceTask extends Task {

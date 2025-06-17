@@ -282,9 +282,15 @@ export const useAppStore = defineStore('app', {
 				return;
 			}
 			const params: OutputParams = JSON.parse(JSON.stringify(这.globalParams));
-			params.input.files.push({
+			// TODO 支持多个文件作为一个任务输入
+			params.input.files[0] = {
 				filePath: path ? path.replace(/\\/g, '/') : undefined,
-			});
+				begin: params.input.files[0]?.begin ?? '',
+				end: params.input.files[0]?.end ?? '',
+				hwaccel: params.input.files[0]?.hwaccel ?? '',
+				realtime: params.input.files[0]?.realtime ?? false,
+				custom: params.input.files[0]?.custom ?? '',
+			}
 			const result = currentBridge.taskAdd(baseName, params);
 			return result;
 		},
@@ -326,7 +332,7 @@ export const useAppStore = defineStore('app', {
 			const 这 = useAppStore();
 			if (这.selectedTask.size > 0) {
 				for (const id of 这.selectedTask) {
-					这.globalParams = replaceOutputParams(这.currentServer.data.tasks[id].after, 这.globalParams);
+					这.globalParams = replaceOutputParams(这.currentServer.data.tasks[id].after, 这.globalParams, true);
 				}
 			}
 		},
@@ -350,12 +356,12 @@ export const useAppStore = defineStore('app', {
 		 * 函数将修改后的全局参数应用到当前选择的任务项，然后保存到本地磁盘
 		 * 对于用户操作，将预设参数置为未保存
 		 */
-		applyParameters(resetCurrentPreset = true, selection?: Set<number>) {
+		applyParameters(behavior: 'modifyTask' | 'applyToAllTasks' | 'loadPreset' | 'verifyDefaults' = 'modifyTask', selection?: Set<number>) {
 			const 这 = useAppStore();
 			// 更改到一些不匹配的值后会导致 getFFmpegParaArray 出错，但是修正代码就在后面，因此仅需忽略它，让它继续运行下去，不要急着更新
 
 			// 变更预设参数
-			if (resetCurrentPreset) {
+			if (behavior === 'modifyTask') {
 				这.globalParams.extra.presetName = '';
 				这.presetName = '';
 			}
@@ -368,7 +374,8 @@ export const useAppStore = defineStore('app', {
 				let needToUpdateIds: number[] = [];
 				for (const id of selection || 这.selectedTask) {
 					let task = data.tasks[id];
-					task.after = replaceOutputParams(这.globalParams, task.after);
+					const needToReplaceAll = behavior === 'modifyTask' && 这.selectedTask.size === 1;
+					task.after = replaceOutputParams(这.globalParams, task.after, needToReplaceAll);
 					needToUpdateIds.push(id);
 				}
 				if (needToUpdateIds.length) {
@@ -384,21 +391,18 @@ export const useAppStore = defineStore('app', {
 			// 存盘
 			clearTimeout((window as any).saveAllParaTimer);
 			(window as any).saveAllParaTimer = setTimeout(() => {
-				nodeBridge.localStorage.set('input', 这.globalParams.input);
-				nodeBridge.localStorage.set('video', 这.globalParams.video);
-				nodeBridge.localStorage.set('audio', 这.globalParams.audio);
-				nodeBridge.localStorage.set('output', 这.globalParams.output);
+				nodeBridge.localStorage.set('globalParams', 这.globalParams);
 				console.log('参数已保存');
 			}, 700);
 		},
 		/**
 		 * 切换编码器之后或者第一次使用 FFBox 需要预置一些默认值，通过调用此函数进行
-		 * 并会调用一次 applyParameters(false) 以存储并将当前配置应用到所选任务上
+		 * 并会调用一次 applyParameters 以存储并将当前配置应用到所选任务上
 		 */
-		checkAndApplyCodecDefaults(who: { video?: true, audio?: true }) {
+		checkAndApplyCodecDefaults(who: { video?: true, audio?: true }, outputIndex = 0) {
 			const 这 = useAppStore();
 			if (who.video) {
-				const v = 这.globalParams.video;
+				const v = 这.globalParams.outputs[outputIndex].video;
 				const vcodec = (getMenuItemByValue(vcodecsList, v.vcodec) as any)?.extra as VCodecDetail;
 				for (const parameter of (vcodec?.parameters || [])) {
 					if (parameter.optional) {
@@ -416,7 +420,7 @@ export const useAppStore = defineStore('app', {
 				}
 			}
 			if (who.audio) {
-				const a = 这.globalParams.audio;
+				const a = 这.globalParams.outputs[outputIndex].audio;
 				const acodec = (getMenuItemByValue(acodecsList, a.acodec) as any)?.extra as ACodecDetail;
 				for (const parameter of (acodec?.parameters || [])) {
 					if (parameter.optional) {
@@ -433,11 +437,12 @@ export const useAppStore = defineStore('app', {
 					}
 				}
 			}
-			这.applyParameters(false);
+			这.applyParameters('verifyDefaults');
 		},
 		/**
 		 * 检查有多少参数是非“不重新编码”的，以此更改界面显示形式（paramsVisibility）
 		 * 在服务器初次加载和修改参数时调用
+		 * 目前均以第一个输入和第一个输出的参数为准
 		 */
 		recalcChangedParams() {
 			const 这 = useAppStore();
@@ -449,24 +454,24 @@ export const useAppStore = defineStore('app', {
 				audio: 0,
 			};
 			for (const [index, task] of Object.entries(这.currentServer?.data.tasks) || []) {
-				if (index === '-1') {
+				if (index === '-1' || task.after.input.files.length !== 1 || task.after.outputs.length !== 1) {
 					continue;
 				}
 				const after = task.after;
-				if (after.input.begin || after.input.end || after.output.begin || after.output.end) {
+				if (after.input.files[0].begin || after.input.files[0].end || after.outputs[0].mux.begin || after.outputs[0].mux.end) {
 					paramsVisibility.duration = Math.max(paramsVisibility.duration, 2);
 				} else {
 					paramsVisibility.duration = Math.max(paramsVisibility.duration, 1);
 				}
-				if (after.output.format === '无' || after.output.format === task.before.format) {
+				if (after.outputs[0].mux.format === '无' || after.outputs[0].mux.format === task.before.format) {
 					paramsVisibility.format = Math.max(paramsVisibility.format, 1);
 				} else {
 					paramsVisibility.format = Math.max(paramsVisibility.format, 2);
 				}
-				if (after.video.vcodec !== '禁用视频') {
-					if (after.video.vcodec !== '不重新编码') {
+				if (after.outputs[0].video.vcodec !== '禁用视频') {
+					if (after.outputs[0].video.vcodec !== '不重新编码') {
 						paramsVisibility.video = Math.max(paramsVisibility.video, 2);
-						if (after.video.resolution !== '不改变' || task.after.video.framerate !== '不改变') {
+						if (after.outputs[0].video.resolution !== '不改变' || task.after.outputs[0].video.framerate !== '不改变') {
 							paramsVisibility.smpte = Math.max(paramsVisibility.smpte, 2);
 						} else {
 							paramsVisibility.smpte = Math.max(paramsVisibility.smpte, 1);
@@ -475,8 +480,8 @@ export const useAppStore = defineStore('app', {
 						paramsVisibility.video = Math.max(paramsVisibility.video, 1);
 					}
 				}
-				if (after.audio.acodec !== '禁用音频') {
-					if (after.audio.acodec !== '不重新编码') {
+				if (after.outputs[0].audio.acodec !== '禁用音频') {
+					if (after.outputs[0].audio.acodec !== '不重新编码') {
 						paramsVisibility.audio = Math.max(paramsVisibility.audio, 2);
 					} else {
 						paramsVisibility.audio = Math.max(paramsVisibility.audio, 1);
@@ -507,14 +512,10 @@ export const useAppStore = defineStore('app', {
 			} else {
 				return nodeBridge.localStorage.get(`presets.${name}`).then((params) => {
 					if (params) {
-						这.globalParams.input = params.input;
-						这.globalParams.video = params.video;
-						这.globalParams.audio = params.audio;
-						这.globalParams.output = params.output;
-						这.globalParams.extra.presetName = name;
+						这.globalParams = params;
 					}
 					这.presetName = name;
-					这.applyParameters(false);
+					这.applyParameters('loadPreset');
 				});
 			}
 		},
@@ -570,13 +571,10 @@ export const useAppStore = defineStore('app', {
 						nodeBridge.localStorage.set('ffmpegCodecs', result);
 						Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.video.length} 种视频编码、${result.audio.length} 种音频编码`, level: NotificationLevel.ok });
 						// 当 Parabox 停留在视频/音频编码界面时，由于整个 vcodecsList/acodecsList 被替换，使得界面中监听的是不会被再更新的老 list，因此需要刷一下
-						const vcodec = 这.globalParams.video.vcodec;
-						const acodec = 这.globalParams.audio.acodec;
-						这.globalParams.video.vcodec = undefined;
-						这.globalParams.audio.acodec = undefined;
+						const outputs = 这.globalParams.outputs;
+						这.globalParams.outputs = [];
 						setTimeout(() => {
-							这.globalParams.video.vcodec = vcodec;
-							这.globalParams.audio.acodec = acodec;								
+							这.globalParams.outputs = outputs;
 						}, 0);
 					});
 				});
