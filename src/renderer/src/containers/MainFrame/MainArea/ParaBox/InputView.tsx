@@ -15,7 +15,6 @@ interface Props {}
 const InputView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 	const editingIndex = ref();
-	const centerDrager = ref<HTMLDivElement>();
 	const centerDraggerPos = ref(50);
 
 	// 在一个输入文件都没有的情况下，应该编辑默认输入
@@ -36,7 +35,7 @@ const InputView = defineComponent((props: Props) => {
 	const listContainerStyle = computed(() => extendedFiles.value.length >= 11 ? " --itemPadding: 0 8px " : " --itemPadding: 4px 8px ")
 
 	const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
-		const mainAreaRect = centerDrager.value.parentElement.getBoundingClientRect();
+		const mainAreaRect = event.target.parentElement.getBoundingClientRect();
 		const inElementX = (event as MouseEvent).offsetX ?? (event as TouchEvent).touches[0].offsetX;	// 鼠标在元素内的 X
 		// 添加鼠标事件捕获
 		let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
@@ -140,7 +139,7 @@ const InputView = defineComponent((props: Props) => {
 					))}
 				</div>
 			</div>
-			<div class={style.dragger} style={{ left: `${centerDraggerPos.value}%`}} ref={centerDrager} onMousedown={handleCenterDraggerDragStart} onTouchstart={handleCenterDraggerDragStart} />
+			<div class={style.dragger} style={{ left: `${centerDraggerPos.value}%`}} onMousedown={handleCenterDraggerDragStart} onTouchstart={handleCenterDraggerDragStart} />
 			<div class={style.right} style={{ width: `${100 - centerDraggerPos.value}%`}}>
 				{editingInput.value ? (<>
 					<BoxedDropdownInput title="硬件解码" text={editingInput.value.hwaccel} list={hwaccels} onChange={(value: string) => handleDetailChange('hwaccel', value)} />

@@ -18,11 +18,13 @@ interface Props {
 const AcodecView = defineComponent((props) => {
 	const appStore = useAppStore();
 
-	const audioParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex].audio);
+	const audioParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.audio);
 
 	const acodec = computed(() => {
-		const acodecName = audioParams.value.acodec;
-		return (getMenuItemByValue(acodecsList, acodecName) as any)?.extra as ACodecDetail;
+		if (audioParams.value) {
+			const acodecName = audioParams.value.acodec;
+			return (getMenuItemByValue(acodecsList, acodecName) as any)?.extra as ACodecDetail;
+		}
 	});
 	const rateControlList = computed(() => {
 		return [
@@ -144,7 +146,7 @@ const AcodecView = defineComponent((props) => {
 	);
 
 	// console.log(acodec.value?.parameters);
-	return () => (
+	return () => audioParams.value ? (
 		<div class={style.container}>
 			<BoxedDropdownInput title="音频编码器" text={audioParams.value.acodec} list={acodecsList} onChange={(value: string) => handleChange('acodec', value)} />
 			{['禁用', 'copy'].indexOf(audioParams.value.acodec) === -1 && (
@@ -187,7 +189,7 @@ const AcodecView = defineComponent((props) => {
 				</>
 			) || null}
 		</div>
-	);
+	) : <div>请选择一个输入文件</div>;
 }, {
 	props: ['editingOutputIndex'],
 });

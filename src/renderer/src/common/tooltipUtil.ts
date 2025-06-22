@@ -2,7 +2,7 @@ import { StyleValue } from 'vue';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import styles from './tooltipUtil.module.less';
 
-export function useTooltip(content: string, position?: 'br' | 't' | 'mtl') {
+export function useTooltip(content: string, position?: 'br' | 't' | 'tl' | 'mtl') {
 	return {
 		onmouseenter: (e: MouseEvent) => {
 			const rect = e.target.getBoundingClientRect();
@@ -13,6 +13,9 @@ export function useTooltip(content: string, position?: 'br' | 't' | 'mtl') {
 					break;
 				case 't':	// 组件上方
 					style = { bottom: `${window.innerHeight - rect.top}px`, left: `${rect.left + rect.width / 2}px`, transform: `translateX(-50%)` };
+					break;
+				case 'tl':	// 组件上左方
+					style = { bottom: `${window.innerHeight - rect.top}px`, left: `${rect.left}px` };
 					break;
 				case 'br':	// 组件下右侧
 				default:

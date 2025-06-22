@@ -1,9 +1,143 @@
-import { FFmpegCodecDetail } from '@common/types';
+import { EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail } from '@common/types';
 import { ACodecDetail, acodecsList } from './acodecs';
 import { VCodecDetail, vcodecsList } from './vcodecs';
 import { MenuItem } from '@renderer/components/Menu/Menu';
 import { getMenuItemByValue } from '@common/menu';
 import { Parameter } from './parameter';
+import { filtersList } from './filter';
+
+function parseSingleOption(option: EncoderDetail['options'][number]): Parameter {
+	if (['string', 'dictionary'].includes(option.type)) {
+		return ({
+			parameter: option.name,
+			display: option.name,
+			description: option.description,
+			optional: true,
+			mode: 'text',
+			default: option.default as string,
+		});
+	} else if (option.type === 'boolean') {
+		return ({
+			parameter: option.name,
+			display: option.name,
+			description: option.description,
+			optional: true,
+			mode: 'switch',
+			default: option.default as boolean,
+		});
+	} else if (option.type === 'flags') {
+		return ({
+			parameter: option.name,
+			display: option.name,
+			description: option.description,
+			optional: true,
+			mode: 'combo',
+			items: option.options.map((option) => ({
+				type: 'normal',
+				value: option.value as string,
+				label: option.value as string,
+			})),
+			default: option.default,
+		});
+	} else if (option.type === 'int') {
+		/**
+		 * int 类型具有最多的目的
+		 * 如果是间距为 1 或 0 的等差数列，可以认为是挡位调节（如 preset）（适用 slider），也有可能是枚举（如 tune）（适用 dropdownInput）。从 slider 占用和容纳空间考虑，设定为上下限差 4~10 之间的使用 slider，否则使用 dropwownInput
+		 * 如果不等差，基本可以认定是枚举（适用 dropdownInput）
+		 * 如果没有选项，有可能是可调节范围（适用 slider），或者是别的(适用 NormalInput)
+		 */
+		if (option.options) {
+			const options = option.options;
+			const isEqualDiff = options.map((o) => +o.value).every((option, index, array) => index === 0 || Math.abs(option - array[index - 1]) <= 1);
+			const minmaxDiff4to10 = isEqualDiff && Math.abs(+options[0].value - +options[options.length - 1].value) >= 4 && Math.abs(+options[0].value - +options[options.length - 1].value) <= 10;
+			// if (minmaxDiff4to10) {
+			// 	console.log('minmaxDiff4to10', encoder.name, option.name);
+			// }
+			if (isEqualDiff && minmaxDiff4to10) {
+				const min = Math.min(+options[0].value, +options[options.length - 1].value);
+				const max = Math.max(+options[0].value, +options[options.length - 1].value);
+				return ({
+					parameter: option.name,
+					display: option.name,
+					description: option.description,
+					optional: true,
+					mode: 'slider',
+					min, max,
+					tags: new Map([[min, min + ''], [max, max + ''], [+option.default, '默认值'], ...options.map((option) => [+option.value, option.name] as [number, string])]),
+					sliderMode: 'number',
+					default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
+					adsorption: 'int',
+				})									
+			} else {
+				return ({
+					parameter: option.name,
+					display: option.name,
+					description: option.description,
+					optional: true,
+					mode: 'combo',
+					items: option.options.map((option) => ({
+						type: 'normal',
+						value: option.value,
+						label: option.name,
+						tooltip: option.description,
+					})),
+					default: option.default,
+				});
+			}
+		} else {
+			if (Math.abs(option.max - option.min) < 1000) {
+				return ({
+					parameter: option.name,
+					display: option.name,
+					description: option.description,
+					optional: true,
+					mode: 'slider',
+					min: option.min,
+					max: option.max,
+					tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
+					sliderMode: 'number',
+					default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
+					adsorption: 'int',
+				});
+			} else {
+				return ({
+					parameter: option.name,
+					display: option.name,
+					description: option.description,
+					optional: true,
+					mode: 'text',
+					type: 'int',
+					default: option.default + '',
+				});
+			}
+		}
+	} else if (option.type === 'float' || option.type === 'double') {
+		if (Math.abs(option.max - option.min) < 1000) {
+			return ({
+				parameter: option.name,
+				display: option.name,
+				description: option.description,
+				optional: true,
+				mode: 'slider',
+				min: option.min,
+				max: option.max,
+				tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
+				sliderMode: 'number',
+				default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
+			});
+		} else {
+			return ({
+				parameter: option.name,
+				display: option.name,
+				description: option.description,
+				optional: true,
+				mode: 'text',
+				type: 'float',
+				default: option.default + '',
+			});
+		}
+	}
+}
 
 export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }) {
 	// 视频
@@ -33,135 +167,9 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 					for (const option of encoder.options) {
 						if (existParameters.includes(option.name)) {
 							continue;
-						} else if (['string', 'dictionary'].includes(option.type)) {
-							parameters.push({
-								parameter: option.name,
-								display: option.name,
-								description: option.description,
-								optional: true,
-								mode: 'text',
-								default: option.default as string,
-							});
-						} else if (option.type === 'boolean') {
-							parameters.push({
-								parameter: option.name,
-								display: option.name,
-								description: option.description,
-								optional: true,
-								mode: 'switch',
-								default: option.default as boolean,
-							});
-						} else if (option.type === 'flags') {
-							parameters.push({
-								parameter: option.name,
-								display: option.name,
-								description: option.description,
-								optional: true,
-								mode: 'combo',
-								items: option.options.map((option) => ({
-									type: 'normal',
-									value: option.value as string,
-									label: option.value as string,
-								})),
-								default: option.default,
-							});
-						} else if (option.type === 'int') {
-							/**
-							 * int 类型具有最多的目的
-							 * 如果是间距为 1 或 0 的等差数列，可以认为是挡位调节（如 preset）（适用 slider），也有可能是枚举（如 tune）（适用 dropdownInput）。从 slider 占用和容纳空间考虑，设定为上下限差 4~10 之间的使用 slider，否则使用 dropwownInput
-							 * 如果不等差，基本可以认定是枚举（如 level）（适用 dropdownInput）
-							 * 如果没有选项，有可能是可调节范围（如 max_b_frames (from -1 to 3) (default -1)）（适用 slider），或者是别的（如 b-bias (from INT_MIN to INT_MAX) (default INT_MIN)）(适用 NormalInput)
-							 */
-							if (option.options) {
-								const options = option.options;
-								const isEqualDiff = options.map((o) => +o.value).every((option, index, array) => index === 0 || Math.abs(option - array[index - 1]) <= 1);
-								const minmaxDiff4to10 = isEqualDiff && Math.abs(+options[0].value - +options[options.length - 1].value) >= 4 && Math.abs(+options[0].value - +options[options.length - 1].value) <= 10;
-								// if (minmaxDiff4to10) {
-								// 	console.log('minmaxDiff4to10', encoder.name, option.name);
-								// }
-								if (isEqualDiff && minmaxDiff4to10) {
-									const min = Math.min(+options[0].value, +options[options.length - 1].value);
-									const max = Math.max(+options[0].value, +options[options.length - 1].value);
-									parameters.push({
-										parameter: option.name,
-										display: option.name,
-										description: option.description,
-										optional: true,
-										mode: 'slider',
-										min, max,
-										tags: new Map([[min, min + ''], [max, max + ''], [+option.default, '默认值'], ...options.map((option) => [+option.value, option.name] as [number, string])]),
-										sliderMode: 'number',
-										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
-										adsorption: 'int',
-									})									
-								} else {
-									parameters.push({
-										parameter: option.name,
-										display: option.name,
-										description: option.description,
-										optional: true,
-										mode: 'combo',
-										items: option.options.map((option) => ({
-											type: 'normal',
-											value: option.value,
-											label: option.name,
-											tooltip: option.description,
-										})),
-										default: option.default,
-									});
-								}
-							} else {
-								if (Math.abs(option.max - option.min) < 1000) {
-									parameters.push({
-										parameter: option.name,
-										display: option.name,
-										description: option.description,
-										optional: true,
-										mode: 'slider',
-										min: option.min,
-										max: option.max,
-										tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
-										sliderMode: 'number',
-										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
-										adsorption: 'int',
-									});
-								} else {
-									parameters.push({
-										parameter: option.name,
-										display: option.name,
-										description: option.description,
-										optional: true,
-										mode: 'text',
-										type: 'int',
-										default: option.default + '',
-									});
-								}
-							}
-						} else if (option.type === 'float') {
-							if (Math.abs(option.max - option.min) < 1000) {
-								parameters.push({
-									parameter: option.name,
-									display: option.name,
-									description: option.description,
-									optional: true,
-									mode: 'slider',
-									min: option.min,
-									max: option.max,
-									tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
-									sliderMode: 'number',
-									default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
-								});
-							} else {
-								parameters.push({
-									parameter: option.name,
-									display: option.name,
-									description: option.description,
-									optional: true,
-									mode: 'text',
-									type: 'float',
-									default: option.default + '',
-								});
-							}						
+						} else {
+							const parsedOption = parseSingleOption(option);
+							parsedOption && parameters.push(parsedOption);
 						}
 					}
 					// 如果有预置编码器，那么在 return 结果之前把预置编码的参数也替换掉
@@ -203,135 +211,9 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 					for (const option of encoder.options) {
 						if (existParameters.includes(option.name)) {
 							continue;
-						} else if (['string', 'dictionary'].includes(option.type)) {
-							parameters.push({
-								parameter: option.name,
-								display: option.name,
-								description: option.description,
-								optional: true,
-								mode: 'text',
-								default: option.default as string,
-							});
-						} else if (option.type === 'boolean') {
-							parameters.push({
-								parameter: option.name,
-								display: option.name,
-								description: option.description,
-								optional: true,
-								mode: 'switch',
-								default: option.default as boolean,
-							});
-						} else if (option.type === 'flags') {
-							parameters.push({
-								parameter: option.name,
-								display: option.name,
-								description: option.description,
-								optional: true,
-								mode: 'combo',
-								items: option.options.map((option) => ({
-									type: 'normal',
-									value: option.value as string,
-									label: option.value as string,
-								})),
-								default: option.default,
-							});
-						} else if (option.type === 'int') {
-							/**
-							 * int 类型具有最多的目的
-							 * 如果是间距为 1 或 0 的等差数列，可以认为是挡位调节（如 preset）（适用 slider），也有可能是枚举（如 tune）（适用 dropdownInput）。从 slider 占用和容纳空间考虑，设定为上下限差 4~10 之间的使用 slider，否则使用 dropwownInput
-							 * 如果不等差，基本可以认定是枚举（适用 dropdownInput）
-							 * 如果没有选项，有可能是可调节范围（适用 slider），或者是别的(适用 NormalInput)
-							 */
-							if (option.options) {
-								const options = option.options;
-								const isEqualDiff = options.map((o) => +o.value).every((option, index, array) => index === 0 || Math.abs(option - array[index - 1]) <= 1);
-								const minmaxDiff4to10 = isEqualDiff && Math.abs(+options[0].value - +options[options.length - 1].value) >= 4 && Math.abs(+options[0].value - +options[options.length - 1].value) <= 10;
-								// if (minmaxDiff4to10) {
-								// 	console.log('minmaxDiff4to10', encoder.name, option.name);
-								// }
-								if (isEqualDiff && minmaxDiff4to10) {
-									const min = Math.min(+options[0].value, +options[options.length - 1].value);
-									const max = Math.max(+options[0].value, +options[options.length - 1].value);
-									parameters.push({
-										parameter: option.name,
-										display: option.name,
-										description: option.description,
-										optional: true,
-										mode: 'slider',
-										min, max,
-										tags: new Map([[min, min + ''], [max, max + ''], [+option.default, '默认值'], ...options.map((option) => [+option.value, option.name] as [number, string])]),
-										sliderMode: 'number',
-										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
-										adsorption: 'int',
-									})									
-								} else {
-									parameters.push({
-										parameter: option.name,
-										display: option.name,
-										description: option.description,
-										optional: true,
-										mode: 'combo',
-										items: option.options.map((option) => ({
-											type: 'normal',
-											value: option.value,
-											label: option.name,
-											tooltip: option.description,
-										})),
-										default: option.default,
-									});
-								}
-							} else {
-								if (Math.abs(option.max - option.min) < 1000) {
-									parameters.push({
-										parameter: option.name,
-										display: option.name,
-										description: option.description,
-										optional: true,
-										mode: 'slider',
-										min: option.min,
-										max: option.max,
-										tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
-										sliderMode: 'number',
-										default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
-										adsorption: 'int',
-									});
-								} else {
-									parameters.push({
-										parameter: option.name,
-										display: option.name,
-										description: option.description,
-										optional: true,
-										mode: 'text',
-										type: 'int',
-										default: option.default + '',
-									});
-								}
-							}
-						} else if (option.type === 'float') {
-							if (Math.abs(option.max - option.min) < 1000) {
-								parameters.push({
-									parameter: option.name,
-									display: option.name,
-									description: option.description,
-									optional: true,
-									mode: 'slider',
-									min: option.min,
-									max: option.max,
-									tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
-									sliderMode: 'number',
-									default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
-								});
-							} else {
-								parameters.push({
-									parameter: option.name,
-									display: option.name,
-									description: option.description,
-									optional: true,
-									mode: 'text',
-									type: 'float',
-									default: option.default + '',
-								});
-							}						
+						} else {
+							const parsedOption = parseSingleOption(option);
+							parsedOption && parameters.push(parsedOption);
 						}
 					}
 					// 如果有预置编码器，那么在 return 结果之前把预置编码的参数也替换掉
@@ -346,4 +228,9 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 	}
 	audio全部可用编码.subMenu.push({ type: 'separator' });
 	audio全部可用编码.subMenu.push(audioRefreshButton);
+}
+
+export function parseFFmpegFiltersToFiltersList(input: FFmpegFilterDetail[]) {
+	filtersList.splice(0, filtersList.length);
+	filtersList.push(...input);
 }

@@ -1,7 +1,7 @@
 import { VNodeRef } from 'vue';
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
-import { FFmpegCodecDetail, Notification, NotificationLevel, OutputParams, TaskStatus, TransferStatus, WorkingStatus } from '@common/types';
+import { FFmpegCodecDetail, FFmpegFilterDetail, Notification, NotificationLevel, OutputParams, TaskStatus, TransferStatus, WorkingStatus } from '@common/types';
 import { version } from '@common/constants'; 
 import { Server } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
@@ -11,7 +11,7 @@ import { getMenuItemByValue } from '@common/menu';
 import { VCodecDetail, vcodecsList } from '@common/params/vcodecs';
 import { ACodecDetail, acodecsList } from '@common/params/acodecs';
 import path from '@common/path';
-import { parseFFmpegCodecsToCodecsList } from '@common/params/parser';
+import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList } from '@common/params/parser';
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from './eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { dashboardTimer } from '@renderer/common/dashboardCalc';
@@ -559,17 +559,19 @@ export const useAppStore = defineStore('app', {
 				}
 			});
 		},
-		fetchCodecs() {
+		fetchCodecsAndFilters() {
 			const 这 = useAppStore();
 			const entity = 这.currentServer?.entity;
 			if (entity?.status === ServiceBridgeStatus.Connected) {
-				fetch(`http://${entity.ip}:${entity.port}/codecs`, {
+				fetch(`http://${entity.ip}:${entity.port}/codecsAndFilters`, {
 					method: 'get',
 				}).then((response) => {
-					response.json().then((result: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }) => {
-						parseFFmpegCodecsToCodecsList(result);
-						nodeBridge.localStorage.set('ffmpegCodecs', result);
-						Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.video.length} 种视频编码、${result.audio.length} 种音频编码`, level: NotificationLevel.ok });
+					response.json().then((result: { codecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }, filters: FFmpegFilterDetail[] }) => {
+						parseFFmpegCodecsToCodecsList(result.codecs);
+						parseFFmpegFiltersToFiltersList(result.filters);
+						nodeBridge.localStorage.set('ffmpegCodecs', result.codecs);
+						nodeBridge.localStorage.set('ffmpegFilters', result.filters);
+						Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.filters.length} 个滤镜`, level: NotificationLevel.ok });
 						// 当 Parabox 停留在视频/音频编码界面时，由于整个 vcodecsList/acodecsList 被替换，使得界面中监听的是不会被再更新的老 list，因此需要刷一下
 						const outputs = 这.globalParams.outputs;
 						这.globalParams.outputs = [];
@@ -665,7 +667,7 @@ export const useAppStore = defineStore('app', {
 					name: '未连接',
 					tasks: [],
 					notifications: [],
-					ffmpegInfo: { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0 },
+					ffmpegInfo: { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0 },
 					version: '',
 					workingStatus: WorkingStatus.idle,
 					progress: 0,

@@ -35,12 +35,20 @@ interface CodecsResult {
 	}[];
 };
 
+interface FilterResult {
+	name: string;
+	inputType: string;
+	outputType: string;
+	description: string;
+}
+
 interface FFmpegInvokerEvent {
 	data: (arg: { content: string }) => void;
 	status: (arg: { frame: number; fps: number; q: number; size: number; time: number; bitrate: number; speed: number }) => void;
 	version: (arg: { content?: string }) => void;
 	metadata: (arg: { content: InputInfoString }) => void;
 	codecs: (codecsResult?: CodecsResult, codecDetail?: EncoderDetail) => void;
+	filters: (filtersResult?: FilterResult[], codecDetail?: EncoderDetail) => void;
 	// finished: () => void; 	// 正常完成任务退出时触发
 	// escaped: () => void; 	// 非正常退出时触发
 	closed: (errorCode: number, errors: string[], runningResult: 'success' | 'failed' | undefined) => void;
@@ -51,14 +59,15 @@ interface FFmpegInvokerEvent {
 
 export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegInvokerEvent>) {
 	private process: ChildProcess | null = null;
-	private mode: 'direct' | 'version' | 'metadata' | 'getCodecs';
+	private mode: 'direct' | 'version' | 'metadata' | 'getCodecs' | 'getFilters';
 	private runningResult: 'success' | 'failed' | undefined;	// 受状态机识别的错误都应设定此值。如果未设值而退出，则为异常退出
 	private paused: boolean = false;
 	private sm: number = 0; // 状态机状态码，详见下方说明
 	private requireStop = false; // 如果请求提前停止，那就不触发 finished 事件
 	private errors = new Set<string>(); // 发生 critical 则不触发 finished 事件，因某些错误（如外存不足）会由多个部件同时报告，所以这里用 Set
+	private encoderDetail: EncoderDetail = { generalCapabilities: [], threadingCapabilities: '', supportedPixelFormats: [], options: [] };	// 同时被 codecs 和 filters 使用
 	private codecsResult: CodecsResult = { videoCodecs: [], audioCodecs: [] };
-	private encoderDetail: EncoderDetail = { generalCapabilities: [], threadingCapabilities: '', supportedPixelFormats: [], options: [] };
+	private filtersResult: FilterResult[] = [];
 	private readingAVOption: EncoderDetail['options'][number];
 
 	private input: InputInfoString = {
@@ -77,9 +86,9 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 	/**
 	 * @param mode 0: 直接执行 ffmpeg　1: 检测 ffmpeg 版本　２：多媒体文件信息读取
 	 */
-	constructor(path = 'ffmpeg', mode: 0 | 1 | 2 | 3 = 0, params?: Array<string>) {
+	constructor(path = 'ffmpeg', mode: 0 | 1 | 2 | 3 | 4 = 0, params?: Array<string>) {
 		super();
-		this.mode = ['direct', 'version', 'metadata', 'getCodecs'][mode] as any;
+		this.mode = ['direct', 'version', 'metadata', 'getCodecs', 'getFilters'][mode] as any;
 
 		log.dev('启动 ffmpeg', (params || []).join(', '));
 		spawnInvoker(path, params, {
@@ -112,6 +121,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				this.emit('closed', code, [...this.errors], this.runningResult);
 				if (this.mode === 'getCodecs') {
 					this.emit('codecs', this.codecsResult, this.encoderDetail);
+				} else if (this.mode === 'getFilters') {
+					this.emit('filters', this.filtersResult, this.encoderDetail);
 				}
 			}, 10);
 		});
@@ -136,7 +147,9 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 
 		/**
 		 * sm 说明：
-		 * 0：复位状态　1：正在读取容器格式　2：正在读取视频流　3：正在读取音频流　4：正在读取流映射　5：正在读取帮助信息　6：正在读取 AVOptions　7. 正在读取 AVOptions 中的项
+		 * 0：复位状态　1：正在读取容器格式　2：正在读取视频流　3：正在读取音频流　4：正在读取流映射
+		 * 5：正在读取 codecs 帮助信息　6：正在读取 AVOptions 以及 AVOptions 中的项
+		 * 7：正在读取 filters 帮助信息　8：正在读取 AVOptions
 		 */
 		switch (this.sm) {
 			case 0:
@@ -250,6 +263,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					this.runningResult = 'failed';
 				} else if (thisLine.startsWith(' -------')) {	// ffmpeg -codecs 情况下，其下面就是列表
 					this.sm = 5;
+				} else if (thisLine.startsWith('  | = Source or sink filter')) {	// ffmpeg -filters 情况下，其下面就是列表
+					this.sm = 7;
 				} else if (thisLine.startsWith('    General capabilities:')) {	// 列举 encoder 功能
 					this.encoderDetail.generalCapabilities = thisLine.slice(thisLine.indexOf('General capabilities:') + 22).trimEnd().split(' ');
 				} else if (thisLine.startsWith('    Threading capabilities:')) {	// 列举 encoder 功能
@@ -382,7 +397,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				break;
 			case 5:
 				if (thisLine.startsWith(' ')) {
-					const basicInfoRegx = thisLine.match(/([.|\w])([.|\w])([.|\w])([.|\w])([.|\w])([.|\w]) (\w+) +(.+)/);
+					const basicInfoRegx = thisLine.match(/([\.D])([\.E])([VAS])([\.I])([\.L])([\.S]) (\w+) +(.+)/);
 					if (!basicInfoRegx) {
 						break;
 					}
@@ -432,7 +447,9 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					// 新的参数
 					//   -preset            <int>        E..V....... (from 1 to 7) (default medium)
      				//      veryfast        7            E..V.......
-					const basicInfoRegx = thisLine.match(/-([\w|-]+) +<(\w+)> +([\w|\.]+) (.+)/);
+					//    duration          <int>        ..F.A...... How to determine the end-of-stream. (from 0 to 2) (default longest)
+     				//      longest         0            ..F.A...... Duration of longest input.
+					const basicInfoRegx = thisLine.match(/-?([\w-]+) +<(\w+)> +([\w\.]+) ?(.+)?/);
 					// 0：全文　1. 参数名称　2. 参数类型　3. 不知道是啥　4. 描述（含取值范围）
 					const minmaxRegx = thisLine.match(/\(from ([\w|-]+) to ([\w|-]+)\)/);
 					const defaultRegx = thisLine.match(/\(default "?([\w+-\.]+)\)"?/);
@@ -459,11 +476,23 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					};
 					this.readingAVOption = option;	// flags 或者部分 int 情况下有多行（偶尔 boolean 也会有“auto”这种多行的情况）
 					this.encoderDetail.options.push(option);
-
 				}
 				break;
-			// case 7:
-
+			case 7:
+				if (thisLine.startsWith(' ')) {
+					const basicInfoRegx = thisLine.match(/([\.T])([\.S])([\.C]) (\w+) +(\w{1,3})->(\w{1,3}) +(.+)/);
+					if (!basicInfoRegx) {
+						break;
+					}
+					// 0：全文　1. Timeline support　2. Slice threading　3. Command support　4. 滤镜名称　5. 输入类型　6. 输出类型　7. 描述
+					this.filtersResult.push({
+						name: basicInfoRegx[4],
+						inputType: basicInfoRegx[5],
+						outputType: basicInfoRegx[6],
+						description: basicInfoRegx[7],
+					});
+				}
+				break;
 		}
 		this.dataProcessing(); // 可以把整个函数都 while (true)，为了节省空间，就改用递归了
 	}

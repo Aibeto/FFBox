@@ -485,7 +485,7 @@ export function replaceOutputParams(from: OutputParams, to: OutputParams, fullyR
 
 	const inputNodeCount = ret.input.files.length;
 	ret.filter.nodes = ret.filter.nodes.filter((node) => {
-		if (node.type !== 'input') return true;
+		if (node.name.match(/^in_\d+$/)) return true;
 		const match = node.name?.match(/^in_(\d+)$/);
 		if (!match) return true;
 		const index = parseInt(match[1]);

@@ -5,7 +5,7 @@ import fs from 'fs';
 import fsPromise from 'fs/promises';
 import { utimes } from 'utimes';
 import path from 'path';
-import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail } from '@common/types';
+import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail } from '@common/types';
 import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import { defaultParams } from '@common/defaultParams';
 import localConfig from '@common/localConfig';
@@ -26,9 +26,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	public tasklist: ServiceTask[] = [];
 	private latestTaskId = 0;
 	public workingStatus: WorkingStatus = WorkingStatus.idle;
-	private ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0 };
-	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; };
 	private ffmpegPath = '';
+	private ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0 };
+	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; };
+	public ffmpegFilters: FFmpegFilterDetail[] = [];
 	private globalTask: ServiceTask;
 	public notifications: Notification[] = [];
 	private latestNotificationId = 0;
@@ -155,7 +156,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。即将获取编码器信息。`);
 				this.emitFFmpegInfo();
 				setTimeout(() => {
-					this.getFFmpegCodecs();
+					this.getFFmpegCodecsAndFilters();
 				}, 100);
 			} else {
 				this.ffmpegInfo.version = '';
@@ -164,65 +165,100 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		});
 	}
 
-	public async getFFmpegCodecs(): Promise<void> {
-		const ffmpeg = new FFmpeg(this.ffmpegPath, 3, ['-codecs']);
-		ffmpeg.on('codecs', async (codecsResult) => {
-			log.info(`编码器概览扫描完成，支持视频编码 ${codecsResult.videoCodecs.length} 个、音频编码 ${codecsResult.audioCodecs.length} 个。即将扫描详细信息。`);
-			console.log(codecsResult);
-			const videoFinalResult: FFmpegCodecDetail[] = [];
-			const audioFinalResult: FFmpegCodecDetail[] = [];
-			let videoEncodersCount = 0;
-			let audioEncodersCount = 0;
-			for (const codec of codecsResult.videoCodecs) {
-				const encoderNames = codec.encoders.length ? codec.encoders : [codec.name];
-				const encoderDetails: (EncoderDetail & { name: string; })[] = [];
-				videoEncodersCount += encoderNames.length;
-				for (const encoderName of encoderNames) {
-					// console.log(`正在读取 ${codec.name} ${encoder}`);
+	public async getFFmpegCodecsAndFilters(): Promise<void> {
+		await new Promise((resolve, reject) => {
+			// 获取 codecs
+			const ffmpeg = new FFmpeg(this.ffmpegPath, 3, ['-codecs']);
+			ffmpeg.on('codecs', async (codecsResult) => {
+				log.info(`编码器概览扫描完成，支持视频编码 ${codecsResult.videoCodecs.length} 个、音频编码 ${codecsResult.audioCodecs.length} 个。即将扫描详细信息。`);
+				console.log(codecsResult);
+				const videoFinalResult: FFmpegCodecDetail[] = [];
+				const audioFinalResult: FFmpegCodecDetail[] = [];
+				let videoEncodersCount = 0;
+				let audioEncodersCount = 0;
+				for (const codec of codecsResult.videoCodecs) {
+					const encoderNames = codec.encoders.length ? codec.encoders : [codec.name];
+					const encoderDetails: (EncoderDetail & { name: string; })[] = [];
+					videoEncodersCount += encoderNames.length;
+					for (const encoderName of encoderNames) {
+						// console.log(`正在读取 ${codec.name} ${encoder}`);
+						await new Promise((resolve, _) => {
+							const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
+							ffmpeg2.on('codecs', (_, codecResult) => {
+								// console.log(codecResult);
+								encoderDetails.push({ name: encoderName, ...codecResult });
+								resolve(0);
+							});
+						});
+					}
+					videoFinalResult.push({
+						name: codec.name,
+						description: codec.description,
+						encoders: encoderDetails,
+					});
+				}
+				for (const codec of codecsResult.audioCodecs) {
+					const encoderNames = codec.encoders.length ? codec.encoders : [codec.name];
+					const encoderDetails: (EncoderDetail & { name: string; })[] = [];
+					audioEncodersCount += encoderNames.length;
+					for (const encoderName of encoderNames) {
+						// console.log(`正在读取 ${codec.name} ${encoder}`);
+						await new Promise((resolve, _) => {
+							const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
+							ffmpeg2.on('codecs', (_, codecResult) => {
+								// console.log(codecResult);
+								encoderDetails.push({ name: encoderName, ...codecResult });
+								resolve(0);
+							});
+						});
+					}
+					audioFinalResult.push({
+						name: codec.name,
+						description: codec.description,
+						encoders: encoderDetails,
+					});
+				}
+				log.info('编码器扫描结果', videoFinalResult, audioFinalResult);
+				this.ffmpegCodecs = { video: videoFinalResult, audio: audioFinalResult };
+				// this.ffmpegInfo.scanning = false;
+				this.ffmpegInfo.videoEncodersCount = videoEncodersCount;
+				this.ffmpegInfo.audioEncodersCount = audioEncodersCount;
+				this.emitFFmpegInfo();
+				parseFFmpegCodecsToCodecsList(this.ffmpegCodecs);
+				log.info('编码器到参数转换结果', vcodecsList);
+				resolve(0);
+			});
+		});
+		await new Promise((resolve, reject) => {
+			// 获取 filters
+			const ffmpeg = new FFmpeg(this.ffmpegPath, 4, ['-filters']);
+			ffmpeg.on('filters', async (filtersResult) => {
+				log.info(`滤镜概览扫描完成，支持滤镜 ${filtersResult.length} 个。即将扫描详细信息。`);
+				console.log(filtersResult);
+				const result: FFmpegFilterDetail[] = [];
+				for (const filter of filtersResult) {
+					// console.log(`正在读取 ${filter.name}`);
 					await new Promise((resolve, _) => {
-						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
+						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `filter=${filter.name}`]);
 						ffmpeg2.on('codecs', (_, codecResult) => {
-							// console.log(codecResult);
-							encoderDetails.push({ name: encoderName, ...codecResult });
+							result.push({
+								name: filter.name,
+								description: filter.description,
+								inputType: filter.inputType,
+								outputType: filter.outputType,
+								options: codecResult.options,
+							});
 							resolve(0);
 						});
 					});
 				}
-				videoFinalResult.push({
-					name: codec.name,
-					description: codec.description,
-					encoders: encoderDetails,
-				});
-			}
-			for (const codec of codecsResult.audioCodecs) {
-				const encoderNames = codec.encoders.length ? codec.encoders : [codec.name];
-				const encoderDetails: (EncoderDetail & { name: string; })[] = [];
-				audioEncodersCount += encoderNames.length;
-				for (const encoderName of encoderNames) {
-					// console.log(`正在读取 ${codec.name} ${encoder}`);
-					await new Promise((resolve, _) => {
-						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
-						ffmpeg2.on('codecs', (_, codecResult) => {
-							// console.log(codecResult);
-							encoderDetails.push({ name: encoderName, ...codecResult });
-							resolve(0);
-						});
-					});
-				}
-				audioFinalResult.push({
-					name: codec.name,
-					description: codec.description,
-					encoders: encoderDetails,
-				});
-			}
-			log.info('编码器扫描结果', videoFinalResult, audioFinalResult);
-			this.ffmpegCodecs = { video: videoFinalResult, audio: audioFinalResult };
-			this.ffmpegInfo.scanning = false;
-			this.ffmpegInfo.videoEncodersCount = videoEncodersCount;
-			this.ffmpegInfo.audioEncodersCount = audioEncodersCount;
-			this.emitFFmpegInfo();
-			parseFFmpegCodecsToCodecsList(this.ffmpegCodecs);
-			log.info('编码器到参数转换结果', vcodecsList);
+				log.info('滤镜扫描结果', result);
+				this.ffmpegFilters = result;
+				this.ffmpegInfo.scanning = false;
+				this.ffmpegInfo.filtersCount = result.length;
+				this.emitFFmpegInfo();
+				resolve(0);
+			});	
 		});
 	}
 

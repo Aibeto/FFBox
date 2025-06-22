@@ -18,11 +18,13 @@ interface Props {
 const VcodecView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 	
-	const videoParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex].video);
+	const videoParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.video);
 
 	const vcodec = computed(() => {
-		const vcodecName = videoParams.value.vcodec;
-		return (getMenuItemByValue(vcodecsList, vcodecName) as any)?.extra as VCodecDetail;
+		if (videoParams.value) {
+			const vcodecName = videoParams.value.vcodec;
+			return (getMenuItemByValue(vcodecsList, vcodecName) as any)?.extra as VCodecDetail;
+		}
 	});
 	const rateControlList = computed(() => {
 		return [
@@ -151,7 +153,7 @@ const VcodecView = defineComponent((props: Props) => {
 	);
 
 	// console.log(vcodec.value?.parameters);
-	return () => (
+	return () => videoParams.value ? (
 		<div class={style.container}>
 			<BoxedDropdownInput title="视频编码器" text={videoParams.value.vcodec} list={vcodecsList} onChange={(value: string) => handleChange('vcodec', value)} />
 			{['禁用', 'copy'].indexOf(videoParams.value.vcodec) === -1 && (
@@ -185,7 +187,7 @@ const VcodecView = defineComponent((props: Props) => {
 				</>
 			) || null}
 		</div>
-	);
+	) : <div>请选择一个输入文件</div>;
 }, {
 	props: ['editingOutputIndex'],
 });

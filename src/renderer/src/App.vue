@@ -7,7 +7,7 @@ import { handleDownloadStatusChange, handleDownloadProgress, handleCloseConfirm 
 import { TransferStatus } from '@common/types';
 import { Server } from './types';
 import { buildNumber, version } from '@common/constants';
-import { parseFFmpegCodecsToCodecsList } from '@common/params/parser';
+import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList } from '@common/params/parser';
 import Popup from './components/Popup/Popup';
 import nodeBridge from './bridges/nodeBridge';
 import MainFrame from './containers/MainFrame.vue';
@@ -63,7 +63,7 @@ onMounted(async () => {
 
 	// 挂载“获取服务器可用编码器”
 	window.addEventListener('fetch-codecs', () => {
-		appStore.fetchCodecs();
+		appStore.fetchCodecsAndFilters();
 	});
 
 	// 初始化或加载配置
@@ -73,6 +73,10 @@ onMounted(async () => {
 		const ffmpegCodecs = await nodeBridge.localStorage.get('ffmpegCodecs');
 		if (ffmpegCodecs) {
 			parseFFmpegCodecsToCodecsList(ffmpegCodecs);
+		}
+		const ffmpegFilters = await nodeBridge.localStorage.get('ffmpegFilters');
+		if (ffmpegFilters) {
+			parseFFmpegFiltersToFiltersList(ffmpegFilters);
 		}
 
 		const storedBuildNumber = await nodeBridge.localStorage.get('version.buildNumber');

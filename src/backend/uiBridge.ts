@@ -284,8 +284,11 @@ function getRouter(): Router {
 	});
 
 	// 获取已扫描的 FFmpeg 编码器信息
-	router.get('/codecs', async function (ctx) {
-		const result = ffboxService.ffmpegCodecs;
+	router.get('/codecsAndFilters', async function (ctx) {
+		const result = {
+			codecs: ffboxService.ffmpegCodecs,
+			filters: ffboxService.ffmpegFilters,
+		};
 		ctx.response.status = 200;
 		ctx.response.body = result;
 	});

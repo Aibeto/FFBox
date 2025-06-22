@@ -35,11 +35,11 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 		// 默认情况下这里数量最低为 1，不允许再删除。但如果后面代码真允许删除，那参数就到此为止了
 		return ret;
 	}
-	const outputNodes = outputParams.filter.nodes.filter((node) => node.type === 'output');
-	if (outputNodes.length)  {
+	const outputNodes = outputParams.filter.nodes.filter((node) => node.name.match(/^out_\d+$/));
+	if (outputNodes.length && outputParams.filter.lines.length) {	// 至少需要有连线的原因是有连线才认为是使用用户配置的滤镜图
 		for (const outputNode of outputNodes) {
 			// 一个 outputNode 是一个输出文件，可以由多个输入共同组成，因此这里要遍历 lines（对应 ffmpeg 中括号内的字符串）
-			for (let outputIndex = 0; outputIndex < outputNode.prevs.length; outputIndex++) {
+			for (let outputIndex = 0; outputIndex < outputNode.prevs?.length; outputIndex++) {
 				const line = outputNode.prevs[outputIndex];
 				ret.push('-map');
 				ret.push(`[${line.name}]`);

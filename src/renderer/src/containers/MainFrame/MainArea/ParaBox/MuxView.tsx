@@ -14,14 +14,14 @@ interface Props {
 const MuxView = defineComponent((props) => {
 	const appStore = useAppStore();
 
-	const muxParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex].mux);
+	const muxParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.mux);
 	
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
 		appStore.globalParams.output[sName] = value;
 		appStore.applyParameters();
 	}
-	return () => (
+	return () => muxParams.value ? (
 		<div class={style.container}>
 			<BoxedDropdownInput title="容器/格式" text={muxParams.value.format} list={formats} onChange={(value: string) => handleChange('format', value)} />
 			<BoxedSwitch title="元数据前移" checked={muxParams.value.moveflags} onChange={(value: boolean) => handleChange('moveflags', value)} />
@@ -32,7 +32,7 @@ const MuxView = defineComponent((props) => {
 			<BoxedNormalInput title="输出文件名" value={muxParams.value.filename} onChange={(value: string) => handleChange('filename', value)} long={true} placeholder="[filedir]：文件所在目录；[filebasename]：文件基础名；[fileext]：文件扩展名" validator={notEmptyValidator} />
 			<BoxedNormalInput title="自定义参数" value={muxParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 		</div>
-	);
+	) : <div>请选择一个输入文件</div>;
 }, {
 	props: ['editingOutputIndex'],
 });
