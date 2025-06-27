@@ -1,14 +1,14 @@
-import { computed, defineComponent, onMounted, ref } from 'vue';
+import { defineComponent, onMounted, ref } from 'vue';
 import Msgbox from '../Msgbox/Msgbox';
 
-export function showRateControlRecommendation() {
+export function showLocalLibrary(libName: string) {
 	(document.activeElement as any)?.blur();
 	// 如果是从菜单通过 Enter 进入的，不加延迟的情况下，会连带触发 Msgbox 的键盘事件监听，因此需要加延迟
 	setTimeout(() => {
 		Msgbox({
 			container: document.body,
 			title: '📚 FFBox 本地知识库',
-			content: <Comp />,
+			content: <Comp libName={libName} />,
 			buttons: [
 				{ text: '关闭', role: 'cancel' },
 			]
@@ -16,7 +16,7 @@ export function showRateControlRecommendation() {
 	}, 0);
 }
 
-const Comp = defineComponent(() => {
+const Comp = defineComponent((props: { libName: string }) => {
 	const iframeRef = ref<HTMLIFrameElement>();
 
 	// function applyHeadStylesToIframe(iframe: HTMLIFrameElement) {
@@ -59,9 +59,12 @@ const Comp = defineComponent(() => {
 			const iframeDoc = iframeRef.value.contentDocument || iframeRef.value.contentWindow.document;
 			iframeDoc.body.className = document.body.className;
 		});
+		console.log(props.libName);
 	});	
 	
 	return () => (
-		<iframe ref={iframeRef} src="./markdown-render/index.html?url=../FFBox 推荐画质设定.md" style="width: 90vw; height: calc(100vh - 200px); border: none;"></iframe>
+		<iframe ref={iframeRef} src={`./markdown-render/index.html?url=../${props.libName}.md`} style="width: 90vw; height: calc(100vh - 200px); border: none;"></iframe>
 	);
+}, {
+	props: ['libName'],
 });

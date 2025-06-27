@@ -45,7 +45,7 @@
 			}
 		}
 		.filtersList {
-			height: calc(100% - 44px);
+			height: calc(100% - 88px);
 			overflow: auto;
 			.item {
 				// width: 40px;
@@ -93,9 +93,15 @@
 				}
 			}
 		}
-
-		.title {
-			height: 24px;
+		.operations {
+			height: 44px;
+			display: flex;
+			justify-content: stretch;
+			align-items: center;
+			padding: 0 16px;
+			button {
+				flex: 1 1 auto;
+			}
 		}
 	}
 	.editor {
@@ -137,6 +143,7 @@
 				border-radius: 8px;
 				transform: translate(-50%, -50%);
 				// transition: all 0.04s cubic-bezier(0.2, 1, 0.8, 1);
+				cursor: grab;
 				.inputList, .outputList {
 					position: absolute;
 					top: 10px;
@@ -151,18 +158,18 @@
 						height: 10px;
 						border-radius: 5px;
 						cursor: crosshair;
-					}
-					.port[data-type="V"] {
-						background-color: hwb(var(--video));
-						box-shadow: 0 2px 6px hwb(var(--video) / 0.4);
-					}
-					.port[data-type="A"] {
-						background-color: hwb(var(--audio));
-						box-shadow: 0 2px 6px hwb(var(--audio) / 0.4);
-					}
-					.port[data-type="N"], .port[data-type="U"] {
-						background-color: hwb(var(--unknown));
-						box-shadow: 0 2px 6px hwb(var(--unknown) / 0.4);
+						&[data-type="V"] {
+							background-color: hwb(var(--video));
+							box-shadow: 0 2px 6px hwb(var(--video) / 0.4);
+						}
+						&[data-type="A"] {
+							background-color: hwb(var(--audio));
+							box-shadow: 0 2px 6px hwb(var(--audio) / 0.4);
+						}
+						&[data-type="N"], &[data-type="U"] {
+							background-color: hwb(var(--unknown));
+							box-shadow: 0 2px 6px hwb(var(--unknown) / 0.4);
+						}
 					}
 				}
 				.inputList {
@@ -175,10 +182,33 @@
 			.line {
 				overflow: visible;
 				position: absolute;
-				line {
+				width: 1px;
+				height: 1px;
+				.invisibleLine {
+					stroke: transparent;
+					stroke-width: 8px;
+				}
+				.svgLine {
 					stroke: currentColor;
 					stroke-width: 3px;
 					stroke-linecap: round;
+				}
+				.rect {
+					position: absolute;
+					height: 22px;
+					fill: currentColor;
+					transition: width 0.3s cubic-bezier(0.1, 1.2, 0.6, 1);
+				}
+				.invisibleRect {
+					position: absolute;
+					height: 22px;
+					fill: transparent;
+				}
+				text {
+					position: absolute;
+					font-size: 13px;
+					stroke: currentColor;
+					// filter: url(#filterLineTextFilter);
 				}
 				&[data-type="V"] {
 					color: hwb(var(--video));
@@ -190,8 +220,15 @@
 					color: hwb(var(--unknown));
 				}
 			}
-			.line:not(.line[data-creating="T"])>line:hover {
-				stroke-width: 5px;
+			.line:not(.line[data-creating="T"]):hover {
+				cursor: pointer;
+				.svgLine {
+					stroke-width: 5px;
+				}
+				text {
+					color: white;
+					filter: none;
+				}
 			}
 		}
 	}
@@ -249,5 +286,19 @@
 		align-items: center;	/* 一行 */
 		/* align-content: space-between;	 多行 */
 		justify-content: space-around;	
+		font-size: 9px;
 	}
+}
+.noFilter {
+	height: 100%;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+.renamePanel {
+	width: calc(200px + 20vw);
+	display: flex;
+	align-items: center;
+	justify-content: stretch;
+	gap: 20px;
 }

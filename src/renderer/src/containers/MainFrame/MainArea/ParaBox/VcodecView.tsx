@@ -4,7 +4,7 @@ import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
 import { framerateValidator, numberValidator } from '../../../../components/validatorAndFixer';
-import { showRateControlRecommendation } from '@renderer/components/misc/RateControlRecommendation';
+import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -35,7 +35,7 @@ const VcodecView = defineComponent((props: Props) => {
 				value: 'fetchFromService',
 				label: '我应调整到什么值？...',
 				icon: <span>🤔</span>,
-				onClick: () => showRateControlRecommendation(),
+				onClick: () => showLocalLibrary('FFBox 推荐画质设定'),
 			},
 		];
 	});

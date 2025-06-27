@@ -1,5 +1,5 @@
 import path from './path';
-import { associateNodesAndLines } from './params/filter';
+import { associateNodesAndLines, getFilterParam } from './params/filter';
 import { generator as fGenerator, formats } from './params/formats';
 import { generator as vGenerator } from './params/vcodecs';
 import { generator as aGenerator } from './params/acodecs';
@@ -24,7 +24,10 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 	ret.push(...fGenerator.getInputParam(outputParams.input, withQuotes));
 
 	associateNodesAndLines(outputParams.filter.nodes, outputParams.filter.lines);
-	// filter_complex
+	const filterStr = getFilterParam(outputParams.filter.nodes, outputParams.filter.lines);
+	if (filterStr) {
+		ret.push('-filter_complex', filterStr);
+	}
 	/**
 	 * 在 filter 图中找到所有输出节点进行遍历
 	 *   如果有，并且有连线，那么对每个有连线的节点都 -map [最后一条线.name] 然后进行 video/audio/output 的参数生成。
@@ -37,16 +40,19 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 	}
 	const outputNodes = outputParams.filter.nodes.filter((node) => node.name.match(/^out_\d+$/));
 	if (outputNodes.length && outputParams.filter.lines.length) {	// 至少需要有连线的原因是有连线才认为是使用用户配置的滤镜图
-		for (const outputNode of outputNodes) {
+		for (let outputIndex = 0; outputIndex < outputNodes.length; outputIndex++) {
+			const outputNode = outputNodes[outputIndex];
 			// 一个 outputNode 是一个输出文件，可以由多个输入共同组成，因此这里要遍历 lines（对应 ffmpeg 中括号内的字符串）
-			for (let outputIndex = 0; outputIndex < outputNode.prevs?.length; outputIndex++) {
-				const line = outputNode.prevs[outputIndex];
-				ret.push('-map');
-				ret.push(`[${line.name}]`);
-				ret.push(...vGenerator.getVideoParam(outputParams.outputs[outputIndex].video));
-				ret.push(...aGenerator.getAudioParam(outputParams.outputs[outputIndex].audio));
-				ret.push(...fGenerator.getOutputParam(outputParams.outputs[outputIndex].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths[outputIndex]));
+			for (let outputNodeIndex = 0; outputNodeIndex < outputNode.prevs?.length; outputNodeIndex++) {
+				const line = outputNode.prevs[outputNodeIndex];
+				if (line) {
+					ret.push('-map');
+					ret.push(`[${line.name}]`);
+				}
 			}
+			ret.push(...vGenerator.getVideoParam(outputParams.outputs[outputIndex].video));
+			ret.push(...aGenerator.getAudioParam(outputParams.outputs[outputIndex].audio));
+			ret.push(...fGenerator.getOutputParam(outputParams.outputs[outputIndex].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[outputIndex]));
 		}
 	} else {
 		ret.push(...vGenerator.getVideoParam(outputParams.outputs[0].video));

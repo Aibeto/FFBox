@@ -7,28 +7,31 @@ import { parseTimeString } from '@common/utils';
 const INVALID_TEXT = '默认输入不合法提示';
 
 export function notEmptyValidator(value: string) {
-    return value.length ? undefined : INVALID_TEXT;
+	return value.length ? undefined : INVALID_TEXT;
 }
 
 export function durationValidator(value: string) {
-    return parseTimeString(value) >= 0 || !value.length ? undefined : INVALID_TEXT;
+	return parseTimeString(value) >= 0 || !value.length ? undefined : INVALID_TEXT;
 }
 
 export function numberValidator(value: string) {
-    return value.match(/^-?\d+(.\d+)?$/) ? undefined : INVALID_TEXT;
+	return value.match(/^-?\d+(.\d+)?$/) ? undefined : INVALID_TEXT;
 }
 numberValidator.integer = function(value: string) {
-    return value.match(/^-?\d+$/) ? undefined : INVALID_TEXT;
+	return value.match(/^-?\d+$/) ? undefined : INVALID_TEXT;
+}
+numberValidator.integerEmptyable = function(value: string) {
+	return value === undefined || value === '' || value.match(/^-?\d+$/) ? undefined : INVALID_TEXT;
 }
 
 export function framerateValidator(value: string) {
-    return value.match(/^\d+(.\d+)?i?$/) || value === '不改变' ? undefined : INVALID_TEXT;
+	return value.match(/^\d+(.\d+)?i?$/) || value === '不改变' ? undefined : INVALID_TEXT;
 }
 
 export function durationFixer(value: string) {
-    return value.replaceAll('：', ':').replaceAll('。', '.').replace(/[a-z]/g, '');
+	return value.replaceAll('：', ':').replaceAll('。', '.').replace(/[a-z]/g, '');
 }
 
 export function posIntegerFixer(value: string) {
-    return value.replace(/[^0-9]/g, '');
+	return value.replace(/[^0-9]/g, '');
 }

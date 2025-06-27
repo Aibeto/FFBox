@@ -36,8 +36,13 @@ const outputSelectionList = computed(() => appStore.globalParams.outputs.map((ou
 })));
 
 const globalParamsText = computed(() => {
-	const globalparamsArray = getFFmpegParaArray(appStore.globalParams);
-	return ['ffmpeg', ...globalparamsArray].join(' ');
+	try {
+		const globalparamsArray = getFFmpegParaArray(appStore.globalParams);
+		return ['ffmpeg', ...globalparamsArray].join(' ');
+	} catch (e) {
+		console.error(e);
+		return '异常';
+	}
 });
 
 const handleDragStart = (event: MouseEvent | TouchEvent) => {
