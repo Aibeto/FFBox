@@ -9,6 +9,7 @@ import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdown
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
+import IconFind from '@renderer/assets/mainArea/find.svg?component';
 import style from './index.module.less';
 
 interface Props {
@@ -19,6 +20,16 @@ const AcodecView = defineComponent((props) => {
 	const appStore = useAppStore();
 
 	const audioParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.audio);
+
+	const audioContainsInOutput = computed(() => {
+		// 如果启用了滤镜，那么需要找到对应输出节点，并且有连线；否则默认输出一个文件
+		if (appStore.globalParams.filter.nodes.length) {
+			const outputNode = appStore.globalParams.filter.nodes.find((node) => node.name === `out_${props.editingOutputIndex}`);
+			return outputNode?.prevs.length ? true : false;
+		} else {
+			return true;
+		}
+	});
 
 	const acodec = computed(() => {
 		if (audioParams.value) {
@@ -145,8 +156,7 @@ const AcodecView = defineComponent((props) => {
 		})
 	);
 
-	// console.log(acodec.value?.parameters);
-	return () => audioParams.value ? (
+	return () => audioParams.value && audioContainsInOutput.value ? (
 		<div class={style.container}>
 			<BoxedDropdownInput title="音频编码器" text={audioParams.value.acodec} list={acodecsList} onChange={(value: string) => handleChange('acodec', value)} />
 			{['禁用', 'copy'].indexOf(audioParams.value.acodec) === -1 && (
@@ -189,7 +199,18 @@ const AcodecView = defineComponent((props) => {
 				</>
 			) || null}
 		</div>
-	) : <div>请选择一个输入文件</div>;
+	) : (
+		<div class={style.noOutput}>
+			<div class={style.box}>
+				<IconFind />
+				<div class={style.description}>
+					<p>您正在编辑【输出 {props.editingOutputIndex}】的音频配置</p>
+					<p>但【输出文件 {props.editingOutputIndex}】节点在滤镜图中不存在或未连接任何输入</p>
+					<p>请先在“滤镜”面板中为该节点建立连线</p>
+				</div>
+			</div>
+		</div>
+	);
 }, {
 	props: ['editingOutputIndex'],
 });

@@ -76,7 +76,6 @@ const handleParaButtonClicked = (index: number) => {
 }
 
 const handleOutputSelectionListChange = (value: string) => {
-	console.log(value);
 	const match = value.match(/^输出 (\d+)$/);
 	if (match) {
 		const index = Number(match[1]);
@@ -99,9 +98,11 @@ const getButtonColorStyle = (index: number) => ({ color: appStore.paraSelected =
 						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
 						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>
 					</button>
-					<div v-if="appStore.globalParams.outputs.length > 1 || true" class="outputSelection">
-						<DropdownInput :list="outputSelectionList" :text="`输出 ${editingOutputIndex}`" @change="handleOutputSelectionListChange" />
-					</div>
+					<transition name="outputSelectAnim">
+						<div v-if="appStore.globalParams.outputs.length > 1" class="outputSelection">
+							<DropdownInput :list="outputSelectionList" :text="`输出 ${editingOutputIndex}`" @change="handleOutputSelectionListChange" />
+						</div>
+					</transition>
 					<button v-for="index in [3, 4, 5]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="handleParaButtonClicked(index)">
 						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
 						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>
@@ -124,7 +125,7 @@ const getButtonColorStyle = (index: number) => ({ color: appStore.paraSelected =
 				<InputView v-if="appStore.paraSelected == 1" />
 			</transition>
 			<transition :name="animationName">
-				<EffectView v-if="appStore.paraSelected == 2" />
+				<EffectView v-if="appStore.paraSelected == 2" :editingOutputIndex="editingOutputIndex" :onEditingOutputIndexChange="(index) => editingOutputIndex = index" />
 			</transition>
 			<transition :name="animationName">
 				<VcodecView v-if="appStore.paraSelected == 3" :editingOutputIndex="editingOutputIndex" />
@@ -212,9 +213,21 @@ const getButtonColorStyle = (index: number) => ({ color: appStore.paraSelected =
 					justify-content: center;
 					align-items: center;
 					.outputSelection {
-						// display: inline-block;
 						width: 72px;
+						transition: width cubic-bezier(0.2, 1.2, 0.5, 1) 0.4s;
 						cursor: initial;
+						&>* {
+							overflow: hidden;
+						}
+					}
+					.outputSelectAnim-enter-from, .outputSelectAnim-leave-to {
+						width: 0px;
+					}
+					.outputSelectAnim-enter-active {
+						transition: width cubic-bezier(0.2, 1.5, 0.5, 1) 0.5s;
+					}
+					.outputSelectAnim-leave-active {
+						transition: width ease 0.4s;
 					}
 					button {
 						// display: inline-block;

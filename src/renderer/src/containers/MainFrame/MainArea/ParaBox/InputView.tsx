@@ -35,8 +35,9 @@ const InputView = defineComponent((props: Props) => {
 	const listContainerStyle = computed(() => extendedFiles.value.length >= 11 ? " --itemPadding: 0 8px " : " --itemPadding: 4px 8px ")
 
 	const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
+		const draggerRect = event.target.getBoundingClientRect();
 		const mainAreaRect = event.target.parentElement.getBoundingClientRect();
-		const inElementX = (event as MouseEvent).offsetX ?? (event as TouchEvent).touches[0].offsetX;	// 鼠标在元素内的 X
+		const inElementX = ((event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX) - draggerRect.x;	// 鼠标在元素内的 X
 		// 添加鼠标事件捕获
 		let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
 			const mouseX = (event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX;	// 鼠标在窗口内的 X
@@ -106,6 +107,9 @@ const InputView = defineComponent((props: Props) => {
 	};
 	const handleFileDelete = (index: number) => {
 		appStore.globalParams.input.files.splice(index, 1);
+		if (appStore.globalParams.filter.nodes.length) {
+			
+		}
 		appStore.applyParameters();
 	};
 

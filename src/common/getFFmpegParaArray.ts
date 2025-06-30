@@ -39,7 +39,7 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 		return ret;
 	}
 	const outputNodes = outputParams.filter.nodes.filter((node) => node.name.match(/^out_\d+$/));
-	if (outputNodes.length && outputParams.filter.lines.length) {	// 至少需要有连线的原因是有连线才认为是使用用户配置的滤镜图
+	if (outputNodes.length) {	// 只要有输出节点就认为用户启用了滤镜图
 		for (let outputIndex = 0; outputIndex < outputNodes.length; outputIndex++) {
 			const outputNode = outputNodes[outputIndex];
 			// 一个 outputNode 是一个输出文件，可以由多个输入共同组成，因此这里要遍历 lines（对应 ffmpeg 中括号内的字符串）
@@ -50,9 +50,12 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 					ret.push(`[${line.name}]`);
 				}
 			}
-			ret.push(...vGenerator.getVideoParam(outputParams.outputs[outputIndex].video));
-			ret.push(...aGenerator.getAudioParam(outputParams.outputs[outputIndex].audio));
-			ret.push(...fGenerator.getOutputParam(outputParams.outputs[outputIndex].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[outputIndex]));
+			if (outputNode.prevs?.length) {
+				// 至少需要有连线才能输出
+				ret.push(...vGenerator.getVideoParam(outputParams.outputs[outputIndex].video));
+				ret.push(...aGenerator.getAudioParam(outputParams.outputs[outputIndex].audio));
+				ret.push(...fGenerator.getOutputParam(outputParams.outputs[outputIndex].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[outputIndex]));
+			}
 		}
 	} else {
 		ret.push(...vGenerator.getVideoParam(outputParams.outputs[0].video));

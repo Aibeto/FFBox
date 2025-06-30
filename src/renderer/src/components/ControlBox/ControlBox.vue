@@ -14,7 +14,7 @@ const props = defineProps<{
 </script>
 
 <template>
-    <div class="controlBox" :style="{ minWidth: props.long ? 'calc(100% - 28px)' : '210px' }">
+    <div class="controlBox" :style="{ width: props.long ? '100%' : '210px', marginRight: !props.optional && !props.long ? '28px' : (props.optional && props.long ? '14px' : '20px') }">
 		<Checkbox v-if="props.optional" :checked="props.hasValue" @change="props.onEnabledChange" />
 		<div class="controlBox-title" v-bind="props.description ? useTooltip(props.description) : undefined" :style="{ opacity: props.optional && hasValue === false ? 0.5 : 1 }">
 			{{ props.title }}
@@ -26,7 +26,7 @@ const props = defineProps<{
 <style>
 	.controlBox {
 		height: 56px;
-		margin: 4px 28px 4px 20px;
+		margin: 4px 20px;
         display: flex;
 		justify-content: space-between;
         align-items: center;
@@ -36,10 +36,6 @@ const props = defineProps<{
 			min-width: 88px;
 			font-size: 14px;
 			text-align: center;
-		}
-        &:nth-child(2) {
-			flex-grow: 1;
-			max-width: 40px;
 		}
 
 </style>

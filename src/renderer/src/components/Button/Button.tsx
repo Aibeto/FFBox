@@ -4,7 +4,7 @@ import style from './Button.module.less';
 
 export interface ButtonProps {
 	disabled?: boolean;
-	onClick?: () => any;
+	onClick?: (event: MouseEvent) => any;
 	type?: ButtonType;
 	size?: 'small' | 'normal' | 'large';
 }[];
@@ -43,7 +43,7 @@ const ButtonComponent: FunctionalComponent<ButtonProps> = (props, ctx) => {
 			data-color_theme={appStore.frontendSettings.colorTheme}
 			class={getButtonClass(props.type, props.disabled, props.size)}
 			disabled={props.disabled}
-			onClick={() => props.onClick}
+			onClick={(event) => { props.onClick(event); event.stopImmediatePropagation() } }
 		>
 			{ h(ctx.slots.default) }
 		</button>

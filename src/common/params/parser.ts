@@ -6,8 +6,8 @@ import { getMenuItemByValue } from '@common/menu';
 import { Parameter } from './parameter';
 import { filtersList } from './filter';
 
-function parseSingleOption(option: EncoderDetail['options'][number]): Parameter {
-	if (['string', 'dictionary'].includes(option.type)) {
+export function parseSingleOption(option: EncoderDetail['options'][number]): Parameter {
+	if (['string', 'dictionary', 'image_size', 'rational', 'color'].includes(option.type)) {
 		return ({
 			parameter: option.name,
 			display: option.name,
@@ -39,7 +39,7 @@ function parseSingleOption(option: EncoderDetail['options'][number]): Parameter 
 			})),
 			default: option.default,
 		});
-	} else if (option.type === 'int') {
+	} else if (['int', 'int64'].includes(option.type)) {
 		/**
 		 * int 类型具有最多的目的
 		 * 如果是间距为 1 或 0 的等差数列，可以认为是挡位调节（如 preset）（适用 slider），也有可能是枚举（如 tune）（适用 dropdownInput）。从 slider 占用和容纳空间考虑，设定为上下限差 4~10 之间的使用 slider，否则使用 dropwownInput
@@ -111,7 +111,7 @@ function parseSingleOption(option: EncoderDetail['options'][number]): Parameter 
 				});
 			}
 		}
-	} else if (option.type === 'float' || option.type === 'double') {
+	} else if (['float', 'double', 'duration'].includes(option.type)) {
 		if (Math.abs(option.max - option.min) < 1000) {
 			return ({
 				parameter: option.name,
@@ -136,6 +136,8 @@ function parseSingleOption(option: EncoderDetail['options'][number]): Parameter 
 				default: option.default + '',
 			});
 		}
+	} else {
+		debugger;
 	}
 }
 
