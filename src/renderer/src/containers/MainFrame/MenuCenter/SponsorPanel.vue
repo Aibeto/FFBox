@@ -258,6 +258,10 @@ onMounted(() => {
 					<td>同时转码任务数量设定上限</td>
 					<td>{{ appStore.functionLevel < 40 ? 6 : 9 }}</td>
 				</tr>
+				<tr v-if="appStore.functionLevel < 60">
+					<td>滤镜功能节点数量上限</td>
+					<td>{{ appStore.functionLevel < 40 ? 66 : 99 }}</td>
+				</tr>
 			</tbody>
 		</table>
 		<p>FFBox 是一款试用、有源、捐赠混合的软件。出厂状况下，本软件存在部分功能的使用限制</p>

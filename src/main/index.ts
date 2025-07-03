@@ -442,6 +442,27 @@ class ElectronApp {
 			});
 		});
 
+		// 代为请求
+		ipcMain.handle('request', async (event, url: string, options?: { method?: string; body?: any; headers?: Record<string, string> }) => {
+			const requestOptions: RequestInit = {
+				method: options?.method || 'GET',
+				// mode: 'cors', // 目前不需要跨域
+				headers: options?.headers || {},
+				body: options?.body,
+			};
+			const response = await fetch(url, requestOptions);
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+			const responseData = await response.text();
+			return {
+				status: response.status,
+				statusText: response.statusText,
+				headers: Object.fromEntries(response.headers.entries()),
+				data: responseData,
+			};
+		});
+
 		// 半透明窗体
 		ipcMain.on('setBlurBehindWindow', (event, on: boolean) => {
 			switch (getOs()) {

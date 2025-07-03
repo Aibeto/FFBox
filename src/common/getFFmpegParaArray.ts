@@ -26,7 +26,7 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 	associateNodesAndLines(outputParams.filter.nodes, outputParams.filter.lines);
 	const filterStr = getFilterParam(outputParams.filter.nodes, outputParams.filter.lines);
 	if (filterStr) {
-		ret.push('-filter_complex', filterStr);
+		ret.push('-filter_complex', withQuotes ? `"${filterStr}"` : filterStr);
 	}
 	/**
 	 * 在 filter 图中找到所有输出节点进行遍历
@@ -47,7 +47,7 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 				const line = outputNode.prevs[outputNodeIndex];
 				if (line) {
 					ret.push('-map');
-					ret.push(`[${line.name}]`);
+					ret.push(line.name.match(/^\d+(:[vasdt])?(:\d+)?$/) ? line.name : `[${line.name}]`);
 				}
 			}
 			if (outputNode.prevs?.length) {

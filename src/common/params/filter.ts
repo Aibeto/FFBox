@@ -56,7 +56,8 @@ export const getFilterParam = (nodes: FilterNode[], lines: FilterLine[]) => {
 		const inputLabels = inputLines.length ? inputLines.map((line) => `[${line.name}]`).join('') : '';
 		const outputLines = node.nexts.filter((nextLine) => nextLine);
 		const outputLabels = outputLines.length ? outputLines.map((line) => `[${line.name}]`).join('') : '';
-		const filterParam = `${node.name}`;
+		const paramsStr = Object.entries(node.params).filter(([key, value]) => value !== undefined && value !== '').map(([key, value]) => `${key}=${value}`).join(':');
+		const filterParam = `${node.name}${paramsStr.length ? `=${paramsStr}` : ''}`;
 		filterLines.push(`${inputLabels}${filterParam}${outputLabels}`);
 	}
 

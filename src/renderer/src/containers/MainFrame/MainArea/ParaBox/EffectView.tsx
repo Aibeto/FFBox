@@ -1,14 +1,16 @@
-import { computed, defineComponent, h, onMounted, onUnmounted, ref, Transition } from 'vue'; // defineComponent 的主要功能是提供类型检查
-import { EncoderDetail, FFmpegFilterDetail, FilterLine, FilterNode } from '@common/types';
+import { computed, defineComponent, h, onMounted, ref, Transition, watch } from 'vue';
+import { parse, ITag, IText } from 'html5parser';
+import { FFmpegFilterDetail, FilterLine, FilterNode, NotificationLevel } from '@common/types';
 import { associateNodesAndDetails, associateNodesAndLines, filtersList } from '@common/params/filter';
 import { parseSingleOption } from '@common/params/parser';
 import { randomString } from '@common/utils';
-import { useAppStore } from '@renderer/stores/appStore';
+import { defaultParams } from '@common/defaultParams';
 import { useTooltip } from "@renderer/common/tooltipUtil";
+import { useAppStore } from '@renderer/stores/appStore';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { numberValidator } from '@renderer/components/validatorAndFixer';
 import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
-import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
+import showMenu from '@renderer/components/Menu/Menu';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import NormalInput from '@renderer/components/NormalInput/NormalInput.vue';
 import DropdownInput from '@renderer/components/DropdownInput/DropdownInput.vue';
@@ -17,8 +19,9 @@ import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import Msgbox from '@renderer/components/Msgbox/Msgbox';
+import Popup from '@renderer/components/Popup/Popup';
+import IconFind from '@renderer/assets/mainArea/find.svg?component';
 import style from './EffectView.module.less';
-import { defaultParams } from '@common/defaultParams';
 
 const RenameLinePanel = defineComponent((props: { line: FilterLine, isInput: boolean, originalValue: string, exportFunctions: (fs: any) => void }) => {
 	const inputValue = ref<string>('');
@@ -72,6 +75,399 @@ const RenameLinePanel = defineComponent((props: { line: FilterLine, isInput: boo
 	props: ['line', 'isInput', 'originalValue', 'exportFunctions'],
 });
 
+const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: () => void }) => {
+	interface FilterOption {
+		name: string;
+		description: string[];
+	}
+	  
+	interface FilterParam {
+		name: string;
+		description: string[];
+		options?: FilterOption[];
+	}
+	  
+	interface FilterItem {
+		name: string;
+		description: string[];
+		params?: FilterParam[];
+		examples?: { title: string; code: string }[];
+	}
+
+	const html = ref();
+	const fetching = ref(false);
+	const currentTab = ref(0);
+	const filterName = ref(props.filterName);
+	// const docFilterDetail = ref<FilterItem>();
+
+	const docFilterDetail = computed(() => html.value ? getFilterDetailFromHtml(html.value, props.filterName) : undefined);
+
+	const FFBoxFilterDetail = computed(() => filtersList.find((filter) => filter.name === props.filterName));
+
+	const handleGetDocs = () => {
+		fetching.value = true;
+		nodeBridge.request('https://ffmpeg.org/ffmpeg-filters.html').then((res) => {
+			console.log(res);
+			nodeBridge.localStorage.set('ffmpegFilterDocs', res.data);
+			html.value = res.data;
+			// docFilterDetail.value = getFilterDetailFromHtml(res.data);
+		}).catch((err) => {
+			console.log(err);
+		}).finally(() => {
+			fetching.value = false;
+		});
+	};
+
+	const parseHtml = (html: string) => {
+		// 解析
+		console.time('parse');
+		const ast = parse(html);
+		console.timeEnd('parse');
+		// 现有一任务：将 ffmpeg 滤镜文档 html 提取为结构化数据
+		// html 解析器已就绪，pageContentInset 就是文章主体的 ast。如果元素是标签，类型为 ITag；如果为纯文本，类型为 IText
+		// 已知 ffmpeg 滤镜文档的规律：
+		// 文章主体中，一路找到 <span id="Audio-Filters"></span>，紧跟一个 <h2 class="chapter"></h2>，往下的内容是 audioFilter
+		// 同样的，文章主体中，一路找到 <span id="Video-Filters"></span>，紧跟一个 <h2 class="chapter"></h2>，往下的内容是 videoFilter
+		// 往下遍历的过程中，一路找到 <span id="acrossfade"></span>，紧跟一个 <h3 class="section"></h3>，往下的内容就是名称为“acrossfade”的滤镜。因为它在 audioFilter 下方，因此是音频滤镜，以此类推
+		// 这个 h3 会紧跟 [一个什么都没有的 IText, 一个 <p></p>][]。什么都没有的东西是多余的，<p> 里面的内容是滤镜的 description，会有多次重复代表多行
+		// <p> 里可以有若干个子元素，有可能是 IText，直接就是文本；有可能是一个标签 <a> 的 ITag，它的 .body[0] 是一个 IText。这是因为它在文本中夹链接。我们需要无视链接，直接把文本拼起来
+		// 如果这个滤镜有参数，那么在描述过后，紧跟一个 <dl compact="compact">，需要进 dl 元素的 body 里继续
+		// dl 中会以一个 <dt> 一个 <dd> 的形式去描述滤镜参数的 key 和 value 说明。当然由于 html 解析器的原因，每个 dt 或者 dl 前都会多出来一个什么都没有的 IText
+		// dt 的 .body[0] 是一个 <samp>，<samp> 的 .body[0] 是一个 IText，它的 .value 可以取到参数名
+		// dd 中也有若干行 <p>，<p> 之间会被一个什么都没有的 IText 隔开。也就是说参数描述也是多行的
+		// <p> 里可以有若干个子元素，有可能是 IText，直接就是文本；有可能是一个标签 <a> 的 ITag，它的 .body[0] 是一个 IText。这是因为它在文本中夹链接。我们需要无视链接，直接把文本拼起来
+		// dd 中若干行 <p> 后有可能会紧跟 <dl compact="compact">，这代表滤镜参数是可以从列表中选择的，需要把选项解析进 option 里
+		// 这个 dl 中的元素的规则跟上面是差不多的。不同之处是：dt 的 .body 可能 [0] 和 [3] 是个引号，[1] 才是选项名的 <samp>。不过，有可能外面的那层也是这个逻辑，因此你可以两边写一样的逻辑
+		// 回到外层继续遍历，一路找到 <span id="example，id 不定"></span>，紧跟一个 <h4 class="subsection"></h4>，往下的内容就是刚才滤镜的 example（可能没有 h4，直接就到下一个滤镜）（span 前会跟一个什么都没有的 IText）
+		// 它下面紧跟一个什么都没有的 IText，然后就是一个 <ul> 元素。<ul> 的 body 除了第一个元素是什么都没有的 IText 以外，后面的每个 <li> 都是一个样例
+		// li.body[0] 是样例场景，body[1].body[1].body[0] 是命令行
+		// 以上是规则。以下是 html 示范
+		// <span id="Audio-Filters"></span>
+		// <h2 class="chapter"></h2>	从此开始读取音频滤镜
+		// ...
+		// <span id="acrossfade"></span>
+		// <h3 class="section"></h3>	从此开始读取滤镜详情
+		// <p>这几行是滤镜说明</p>
+		// <p>有可能夹带<a>链接</a></p>
+		// ...
+		// <dl compact="compact">	如果滤镜有参数从此进入里面读取滤镜参数
+		// 	<dt><samp>这个是选项名</samp></dt>
+		// 	<dd>
+		// 		<p>这个是选项描述，也有可能夹带<a>链接</a></p>
+		// 		<dl compact="compact"></dl>	如果选项是列表类型，这里面就是每个选项。规则跟外面的 dl 一致，不赘述
+		// 		<p>如果选项是列表类型，这里是对它“默认值”的描述，把它当成第二个描述文本就行，也有可能夹带<a>链接</a></p>
+		// 	</dd>
+		// </dl>
+		// <span id="example，id 不定"></span>
+		// <h4 class="subsection"></h4>	出现这个 h4 的话，说明这个滤镜给了 example
+		// <ul>
+		// 	<li>
+		// 		描述
+		// 		<div class="example">
+		// 			<pre class="example">这里是命令行</pre>
+		// 		</div>
+		// 	</li>
+		// </ul>
+
+		// 实用函数：提取文本内容，忽略 <a> 标签等
+		function extractText(children: (ITag | IText)[]): string {
+			return children
+				.map((child) => {
+					if ('value' in child) return child.value;
+					if ('body' in child && Array.isArray(child.body)) {
+						return extractText(child.body);
+					}
+					return '';
+				})
+				.join('')
+				.replaceAll('&rsquo;', '’')
+				.replaceAll('&quot;', '"')
+				.trim();
+		}
+		
+		// 提取描述文本段落
+		function parseDescription(startIndex: number, body: (ITag | IText)[]): [string[], number] {
+			const desc: string[] = [];
+			let i = startIndex;
+			while (i < body.length) {
+				const el = body[i];
+				if ('name' in el && el.name === 'p') {
+					desc.push(extractText(el.body));
+				} else if ('name' in el && (el.name === 'dl' || el.name === 'span')) {	// 遇到参数或者下一个滤镜的时候跳出
+					break;
+				}
+				i++;
+			}
+			return [desc, i];
+		}
+		
+		// 提取参数和其下可选值
+		function parseParams(dl: ITag): FilterParam[] {
+			const params: FilterParam[] = [];
+			const body = dl.body;
+			for (let i = 0; i < body.length; i++) {
+				const dt = body[i];
+				if ('name' in dt && dt.name === 'dt') {
+					const samp = ((dt.body?.[1] as ITag)?.body?.[0] as IText) ?? ((dt.body?.[0] as ITag)?.body?.[0] as IText);
+					const name = samp?.value ?? '';
+					const dd = body[i + 2] as ITag;
+					if (dd?.name === 'dd') {	// 选项有可能没说明，这时候 dt 紧跟 IText 然后没了
+						const descs: string[] = [];
+						let options: FilterOption[] | undefined;
+				
+						for (let j = 0; j < dd.body.length; j++) {
+							const el = dd.body[j];
+							if ('name' in el && el.name === 'p') {
+								descs.push(...extractText(el.body).split('\n'));
+							} else if ('name' in el && el.name === 'dl') {
+								// options
+								options = [];
+								for (let k = 0; k < el.body.length; k++) {
+									const optDt = el.body[k];
+									if ('name' in optDt && optDt.name === 'dt') {
+										const optSamp = ((optDt.body?.[1] as ITag)?.body?.[0] as IText) ?? ((optDt.body?.[0] as ITag)?.body?.[0] as IText);
+										const optName = optSamp?.value ?? '';
+										const optDd = el.body[k + 2] as ITag;
+										const optDesc = optDd?.name === 'dd' ? extractText(optDd.body) : '';	// 选项有可能没说明，这时候 dt 紧跟 IText 然后没了
+										options.push({ name: optName, description: [optDesc] });
+									}
+								}
+							}
+						}
+						params.push({ name, description: descs, options });
+					} else {
+						params.push({ name, description: [], options: [] });
+					}
+				}
+			}
+			return params;
+		}
+		
+		// 提取示例部分
+		function parseExamples(startIndex: number, body: (ITag | IText)[]): [{ title: string; code: string }[], number] {
+			const examples: { title: string; code: string }[] = [];
+			let i = startIndex;
+			while (i < body.length) {
+				const el = body[i];
+				if ('name' in el && el.name === 'ul') {
+					for (const li of el.body) {
+						if ('name' in li && li.name === 'li') {
+							const title = extractText(li.body.slice(0, -2));	// 最后两个分别是 example 和 IText
+							const pre = ((li.body?.slice(-2)[0] as ITag)?.body?.[1] as ITag)?.body?.[0] as IText;
+							examples.push({ title, code: pre?.value ?? '' });
+						}
+					}
+					break;
+				}
+				i++;
+			}
+			return [examples, i];
+		}
+
+		console.time('extract');
+		const wrapper = ((ast[2] as ITag).body[3] as ITag).body[1] as ITag;
+		const pageContentInset = (wrapper.body[3] as ITag).body[3] as ITag;
+		const filters: Record<string, FilterItem[]> = {};
+		let mode: string;
+
+		for (let i = 0; i < pageContentInset.body.length; i++) {
+			const el = pageContentInset.body[i];
+
+			// 根据 h2 判断当前在读取什么滤镜
+			if ('name' in el && el.name === 'h2' && el.attributes.find((attr) => attr.name.value === 'class')?.value.value === 'chapter') {
+				const prevEl = pageContentInset.body[i - 1] as ITag;
+				mode = prevEl.attributes.find((attr) => attr.name.value === 'id')?.value.value;
+				filters[mode] = [];
+			}
+			if (!mode) {
+				continue;
+			}
+
+			// 滤镜入口
+			if ('name' in el && el.name === 'h3' && el.attributes.find((attr) => attr.name.value === 'class')?.value.value === 'section') {
+				const name = extractText(el.body);
+				const filter: FilterItem = { name, description: [] };
+
+				const [desc, descEnd] = parseDescription(i + 1, pageContentInset.body);
+				filter.description = desc;
+
+				let nextEl = pageContentInset.body[descEnd];
+				if ('name' in nextEl && nextEl.name === 'dl') {
+					filter.params = parseParams(nextEl);
+					i = descEnd + 2;
+					nextEl = pageContentInset.body[i];
+				} else {
+					i = descEnd;
+				}
+
+				// 示例
+				if ('name' in nextEl && nextEl.name === 'span' && nextEl.attributes.find((attr) => attr.name.value === 'id')?.value.value.toLocaleLowerCase().includes('example')) {
+					const [examples, newI] = parseExamples(i + 2, pageContentInset.body);
+					filter.examples = examples;
+					i = newI;
+				}
+
+				filters[mode].push(filter);
+			}
+		}
+		console.timeEnd('extract');
+		return filters;
+	};
+
+	const getFilterDetailFromHtml = (html: string, filterName: string) => {
+		const allFilters = parseHtml(html);
+		let currentFilter;
+		for (const [filterType, filters] of Object.entries(allFilters)) {
+			for (const filter of filters) {
+				if (filter.name.match(/^\d+\.\d+ (.+)$/)?.[1].split(', ').includes(filterName)) {
+					currentFilter = filter;
+					break;
+				}
+			}
+			if (currentFilter) {
+				break;
+			}
+		}
+		return currentFilter;
+	};
+
+	watch(() => props.filterName, (value) => {
+		filterName.value = value;
+		currentTab.value = 0;
+	});
+
+	onMounted(() => {
+		nodeBridge.localStorage.get('ffmpegFilterDocs').then((savedHtml) => {
+			if (savedHtml) {
+				html.value = savedHtml;
+				// docFilterDetail.value = getFilterDetailFromHtml(savedHtml);
+			}
+		}).catch(() => {});
+	});
+
+	return () => (
+		<div class={style.filterDoc}>
+			{docFilterDetail.value ? (
+				<div class={style.content}>
+					{/* <div class={style.titleLine}>
+						<div class={style.title}>
+							<h3>
+								{docFilterDetail.value.name.split(' ')[0]}
+								<br />
+								{docFilterDetail.value.name.split(' ')[1]}
+							</h3>
+						</div>
+						<div class={style.description}>
+							{docFilterDetail.value.description.map((line) => (
+								<p>{line}</p>
+							))}
+						</div>
+					</div> */}
+					<h3 class={style.titleLine}>
+						{docFilterDetail.value.name}
+					</h3>
+					<div class={style.vline}>
+						<div class={style.lrLine}></div>
+						<button class={currentTab.value === 0 ? style.itemSelected : ''} onClick={() => currentTab.value = 0}>介绍</button>
+						{docFilterDetail.value.params?.length ? (
+							<button class={currentTab.value === 1 ? style.itemSelected : ''} onClick={() => currentTab.value = 1}>参数</button>
+						) : null}
+						{docFilterDetail.value.examples?.length ? (
+							<button class={currentTab.value === 2 ? style.itemSelected : ''} onClick={() => currentTab.value = 2}>示例</button>
+						) : null}
+						<div class={style.lrLine}></div>
+					</div>
+					{currentTab.value === 0 ? (
+						<div class={style.description}>
+							{docFilterDetail.value.description.map((line) => (
+								<p>{line}</p>
+							))}
+							<p class={style.ioDesc}>
+								{(() => {
+									const inputType = FFBoxFilterDetail.value.inputType;
+									const outputType = FFBoxFilterDetail.value.outputType;
+									const inputStr = inputType.length ? `输入${['U', 'N'].includes(inputType[0]) ? '多个流' : ` ${inputType.length} 个${['视频', '音频'][['V', 'A'].indexOf(inputType[0])]}流`}` : '';
+									const outputStr = outputType.length ? `输出${['U', 'N'].includes(outputType[0]) ? '多个流' : ` ${outputType.length} 个${['视频', '音频'][['V', 'A'].indexOf(outputType[0])]}流`}` : '';
+									return `本滤镜可${inputStr}${inputStr.length ? '，' : ''}${outputStr}`;
+								})()}
+							</p>
+						</div>
+					) : null}
+					{currentTab.value === 1 ? (
+						<table>
+							<tbody>
+								{docFilterDetail.value.params.map((param) => (
+									<tr>
+										<td>{param.name}</td>
+										<td>
+											{(() => {
+												const defaultValue = param.description.slice(-1)[0].includes('efault') ? param.description.slice(-1)[0].match(/.+is(.+)$/)[1] : undefined;
+												const descriptions = defaultValue === undefined ? param.description : param.description.slice(0, -1);
+												return (
+													<>
+														{descriptions.reduce((prev, curr) => [...prev, curr, <br />], [])}
+														{param.options?.length ? (
+															<table>
+																<tbody>
+																	{param.options.map((option) => (
+																		<tr>
+																			<td>{option.name}</td>
+																			<td>{option.description}</td>
+																		</tr>
+																	))}
+																</tbody>
+															</table>
+														) : null}
+														{defaultValue !== undefined ? <i>默认值 {param.description.slice(-1)[0].match(/.+is(.+)$/)[1]}</i> : null}
+													</>
+												)
+											})()}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					) : null}
+					{currentTab.value === 2 ? (
+						<div>
+							{docFilterDetail.value.examples.map((example) => (
+								<>
+									<p>{example.title}</p>
+									<pre>{example.code.replaceAll('&quot;', '"')}</pre>
+								</>
+							))}
+						</div>
+					) : null}
+					<i>滤镜文档来自 ffmpeg.org 最新版本，滤镜配置来自 FFBoxService 调用的 ffmpeg 内置帮助文档。如有不一致请按您当前使用的 ffmpeg 为准。</i>
+				</div>
+			) : (
+				<div class={style.noDoc}>
+					<IconFind />
+					<Button size="large" disabled={fetching.value} onClick={() => handleGetDocs()}>
+						{html.value ? '刷新' : '下载'}
+					</Button>
+					<div class={style.description}>
+						{html.value ? <>
+							<p>您已下载 ffmpeg 官网的滤镜文档，但文档中并没有找到这个滤镜</p>
+							<p>有可能是文档格式发生了变化导致 FFBox 无法识别，或者缓存的是旧文档，或者 ffmpeg 官网发生了异常</p>
+							<p>您可尝试刷新或者更新 FFBox</p>
+						</> : <>
+							<p>您还未下载 ffmpeg 官网的滤镜文档</p>
+							<p>缓存至本地后，可供后续读取</p>
+						</>}
+					</div>
+				</div>
+			)}
+			<div class={style.actions}>
+				<Button onClick={() => props.onClose()}>关闭</Button>
+				{docFilterDetail.value && <Button onClick={() => handleGetDocs()} disabled={fetching.value}>刷新文档</Button>}
+			</div>
+		</div>
+	);
+}, {
+	props: ['filterName', 'onClose'],
+});
+
 interface Props {
 	editingOutputIndex: number;
 	onEditingOutputIndexChange: (index: number) => void;
@@ -79,8 +475,8 @@ interface Props {
 
 const EffectView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
-	const dragger1Pos = ref(20);
-	const dragger2Pos = ref(80);
+	const dragger1Pos = ref(25);
+	const dragger2Pos = ref(75);
 	const filterText = ref('');
 	const canvasOffset = ref([0, 0]);	// 默认情况下，画面的 [0, 0] 显示在画布中心，此处表示画布级别（缩放前）的偏移量
 	const canvasScale = ref(1);
@@ -88,6 +484,7 @@ const EffectView = defineComponent((props: Props) => {
 	const creatingLine = ref<Partial<FilterLine>>();
 	const creatingFilter = ref<[FFmpegFilterDetail, number, number]>([undefined, undefined, undefined]);	// 滤镜, pageX, pageY
 	const selectedNode = ref<FilterNode>();
+	const showingDoc = ref<string>();
 
 	const filterParams = computed(() => appStore.globalParams.filter);
 
@@ -141,6 +538,16 @@ const EffectView = defineComponent((props: Props) => {
 	};
 
 	const addOutput = () => {
+		const maxNodeCount = appStore.functionLevel < 40 ? 66 : appStore.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
+		if (nodes.value.length >= maxNodeCount) {
+			Popup({
+				message: `😞节点数量达到上限了\n` +
+						`💔您的用户等级最高支持在滤镜图中放入 ${maxNodeCount} 个任务，您可以先删除一些节点再添加\n` +
+						'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',
+				level: NotificationLevel.warning,
+			});
+			return;
+		}
 		const lastOutputParams = appStore.globalParams.outputs[appStore.globalParams.outputs.length - 1] || defaultParams.outputs[0];
 		appStore.globalParams.outputs.push(JSON.parse(JSON.stringify(lastOutputParams)));
 		// 往图上添加节点
@@ -217,6 +624,19 @@ const EffectView = defineComponent((props: Props) => {
 
 	// 在工具箱中双击滤镜，则在画布当前中心放一个 node
 	const handleFilterDblclick = (detail: FFmpegFilterDetail) => {
+		const maxNodeCount = appStore.functionLevel < 40 ? 66 : appStore.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
+		if (nodes.value.length >= maxNodeCount) {
+			Popup({
+				message: `😞节点数量达到上限了\n` +
+						`💔您的用户等级最高支持在滤镜图中放入 ${maxNodeCount} 个任务，您可以先删除一些节点再添加\n` +
+						'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',
+				level: NotificationLevel.warning,
+			});
+			return;
+		}
+		if (showingDoc.value) {
+			return;
+		}
 		const maxNodeId = nodes.value.reduce((prev, curr) => curr.id > prev ? curr.id : prev, -1) ?? -1;
 		const x = Math.round(-canvasOffset.value[0] / 30) * 30;
 		let y = Math.round(-canvasOffset.value[1] / 30) * 30;
@@ -244,6 +664,22 @@ const EffectView = defineComponent((props: Props) => {
 			// 获取鼠标按下点显示位置
 			const [pageX, pageY] = getPageXYfromEvent(event as any);
 			if (Math.abs(pageX - mouseDownX) - Math.abs(pageY - mouseDownY) * 2 > 10 && Math.abs(pageY - mouseDownY) < 20 && !dragged) {
+				const maxNodeCount = appStore.functionLevel < 40 ? 66 : appStore.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
+				if (nodes.value.length >= maxNodeCount) {
+					Popup({
+						message: `😞节点数量达到上限了\n` +
+								`💔您的用户等级最高支持在滤镜图中放入 ${maxNodeCount} 个任务，您可以先删除一些节点再添加\n` +
+								'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',
+						level: NotificationLevel.warning,
+					});
+					document.removeEventListener('mousemove', handleMouseMove);
+					document.removeEventListener('touchmove', handleMouseMove);
+					creatingFilter.value = [undefined, undefined, undefined];
+					return;
+				}
+				if (showingDoc.value) {
+					return;
+				}
 				// 打断列表滚动
 				dragged = true;
 				container.style.overflow = 'hidden';
@@ -279,6 +715,11 @@ const EffectView = defineComponent((props: Props) => {
 		document.addEventListener('mouseup', handleMouseUp);
 		document.addEventListener('touchend', handleMouseUp);
 	};
+
+	const handleFilterOpenDoc = (event: MouseEvent, filterName: string) => {
+		showingDoc.value = filterName;
+		event.stopPropagation();
+	}
 
 	// #endregion
 
@@ -898,9 +1339,14 @@ const EffectView = defineComponent((props: Props) => {
 
 	// #endregion
 
+	// #region 参数面板操作
+
 	const handleParamChange = (name: string, value: any) => {
 		selectedNode.value.params[name] = value;
+		appStore.applyParameters();
 	};
+
+	// #endregion
 
 	onMounted(() => {
 		associateNodesAndLines(filterParams.value.nodes, filterParams.value.lines);
@@ -1039,7 +1485,18 @@ const EffectView = defineComponent((props: Props) => {
 
 	const renderDetailParameters = () => (
 		<>
-			<div class={style.title}>{selectedNode.value.name}</div>
+			<div class={style.title}>
+				<h3>
+					{!selectedNode.value.name.match(/^(in)|(out)_\d+/) && (
+						<div class={style.floatBtn}>
+							<Button size="small" onClick={() => showingDoc.value = showingDoc.value ? '' : selectedNode.value.name}>
+								{showingDoc.value ? '🌐 关闭文档' : '🌐 在线文档'}
+							</Button>
+						</div>
+					)}
+					{selectedNode.value.name}
+				</h3>
+			</div>
 			<div class={style.content}>
 				{(selectedNode.value.detail?.options ?? []).map((option) => {
 					const parameter = parseSingleOption(option);
@@ -1180,6 +1637,7 @@ const EffectView = defineComponent((props: Props) => {
 							{...useTooltip(filter.description, 'r', 'large')}
 						>
 							<span>{filter.name}</span>
+							<button onClick={(event) => handleFilterOpenDoc(event, filter.name)}>📖</button>
 						</div>
 					))}
 				</div>
@@ -1198,7 +1656,7 @@ const EffectView = defineComponent((props: Props) => {
 			</div>
 			<div class={style.dragger} style={{ left: `${dragger1Pos.value}%`}} onMousedown={(event) => handleCenterDraggerDragStart(event, 1)} onTouchstart={(event) => handleCenterDraggerDragStart(event, 1)} />
 			<div class={style.editor}
-				style={{ width: `${dragger2Pos.value - dragger1Pos.value}%`}}
+				style={{ width: `${dragger2Pos.value - dragger1Pos.value}%`, visibility: showingDoc.value ? 'hidden' : 'visible' }}
 				onClick={() => selectedNode.value = undefined}
 				onMousedown={handleCanvasMouseDown}
 				onTouchstart={handleCanvasMouseDown}
@@ -1206,6 +1664,11 @@ const EffectView = defineComponent((props: Props) => {
 			>
 				{renderCanvas()}
 			</div>
+			{showingDoc.value && (
+				<div class={style.docs} style={{ left: `${dragger1Pos.value}%`, width: `${dragger2Pos.value - dragger1Pos.value}%`}}>
+					<OnlineDocPanel filterName={showingDoc.value} onClose={() => showingDoc.value = undefined} />
+				</div>
+			)}
 			<div class={style.dragger} style={{ left: `${dragger2Pos.value}%`}} onMousedown={(event) => handleCenterDraggerDragStart(event, 2)} onTouchstart={(event) => handleCenterDraggerDragStart(event, 2)} />
 			<div class={style.paramsBox} style={{ width: `${100 - dragger2Pos.value}%`}}>
 				{/* <div>节点</div>
@@ -1213,7 +1676,10 @@ const EffectView = defineComponent((props: Props) => {
 				<div>线段</div>
 				{filterParams.value.lines.map((line) => <div>{JSON.stringify(line, undefined, '\t')}</div>)} */}
 				{selectedNode.value ? renderDetailParameters() : (
-					<div class={style.noParams}>请在画布中选择一个节点</div>
+					<div class={style.noParams}>
+						<p style={{ fontSize: '3em', margin: '0 0 0.5em' }}>👈</p>
+						<p>请在画布中选择一个节点</p>
+					</div>
 				)}
 			</div>
 		</div>

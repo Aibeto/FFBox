@@ -14,7 +14,7 @@ const props = defineProps<{
 </script>
 
 <template>
-    <div class="controlBox" :style="{ width: props.long ? '100%' : '210px', marginRight: !props.optional && !props.long ? '28px' : (props.optional && props.long ? '14px' : '20px') }">
+    <div class="controlBox" :style="{ width: props.long ? '100%' : '210px', marginRight: !props.optional && !props.long ? '28px' : (props.optional && props.long ? '8px' : '20px') }">
 		<Checkbox v-if="props.optional" :checked="props.hasValue" @change="props.onEnabledChange" />
 		<div class="controlBox-title" v-bind="props.description ? useTooltip(props.description) : undefined" :style="{ opacity: props.optional && hasValue === false ? 0.5 : 1 }">
 			{{ props.title }}

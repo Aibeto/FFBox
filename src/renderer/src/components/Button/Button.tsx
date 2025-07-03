@@ -43,7 +43,7 @@ const ButtonComponent: FunctionalComponent<ButtonProps> = (props, ctx) => {
 			data-color_theme={appStore.frontendSettings.colorTheme}
 			class={getButtonClass(props.type, props.disabled, props.size)}
 			disabled={props.disabled}
-			onClick={(event) => { props.onClick(event); event.stopImmediatePropagation() } }
+			onClick={(event) => { (props.onClick || (() => {}))(event); event.stopImmediatePropagation() } }
 		>
 			{ h(ctx.slots.default) }
 		</button>

@@ -273,6 +273,10 @@ const nodeBridge = {
 		return window.jsb?.ipcRenderer?.invoke('readLicense');
 	},
 
+	request(url: string, options?: { method?: string; body?: any; headers?: Record<string, string> }) {
+		return window.jsb?.ipcRenderer?.invoke('request', url, options);
+	},
+
 	localConfig: {
 		get(key: string) { return window.jsb?.ipcRenderer?.invoke('localConfig', 'get', key) },
 		set(key: string, value: any) { return window.jsb?.ipcRenderer?.invoke('localConfig', 'set', key, value) },	// value 必须是可序列化的，不可是 Proxy 等东西
