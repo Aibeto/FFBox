@@ -818,8 +818,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits taskUpdate
 	 *
 	 */
-	public setParameter(ids: Array<number>, param: OutputParams): void {
-		for (const id of ids) {
+	public setParameters(ids: number[], params: OutputParams[]): void {
+		for (let i = 0; i < ids.length; i++) {
+			const id = ids[i];
+			const param = params[i];
 			const task = this.tasklist[id];
 			task.after = replaceOutputParams(param, task.after, true);
 			if (task.remoteTask) {

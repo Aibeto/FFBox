@@ -339,10 +339,10 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		this.sendWs(data);
 	}
 
-	public setParameter(ids: Array<number>, param: OutputParams) {
+	public setParameters(ids: number[], params: OutputParams[]) {
 		let data: FFBoxServiceFunctionApi = {
-			function: 'setParameter',
-			args: [ids, param],
+			function: 'setParameters',
+			args: [ids, params],
 		}
 		this.sendWs(data);
 	}

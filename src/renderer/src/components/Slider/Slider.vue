@@ -124,7 +124,9 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 		} else if (limitedValue < 0) {
 			limitedValue = 0;
 		}
-		let realValue = (props.min ?? 0) + ((props.max ?? 1) - (props.min ?? 0)) * limitedValue;
+		const range = (props.max ?? 1) - (props.min ?? 0);
+		let realValue = (props.min ?? 0) + range * limitedValue;
+		realValue = range <= 1 ? Number(realValue.toFixed(6)) : Number(realValue.toFixed(3));	// 限制最长小数点后数量，因为用不上
 		// 根据 realValue 和配置进行吸附
 		if (props.adsorption == 'int') {
 			realValue = Math.round(realValue);
@@ -184,6 +186,7 @@ const handleKeypress = (event: KeyboardEvent) => {
 			delta = 1;
 		}
 		newRealValue = originalValue + direction * delta;
+		newRealValue = Number(newRealValue.toFixed(6));	// 避免精度丢失导致超长小数问题
 		if (newRealValue < (props.min ?? 0)) {
 			newRealValue = props.min ?? 0;
 		} else if (newRealValue > (props.max ?? 1)) {

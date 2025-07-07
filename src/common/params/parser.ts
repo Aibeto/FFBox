@@ -7,13 +7,23 @@ import { Parameter } from './parameter';
 import { filtersList } from './filter';
 
 export function parseSingleOption(option: EncoderDetail['options'][number]): Parameter {
-	if (['string', 'dictionary', 'image_size', 'rational', 'color'].includes(option.type)) {
+	if (['string', 'dictionary'].includes(option.type)) {
 		return ({
 			parameter: option.name,
 			display: option.name,
 			description: option.description,
 			optional: true,
 			mode: 'text',
+			default: option.default as string,
+		});
+	} else if (['color', 'duration', 'image_size', 'rational'].includes(option.type)) {
+		return ({
+			parameter: option.name,
+			display: option.name,
+			description: option.description,
+			optional: true,
+			mode: 'text',
+			type: option.type as any,
 			default: option.default as string,
 		});
 	} else if (option.type === 'boolean') {
@@ -111,7 +121,7 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 				});
 			}
 		}
-	} else if (['float', 'double', 'duration'].includes(option.type)) {
+	} else if (['float', 'double'].includes(option.type)) {
 		if (Math.abs(option.max - option.min) < 1000) {
 			return ({
 				parameter: option.name,
@@ -121,6 +131,7 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 				mode: 'slider',
 				min: option.min,
 				max: option.max,
+				arrowKeyStep: (Math.abs(option.max - option.min)) / (10 ** (Math.round(Math.log10(Math.abs(option.max - option.min) / 2)) - 2)),	// 控制步长方便操作
 				tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
 				sliderMode: 'number',
 				default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字

@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
+import { computed } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
+import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
+import { showServerConfig } from '@renderer/components/misc/ServerConfig';
+import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
+import Button from '@renderer/components/Button/Button';
 
 const appStore = useAppStore();
 
@@ -17,6 +21,16 @@ const progressModeList: RadioListProps['list'] = [
 	{ value: 'ffmpeg 真实值', disabled: true },
 ];
 
+const localServiceStatus = computed(() => {
+	if (appStore.servers[0]?.entity.ip === 'localhost') {
+		if (appStore.servers[0].entity.status === ServiceBridgeStatus.Connected) {
+			return 'ok';
+		}
+		return 'disconnected';
+	}
+	return 'notlocal';
+});
+
 const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value: any) => {
 	(appStore.frontendSettings[key] as any) = value;
 	appStore.applyFrontendSettings(true);
@@ -25,8 +39,8 @@ const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value:
 </script>
 
 <template>
-	<div>
-		<div class="localSettings">
+	<div class="localSettings">
+		<div class="gridArea">
 			<span>数据量进制和词头</span>
 			<RadioList :list="dataRadixList" :value="appStore.frontendSettings.useIEC" @change="(value) => handleSettingChange('useIEC', value)" />
 			<span>颜色主题</span>
@@ -34,22 +48,34 @@ const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value:
 			<span>进度显示模式</span>
 			<RadioList :list="progressModeList" value="预测实时值" />
 		</div>
+		<div class="configArea">
+			<p>转码服务相关设置请到“服务器配置”页面配置</p>
+			<p v-if="localServiceStatus === 'disconnected'">连接本地服务器后方可设置</p>
+			<p v-if="localServiceStatus === 'notlocal'">仅支持在本地模式下进行服务器配置</p>
+			<Button :disabled="localServiceStatus !== 'ok'" size="large" @click="showServerConfig(appStore.servers[0].data.id)">服务器配置</Button>
+		</div>
 	</div>
 </template>
 
 <style lang="less">
 	.localSettings {
-		width: 100%;
-		display: grid;
-		grid-template-columns: calc(20% + 50px) calc(50% + 50px);
-		justify-content: center;
-		align-items: center;
-		&>span {
-			font-size: 15px;
+		font-size: 15px;
+		.gridArea {
+			width: 100%;
+			display: grid;
+			grid-template-columns: calc(20% + 50px) calc(50% + 50px);
+			justify-content: center;
+			align-items: center;
+			&>span {
+				font-size: 15px;
+			}
+			.radioList {
+				flex-direction: row;
+				min-height: unset;
+			}
 		}
-		.radioList {
-			flex-direction: row;
-			min-height: unset;
+		.configArea {
+			margin-top: 2em;
 		}
 	}
 </style>

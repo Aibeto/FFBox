@@ -1,4 +1,5 @@
 import { computed, defineComponent, ref } from 'vue';
+import { deleteNode } from '@common/params/filter';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
@@ -86,6 +87,18 @@ const InputView = defineComponent((props: Props) => {
 					hwaccel: '',
 					realtime: false,
 				});
+				if (appStore.globalParams.filter.nodes.length) {
+					const nodes = appStore.globalParams.filter.nodes;
+					const maxNodeId = nodes.reduce((prev, curr) => curr.id > prev ? curr.id : prev, -1) ?? -1;
+					const lastInputNode = nodes.find((node) => node.name === `in_${index - 1}`);
+					nodes.push({
+						name: `in_${index}`,
+						id: maxNodeId + 1,
+						x: lastInputNode?.x ?? -180,
+						y: (lastInputNode?.y ?? -90) + 60,
+						params: {},
+					});
+				}
 			}
 		} else {
 			if (value) {
@@ -108,7 +121,10 @@ const InputView = defineComponent((props: Props) => {
 	const handleFileDelete = (index: number) => {
 		appStore.globalParams.input.files.splice(index, 1);
 		if (appStore.globalParams.filter.nodes.length) {
-			
+			const nodes = appStore.globalParams.filter.nodes;
+			const lines = appStore.globalParams.filter.lines;
+			const node = nodes.find((node) => node.name === `in_${index}`);
+			deleteNode(nodes, lines, node);
 		}
 		appStore.applyParameters();
 	};
@@ -127,6 +143,7 @@ const InputView = defineComponent((props: Props) => {
 							)}
 							{editingIndex.value === index ? (
 								<InputAutoSize
+									class={style.inputAutoSize}
 									value={file.filePath}
 									onBlur={(value) => handleFileNameChange(index, value)}
 									onPressEnter={(value) => handleFileNameChange(index, value)}
@@ -156,8 +173,11 @@ const InputView = defineComponent((props: Props) => {
 							应用参数到全部输入
 						</Button>
 					</div>
-
-				</>) : <div>请选择一个输入文件</div>}
+				</>) : (
+					<div>
+						<p style={{ fontSize: '3em', margin: '0 0 0.5em' }}>👈</p>
+						<p>请选择一个输入文件</p>
+					</div>)}
 			</div>
 		</div>
 	);

@@ -2,7 +2,9 @@ import { OutputParams } from '@common/types';
 
 export const defaultParams: OutputParams = {
 	input: {
-		files: [],
+		files: [{
+			filePath: '[输入文件路径]',
+		}],
 	},
 	filter: {
 		nodes: [],

@@ -214,9 +214,17 @@ export const useAppStore = defineStore('app', {
 			function allTimerFinish() {
 				Promise.all(newlyAddedTaskIds).then((ids) => {
 					这.selectedTask = new Set(ids);
-					// addTask 函数已经把当前的 globalParams 传了过去，因此后端在处理完成之后参数设置就与前端一样，无需 applySelectedTask
-					// 在进行到这个步骤的时候，还没有收到 taskUpdate，因此不能 applySelectedTask，否则会导致参数为空
-					// 这.applySelectedTask();
+					// 从 5.0 开始，由于支持多输入，addTask 函数向后端传的是替换了文件名的 globalParams，因此需要 applySelectedTask 使参数变成当前选中的 task 的参数，否则不一致
+					// 需要等待一次 taskUpdate，待另一个监听器替换了任务参数之后，再在此处 applySelectedTask，否则会导致参数为空
+					const handler = () => {
+						server.entity.off('taskUpdate', handler);
+						setTimeout(() => {
+							这.applySelectedTask();
+							这.globalParams.extra.presetName = '';
+							这.presetName = '';			
+						}, 0);
+					};
+					server.entity.on('taskUpdate', handler);
 				})
 			}
 			let needStopCuzLimit = false;
@@ -372,17 +380,19 @@ export const useAppStore = defineStore('app', {
 				// 这.globalParams
 				// 收集需要批量更新的输出参数，交给 service。同时本地替换一次 task.after
 				let needToUpdateIds: number[] = [];
+				let needToUpdateParams: OutputParams[] = [];
 				for (const id of selection || 这.selectedTask) {
 					let task = data.tasks[id];
 					const needToReplaceAll = behavior === 'modifyTask' && 这.selectedTask.size === 1;
 					task.after = replaceOutputParams(这.globalParams, task.after, needToReplaceAll);
 					needToUpdateIds.push(id);
+					needToUpdateParams.push(task.after);
 				}
 				if (needToUpdateIds.length) {
 					// paraArray 由 service 算出后回填本地
 					// 更新方式是 taskUpdate
 					// 注意回填本地时也会产生一次 task.after 更新
-					entity.setParameter(needToUpdateIds, 这.globalParams);
+					entity.setParameters(needToUpdateIds, needToUpdateParams);
 				}
 
 				这.taskSelectionModified = true;

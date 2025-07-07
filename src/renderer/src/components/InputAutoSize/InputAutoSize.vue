@@ -13,7 +13,7 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const divRef = ref();
+const divRef = ref<HTMLDivElement>();
 const inputRef = ref<HTMLInputElement>();
 const ro = ref<ResizeObserver>();
 const text = ref<string>();
@@ -52,6 +52,7 @@ onMounted(() => {
 	});
 	ro.value.observe(divRef.value);
 	inputRef.value.focus();
+	divRef.value.style.fontFamily = getComputedStyle(inputRef.value).fontFamily;
 	// nextTick(refreshSize); 已在 ResizeObserver 处理
 });
 onBeforeUnmount(() => {

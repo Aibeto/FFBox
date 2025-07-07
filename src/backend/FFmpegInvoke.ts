@@ -451,7 +451,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
      				//      longest         0            ..F.A...... Duration of longest input.
 					const basicInfoRegx = thisLine.match(/-?([\w-]+) +<(\w+)> +([\w\.]+) ?(.+)?/);
 					// 0：全文　1. 参数名称　2. 参数类型　3. 不知道是啥　4. 描述（含取值范围）
-					const minmaxRegx = thisLine.match(/\(from ([\w|-]+) to ([\w|-]+)\)/);
+					const minmaxRegx = thisLine.match(/\(from ([\w+-\.]+) to ([\w+-\.]+)\)/);
 					const defaultRegx = thisLine.match(/\(default "?([\w+-\.]+)\)"?/);
 					const parseValue = (value: string) => {
 						const direct = [-2147483648, 2147483647, Number.MIN_VALUE, Number.MAX_VALUE, false, true, NaN][['INT_MIN', 'INT_MAX', 'FLT_MIN', 'FLT_MAX', 'false', 'true', 'NaN'].indexOf(value)];

@@ -1,6 +1,10 @@
 import { NarrowedMenuItem } from "@common/menu";
 
 export type strict2 = { strict2?: true };
+export interface TextOptions {
+	type?: 'int' | 'float' | 'color' | 'duration' | 'image_size' | 'rational';
+	default?: string;
+}
 export interface ComboOptions {
 	items: NarrowedMenuItem[];
 	default?: any;
@@ -24,7 +28,7 @@ export interface BasicParameter {
 }
 export type Parameter = BasicParameter & (
 	({ mode: 'switch' } & { default: boolean }) |
-	({ mode: 'text' } & { type?: 'int' | 'float', default?: string }) |
+	({ mode: 'text' } & TextOptions) |
 	({ mode: 'combo' } & ComboOptions) |
 	({ mode: 'slider' } & SliderOptions)
 );

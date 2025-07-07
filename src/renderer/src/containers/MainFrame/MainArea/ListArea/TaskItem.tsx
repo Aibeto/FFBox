@@ -443,7 +443,8 @@ export const TaskItem = defineComponent((props: Props) => {
 		})
 	};
 
-	const handlePauseNremove = () => {
+	const handlePauseNremove = (event: MouseEvent) => {
+		event.stopPropagation();
 		const entity = appStore.currentServer.entity;
 		let task = props.task;
 		if ([TaskStatus.running, TaskStatus.paused_queued].includes(task.status)) {

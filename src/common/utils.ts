@@ -3,6 +3,7 @@
 
 import { OutputParams, ServiceTask, Task, TaskStatus, TransferStatus } from '@common/types';
 import { UITask } from '@renderer/types';
+import { deleteNode } from './params/filter';
 
 /**
  * 传入 "xxx kbps"，返回比特率（Kbps）
@@ -482,21 +483,19 @@ export function replaceOutputParams(from: OutputParams, to: OutputParams, fullyR
 
 	// filter 替换，并处理 nodes/lines 清理逻辑
 	ret.filter = JSON.parse(JSON.stringify(from.filter));
-
+	// 将超出 to 文件数量的输入节点去掉
 	const inputNodeCount = ret.input.files.length;
-	ret.filter.nodes = ret.filter.nodes.filter((node) => {
-		if (node.name.match(/^in_\d+$/)) return true;
+	for (let i = ret.filter.nodes.length - 1; i >= 0; i--) {
+		const node = ret.filter.nodes[i];
 		const match = node.name?.match(/^in_(\d+)$/);
-		if (!match) return true;
-		const index = parseInt(match[1]);
-		return index < inputNodeCount;
-	});
-
-	// 同步移除断开的线
-	const existingNodeIds = new Set(ret.filter.nodes.map(n => n.id));
-	ret.filter.lines = ret.filter.lines.filter((line) =>
-		existingNodeIds.has(line.prevNodeId) && existingNodeIds.has(line.nextNodeId)
-	);
+		if (!match) {
+			continue;	// 保留非输入节点
+		}
+		if (+match[1] >= inputNodeCount) {
+			// 删除这个输入节点
+			deleteNode(ret.filter.nodes, ret.filter.lines, node);
+		}
+	}
 
 	// extra 部分完整覆盖
 	ret.extra = JSON.parse(JSON.stringify(from.extra));

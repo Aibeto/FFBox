@@ -6,6 +6,18 @@ import { parseTimeString } from '@common/utils';
 
 const INVALID_TEXT = '默认输入不合法提示';
 
+export function getValidator(type: string) {
+	if (['int', 'int64'].includes(type)) {
+		return numberValidator.integer;
+	} else if (['float', 'double'].includes(type)) {
+		return numberValidator;
+	} else if (type === 'duration') {
+		return durationValidator;
+	} else if (['dictionary', 'flags', 'color', 'image_size', 'rational'].includes(type)) {
+		return undefined;	// TODO 未来补充
+	}
+}
+
 export function notEmptyValidator(value: string) {
 	return value.length ? undefined : INVALID_TEXT;
 }

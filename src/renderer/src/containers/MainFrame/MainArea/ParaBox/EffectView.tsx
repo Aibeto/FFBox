@@ -1,14 +1,14 @@
 import { computed, defineComponent, h, onMounted, ref, Transition, watch } from 'vue';
 import { parse, ITag, IText } from 'html5parser';
 import { FFmpegFilterDetail, FilterLine, FilterNode, NotificationLevel } from '@common/types';
-import { associateNodesAndDetails, associateNodesAndLines, filtersList } from '@common/params/filter';
+import { associateNodesAndDetails, associateNodesAndLines, deleteNode, filtersList, fixNodePortPosition, getNodeInputPoints, getNodeOutputPoints } from '@common/params/filter';
 import { parseSingleOption } from '@common/params/parser';
 import { randomString } from '@common/utils';
 import { defaultParams } from '@common/defaultParams';
 import { useTooltip } from "@renderer/common/tooltipUtil";
 import { useAppStore } from '@renderer/stores/appStore';
 import nodeBridge from '@renderer/bridges/nodeBridge';
-import { numberValidator } from '@renderer/components/validatorAndFixer';
+import { getValidator, numberValidator } from '@renderer/components/validatorAndFixer';
 import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
 import showMenu from '@renderer/components/Menu/Menu';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
@@ -60,7 +60,7 @@ const RenameLinePanel = defineComponent((props: { line: FilterLine, isInput: boo
 					{ type: 'normal', value: 'd', label: '辅助数据（如章节、元数据）' },
 					{ type: 'normal', value: 't', label: '附件（常用于字体、封面图）' }
 				]}
-				validator={(value) => ['v', 'a'].includes(value) ? undefined : '错误' }
+				validator={(value) => ['v', 'a', 's', 'd', 't'].includes(value) ? undefined : '错误' }
 				onChange={(value) => mediaTypeValue.value = value}
 				{...useTooltip('此处填入的值用于向 ffmpeg 指定需要取输入文件的哪个流\nFFBox 滤镜图功能仅将其视作名称，不作功能性判断', 't')}
 			/>
@@ -501,7 +501,7 @@ const EffectView = defineComponent((props: Props) => {
 				id: index,
 				name: `in_${index}`,
 				params: {},
-				x: -240,
+				x: -180,
 				y: -30 + index * 60,
 				prevs: [] as any,
 				nexts: [] as any,
@@ -510,7 +510,7 @@ const EffectView = defineComponent((props: Props) => {
 				id: appStore.globalParams.input.files.length,
 				name: `out_0`,
 				params: {},
-				x: 240,
+				x: 180,
 				y: -30,
 				prevs: [] as any,
 				nexts: [] as any,
@@ -523,6 +523,7 @@ const EffectView = defineComponent((props: Props) => {
 		} else {
 			appStore.globalParams.outputs.splice(1);
 		}
+		appStore.applyParameters();
 	};
 
 	const showHelp = (event: MouseEvent) => {
@@ -569,6 +570,7 @@ const EffectView = defineComponent((props: Props) => {
 			prevs: [],
 			nexts: [],
 		});
+		appStore.applyParameters();
 	};
 
 	// 分割器
@@ -652,6 +654,7 @@ const EffectView = defineComponent((props: Props) => {
 			prevs: [], nexts: [],
 			detail,
 		});
+		appStore.applyParameters();
 	};
 
 	// 拖出滤镜
@@ -709,6 +712,7 @@ const EffectView = defineComponent((props: Props) => {
 				})
 			}
 			creatingFilter.value = [undefined, undefined, undefined];
+			appStore.applyParameters();
 		};
 		document.addEventListener('mousemove', handleMouseMove);
 		document.addEventListener('touchmove', handleMouseMove);
@@ -716,6 +720,7 @@ const EffectView = defineComponent((props: Props) => {
 		document.addEventListener('touchend', handleMouseUp);
 	};
 
+	// 打开文档
 	const handleFilterOpenDoc = (event: MouseEvent, filterName: string) => {
 		showingDoc.value = filterName;
 		event.stopPropagation();
@@ -843,42 +848,6 @@ const EffectView = defineComponent((props: Props) => {
 
 	// #region 节点端口数量、高度计算、鼠标位置所在端口检查
 
-	const getNodeInputPoints: (node: FilterNode) => { type: 'V' | 'A' | 'N' | 'U' }[] = (node) => {
-		// {/* <i>如果 detail 已引用，就能知道有多少输入输出口。如果类型是动态接口数量，还需要看 prevs/nexts 的数量</i>
-		// <i>输入/输出节点不会有 detail 引用，但能从 name 判断出来</i> */}
-		if (node.detail) {
-			if (node.detail.inputType === '|') {
-				return [];
-			} else if (node.detail.inputType === 'N') {
-				return new Array((node.prevs ?? []).length + 1).fill(
-					{ type: node.detail.inputType },
-				);
-			} else {
-				return node.detail.inputType.split('').map((type) => ({ type }));
-			}
-		} else if (node.name.match(/out_\d+/)) {
-			return new Array(node.prevs.filter((line) => line).length + 1).fill({ type: 'U' });
-		}
-		return [];
-	};
-	const getNodeOutputPoints: (node: FilterNode) => { type: 'V' | 'A' | 'N' | 'U' }[] = (node) => {
-		// {/* <i>如果 detail 已引用，就能知道有多少输入输出口。如果类型是动态接口数量，还需要看 prevs/nexts 的数量</i>
-		// <i>输入/输出节点不会有 detail 引用，但能从 name 判断出来</i> */}
-		if (node.detail) {
-			if (node.detail.outputType === '|') {
-				return [];
-			} else if (node.detail.outputType === 'N') {
-				return new Array((node.nexts ?? []).length + 1).fill(
-					{ type: node.detail.outputType },
-				);
-			} else {
-				return node.detail.outputType.split('').map((type) => ({ type }));
-			}
-		} else if (node.name.match(/in_\d+/)) {
-			return new Array(node.nexts.filter((line) => line).length + 1).fill({ type: 'U' });
-		}
-		return [];
-	};
 	const getNodeHeight = (node: FilterNode) => {
 		const inCount = getNodeInputPoints(node).length;
 		const outCount = getNodeOutputPoints(node).length;
@@ -953,26 +922,6 @@ const EffectView = defineComponent((props: Props) => {
 	
 	// #region 节点和线段操作
 
-	// 在移动节点、（可变节点的）增删节点或者增删线段时修正端口上的线的位置
-	const fixNodePortPosition = (node: FilterNode) => {
-		const outputPoints = getNodeOutputPoints(node);
-		const inputPoints = getNodeInputPoints(node);
-		const maxOutputPointsIndexHalf = (outputPoints.length - 1) / 2;
-		const maxInputPointsIndexHalf = (inputPoints.length - 1) / 2;
-		for (let i = 0; i < node.prevs.length; i++) {
-			const line = node.prevs[i];
-			if (line) {
-				line.nextXY = [node.x - 45, node.y + 15 * (i - maxInputPointsIndexHalf)];
-			}
-		}
-		for (let i = 0; i < node.nexts.length; i++) {
-			const line = node.nexts[i];
-			if (line) {
-				line.prevXY = [node.x + 45, node.y + 15 * (i - maxOutputPointsIndexHalf)];
-			}
-		}
-	};
-
 	// 节点选择
 	const handleNodeClick = (event: MouseEvent, node: FilterNode) => {
 		event.stopPropagation();
@@ -1024,6 +973,7 @@ const EffectView = defineComponent((props: Props) => {
 			document.removeEventListener('touchmove', handleMouseMove);
 			document.removeEventListener('mouseup', handleMouseUp);
 			document.removeEventListener('touchend', handleMouseUp);
+			appStore.applyParameters();
 		};
 		document.addEventListener('mousemove', handleMouseMove);
 		document.addEventListener('touchmove', handleMouseMove);
@@ -1035,53 +985,21 @@ const EffectView = defineComponent((props: Props) => {
 	// 节点右键
 	const handleNodeContextMenu = (event: MouseEvent, node: FilterNode) => {
 		const handleDeleteNode = () => {
-			const nodeIndex = nodes.value.findIndex((n) => n.id === node.id);
+			const newNodes = nodes.value, newLines = lines.value as any;
+			deleteNode(newNodes, newLines as any, node);
+			filterParams.value.nodes = newNodes;
+			filterParams.value.lines = newLines;
 			if (selectedNode.value === node) {
 				selectedNode.value = undefined;
 			}
-			nodes.value.splice(nodeIndex, 1);
-			// 删除前连接线的同时，要把连接线前的节点的占用端口释放
-			for (const line of node.prevs) {
-				const prevNode = nodes.value.find((node) => node.id === line.prevNodeId);
-				prevNode.nexts.splice(line.prevNodePortIndex, 1);
-				let needToFixPrevNodePort = prevNode.name.match(/^in_\d+$/) || ['U', 'N'].includes(prevNode.detail.outputType[0]);	// 需要修复的第一个条件是端口数量是动态的（isPrevNodeOutputOrUN）
-				// 前连接线连接的节点的输出端口清除后，在其后面的端口会往前挪一位。这会导致这个端口往后的所有【线段】所记录的 portIndex 都 -1
-				for (let i = line.prevNodePortIndex; i < prevNode.prevs.length; i++) {
-					prevNode.nexts[i].prevNodePortIndex--;
-					needToFixPrevNodePort = true;
-				}
-				if (needToFixPrevNodePort) {
-					fixNodePortPosition(prevNode);
-				}
-			}
-			// 删除后连接线的同时，要把连接线后的节点的占用端口释放
-			for (const line of node.nexts) {
-				const nextNode = nodes.value.find((node) => node.id === line.nextNodeId);
-				nextNode.prevs.splice(line.nextNodePortIndex, 1);
-				let needToFixNextNodePort = nextNode.name.match(/^out_\d+$/) || ['U', 'N'].includes(nextNode.detail.inputType[0]);	// 需要修复的第一个条件是端口数量是动态的（isNextNodeOutputOrUN）
-				// 后连接线连接的节点的输入端口清除后，在其后面的端口会往前挪一位。这会导致这个端口往后的所有【线段】所记录的 portIndex 都 -1
-				for (let i = line.nextNodePortIndex; i < nextNode.prevs.length; i++) {
-					nextNode.prevs[i].nextNodePortIndex--;
-					needToFixNextNodePort = true;
-				}
-				if (needToFixNextNodePort) {
-					fixNodePortPosition(nextNode);
-				}
-			}
-			filterParams.value.lines = filterParams.value.lines.filter((line) => line && !(line.prevNodeId === node.id || line.nextNodeId === node.id));
-			// 如果删除的是输出节点，还需要删除 outputs 中的项
 			const match = node.name.match(/^out_(\d+)$/);
 			if (match) {
 				appStore.globalParams.outputs.splice(+match[1], 1);
-				// 后面的输出节点全部更名
-				for (let i = +match[1] + 1; i <= appStore.globalParams.outputs.length; i++) {
-					const outputNode = nodes.value.find((node) => node.name === `out_${i}`);
-					outputNode.name = `out_${i - 1}`;
-				}
 				if (props.editingOutputIndex === +match[1]) {
 					props.onEditingOutputIndexChange(Math.max(+match[1] - 1, 0));
 				}
 			}
+			appStore.applyParameters();
 		};
 		const inputNodeIndexStr = node.name.match(/^in_\d+$/) ? node.name.match(/^in_(\d+)$/)[1] : undefined;
 		showMenu({
@@ -1234,12 +1152,13 @@ const EffectView = defineComponent((props: Props) => {
 							{ text: '保存', role: 'confirm', type: ButtonType.Primary, callback: async () => {
 								const result = await compFuncs.exportData();
 								const { input, mediaType, mediaIndex } = result;
-									filterParams.value.lines[newLineIndex].name = `${lineName}:${mediaType}${mediaIndex !== '' ? `:${mediaIndex}` : ''}`;
-								}
-							},
+								filterParams.value.lines[newLineIndex].name = `${lineName}:${mediaType}${mediaIndex !== '' ? `:${mediaIndex}` : ''}`;
+								appStore.applyParameters();
+							}},
 						]	
 					});
 				}
+				appStore.applyParameters();
 			}
 			creatingLine.value = undefined;
 		};
@@ -1275,6 +1194,7 @@ const EffectView = defineComponent((props: Props) => {
 			}
 			const index = filterParams.value.lines.findIndex((l) => l === line);
 			filterParams.value.lines.splice(index, 1);
+			appStore.applyParameters();
 		};
 		const handleRenameLine = () => {
 			let compFuncs: any;
@@ -1291,6 +1211,7 @@ const EffectView = defineComponent((props: Props) => {
 						} else {
 							line.name = input;
 						}
+						appStore.applyParameters();
 					} },
 					{ text: '取消', role: 'cancel' },
 				]	
@@ -1547,7 +1468,7 @@ const EffectView = defineComponent((props: Props) => {
 								value={params[parameter.parameter]}
 								optionalDefault={parameter.optional ? parameter.default : undefined}
 								onChange={(value: string) => handleParamChange(parameter.parameter, value)}
-								validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
+								validator={getValidator(parameter.type)}
 							/>
 						);
 					}
@@ -1603,6 +1524,7 @@ const EffectView = defineComponent((props: Props) => {
 														} else {
 															next.name = input;
 														}
+														appStore.applyParameters();
 													} },
 													{ text: '取消', role: 'cancel' },
 												]	
@@ -1671,10 +1593,6 @@ const EffectView = defineComponent((props: Props) => {
 			)}
 			<div class={style.dragger} style={{ left: `${dragger2Pos.value}%`}} onMousedown={(event) => handleCenterDraggerDragStart(event, 2)} onTouchstart={(event) => handleCenterDraggerDragStart(event, 2)} />
 			<div class={style.paramsBox} style={{ width: `${100 - dragger2Pos.value}%`}}>
-				{/* <div>节点</div>
-				{filterParams.value.nodes.map((node) => <div>{JSON.stringify(node, undefined, '\t')}</div>)}
-				<div>线段</div>
-				{filterParams.value.lines.map((line) => <div>{JSON.stringify(line, undefined, '\t')}</div>)} */}
 				{selectedNode.value ? renderDetailParameters() : (
 					<div class={style.noParams}>
 						<p style={{ fontSize: '3em', margin: '0 0 0.5em' }}>👈</p>

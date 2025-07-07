@@ -47,7 +47,7 @@ export interface FFBoxServiceInterface {
 	queueStart(): void;
 	queuePause(): void;
 	deleteNotification(taskId: number, index: number): void;
-	setParameter(ids: Array<number>, param: OutputParams): void;
+	setParameters(ids: number[], params: OutputParams[]): void;
 	activate(activationCode: string): boolean | void;
 	trailLimit_stopTranscoding(id: number, byFrontend?: boolean): void;
 }
@@ -98,7 +98,7 @@ export interface EncoderDetail {
 	supportedChannelLayouts?: string[];	// 音频
 	options: {
 		name: string;
-		type: 'int' | 'float' | 'double' | 'boolean' | 'string' | 'dictionary' | 'flags';
+		type: 'int' | 'int64' | 'float' | 'double' | 'boolean' | 'string' | 'dictionary' | 'flags' | 'color' | 'duration' | 'image_size' | 'rational';
 		description: string;
 		options?: { name?: string, value: string | number, description?: string }[];
 		min?: number;

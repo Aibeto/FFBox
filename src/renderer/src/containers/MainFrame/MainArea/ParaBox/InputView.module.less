@@ -37,6 +37,7 @@
 				padding: var(--itemPadding);
 				border-radius: 6px;
 				font-size: 13px;
+				font-family: Arial;
 				overflow: hidden;
 				transition: padding 0.3s ease;
 				&::after {
@@ -47,6 +48,9 @@
 					right: 4px;
 					background-color: hwb(var(--hoverShadow) / 0.05);
 					height: 1px;
+				}
+				.inputAutoSize {
+					margin-left: -4px;
 				}
 				.delete {
 					display: inline-block;
@@ -82,6 +86,9 @@
 			}
 			.listItemSelected {
 				background-color: var(--primaryColor);
+				.delete svg {
+					color: white;
+				}
 			}
 		}
 	}

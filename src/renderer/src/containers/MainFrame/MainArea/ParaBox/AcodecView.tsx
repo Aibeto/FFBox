@@ -3,7 +3,7 @@ import { acodecsList, volSlider, ACodecDetail } from '@common/params/acodecs';
 import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
-import { numberValidator } from '../../../../components/validatorAndFixer';
+import { getValidator } from '../../../../components/validatorAndFixer';
 import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
@@ -149,7 +149,7 @@ const AcodecView = defineComponent((props) => {
 						value={audioParams.value.detail[parameter.parameter]}
 						optionalDefault={parameter.optional ? parameter.default : undefined}
 						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
-						validator={parameter.type === 'int' ? numberValidator.integer : (parameter.type === 'float' ? numberValidator : undefined)}
+						validator={getValidator(parameter.type)}
 					/>
 				);
 			}
