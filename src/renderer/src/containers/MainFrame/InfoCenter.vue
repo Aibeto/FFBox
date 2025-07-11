@@ -183,6 +183,7 @@ const handleDelete = (serverId: string, notificationId: number) => {
 							top: 50%;
 							transform: translateY(-50%);
 							font-size: 12px;
+							font-feature-settings: "tnum";
 							line-height: 1.4em;
 							color: var(--66);
 						}

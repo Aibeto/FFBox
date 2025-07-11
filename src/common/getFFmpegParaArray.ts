@@ -54,13 +54,13 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 				// 至少需要有连线才能输出
 				ret.push(...vGenerator.getVideoParam(outputParams.outputs[outputIndex].video));
 				ret.push(...aGenerator.getAudioParam(outputParams.outputs[outputIndex].audio));
-				ret.push(...fGenerator.getOutputParam(outputParams.outputs[outputIndex].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[outputIndex]));
+				ret.push(...fGenerator.getMuxParam(outputParams.outputs[outputIndex].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[outputIndex]));
 			}
 		}
 	} else {
 		ret.push(...vGenerator.getVideoParam(outputParams.outputs[0].video));
 		ret.push(...aGenerator.getAudioParam(outputParams.outputs[0].audio));
-		ret.push(...fGenerator.getOutputParam(outputParams.outputs[0].mux, outputDir, outputBaseName, withQuotes, undefined));
+		ret.push(...fGenerator.getMuxParam(outputParams.outputs[0].mux, outputDir, outputBaseName, withQuotes, undefined));
 	}
 	ret.push('-y');
 	return ret;

@@ -1,5 +1,5 @@
 import { computed, defineComponent } from 'vue';
-import { vcodecsList, resolution, framerate, VCodecDetail } from '@common/params/vcodecs';
+import { vcodecsList, resolution, framerate, VCodecDetail, allVcodecsList } from '@common/params/vcodecs';
 import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
@@ -31,10 +31,24 @@ const VcodecView = defineComponent((props: Props) => {
 		}
 	});
 
+	const combinedVcodecsList = computed(() => (
+		[
+			...vcodecsList,
+			{ type: 'separator' },
+			{ type: 'submenu', label: '全部可用编码', subMenu: [
+				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
+					appStore.fetchCodecsAndFilters();
+				} },
+				...(allVcodecsList.length ? [{ type: 'separator' }] : []),
+				...allVcodecsList,
+			] },
+		] as typeof vcodecsList
+	));
+
 	const vcodec = computed(() => {
 		if (videoParams.value) {
 			const vcodecName = videoParams.value.vcodec;
-			return (getMenuItemByValue(vcodecsList, vcodecName) as any)?.extra as VCodecDetail;
+			return (getMenuItemByValue(combinedVcodecsList.value, vcodecName) as any)?.extra as VCodecDetail;
 		}
 	});
 	const rateControlList = computed(() => {
@@ -166,7 +180,7 @@ const VcodecView = defineComponent((props: Props) => {
 	// console.log(vcodec.value?.parameters);
 	return () => videoParams.value && videoContainsInOutput.value ? (
 		<div class={style.container}>
-			<BoxedDropdownInput title="视频编码器" text={videoParams.value.vcodec} list={vcodecsList} onChange={(value: string) => handleChange('vcodec', value)} />
+			<BoxedDropdownInput title="视频编码器" text={videoParams.value.vcodec} list={combinedVcodecsList.value} onChange={(value: string) => handleChange('vcodec', value)} />
 			{['禁用', 'copy'].indexOf(videoParams.value.vcodec) === -1 && (
 				<>
 					<BoxedDropdownInput title="分辨率" text={videoParams.value.resolution} list={resolution} onChange={(value: string) => handleChange('resolution', value)} />

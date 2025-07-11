@@ -103,7 +103,7 @@ export function dashboardTimer(task: UITask) {
 		}
 
 		// 进度细节计算
-		const afterFramerate = task.after.video.framerate === '不改变' ? task.before.vframerate : +task.after.video.framerate;
+		const afterFramerate = task.after.outputs[0]?.video.framerate === '不改变' ? task.before.vframerate : +task.after.outputs[0]?.video.framerate;
 		if (progress < 0.995) {
 			task.dashboard = {
 				...task.dashboard,

@@ -1914,20 +1914,9 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 			},
 		],
 	},
-	{ type: 'separator' },
-	{
-		type: 'submenu',
-		label: '全部可用编码',
-		subMenu: [
-			{
-				type: 'normal',
-				value: 'fetchFromService',
-				label: '获取服务器可用编码器',
-				onClick: () => window?.dispatchEvent(new CustomEvent('fetch-codecs')),
-			},
-		],
-	}
 ];
+
+const allVcodecsList: MenuItem<VCodecDetail>[] = [];
 
 // https://zh.wikipedia.org/wiki/显示分辨率列表
 const resolution: MenuItem[] = [
@@ -2079,7 +2068,6 @@ const framerate: MenuItem[] = [
 	] },
 ];
 
-
 const generator = {
 	getVideoParam: function (videoParams: OutputParams_video) {
 		const ret = [];
@@ -2091,10 +2079,13 @@ const generator = {
 			ret.push('-vcodec');
 			ret.push('copy');
 		} else if (videoParams.vcodec !== '自动') {
-			const vcodecItem = getMenuItemByValue(vcodecsList, videoParams.vcodec) as any;
-			const vcodecDetail = (vcodecItem?.extra) as VCodecDetail;
 			ret.push('-vcodec');
 			ret.push(videoParams.vcodec);
+			let vcodecItem = getMenuItemByValue(vcodecsList, videoParams.vcodec) as any;
+			if (!vcodecItem) {
+				vcodecItem = getMenuItemByValue(allVcodecsList, videoParams.vcodec) as any;
+			}
+			const vcodecDetail = (vcodecItem?.extra) as VCodecDetail;
 			if (vcodecDetail) {
 				if (vcodecDetail.strict2) {
 					strict2 = true;
@@ -2235,4 +2226,4 @@ const generator = {
 		}
 	}
 }
-export { vcodecsList, resolution, framerate, generator }
+export { vcodecsList, allVcodecsList, resolution, framerate, generator }

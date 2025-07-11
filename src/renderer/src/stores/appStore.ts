@@ -23,7 +23,6 @@ interface StoreState {
 	// 界面类
 	showMenuCenter: 0 | 1 | 2; // 0：关闭　1：开启菜单栏　2：全开
 	showInfoCenter: boolean;
-	paraSelected: number,
 	draggerPos: number,
 	taskViewSettings: {
 		showParams: boolean,
@@ -42,7 +41,6 @@ interface StoreState {
 		colorTheme: string,
 		useIEC: boolean,
 	},
-	showGlobalParams: boolean,
 	unreadNotificationCount: number,
 	componentRefs: { [key: string]: VNodeRef | Element },
 	// 非界面类
@@ -69,7 +67,6 @@ export const useAppStore = defineStore('app', {
 			// 界面类
 			showMenuCenter: 0,
 			showInfoCenter: false,
-			paraSelected: 1,
 			draggerPos: 0.57,
 			taskViewSettings: {
 				showParams: true,
@@ -88,7 +85,6 @@ export const useAppStore = defineStore('app', {
 				colorTheme: 'themeLight',
 				useIEC: false,
 			},
-			showGlobalParams: true,
 			unreadNotificationCount: 0,
 			componentRefs: {},
 			// 非界面类
@@ -582,12 +578,7 @@ export const useAppStore = defineStore('app', {
 						nodeBridge.localStorage.set('ffmpegCodecs', result.codecs);
 						nodeBridge.localStorage.set('ffmpegFilters', result.filters);
 						Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.filters.length} 个滤镜`, level: NotificationLevel.ok });
-						// 当 Parabox 停留在视频/音频编码界面时，由于整个 vcodecsList/acodecsList 被替换，使得界面中监听的是不会被再更新的老 list，因此需要刷一下
-						const outputs = 这.globalParams.outputs;
-						这.globalParams.outputs = [];
-						setTimeout(() => {
-							这.globalParams.outputs = outputs;
-						}, 0);
+						window?.dispatchEvent(new CustomEvent('finished-fetch-codecs'));
 					});
 				});
 			} else {

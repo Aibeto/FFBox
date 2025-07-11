@@ -35,6 +35,7 @@
 		height: 100%;
 		box-sizing: border-box;
 		text-align: left;
+		overflow: hidden;
 		.search {
 			height: 44px;
 			display: flow-root;
@@ -44,81 +45,90 @@
 		}
 		.filtersList {
 			height: calc(100% - 88px);
+			display: flex;
+			flex-direction: column;
+			align-items: stretch;
 			overflow: auto;
-			.item {
-				// width: 40px;
-				height: 30px;
-				box-sizing: border-box;
-				padding: 0 8px 0 12px;
-				position: relative;
-				outline: none;
-				border: none;
-				margin: 6px;
-				color: inherit;
-				background-color: hwb(var(--bg99) / 0.8);
-				border-radius: 4px;
-				// border-left: transparent 3px solid;
-				box-shadow: 0 0 1px 0.5px hwb(var(--highlight)),
-							0 1.5px 3px 0 hwb(var(--hoverShadow) / 0.2);
-				transition: all 0.3s cubic-bezier(0, 1.5, 0.3, 1);
-				cursor: grab;
-				&:not(&:active):hover::after {
-					content: '';
-					position: absolute;
-					top: 0;
-					left: -3px;
-					width: calc(100% + 3px);
-					height: 100%;
-					border-radius: inherit;
-					// background: hwb(0 100% 0% / 0.2);
-					box-shadow: 0 0 2px hwb(var(--hoverShadow) / 0.2);
-					z-index: 1;
-					pointer-events: none;
-				}
-				&:active {
-					background-color: hwb(var(--bg97) / 0.8);
-					border-radius: 3px 4px 4px 3px;
-					box-shadow: 0 0 2px 1px hwb(var(--hoverShadow) / 0.05), // 外部阴影
-								0 3px 6px hwb(var(--hoverShadow) / 0.1) inset; // 内部凹陷阴影
-					// border-left: #49e 3px solid;
-					cursor: grabbing;
-				}
-				span {
-					display: block;
-					font-size: 13px;
-					line-height: 30px;
-					white-space: nowrap;
-					text-overflow: ellipsis;
-					overflow: hidden;
-					user-select: none;
-					-webkit-user-drag: none;
-				}
-				button {
-					position: absolute;
-					right: 4px;
-					top: 4px;
-					width: 22px;
-					height: 22px;
-					padding: 0 0 4px;
-					border: none;
+			.items {
+				.item {
+					// width: 40px;
+					height: 30px;
+					box-sizing: border-box;
+					padding: 0 8px 0 12px;
+					position: relative;
 					outline: none;
-					background: none;
-					display: flex;
-					justify-content: center;
-					align-items: center;
+					border: none;
+					margin: 6px;
+					color: inherit;
+					background-color: hwb(var(--bg99) / 0.8);
 					border-radius: 4px;
-					font-size: 14px;
-					cursor: initial;
-					&:hover {
-						box-shadow: 0 1px 4px hwb(var(--hoverShadow) / 0.2),
-									0 4px 2px -2px hwb(var(--highlight) / 0.5) inset;
+					// border-left: transparent 3px solid;
+					box-shadow: 0 0 1px 0.5px hwb(var(--highlight)),
+								0 1.5px 3px 0 hwb(var(--hoverShadow) / 0.2);
+					transition: all 0.3s cubic-bezier(0, 1.5, 0.3, 1);
+					cursor: grab;
+					&:not(&:active):hover::after {
+						content: '';
+						position: absolute;
+						top: 0;
+						left: -3px;
+						width: calc(100% + 3px);
+						height: 100%;
+						border-radius: inherit;
+						// background: hwb(0 100% 0% / 0.2);
+						box-shadow: 0 0 2px hwb(var(--hoverShadow) / 0.2);
+						z-index: 1;
+						pointer-events: none;
 					}
 					&:active {
-						box-shadow: 0 0px 1px hwb(var(--hoverShadow) / 0.2),
-									0 15px 20px -10px hwb(var(--hoverShadow) / 0.15) inset;
-						transform: translateY(0.25px);
+						background-color: hwb(var(--bg97) / 0.8);
+						border-radius: 3px 4px 4px 3px;
+						box-shadow: 0 0 2px 1px hwb(var(--hoverShadow) / 0.05), // 外部阴影
+									0 3px 6px hwb(var(--hoverShadow) / 0.1) inset; // 内部凹陷阴影
+						// border-left: #49e 3px solid;
+						cursor: grabbing;
+					}
+					span {
+						display: block;
+						font-size: 13px;
+						line-height: 30px;
+						white-space: nowrap;
+						text-overflow: ellipsis;
+						overflow: hidden;
+						user-select: none;
+						-webkit-user-drag: none;
+					}
+					button {
+						position: absolute;
+						right: 4px;
+						top: 4px;
+						width: 22px;
+						height: 22px;
+						padding: 0 0 4px;
+						border: none;
+						outline: none;
+						background: none;
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						border-radius: 4px;
+						font-size: 14px;
+						cursor: initial;
+						&:hover {
+							box-shadow: 0 1px 4px hwb(var(--hoverShadow) / 0.2),
+										0 4px 2px -2px hwb(var(--highlight) / 0.5) inset;
+						}
+						&:active {
+							box-shadow: 0 0px 1px hwb(var(--hoverShadow) / 0.2),
+										0 15px 20px -10px hwb(var(--hoverShadow) / 0.15) inset;
+							transform: translateY(0.25px);
+						}
 					}
 				}
+			}
+			&>.button {
+				margin: 12px;
+				text-align: center;
 			}
 		}
 		.operations {
@@ -127,6 +137,7 @@
 			justify-content: stretch;
 			align-items: center;
 			padding: 0 16px;
+			overflow: auto;
 			button {
 				flex: 1 1 auto;
 			}

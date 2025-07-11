@@ -194,7 +194,7 @@ const generator = {
 	/**
 	 * 获取输出参数的命令行（对每个输出均需调用一次）
 	 */
-	getOutputParam: function (outputParams: OutputParams_mux, filedir: string, filebasename: string, withQuotes = false, overrideFilePath: string) {
+	getMuxParam: function (outputParams: OutputParams_mux, filedir: string, filebasename: string, withQuotes = false, overrideFilePath: string) {
 		let ret = [];
 		if (outputParams.format.length && outputParams.format !== '无') {
 			let format = formats.find((item) => {

@@ -1,6 +1,6 @@
 import { EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail } from '@common/types';
-import { ACodecDetail, acodecsList } from './acodecs';
-import { VCodecDetail, vcodecsList } from './vcodecs';
+import { ACodecDetail, acodecsList, allAcodecsList } from './acodecs';
+import { allVcodecsList, VCodecDetail, vcodecsList } from './vcodecs';
 import { MenuItem } from '@renderer/components/Menu/Menu';
 import { getMenuItemByValue } from '@common/menu';
 import { Parameter } from './parameter';
@@ -154,9 +154,7 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 
 export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }) {
 	// 视频
-	const video全部可用编码 = vcodecsList[vcodecsList.length - 1] as Extract<MenuItem, { type: 'submenu' }>;
-	const videoRefreshButton = video全部可用编码.subMenu[video全部可用编码.subMenu.length - 1];
-	video全部可用编码.subMenu = [];
+	allVcodecsList.splice(0, allVcodecsList.length);	// 清空之前的全部编码器列表
 	for (const iVideo of input.video) {
 		const menuItem: MenuItem<VCodecDetail> = {
 			type: 'submenu',
@@ -193,14 +191,10 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 				})(),
 			})),
 		}
-		video全部可用编码.subMenu.push(menuItem);
+		allVcodecsList.push(menuItem);
 	}
-	video全部可用编码.subMenu.push({ type: 'separator' });
-	video全部可用编码.subMenu.push(videoRefreshButton);
 	// 音频
-	const audio全部可用编码 = acodecsList[acodecsList.length - 1] as Extract<MenuItem, { type: 'submenu' }>;
-	const audioRefreshButton = audio全部可用编码.subMenu[audio全部可用编码.subMenu.length - 1];
-	audio全部可用编码.subMenu = [];
+	allAcodecsList.splice(0, allAcodecsList.length);	// 清空之前的全部编码器列表
 	for (const iAudio of input.audio) {
 		const menuItem: MenuItem<VCodecDetail> = {
 			type: 'submenu',
@@ -237,10 +231,8 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 				})(),
 			})),
 		}
-		audio全部可用编码.subMenu.push(menuItem);
+		allAcodecsList.push(menuItem);
 	}
-	audio全部可用编码.subMenu.push({ type: 'separator' });
-	audio全部可用编码.subMenu.push(audioRefreshButton);
 }
 
 export function parseFFmpegFiltersToFiltersList(input: FFmpegFilterDetail[]) {

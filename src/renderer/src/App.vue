@@ -61,11 +61,6 @@ onMounted(async () => {
 		console.log(...message);
 	});
 
-	// 挂载“获取服务器可用编码器”
-	window.addEventListener('fetch-codecs', () => {
-		appStore.fetchCodecsAndFilters();
-	});
-
 	// 初始化或加载配置
 	window.frontendSettings = {};
 	appStore.loadPresetList();

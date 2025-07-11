@@ -29,7 +29,7 @@ const MuxView = defineComponent((props) => {
 
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
-		appStore.globalParams.output[sName] = value;
+		muxParams.value[sName] = value;
 		appStore.applyParameters();
 	}
 	return () => muxParams.value && outputContainsInOutput.value ? (

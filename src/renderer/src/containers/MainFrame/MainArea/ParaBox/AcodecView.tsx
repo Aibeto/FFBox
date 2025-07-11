@@ -1,5 +1,5 @@
 import { computed, defineComponent } from 'vue';
-import { acodecsList, volSlider, ACodecDetail } from '@common/params/acodecs';
+import { acodecsList, volSlider, ACodecDetail, allAcodecsList } from '@common/params/acodecs';
 import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
@@ -16,7 +16,7 @@ interface Props {
 	editingOutputIndex: number;
 }
 
-const AcodecView = defineComponent((props) => {
+const AcodecView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 
 	const audioParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.audio);
@@ -31,10 +31,24 @@ const AcodecView = defineComponent((props) => {
 		}
 	});
 
+	const combinedVcodecsList = computed(() => (
+		[
+			...acodecsList,
+			{ type: 'separator' },
+			{ type: 'submenu', label: '全部可用编码', subMenu: [
+				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
+					appStore.fetchCodecsAndFilters();
+				} },
+				...(allAcodecsList.length ? [{ type: 'separator' }] : []),
+				...allAcodecsList,
+			] },
+		] as typeof acodecsList
+	));
+
 	const acodec = computed(() => {
 		if (audioParams.value) {
 			const acodecName = audioParams.value.acodec;
-			return (getMenuItemByValue(acodecsList, acodecName) as any)?.extra as ACodecDetail;
+			return (getMenuItemByValue(combinedVcodecsList.value, acodecName) as any)?.extra as ACodecDetail;
 		}
 	});
 	const rateControlList = computed(() => {
@@ -158,7 +172,7 @@ const AcodecView = defineComponent((props) => {
 
 	return () => audioParams.value && audioContainsInOutput.value ? (
 		<div class={style.container}>
-			<BoxedDropdownInput title="音频编码器" text={audioParams.value.acodec} list={acodecsList} onChange={(value: string) => handleChange('acodec', value)} />
+			<BoxedDropdownInput title="音频编码器" text={audioParams.value.acodec} list={combinedVcodecsList.value} onChange={(value: string) => handleChange('acodec', value)} />
 			{['禁用', 'copy'].indexOf(audioParams.value.acodec) === -1 && (
 				<>
 					{(acodec.value?.rateControl || []).length ? (

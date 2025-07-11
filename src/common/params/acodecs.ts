@@ -401,7 +401,6 @@ const volSlider: SliderOptions = {
 	}
 }
 
-
 const acodecsList: MenuItem<ACodecDetail>[] = [
 	{
 		type: 'normal',
@@ -962,21 +961,9 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 			},
 		],
 	},
-	{ type: 'separator' },
-	{
-		type: 'submenu',
-		label: '全部可用编码',
-		subMenu: [
-			{
-				type: 'normal',
-				value: 'fetchFromService',
-				label: '获取服务器可用编码器',
-				onClick: () => window?.dispatchEvent(new CustomEvent('fetch-codecs')),
-			},
-		],
-	}
 ];
 
+const allAcodecsList: MenuItem<ACodecDetail>[] = [];
 
 const generator = {
 	getAudioParam: function (audioParams: OutputParams_audio) {
@@ -988,10 +975,13 @@ const generator = {
 			ret.push('-acodec');
 			ret.push('copy');
 		} else if (audioParams.acodec !== '自动') {
-			const acodecItem = getMenuItemByValue(acodecsList, audioParams.acodec) as any;
-			const acodecDetail = (acodecItem?.extra) as ACodecDetail;
 			ret.push('-acodec');
 			ret.push(audioParams.acodec);
+			let acodecItem = getMenuItemByValue(acodecsList, audioParams.acodec) as any;
+			if (!acodecItem) {
+				acodecItem = getMenuItemByValue(allAcodecsList, audioParams.acodec) as any;
+			}
+			const acodecDetail = (acodecItem?.extra) as ACodecDetail;
 			if (acodecDetail) {
 				if (acodecDetail.strict2) {
 					strict2 = true;
@@ -1114,4 +1104,5 @@ const generator = {
 		}
 	}
 }
-export { acodecsList, volSlider, generator }
+
+export { acodecsList, allAcodecsList as allAcodecsList, volSlider, generator }

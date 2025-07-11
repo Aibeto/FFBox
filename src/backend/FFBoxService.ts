@@ -149,23 +149,51 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		ffmpeg.on('data', ({ content }) => {
 			this.setCmdText(-1, content);
 		});
-		ffmpeg.on('version', ({ content }) => {
+		ffmpeg.on('version', async ({ content }) => {
 			if (content) {
 				this.ffmpegInfo.version = content;
-				this.ffmpegInfo.scanning = true;
-				log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。即将获取编码器信息。`);
-				this.emitFFmpegInfo();
-				setTimeout(() => {
-					this.getFFmpegCodecsAndFilters();
-				}, 100);
+				const lastFFmpegVersion = await localConfig.get('ffmpegInfo.version');
+				if (lastFFmpegVersion === content) {
+					try {
+						const storedFFmpegInfo = await localConfig.get('ffmpegInfo') as any;
+						this.ffmpegInfo.audioEncodersCount = storedFFmpegInfo.audioEncodersCount ?? 0;
+						this.ffmpegInfo.videoEncodersCount = storedFFmpegInfo.videoEncodersCount ?? 0;
+						this.ffmpegCodecs = {
+							video: JSON.parse(storedFFmpegInfo.videoCodecs),
+							audio: JSON.parse(storedFFmpegInfo.audioCodecs),
+						};
+						this.ffmpegInfo.filtersCount = storedFFmpegInfo.filtersCount ?? 0;
+						this.ffmpegFilters = JSON.parse(storedFFmpegInfo.filters) || [];
+						log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。已从缓存中加载编码器和滤镜。`);
+						this.emitFFmpegInfo();
+					} catch (error) {
+						log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。缓存中的编码器和滤镜不可用，即将获取编码器信息。`);
+						setTimeout(() => {
+							this.getFFmpegCodecsAndFilters();
+						}, 100);							
+					}
+				} else {
+					log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。即将获取编码器信息。`);
+					setTimeout(() => {
+						this.getFFmpegCodecsAndFilters();
+					}, 100);
+				}
 			} else {
 				this.ffmpegInfo.version = '';
 				this.emitFFmpegInfo();
 			}
 		});
+		setTimeout(() => {
+			if (!this.ffmpegInfo.version) {
+				log.error(`在检查 ffmpeg 版本时，ffmpeg 成功启动，但 stdio 中没有接收到任何消息。重试。`);
+				this.initFFmpeg();
+			}
+		}, 1500);
 	}
 
 	public async getFFmpegCodecsAndFilters(): Promise<void> {
+		this.ffmpegInfo.scanning = true;
+		this.emitFFmpegInfo();
 		await new Promise((resolve, reject) => {
 			// 获取 codecs
 			const ffmpeg = new FFmpeg(this.ffmpegPath, 3, ['-codecs']);
@@ -197,6 +225,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						encoders: encoderDetails,
 					});
 				}
+				log.info('视频编码器扫描结果', videoFinalResult);
+				this.ffmpegInfo.videoEncodersCount = videoEncodersCount;
+				this.emitFFmpegInfo();
 				for (const codec of codecsResult.audioCodecs) {
 					const encoderNames = codec.encoders.length ? codec.encoders : [codec.name];
 					const encoderDetails: (EncoderDetail & { name: string; })[] = [];
@@ -218,14 +249,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						encoders: encoderDetails,
 					});
 				}
-				log.info('编码器扫描结果', videoFinalResult, audioFinalResult);
-				this.ffmpegCodecs = { video: videoFinalResult, audio: audioFinalResult };
-				// this.ffmpegInfo.scanning = false;
-				this.ffmpegInfo.videoEncodersCount = videoEncodersCount;
+				log.info('音频编码器扫描结果', audioFinalResult);
 				this.ffmpegInfo.audioEncodersCount = audioEncodersCount;
 				this.emitFFmpegInfo();
+				this.ffmpegCodecs = { video: videoFinalResult, audio: audioFinalResult };
 				parseFFmpegCodecsToCodecsList(this.ffmpegCodecs);
-				log.info('编码器到参数转换结果', vcodecsList);
 				resolve(0);
 			});
 		});
@@ -259,6 +287,15 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				this.emitFFmpegInfo();
 				resolve(0);
 			});	
+		});
+		localConfig.set('ffmpegInfo', {
+			version: this.ffmpegInfo.version,
+			audioEncodersCount: this.ffmpegInfo.audioEncodersCount,
+			videoEncodersCount: this.ffmpegInfo.videoEncodersCount,
+			videoCodecs: JSON.stringify(this.ffmpegCodecs.video),
+			audioCodecs: JSON.stringify(this.ffmpegCodecs.audio),
+			filtersCount: this.ffmpegInfo.filtersCount,
+			filters: JSON.stringify(this.ffmpegFilters),
 		});
 	}
 
@@ -545,7 +582,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				}
 				task.status = TaskStatus.finished;
 				task.progressLog.elapsed = new Date().getTime() / 1000 - task.progressLog.lastStarted;
-				if (hasTimeError) {
+				if (hasTimeError.length) {
 					this.setNotification(id, '任务「' + task.fileBaseName + '」已转码完成，但修改文件时间失败。请检查文件权限。', NotificationLevel.warning);
 				} else {
 					this.setNotification(id, `任务「${task.fileBaseName}」已转码完成`, NotificationLevel.ok);

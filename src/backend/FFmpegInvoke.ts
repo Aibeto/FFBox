@@ -98,7 +98,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 			// encoding: 'utf8',
 		})
 			.then((_process) => {
-				log.info(`ffmpeg 进程启动，pid：${_process.pid}`);
+				log.dev(`ffmpeg 进程启动，pid：${_process.pid}`);
 				this.process = _process;
 				this.mountSpawnEvents();
 			})

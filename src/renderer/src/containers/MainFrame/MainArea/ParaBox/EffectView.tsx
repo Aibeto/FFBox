@@ -1550,18 +1550,23 @@ const EffectView = defineComponent((props: Props) => {
 					<NormalInput placeholder='输入滤镜名搜索' onChange={(value) => filterText.value = value} />
 				</div>
 				<div class={style.filtersList}>
-					{filteredFilterList.value.map((filter) => (
-						<div
-							class={style.item}
-							onDblclick={() => handleFilterDblclick(filter)}
-							onMousedown={(event) => handleFilterMouseDown(event, filter)}
-							onTouchstart={(event) => handleFilterMouseDown(event, filter)}
-							{...useTooltip(filter.description, 'r', 'large')}
-						>
-							<span>{filter.name}</span>
-							<button onClick={(event) => handleFilterOpenDoc(event, filter.name)}>📖</button>
-						</div>
-					))}
+					<div class={style.items}>
+						{filteredFilterList.value.map((filter) => (
+							<div
+								class={style.item}
+								onDblclick={() => handleFilterDblclick(filter)}
+								onMousedown={(event) => handleFilterMouseDown(event, filter)}
+								onTouchstart={(event) => handleFilterMouseDown(event, filter)}
+								{...useTooltip(filter.description, 'r', 'large')}
+							>
+								<span>{filter.name}</span>
+								<button onClick={(event) => handleFilterOpenDoc(event, filter.name)}>📖</button>
+							</div>
+						))}
+					</div>
+					<div class={style.button}>
+						<Button size="large" onClick={() => appStore.fetchCodecsAndFilters()}>🔄️从服务器获取滤镜</Button>
+					</div>
 				</div>
 				<div class={style.operations}>
 					<Button size='small' onClick={(event) => showHelp(event)}>帮助</Button>
