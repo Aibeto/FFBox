@@ -7,17 +7,19 @@ import nodeBridge from "@renderer/bridges/nodeBridge";
 
 export function showEnvironmentInfo() {
     const appStore = useAppStore();
+    const currentServer = appStore.currentServer;
     const backendInfo = [];
-    const ffmpegEncoderInfo = appStore.currentServer.data.ffmpegInfo.version ? (appStore.currentServer.data.ffmpegInfo.scanning ? '（正在扫描编码器和滤镜）' : `（${appStore.currentServer.data.ffmpegInfo.videoEncodersCount} 个视频编码器，${appStore.currentServer.data.ffmpegInfo.audioEncodersCount} 个音频编码器，${appStore.currentServer.data.ffmpegInfo.filtersCount} 个滤镜）`) : '';
-    if (appStore.currentServer?.entity.status === ServiceBridgeStatus.Connected) {
+    if (currentServer?.entity.status === ServiceBridgeStatus.Connected) {
+        const ffmpegInfo = currentServer.data.ffmpegInfo;
+        const ffmpegEncoderInfo = ffmpegInfo.version ? (ffmpegInfo.scanning ? '（正在扫描编码器和滤镜）' : `（${ffmpegInfo.videoEncodersCount} 个视频编码器，${ffmpegInfo.audioEncodersCount} 个音频编码器，${ffmpegInfo.muxersCount} 个复用器，${ffmpegInfo.filtersCount} 个滤镜）`) : '';
         backendInfo.push(
-            `当前后端连接形式：${appStore.currentServer.entity.ip === 'localhost' ? '本地' : '远程'}`,
+            `当前后端连接形式：${currentServer.entity.ip === 'localhost' ? '本地' : '远程'}`,
             h('br'),
-            `当前后端版本：${appStore.currentServer.data.version}`,
+            `当前后端版本：${currentServer.data.version}`,
             h('br'),
-            `当前后端 OS 环境：${appStore.currentServer.data.os}`,
+            `当前后端 OS 环境：${currentServer.data.os}`,
             h('br'),
-            `当前后端 ffmpeg：${appStore.currentServer.data.ffmpegInfo.version}${ffmpegEncoderInfo}`,
+            `当前后端 ffmpeg：${currentServer.data.ffmpegInfo.version}${ffmpegEncoderInfo}`,
         )
     }
     Msgbox({

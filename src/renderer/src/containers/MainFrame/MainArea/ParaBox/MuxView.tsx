@@ -1,5 +1,5 @@
 import { computed, defineComponent } from 'vue';
-import { formats, keepFileTimeList, keepMeatadataList } from '@common/params/formats'
+import { allMuxers, builtInMuxers, keepFileTimeList, keepMeatadataList } from '@common/params/formats'
 import { durationFixer, durationValidator, notEmptyValidator } from '../../../../components/validatorAndFixer';
 import { useAppStore } from '@renderer/stores/appStore';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
@@ -12,12 +12,12 @@ interface Props {
 	editingOutputIndex: number;
 }
 
-const MuxView = defineComponent((props) => {
+const MuxView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 
 	const muxParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.mux);
 	
-	const outputContainsInOutput = computed(() => {
+	const muxContainsInOutput = computed(() => {
 		// 如果启用了滤镜，那么需要找到对应输出节点，并且有连线；否则默认输出一个文件
 		if (appStore.globalParams.filter.nodes.length) {
 			const outputNode = appStore.globalParams.filter.nodes.find((node) => node.name === `out_${props.editingOutputIndex}`);
@@ -27,14 +27,27 @@ const MuxView = defineComponent((props) => {
 		}
 	});
 
+	const combinedMuxersList = computed(() => (
+		[
+			...builtInMuxers,
+			{ type: 'separator' },
+			{ type: 'submenu', label: '全部可用复用器', subMenu: [
+				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
+					appStore.fetchCodecsFormatsFilters();
+				} },
+				...(allMuxers.length ? [{ type: 'separator' }] : []),
+				...allMuxers,
+			] },
+		] as typeof builtInMuxers
+	));
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
 		muxParams.value[sName] = value;
 		appStore.applyParameters();
 	}
-	return () => muxParams.value && outputContainsInOutput.value ? (
+	return () => muxParams.value && muxContainsInOutput.value ? (
 		<div class={style.container}>
-			<BoxedDropdownInput title="容器/格式" text={muxParams.value.format} list={formats} onChange={(value: string) => handleChange('format', value)} />
+			<BoxedDropdownInput title="容器/格式" text={muxParams.value.format} list={combinedMuxersList.value} onChange={(value: string) => handleChange('format', value)} />
 			<BoxedSwitch title="元数据前移" checked={muxParams.value.moveflags} onChange={(value: boolean) => handleChange('moveflags', value)} />
 			<BoxedNormalInput title="剪辑起点" value={muxParams.value.begin} onChange={(value: string) => handleChange('begin', value)} validator={durationValidator} inputFixer={durationFixer} />
 			<BoxedNormalInput title="剪辑终点" value={muxParams.value.end} onChange={(value: string) => handleChange('end', value)} validator={durationValidator} inputFixer={durationFixer} />

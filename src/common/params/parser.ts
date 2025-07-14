@@ -1,10 +1,11 @@
-import { EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail } from '@common/types';
+import { EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail } from '@common/types';
 import { ACodecDetail, acodecsList, allAcodecsList } from './acodecs';
 import { allVcodecsList, VCodecDetail, vcodecsList } from './vcodecs';
-import { MenuItem } from '@renderer/components/Menu/Menu';
-import { getMenuItemByValue } from '@common/menu';
+import { allMuxers, Format } from './formats';
 import { Parameter } from './parameter';
 import { filtersList } from './filter';
+import { getMenuItemByValue } from '@common/menu';
+import { MenuItem } from '@renderer/components/Menu/Menu';
 
 export function parseSingleOption(option: EncoderDetail['options'][number]): Parameter {
 	if (['string', 'dictionary'].includes(option.type)) {
@@ -148,7 +149,7 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 			});
 		}
 	} else {
-		debugger;
+		console.warn(`解析 ${option.name} 过程中发现未知类型 ${option.type}`);
 	}
 }
 
@@ -232,6 +233,45 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 			})),
 		}
 		allAcodecsList.push(menuItem);
+	}
+}
+
+export function parseFFmpegMuDeMuxersToList(input: { muxer: FFmpegMuxerDetail[], dDemuxer: FFmpegMuxerDetail[] }) {
+	// 复用器
+	allMuxers.splice(0, allMuxers.length);	// 清空之前的全部复用器列表
+	for (const iMuxer of input.muxer) {
+		if (!iMuxer.extensions || iMuxer.extensions?.[0] === iMuxer.name) {
+			const menuItem: MenuItem<Format> = {
+				type: 'normal',
+				value: iMuxer.name,
+				label: iMuxer.name,
+				tooltip: iMuxer.description + (iMuxer.defaultVideoCodec ? `\n默认视频编码器：${iMuxer.defaultVideoCodec}` : '') + (iMuxer.defaultAudioCodec ? `\n默认音频编码器：${iMuxer.defaultAudioCodec}` : ''),
+				extra: {
+					defaultVideoCodec: iMuxer.defaultVideoCodec,
+					defaultAudioCodec: iMuxer.defaultAudioCodec,
+					parameters: iMuxer.options.map((option) => parseSingleOption(option)),
+				},
+			}
+			allMuxers.push(menuItem);
+		} else {
+			const menuItem: MenuItem<Format> = {
+				type: 'submenu',
+				label: iMuxer.name,
+				tooltip: iMuxer.description + (iMuxer.defaultVideoCodec ? `\n默认视频编码器：${iMuxer.defaultVideoCodec}` : '') + (iMuxer.defaultAudioCodec ? `\n默认音频编码器：${iMuxer.defaultAudioCodec}` : ''),
+				subMenu: iMuxer.extensions.map((extension) => ({
+					type: 'normal',
+					value: `${extension} (${iMuxer.name})`,
+					label: extension,
+					// tooltip: iMuxer.description,
+					extra: {
+						defaultVideoCodec: iMuxer.defaultVideoCodec,
+						defaultAudioCodec: iMuxer.defaultAudioCodec,
+						parameters: iMuxer.options.map((option) => parseSingleOption(option)),
+					},
+				})),
+			}
+			allMuxers.push(menuItem);
+		}
 	}
 }
 

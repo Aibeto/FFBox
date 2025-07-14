@@ -5,13 +5,12 @@ import fs from 'fs';
 import fsPromise from 'fs/promises';
 import { utimes } from 'utimes';
 import path from 'path';
-import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail } from '@common/types';
+import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail } from '@common/types';
 import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import { defaultParams } from '@common/defaultParams';
 import localConfig from '@common/localConfig';
-import { parseFFmpegCodecsToCodecsList } from '@common/params/parser';
+import { parseFFmpegCodecsToCodecsList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
 import { getInitialServiceTask, convertAnyTaskToTask, TypedEventEmitter, replaceOutputParams, randomString, getOutputDuration, parseTimeString } from '@common/utils';
-import { vcodecsList } from '@common/params/vcodecs';
 import { getMachineId, log } from './utils';
 import { FFmpeg } from './FFmpegInvoke';
 import UIBridge from './uiBridge';
@@ -27,8 +26,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private latestTaskId = 0;
 	public workingStatus: WorkingStatus = WorkingStatus.idle;
 	private ffmpegPath = '';
-	private ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0 };
+	private ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0, muxersCount: 0, dDemuxersCount: 0 };
 	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; };
+	public ffmpegFormats: { muxer: FFmpegMuxerDetail[], dDemuxer: FFmpegMuxerDetail[]; };
 	public ffmpegFilters: FFmpegFilterDetail[] = [];
 	private globalTask: ServiceTask;
 	public notifications: Notification[] = [];
@@ -158,11 +158,17 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						const storedFFmpegInfo = await localConfig.get('ffmpegInfo') as any;
 						this.ffmpegInfo.audioEncodersCount = storedFFmpegInfo.audioEncodersCount ?? 0;
 						this.ffmpegInfo.videoEncodersCount = storedFFmpegInfo.videoEncodersCount ?? 0;
+						this.ffmpegInfo.muxersCount = storedFFmpegInfo.muxersCount ?? 0;
+						this.ffmpegInfo.dDemuxersCount = storedFFmpegInfo.dDemuxersCount ?? 0;
+						this.ffmpegInfo.filtersCount = storedFFmpegInfo.filtersCount ?? 0;
 						this.ffmpegCodecs = {
 							video: JSON.parse(storedFFmpegInfo.videoCodecs),
 							audio: JSON.parse(storedFFmpegInfo.audioCodecs),
 						};
-						this.ffmpegInfo.filtersCount = storedFFmpegInfo.filtersCount ?? 0;
+						this.ffmpegFormats = {
+							muxer: JSON.parse(storedFFmpegInfo.muxers),
+							dDemuxer: JSON.parse(storedFFmpegInfo.dDemuxers),
+						};
 						this.ffmpegFilters = JSON.parse(storedFFmpegInfo.filters) || [];
 						log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。已从缓存中加载编码器和滤镜。`);
 						this.emitFFmpegInfo();
@@ -258,8 +264,61 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			});
 		});
 		await new Promise((resolve, reject) => {
+			// 获取 muxers/dDemuxers
+			const ffmpeg = new FFmpeg(this.ffmpegPath, 4, ['-formats']);
+			ffmpeg.on('formats', async (formatsResult) => {
+				log.info(`格式概览扫描完成，支持复用器 ${formatsResult.muxers.length} 个、设备解复用器 ${formatsResult.dDemuxers.length} 个。即将扫描详细信息。`);
+				console.log(formatsResult);
+				const muxerFinalResult: FFmpegMuxerDetail[] = [];
+				const dDemuxerFinalResult: FFmpegMuxerDetail[] = [];
+				for (const muxer of formatsResult.muxers) {
+					// console.log(`正在读取 ${filter.name}`);
+					await new Promise((resolve, _) => {
+						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 4, ['-hide_banner', '-h', `muxer=${muxer.name}`]);
+						ffmpeg2.on('formats', (_, formatResult) => {
+							muxerFinalResult.push({
+								name: muxer.name,
+								description: muxer.description,
+								extensions: formatResult.commonExtensions,
+								defaultVideoCodec: formatResult.defaultVideoCodec,
+								defaultAudioCodec: formatResult.defaultAudioCodec,
+								options: formatResult.options,
+							});
+							resolve(0);
+						});
+					});
+				}
+				log.info('复用器扫描结果', muxerFinalResult);
+				this.ffmpegInfo.muxersCount = muxerFinalResult.length;
+				this.emitFFmpegInfo();
+				for (const dDemuxer of formatsResult.dDemuxers) {
+					// console.log(`正在读取 ${filter.name}`);
+					await new Promise((resolve, _) => {
+						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 4, ['-hide_banner', '-h', `demuxer=${dDemuxer.name}`]);
+						ffmpeg2.on('formats', (_, formatResult) => {
+							dDemuxerFinalResult.push({
+								name: dDemuxer.name,
+								description: dDemuxer.description,
+								extensions: formatResult.commonExtensions,
+								defaultVideoCodec: formatResult.defaultVideoCodec,
+								defaultAudioCodec: formatResult.defaultAudioCodec,
+								options: formatResult.options,
+							});
+							resolve(0);
+						});
+					});
+				}
+				log.info('设备解复用器扫描结果', dDemuxerFinalResult);
+				this.ffmpegInfo.dDemuxersCount = dDemuxerFinalResult.length;
+				this.emitFFmpegInfo();
+				this.ffmpegFormats = { muxer: muxerFinalResult, dDemuxer: dDemuxerFinalResult };
+				parseFFmpegMuDeMuxersToList(this.ffmpegFormats);
+				resolve(0);
+			});
+		});
+		await new Promise((resolve, reject) => {
 			// 获取 filters
-			const ffmpeg = new FFmpeg(this.ffmpegPath, 4, ['-filters']);
+			const ffmpeg = new FFmpeg(this.ffmpegPath, 5, ['-filters']);
 			ffmpeg.on('filters', async (filtersResult) => {
 				log.info(`滤镜概览扫描完成，支持滤镜 ${filtersResult.length} 个。即将扫描详细信息。`);
 				console.log(filtersResult);
@@ -267,8 +326,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				for (const filter of filtersResult) {
 					// console.log(`正在读取 ${filter.name}`);
 					await new Promise((resolve, _) => {
-						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `filter=${filter.name}`]);
-						ffmpeg2.on('codecs', (_, codecResult) => {
+						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 5, ['-hide_banner', '-h', `filter=${filter.name}`]);
+						ffmpeg2.on('filters', (_, codecResult) => {
 							result.push({
 								name: filter.name,
 								description: filter.description,
@@ -292,9 +351,13 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			version: this.ffmpegInfo.version,
 			audioEncodersCount: this.ffmpegInfo.audioEncodersCount,
 			videoEncodersCount: this.ffmpegInfo.videoEncodersCount,
+			muxersCount: this.ffmpegInfo.muxersCount,
+			dDemuxersCount: this.ffmpegInfo.dDemuxersCount,
+			filtersCount: this.ffmpegInfo.filtersCount,
 			videoCodecs: JSON.stringify(this.ffmpegCodecs.video),
 			audioCodecs: JSON.stringify(this.ffmpegCodecs.audio),
-			filtersCount: this.ffmpegInfo.filtersCount,
+			muxers: JSON.stringify(this.ffmpegFormats.muxer),
+			dDemuxers: JSON.stringify(this.ffmpegFormats.dDemuxer),
 			filters: JSON.stringify(this.ffmpegFilters),
 		});
 	}

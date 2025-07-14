@@ -26,6 +26,8 @@ export interface FFmpegInfo {
 	scanning: boolean;
 	videoEncodersCount: number;
 	audioEncodersCount: number;
+	muxersCount: number;
+	dDemuxersCount: number;
 	filtersCount: number;
 }
 
@@ -96,6 +98,10 @@ export interface EncoderDetail {
 	supportedSampleRates?: number[];	// 音频
 	supportedSampleFormats?: string[];	// 音频
 	supportedChannelLayouts?: string[];	// 音频
+	commonExtensions?: string[];	// 一个 muxer 可能对应多个扩展名。此时格式中的 value 应表达为 拓展 (muxer)
+	mineType?: string;	// 混流
+	defaultVideoCodec?: string;	// 混流
+	defaultAudioCodec?: string;	// 混流
 	options: {
 		name: string;
 		type: 'int' | 'int64' | 'float' | 'double' | 'boolean' | 'string' | 'dictionary' | 'flags' | 'color' | 'duration' | 'image_size' | 'rational';
@@ -113,6 +119,16 @@ export interface FFmpegCodecDetail {
 	description: string;
 	encoders: (EncoderDetail & { name: string; })[];
 }
+
+// 由 service 向前端报告的复用器详情（将会在前端转换为 MenuItem）
+export interface FFmpegMuxerDetail {
+	name: string;
+	description: string;
+	extensions: string[];
+	defaultVideoCodec?: string;
+	defaultAudioCodec?: string;
+	options: EncoderDetail['options'];
+};
 
 // 由 service 向前端报告的滤镜详情（将会在前端转换为 MenuItem）
 export interface FFmpegFilterDetail {

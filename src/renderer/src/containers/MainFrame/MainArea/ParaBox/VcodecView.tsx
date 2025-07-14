@@ -37,7 +37,7 @@ const VcodecView = defineComponent((props: Props) => {
 			{ type: 'separator' },
 			{ type: 'submenu', label: '全部可用编码', subMenu: [
 				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
-					appStore.fetchCodecsAndFilters();
+					appStore.fetchCodecsFormatsFilters();
 				} },
 				...(allVcodecsList.length ? [{ type: 'separator' }] : []),
 				...allVcodecsList,

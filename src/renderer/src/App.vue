@@ -7,7 +7,7 @@ import { handleDownloadStatusChange, handleDownloadProgress, handleCloseConfirm 
 import { TransferStatus } from '@common/types';
 import { Server } from './types';
 import { buildNumber, version } from '@common/constants';
-import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList } from '@common/params/parser';
+import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
 import Popup from './components/Popup/Popup';
 import nodeBridge from './bridges/nodeBridge';
 import MainFrame from './containers/MainFrame.vue';
@@ -68,6 +68,10 @@ onMounted(async () => {
 		const ffmpegCodecs = await nodeBridge.localStorage.get('ffmpegCodecs');
 		if (ffmpegCodecs) {
 			parseFFmpegCodecsToCodecsList(ffmpegCodecs);
+		}
+		const ffmpegFormats = await nodeBridge.localStorage.get('ffmpegFormats');
+		if (ffmpegFormats) {
+			parseFFmpegMuDeMuxersToList(ffmpegFormats);
 		}
 		const ffmpegFilters = await nodeBridge.localStorage.get('ffmpegFilters');
 		if (ffmpegFilters) {

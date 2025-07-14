@@ -1,10 +1,11 @@
 import path from './path';
 import { associateNodesAndLines, getFilterParam } from './params/filter';
-import { generator as fGenerator, formats } from './params/formats';
+import { generator as fGenerator, builtInMuxers, allMuxers } from './params/formats';
 import { generator as vGenerator } from './params/vcodecs';
 import { generator as aGenerator } from './params/acodecs';
 import { OutputParams } from '@common/types';
 import { randomString } from './utils';
+import { getMenuItemByValue } from './menu';
 
 const { trimExt, dirname, basename } = path;
 
@@ -80,8 +81,11 @@ export function genTaskOutputFiles(outputParams: OutputParams, remoteDownloadDir
         let extension = '';
 
         if (output.mux.format?.length && output.mux.format !== '无') {
-            const format = formats.find((item) => item.value === output.mux.format);
-            extension = format ? format.extension : output.mux.format;
+			let formatItem = getMenuItemByValue(builtInMuxers, output.mux.format);
+			if (!formatItem) {
+				formatItem = getMenuItemByValue(allMuxers, output.mux.format);
+			}
+            extension = formatItem ? (formatItem.value as string).match(/(.+) \(.+\)/)?.[1] : output.mux.format;
         }
 
 		if (remoteDownloadDir) {

@@ -1565,7 +1565,7 @@ const EffectView = defineComponent((props: Props) => {
 						))}
 					</div>
 					<div class={style.button}>
-						<Button size="large" onClick={() => appStore.fetchCodecsAndFilters()}>🔄️从服务器获取滤镜</Button>
+						<Button onClick={() => appStore.fetchCodecsFormatsFilters()}>🔄️从服务器获取滤镜</Button>
 					</div>
 				</div>
 				<div class={style.operations}>
