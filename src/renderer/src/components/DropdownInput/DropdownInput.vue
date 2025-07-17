@@ -96,7 +96,7 @@ const handleInput = (event: InputEvent) => {
 		inputText.value = props.inputFixer(event.target.value);
 	}
 	let newValue = (event.target as HTMLInputElement).value;
-	menuRef.value.setSelectedValue(newValue);
+	menuRef.value?.setSelectedValue(newValue);
 	(props.onChange || (() => {}))(newValue);
 };
 

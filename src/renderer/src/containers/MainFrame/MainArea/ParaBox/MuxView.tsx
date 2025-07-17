@@ -1,9 +1,12 @@
 import { computed, defineComponent } from 'vue';
-import { allMuxers, builtInMuxers, keepFileTimeList, keepMeatadataList } from '@common/params/formats'
-import { durationFixer, durationValidator, notEmptyValidator } from '../../../../components/validatorAndFixer';
+import { allMuxers, builtInMuxers, Muxer, keepFileTimeList, keepMeatadataList } from '@common/params/formats'
+import { durationFixer, durationValidator, getValidator, notEmptyValidator } from '../../../../components/validatorAndFixer';
+import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
+import { renderDetailParameters } from './utils';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
+import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue'
 import IconFind from '@renderer/assets/mainArea/find.svg?component';
 import style from './index.module.less';
@@ -33,28 +36,55 @@ const MuxView = defineComponent((props: Props) => {
 			{ type: 'separator' },
 			{ type: 'submenu', label: '全部可用复用器', subMenu: [
 				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
-					appStore.fetchCodecsFormatsFilters();
+					appStore.fetchAVOptions();
 				} },
 				...(allMuxers.length ? [{ type: 'separator' }] : []),
 				...allMuxers,
 			] },
 		] as typeof builtInMuxers
 	));
+
+	const muxer = computed(() => {
+		if (muxParams.value) {
+			const muxerName = muxParams.value.format;
+			return (getMenuItemByValue(combinedMuxersList.value, muxerName) as any)?.extra as Muxer;
+		}
+	});
+
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
 		muxParams.value[sName] = value;
 		appStore.applyParameters();
+		if (sName == 'format') {
+			appStore.checkAndApplyCodecDefaults({ mux: true });
+		}
 	}
+	const handleDetailChange = (sName: string, value: any) => {
+		// @ts-ignore
+		muxParams.value.detail[sName] = value;
+		appStore.applyParameters();
+	}
+
 	return () => muxParams.value && muxContainsInOutput.value ? (
 		<div class={style.container}>
 			<BoxedDropdownInput title="容器/格式" text={muxParams.value.format} list={combinedMuxersList.value} onChange={(value: string) => handleChange('format', value)} />
-			<BoxedSwitch title="元数据前移" checked={muxParams.value.moveflags} onChange={(value: boolean) => handleChange('moveflags', value)} />
+			{/* <BoxedSwitch title="元数据前移" checked={muxParams.value.moveflags} onChange={(value: boolean) => handleChange('moveflags', value)} /> */}
 			<BoxedNormalInput title="剪辑起点" value={muxParams.value.begin} onChange={(value: string) => handleChange('begin', value)} validator={durationValidator} inputFixer={durationFixer} />
 			<BoxedNormalInput title="剪辑终点" value={muxParams.value.end} onChange={(value: string) => handleChange('end', value)} validator={durationValidator} inputFixer={durationFixer} />
-			<BoxedDropdownInput title="元数据保留" text={muxParams.value.keepMetadata || '无'} list={keepMeatadataList} onChange={(value: any) => handleChange('keepMetadata', value)} />
-			<BoxedDropdownInput title="文件时间保留" description='FFBox 特色功能，对产出文件进行文件时间修改。对远程服务器任务暂不生效' text={muxParams.value.keepFileTime || '无'} list={keepFileTimeList} onChange={(value: any) => handleChange('keepFileTime', value)} />
-			<BoxedNormalInput title="输出文件名" value={muxParams.value.filename} onChange={(value: string) => handleChange('filename', value)} long={true} placeholder="[filedir]：文件所在目录；[filebasename]：文件基础名；[fileext]：文件扩展名" validator={notEmptyValidator} />
+			{muxParams.value.format !== '无' && (
+				<>
+					<BoxedDropdownInput title="元数据保留" text={muxParams.value.keepMetadata || '无'} list={keepMeatadataList} onChange={(value: any) => handleChange('keepMetadata', value)} />
+					<BoxedDropdownInput title="文件时间保留" description='FFBox 特色功能，对产出文件进行文件时间修改。对远程服务器任务暂不生效' text={muxParams.value.keepFileTime || '无'} list={keepFileTimeList} onChange={(value: any) => handleChange('keepFileTime', value)} />
+					<BoxedNormalInput title="输出文件名" value={muxParams.value.filename} onChange={(value: string) => handleChange('filename', value)} long={true} placeholder="[filedir]：文件所在目录；[filebasename]：文件基础名；[fileext]：文件扩展名" validator={notEmptyValidator} />
+				</>
+			)}
 			<BoxedNormalInput title="自定义参数" value={muxParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			{muxParams.value.format !== '无' && (
+				<>
+					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
+					{renderDetailParameters(muxer.value?.parameters, muxParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
+				</>
+			)}
 		</div>
 	) : (
 		<div class={style.noOutput}>

@@ -39,9 +39,10 @@ interface FormatsResult {
 		name: string;
 		description: string;
 	}[];
-	dDemuxers: {
+	demuxers: {
 		name: string;
 		description: string;
+		isDevice: boolean;
 	}[];
 }
 
@@ -78,7 +79,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 	private errors = new Set<string>(); // 发生 critical 则不触发 finished 事件，因某些错误（如外存不足）会由多个部件同时报告，所以这里用 Set
 	private encoderDetail: EncoderDetail = { options: [] };	// 同时被 codecs 和 filters 使用
 	private codecsResult: CodecsResult = { videoCodecs: [], audioCodecs: [] };
-	private formatsResult: FormatsResult = { muxers: [], dDemuxers: [] };
+	private formatsResult: FormatsResult = { muxers: [], demuxers: [] };
 	private filtersResult: FilterResult[] = [];
 	private readingAVOption: EncoderDetail['options'][number];
 
@@ -448,8 +449,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					if (basicInfoRegx[2] === 'E') {
 						this.formatsResult.muxers.push({ name: basicInfoRegx[4], description: basicInfoRegx[5] });
 					}
-					if (basicInfoRegx[1] === 'D' && basicInfoRegx[3] === 'd') {
-						this.formatsResult.dDemuxers.push({ name: basicInfoRegx[4], description: basicInfoRegx[5] });
+					if (basicInfoRegx[1] === 'D') {
+						this.formatsResult.demuxers.push({ name: basicInfoRegx[4], description: basicInfoRegx[5], isDevice: basicInfoRegx[3] === 'd' });
 					}
 				}
 				break;

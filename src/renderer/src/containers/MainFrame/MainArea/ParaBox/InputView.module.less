@@ -37,7 +37,6 @@
 				padding: var(--itemPadding);
 				border-radius: 6px;
 				font-size: 13px;
-				font-family: Arial;
 				overflow: hidden;
 				transition: padding 0.3s ease;
 				&::after {
@@ -49,10 +48,8 @@
 					background-color: hwb(var(--hoverShadow) / 0.05);
 					height: 1px;
 				}
-				.inputAutoSize {
-					margin-left: -4px;
-				}
 				.delete {
+					flex: 0 0 auto;
 					display: inline-block;
 					width: 20px;
 					height: 20px;
@@ -78,8 +75,19 @@
 						height: 100%;
 					}
 				}
+				.dropdownInput {
+					flex: 0 0 auto;
+					min-width: 56px;
+					width: calc(10% + 32px);
+					margin-right: 8px;
+					box-shadow: 0px 1px 2px hwb(var(--hoverShadow) / 0.1);
+				}
+				.inputAutoSize {
+					margin-left: -4px;
+				}
 				span {
-					flex: 1 1 0;
+					flex: 1 1 auto;
+					font-family: Arial;
 					white-space: nowrap;
 					overflow: hidden;
 				}

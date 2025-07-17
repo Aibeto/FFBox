@@ -1,10 +1,12 @@
 import { computed, defineComponent } from 'vue';
 import { vcodecsList, resolution, framerate, VCodecDetail, allVcodecsList } from '@common/params/vcodecs';
+import { allMuxers, builtInMuxers } from '@common/params/formats';
 import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
-import { framerateValidator, getValidator } from '../../../../components/validatorAndFixer';
+import { framerateValidator } from '../../../../components/validatorAndFixer';
 import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
+import { renderDetailParameters } from './utils';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -20,6 +22,19 @@ const VcodecView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 	
 	const videoParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.video);
+	const muxerDefaultCodec = computed(() => {
+		const muxParam = appStore.globalParams.outputs[props.editingOutputIndex]?.mux;
+		if (muxParam) {
+			let muxerItem = getMenuItemByValue(builtInMuxers, muxParam.format);
+			if (!muxerItem) {
+				muxerItem = getMenuItemByValue(allMuxers, muxParam.format);
+			}
+			if (muxerItem) {
+				const videoMatch = muxerItem.tooltip.match(/默认视频编码器：(.+)/);
+				return videoMatch?.[1] ? { muxer: muxParam.format, vcodec: videoMatch[1] } : undefined;
+			}
+		}
+	});
 
 	const videoContainsInOutput = computed(() => {
 		// 如果启用了滤镜，那么需要找到对应输出节点，并且有连线；否则默认输出一个文件
@@ -33,11 +48,30 @@ const VcodecView = defineComponent((props: Props) => {
 
 	const combinedVcodecsList = computed(() => (
 		[
+			{
+				type: 'normal',
+				value: '禁用',
+				label: '禁用',
+				tooltip: '不输出视频\n（如果输入中本来就没有视频，或者输出容器中不支持视频，ffmpeg 会自动忽略视频相关选项，您无需手动选择此处）',
+			},
+			{
+				type: 'normal',
+				value: 'copy',
+				label: '不重新编码',
+				tooltip: '复制源码流，不重新编码。',
+			},
+			{
+				type: 'normal',
+				value: '自动',
+				label: muxerDefaultCodec.value ? `自动【${muxerDefaultCodec.value.vcodec}】` : '自动',
+				tooltip: muxerDefaultCodec.value ? `不指定，让 ffmpeg 根据复用器默认设定选择编码\n根据你选择的复用器【${muxerDefaultCodec.value.muxer}】，默认使用【${muxerDefaultCodec.value.vcodec}】编码器` : '不指定，让 ffmpeg 根据复用器默认设定选择编码',
+			},
+			{ type: 'separator' },
 			...vcodecsList,
 			{ type: 'separator' },
 			{ type: 'submenu', label: '全部可用编码', subMenu: [
 				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
-					appStore.fetchCodecsFormatsFilters();
+					appStore.fetchAVOptions();
 				} },
 				...(allVcodecsList.length ? [{ type: 'separator' }] : []),
 				...allVcodecsList,
@@ -121,62 +155,6 @@ const VcodecView = defineComponent((props: Props) => {
 		appStore.applyParameters();
 	};
 
-	const renderDetailParameters = (optional: boolean) => (
-		(vcodec.value?.parameters || []).filter((parameter) => optional ? parameter.optional : !parameter.optional).map((parameter) => {
-			if (parameter.mode === 'slider') {
-				return (
-					<BoxedSlider
-						title={parameter.display}
-						description={parameter.description}
-						value={videoParams.value.detail[parameter.parameter]}
-						optionalDefault={parameter.optional ? parameter.default : undefined}
-						min={parameter.min}
-						max={parameter.max}
-						arrowKeyStep={parameter.arrowKeyStep}
-						tags={parameter.tags}
-						mode={parameter.sliderMode}
-						adsorption={parameter.adsorption}
-						valueToDisplay={parameter.valueToDisplay}
-						onChange={(value: number) => handleDetailChange(parameter.parameter, value)}
-					/>
-				);
-			} else if (parameter.mode === 'combo') {
-				return (
-					<BoxedDropdownInput
-						title={parameter.display}
-						description={parameter.description}
-						text={videoParams.value.detail[parameter.parameter]}
-						optionalDefault={parameter.optional ? parameter.default : undefined}
-						list={parameter.items}
-						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
-					/>
-				);
-			} else if (parameter.mode === 'switch') {
-				return (
-					<BoxedSwitch
-						title={parameter.display}
-						description={parameter.description}
-						checked={videoParams.value.detail[parameter.parameter]}
-						optionalDefault={parameter.optional ? parameter.default : undefined}
-						onChange={(value: boolean) => handleDetailChange(parameter.parameter, value)}
-					/>
-				);
-			} else if (parameter.mode === 'text') {
-				return (
-					<BoxedNormalInput
-						title={parameter.display}
-						description={parameter.description}
-						value={videoParams.value.detail[parameter.parameter]}
-						optionalDefault={parameter.optional ? parameter.default : undefined}
-						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
-						validator={getValidator(parameter.type)}
-					/>
-				);
-			}
-			return null;
-		})
-	);
-
 	// console.log(vcodec.value?.parameters);
 	return () => videoParams.value && videoContainsInOutput.value ? (
 		<div class={style.container}>
@@ -201,14 +179,14 @@ const VcodecView = defineComponent((props: Props) => {
 							onChange={(value: number) => handleChange('ratevalue', value)}
 						/>
 					)}
-					{renderDetailParameters(false)}
+					{renderDetailParameters(vcodec.value?.parameters, videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
 				</>
 			)}
 			<BoxedNormalInput title="自定义参数" value={videoParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 			{(vcodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
 				<>
 					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
-					{renderDetailParameters(true)}
+					{renderDetailParameters(vcodec.value?.parameters, videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
 				</>
 			) || null}
 		</div>

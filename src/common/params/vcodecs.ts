@@ -1034,25 +1034,6 @@ const rgb555le: NarrowedMenuItem = {
 
 const vcodecsList: MenuItem<VCodecDetail>[] = [
 	{
-		type: 'normal',
-		value: '禁用',
-		label: '禁用',
-		tooltip: '不输出视频',
-	},
-	{
-		type: 'normal',
-		value: 'copy',
-		label: '不重新编码',
-		tooltip: '复制源码流，不重新编码。',
-	},
-	{
-		type: 'normal',
-		value: '自动',
-		label: '自动',
-		tooltip: '自动选择编码',
-	},
-	{ type: 'separator' },
-	{
 		type: 'submenu',
 		label: 'AV1',
 		tooltip: 'AV1 - AV1 即 AOMedia Video 1 是一个开放、免专利的影片编码格式，专为通过网络进行流传输而设计。',
@@ -1874,8 +1855,8 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 		subMenu: [
 			{
 				type: 'normal',
-				value: 'rv20',
-				label: '【默认】rv20',
+				value: 'rv10',
+				label: '【默认】rv10',
 				tooltip: '',
 				extra: {
 					rateControl: [
@@ -1899,8 +1880,8 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 		subMenu: [
 			{
 				type: 'normal',
-				value: 'rv20',
-				label: '【默认】rv20',
+				value: 'msvideo1',
+				label: '【默认】msvideo1',
 				tooltip: '',
 				extra: {
 					rateControl: [],

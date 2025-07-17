@@ -1,10 +1,11 @@
 import { computed, defineComponent } from 'vue';
 import { acodecsList, volSlider, ACodecDetail, allAcodecsList } from '@common/params/acodecs';
 import { RateControl } from '@common/params/parameter';
+import { allMuxers, builtInMuxers } from '@common/params/formats';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
-import { getValidator } from '../../../../components/validatorAndFixer';
 import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
+import { renderDetailParameters } from './utils';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -20,6 +21,19 @@ const AcodecView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 
 	const audioParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.audio);
+	const muxerDefaultCodec = computed(() => {
+		const muxParam = appStore.globalParams.outputs[props.editingOutputIndex]?.mux;
+		if (muxParam) {
+			let muxerItem = getMenuItemByValue(builtInMuxers, muxParam.format);
+			if (!muxerItem) {
+				muxerItem = getMenuItemByValue(allMuxers, muxParam.format);
+			}
+			if (muxerItem) {
+				const audioMatch = muxerItem.tooltip.match(/默认音频编码器：(.+)/);
+				return audioMatch?.[1] ? { muxer: muxParam.format, vcodec: audioMatch[1] } : undefined;
+			}
+		}
+	});
 
 	const audioContainsInOutput = computed(() => {
 		// 如果启用了滤镜，那么需要找到对应输出节点，并且有连线；否则默认输出一个文件
@@ -33,11 +47,30 @@ const AcodecView = defineComponent((props: Props) => {
 
 	const combinedVcodecsList = computed(() => (
 		[
+			{
+				type: 'normal',
+				value: '禁用',
+				label: '禁用',
+				tooltip: '不输出音频\n（如果输入中本来就没有音频，或者输出容器中不支持音频，ffmpeg 会自动忽略音频相关选项，您无需手动选择此处）',
+			},
+			{
+				type: 'normal',
+				value: 'copy',
+				label: '不重新编码',
+				tooltip: '复制源码流，不重新编码。',
+			},
+			{
+				type: 'normal',
+				value: '自动',
+				label: muxerDefaultCodec.value ? `自动【${muxerDefaultCodec.value.vcodec}】` : '自动',
+				tooltip: muxerDefaultCodec.value ? `不指定，让 ffmpeg 根据复用器默认设定选择编码\n根据你选择的复用器【${muxerDefaultCodec.value.muxer}】，默认使用【${muxerDefaultCodec.value.vcodec}】编码器` : '不指定，让 ffmpeg 根据复用器默认设定选择编码',
+			},
+			{ type: 'separator' },
 			...acodecsList,
 			{ type: 'separator' },
 			{ type: 'submenu', label: '全部可用编码', subMenu: [
 				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
-					appStore.fetchCodecsFormatsFilters();
+					appStore.fetchAVOptions();
 				} },
 				...(allAcodecsList.length ? [{ type: 'separator' }] : []),
 				...allAcodecsList,
@@ -115,61 +148,6 @@ const AcodecView = defineComponent((props: Props) => {
 		appStore.applyParameters();
 	};
 
-	const renderDetailParameters = (optional: boolean) => (
-		(acodec.value?.parameters || []).filter((parameter) => optional ? parameter.optional : !parameter.optional).map((parameter) => {
-			if (parameter.mode === 'slider') {
-				return (
-					<BoxedSlider
-						title={parameter.display}
-						description={parameter.description}
-						value={audioParams.value.detail[parameter.parameter]}
-						optionalDefault={parameter.optional ? parameter.default : undefined}
-						min={parameter.min}
-						max={parameter.max}
-						arrowKeyStep={parameter.arrowKeyStep}
-						tags={parameter.tags}
-						mode={parameter.sliderMode}
-						adsorption={parameter.adsorption}
-						valueToDisplay={parameter.valueToDisplay}
-						onChange={(value: number) => handleDetailChange(parameter.parameter, value)}
-					/>
-				);
-			} else if (parameter.mode === 'combo') {
-				return (
-					<BoxedDropdownInput
-						title={parameter.display}
-						description={parameter.description}
-						text={audioParams.value.detail[parameter.parameter]}
-						optionalDefault={parameter.optional ? parameter.default : undefined}
-						list={parameter.items}
-						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
-					/>
-				);
-			} else if (parameter.mode === 'switch') {
-				return (
-					<BoxedSwitch
-						title={parameter.display}
-						description={parameter.description}
-						checked={audioParams.value.detail[parameter.parameter]}
-						optionalDefault={parameter.optional ? parameter.default : undefined}
-						onChange={(value: boolean) => handleDetailChange(parameter.parameter, value)}
-					/>
-				);
-			} else if (parameter.mode === 'text') {
-				return (
-					<BoxedNormalInput
-						title={parameter.display}
-						description={parameter.description}
-						value={audioParams.value.detail[parameter.parameter]}
-						optionalDefault={parameter.optional ? parameter.default : undefined}
-						onChange={(value: string) => handleDetailChange(parameter.parameter, value)}
-						validator={getValidator(parameter.type)}
-					/>
-				);
-			}
-		})
-	);
-
 	return () => audioParams.value && audioContainsInOutput.value ? (
 		<div class={style.container}>
 			<BoxedDropdownInput title="音频编码器" text={audioParams.value.acodec} list={combinedVcodecsList.value} onChange={(value: string) => handleChange('acodec', value)} />
@@ -191,7 +169,7 @@ const AcodecView = defineComponent((props: Props) => {
 							onChange={(value: number) => handleChange('ratevalue', value)}
 						/>
 					)}
-					{renderDetailParameters(false)}
+					{renderDetailParameters(acodec.value?.parameters, audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
 					<BoxedSlider
 						title="音量"
 						description='请注意新版 ffmpeg 不再支持 -vol 参数，请换用滤镜进行音量处理'
@@ -209,7 +187,7 @@ const AcodecView = defineComponent((props: Props) => {
 			{(acodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
 				<>
 					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
-					{renderDetailParameters(true)}
+					{renderDetailParameters(acodec.value?.parameters, audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
 				</>
 			) || null}
 		</div>

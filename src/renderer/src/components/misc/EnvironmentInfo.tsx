@@ -11,7 +11,7 @@ export function showEnvironmentInfo() {
     const backendInfo = [];
     if (currentServer?.entity.status === ServiceBridgeStatus.Connected) {
         const ffmpegInfo = currentServer.data.ffmpegInfo;
-        const ffmpegEncoderInfo = ffmpegInfo.version ? (ffmpegInfo.scanning ? '（正在扫描编码器和滤镜）' : `（${ffmpegInfo.videoEncodersCount} 个视频编码器，${ffmpegInfo.audioEncodersCount} 个音频编码器，${ffmpegInfo.muxersCount} 个复用器，${ffmpegInfo.filtersCount} 个滤镜）`) : '';
+        const ffmpegEncoderInfo = ffmpegInfo.version ? (ffmpegInfo.scanning ? '（正在扫描编码器和滤镜）' : `（${ffmpegInfo.videoEncodersCount} 个视频编码器，${ffmpegInfo.audioEncodersCount} 个音频编码器，${ffmpegInfo.demuxersCount} 个解复用器，${ffmpegInfo.muxersCount} 个复用器，${ffmpegInfo.filtersCount} 个滤镜）`) : '';
         backendInfo.push(
             `当前后端连接形式：${currentServer.entity.ip === 'localhost' ? '本地' : '远程'}`,
             h('br'),

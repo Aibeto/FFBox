@@ -78,7 +78,7 @@ const finalMenu = computed(() => {
 						// entity.updateTaskList();
 						appStore.updateNotifications(server);
 					} },
-					{ type: 'normal' as const, label: '从当前服务器获取编码器、解复用和复用器、滤镜信息', value: '从当前服务器获取编码器、解复用和复用器、滤镜信息', tooltip: '每次变更 ffmpeg 路径（版本）后，FFBox 服务会自动扫描编码器、解复用器和复用器、滤镜信息。通过此功能，可将扫描到的信息下载到前端', onClick: () => appStore.fetchCodecsFormatsFilters() },
+					{ type: 'normal' as const, label: '从当前服务器获取 AVOptions 信息', value: '从当前服务器获取 AVOptions 信息', tooltip: '每次变更 ffmpeg 路径（版本）后，FFBox 服务会自动扫描编码器、解复用器和复用器、滤镜信息。通过此功能，可将扫描到的信息下载到前端', onClick: () => appStore.fetchAVOptions() },
 				] : []),
 				...(appStore.currentServer?.entity.ip === 'localhost' ? [
 					{ type: 'separator' as const },

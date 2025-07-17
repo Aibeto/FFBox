@@ -1,15 +1,16 @@
 import { VNodeRef } from 'vue';
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
-import { FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, TaskStatus, TransferStatus, WorkingStatus } from '@common/types';
+import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, TaskStatus, TransferStatus, WorkingStatus } from '@common/types';
 import { version } from '@common/constants'; 
 import { Server } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
 import { getInitialUITask, randomString, replaceOutputParams } from '@common/utils';
 import { getMenuItemByValue } from '@common/menu';
-import { VCodecDetail, vcodecsList } from '@common/params/vcodecs';
-import { ACodecDetail, acodecsList } from '@common/params/acodecs';
+import { allVcodecsList, VCodecDetail, vcodecsList } from '@common/params/vcodecs';
+import { ACodecDetail, acodecsList, allAcodecsList } from '@common/params/acodecs';
+import { allMuxers, builtInMuxers } from '@common/params/formats';
 import path from '@common/path';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from './eventsHandler';
@@ -405,12 +406,12 @@ export const useAppStore = defineStore('app', {
 		 * 切换编码器之后或者第一次使用 FFBox 需要预置一些默认值，通过调用此函数进行
 		 * 并会调用一次 applyParameters 以存储并将当前配置应用到所选任务上
 		 */
-		checkAndApplyCodecDefaults(who: { video?: true, audio?: true }, outputIndex = 0) {
+		checkAndApplyCodecDefaults(who: { video?: true, audio?: true, mux?: true }, outputIndex = 0) {
 			const 这 = useAppStore();
 			if (who.video) {
 				const v = 这.globalParams.outputs[outputIndex].video;
-				const vcodec = (getMenuItemByValue(vcodecsList, v.vcodec) as any)?.extra as VCodecDetail;
-				for (const parameter of (vcodec?.parameters || [])) {
+				const vcodec = getMenuItemByValue(vcodecsList, v.vcodec) ?? getMenuItemByValue(allVcodecsList, v.vcodec)
+				for (const parameter of ((vcodec as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
 						continue;	// 默认不启用可选参数。在勾选后才读取默认值
 					}
@@ -427,8 +428,8 @@ export const useAppStore = defineStore('app', {
 			}
 			if (who.audio) {
 				const a = 这.globalParams.outputs[outputIndex].audio;
-				const acodec = (getMenuItemByValue(acodecsList, a.acodec) as any)?.extra as ACodecDetail;
-				for (const parameter of (acodec?.parameters || [])) {
+				const acodec = getMenuItemByValue(acodecsList, a.acodec) ?? getMenuItemByValue(allAcodecsList, a.acodec)
+				for (const parameter of ((acodec as any)?.parameters || [])) {
 					if (parameter.optional) {
 						continue;	// 默认不启用可选参数。在勾选后才读取默认值
 					}
@@ -440,6 +441,24 @@ export const useAppStore = defineStore('app', {
 						const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
 						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
 						a.detail[parameter.parameter] = defaultValue;
+					}
+				}
+			}
+			if (who.mux) {
+				const m = 这.globalParams.outputs[outputIndex].mux;
+				const muxer = getMenuItemByValue(builtInMuxers, m.format) ?? getMenuItemByValue(allMuxers, m.format)
+				for (const parameter of ((muxer as any)?.parameters || [])) {
+					if (parameter.optional) {
+						continue;	// 默认不启用可选参数。在勾选后才读取默认值
+					}
+					if (parameter.mode === 'combo') {
+						const defaultValue = parameter.default ?? parameter.items[0].value;
+						console.log(`参数 ${parameter.parameter} 重置为默认值或首项：${defaultValue}`);
+						m.detail[parameter.parameter] = defaultValue;
+					} else if (parameter.mode == 'slider') {
+						const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
+						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
+						m.detail[parameter.parameter] = defaultValue;
 					}
 				}
 			}
@@ -565,21 +584,21 @@ export const useAppStore = defineStore('app', {
 				}
 			});
 		},
-		fetchCodecsFormatsFilters() {
+		fetchAVOptions() {
 			const 这 = useAppStore();
 			const entity = 这.currentServer?.entity;
 			if (entity?.status === ServiceBridgeStatus.Connected) {
-				fetch(`http://${entity.ip}:${entity.port}/codecsFormatsFilters`, {
+				fetch(`http://${entity.ip}:${entity.port}/AVOptions`, {
 					method: 'get',
 				}).then((response) => {
-					response.json().then((result: { codecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }, formats: { muxer: FFmpegMuxerDetail[], dDemuxer: FFmpegMuxerDetail[] }, filters: FFmpegFilterDetail[] }) => {
+					response.json().then((result: { codecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }, formats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[] }, filters: FFmpegFilterDetail[] }) => {
 						parseFFmpegCodecsToCodecsList(result.codecs);
 						parseFFmpegFiltersToFiltersList(result.filters);
 						parseFFmpegMuDeMuxersToList(result.formats);
 						nodeBridge.localStorage.set('ffmpegCodecs', result.codecs);
 						nodeBridge.localStorage.set('ffmpegFormats', result.formats);
 						nodeBridge.localStorage.set('ffmpegFilters', result.filters);
-						Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.formats.dDemuxer.length} 种复用器、${result.filters.length} 个滤镜`, level: NotificationLevel.ok });
+						Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.formats.demuxer.length} 个解复用器、${result.formats.muxer.length} 个复用器、${result.filters.length} 个滤镜`, level: NotificationLevel.ok });
 						window?.dispatchEvent(new CustomEvent('finished-fetch-codecs'));
 					});
 				});
@@ -670,7 +689,7 @@ export const useAppStore = defineStore('app', {
 					name: '未连接',
 					tasks: [],
 					notifications: [],
-					ffmpegInfo: { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, muxersCount: 0, dDemuxersCount: 0, filtersCount: 0 },
+					ffmpegInfo: { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, muxersCount: 0, demuxersCount: 0, filtersCount: 0 },
 					version: '',
 					workingStatus: WorkingStatus.idle,
 					progress: 0,

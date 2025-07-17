@@ -1,7 +1,7 @@
-import { EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail } from '@common/types';
+import { EncoderDetail, FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail } from '@common/types';
 import { ACodecDetail, acodecsList, allAcodecsList } from './acodecs';
 import { allVcodecsList, VCodecDetail, vcodecsList } from './vcodecs';
-import { allMuxers, Format } from './formats';
+import { allDemuxers, allMuxers, builtInDemuxers, builtInMuxers, Demuxer, Muxer } from './formats';
 import { Parameter } from './parameter';
 import { filtersList } from './filter';
 import { getMenuItemByValue } from '@common/menu';
@@ -236,25 +236,60 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 	}
 }
 
-export function parseFFmpegMuDeMuxersToList(input: { muxer: FFmpegMuxerDetail[], dDemuxer: FFmpegMuxerDetail[] }) {
+export function parseFFmpegMuDeMuxersToList(input: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[] }) {
 	// 复用器
 	allMuxers.splice(0, allMuxers.length);	// 清空之前的全部复用器列表
 	for (const iMuxer of input.muxer) {
+		const muxerExtra = (() => {
+			// 对每款编码器进行参数扫描组装
+			const parameters: Parameter[] = [];
+			// 如果 FFBox 已预置该编码器的部分信息，那么进行 append
+			const outsideItem = getMenuItemByValue(
+				builtInMuxers,
+				iMuxer.name,
+				(i, y) => i === y || (i.match(/^.+ \((.+)\)$/)?.[1] === y ? true : false)	// muxer 名称完全一致或者在菜单项名的括号里面
+			) as any;
+			let outsideDetail = (outsideItem?.extra) as VCodecDetail;
+			if (outsideItem && !outsideDetail) {
+				outsideItem.extra = {
+					parameters: [],
+				};
+				outsideDetail = outsideItem.extra;
+			}
+			let existParameters: string[] = [];	// 对于已经预置的选项，不在详细参数中重复添加
+			if (outsideDetail) {
+				parameters.push(...outsideDetail.parameters);
+				existParameters = outsideDetail.parameters.map((parameter) => parameter.parameter);
+			}
+			for (const option of iMuxer.options) {
+				if (existParameters.includes(option.name)) {
+					continue;
+				} else {
+					const parsedOption = parseSingleOption(option);
+					parsedOption && parameters.push(parsedOption);
+				}
+			}
+			// 如果有预置编码器，那么在 return 结果之前把预置编码的参数也替换掉
+			if (outsideDetail) {
+				outsideDetail.parameters = parameters;
+			}
+			return {
+				defaultVideoCodec: iMuxer.defaultVideoCodec,
+				defaultAudioCodec: iMuxer.defaultAudioCodec,
+				parameters,
+			};
+		})();
 		if (!iMuxer.extensions || iMuxer.extensions?.[0] === iMuxer.name) {
-			const menuItem: MenuItem<Format> = {
+			const menuItem: MenuItem<Muxer> = {
 				type: 'normal',
 				value: iMuxer.name,
 				label: iMuxer.name,
 				tooltip: iMuxer.description + (iMuxer.defaultVideoCodec ? `\n默认视频编码器：${iMuxer.defaultVideoCodec}` : '') + (iMuxer.defaultAudioCodec ? `\n默认音频编码器：${iMuxer.defaultAudioCodec}` : ''),
-				extra: {
-					defaultVideoCodec: iMuxer.defaultVideoCodec,
-					defaultAudioCodec: iMuxer.defaultAudioCodec,
-					parameters: iMuxer.options.map((option) => parseSingleOption(option)),
-				},
+				extra: muxerExtra,
 			}
 			allMuxers.push(menuItem);
 		} else {
-			const menuItem: MenuItem<Format> = {
+			const menuItem: MenuItem<Muxer> = {
 				type: 'submenu',
 				label: iMuxer.name,
 				tooltip: iMuxer.description + (iMuxer.defaultVideoCodec ? `\n默认视频编码器：${iMuxer.defaultVideoCodec}` : '') + (iMuxer.defaultAudioCodec ? `\n默认音频编码器：${iMuxer.defaultAudioCodec}` : ''),
@@ -263,15 +298,47 @@ export function parseFFmpegMuDeMuxersToList(input: { muxer: FFmpegMuxerDetail[],
 					value: `${extension} (${iMuxer.name})`,
 					label: extension,
 					// tooltip: iMuxer.description,
-					extra: {
-						defaultVideoCodec: iMuxer.defaultVideoCodec,
-						defaultAudioCodec: iMuxer.defaultAudioCodec,
-						parameters: iMuxer.options.map((option) => parseSingleOption(option)),
-					},
+					extra: muxerExtra,
 				})),
 			}
 			allMuxers.push(menuItem);
 		}
+	}
+	// 解复用器
+	allDemuxers.splice(0, allDemuxers.length);	// 清空之前的全部复用器列表
+	for (const iDemuxer of input.demuxer) {
+		const menuItem: MenuItem<Demuxer> = {
+			type: 'normal',
+			value: iDemuxer.name,
+			label: iDemuxer.name,
+			tooltip: iDemuxer.description,
+			extra: (() => {
+				// 对每款编码器进行参数扫描组装
+				const parameters: Parameter[] = [];
+				// 如果 FFBox 已预置该编码器的部分信息，那么进行 append
+				const outsideItem = getMenuItemByValue(builtInDemuxers, iDemuxer.name) as any;
+				const outsideDetail = (outsideItem?.extra) as VCodecDetail;
+				let existParameters: string[] = [];	// 对于已经预置的选项，不在详细参数中重复添加
+				if (outsideDetail) {
+					parameters.push(...outsideDetail.parameters);
+					existParameters = outsideDetail.parameters.map((parameter) => parameter.parameter);
+				}
+				for (const option of iDemuxer.options) {
+					if (existParameters.includes(option.name)) {
+						continue;
+					} else {
+						const parsedOption = parseSingleOption(option);
+						parsedOption && parameters.push(parsedOption);
+					}
+				}
+				// 如果有预置编码器，那么在 return 结果之前把预置编码的参数也替换掉
+				if (outsideDetail) {
+					outsideDetail.parameters = parameters;
+				}
+				return { isDevice: iDemuxer.isDevice, parameters };
+			})(),
+		}
+		allDemuxers.push(menuItem);
 	}
 }
 

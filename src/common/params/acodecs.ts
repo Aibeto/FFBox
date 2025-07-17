@@ -403,25 +403,6 @@ const volSlider: SliderOptions = {
 
 const acodecsList: MenuItem<ACodecDetail>[] = [
 	{
-		type: 'normal',
-		value: '禁用',
-		label: '禁用',
-		tooltip: '不输出视频',
-	},
-	{
-		type: 'normal',
-		value: 'copy',
-		label: '不重新编码',
-		tooltip: '复制源码流，不重新编码。',
-	},
-	{
-		type: 'normal',
-		value: '自动',
-		label: '自动',
-		tooltip: '自动选择编码',
-	},
-	{ type: 'separator' },
-	{
 		type: 'submenu',
 		label: 'OPUS',
 		tooltip: 'OPUS - Opus 是一个有损声音编码的格式，由 Xiph.Org 基金会开发，之后由互联网工程任务组进行标准化，目标是希望用单一格式包含声音和语音，取代 Speex 和 Vorbis，且适用于网络上低延迟的即时声音传输，标准格式定义于 RFC 6716 文件。Opus 格式是一个开放格式，使用上没有任何专利或限制。',

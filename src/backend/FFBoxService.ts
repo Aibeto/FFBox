@@ -5,7 +5,7 @@ import fs from 'fs';
 import fsPromise from 'fs/promises';
 import { utimes } from 'utimes';
 import path from 'path';
-import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail } from '@common/types';
+import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail, FFmpegDemuxerDetail } from '@common/types';
 import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import { defaultParams } from '@common/defaultParams';
 import localConfig from '@common/localConfig';
@@ -26,9 +26,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private latestTaskId = 0;
 	public workingStatus: WorkingStatus = WorkingStatus.idle;
 	private ffmpegPath = '';
-	private ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0, muxersCount: 0, dDemuxersCount: 0 };
+	private ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0, muxersCount: 0, demuxersCount: 0 };
 	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; };
-	public ffmpegFormats: { muxer: FFmpegMuxerDetail[], dDemuxer: FFmpegMuxerDetail[]; };
+	public ffmpegFormats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[]; };
 	public ffmpegFilters: FFmpegFilterDetail[] = [];
 	private globalTask: ServiceTask;
 	public notifications: Notification[] = [];
@@ -159,7 +159,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						this.ffmpegInfo.audioEncodersCount = storedFFmpegInfo.audioEncodersCount ?? 0;
 						this.ffmpegInfo.videoEncodersCount = storedFFmpegInfo.videoEncodersCount ?? 0;
 						this.ffmpegInfo.muxersCount = storedFFmpegInfo.muxersCount ?? 0;
-						this.ffmpegInfo.dDemuxersCount = storedFFmpegInfo.dDemuxersCount ?? 0;
+						this.ffmpegInfo.demuxersCount = storedFFmpegInfo.demuxersCount ?? 0;
 						this.ffmpegInfo.filtersCount = storedFFmpegInfo.filtersCount ?? 0;
 						this.ffmpegCodecs = {
 							video: JSON.parse(storedFFmpegInfo.videoCodecs),
@@ -167,7 +167,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						};
 						this.ffmpegFormats = {
 							muxer: JSON.parse(storedFFmpegInfo.muxers),
-							dDemuxer: JSON.parse(storedFFmpegInfo.dDemuxers),
+							demuxer: JSON.parse(storedFFmpegInfo.demuxers),
 						};
 						this.ffmpegFilters = JSON.parse(storedFFmpegInfo.filters) || [];
 						log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。已从缓存中加载编码器和滤镜。`);
@@ -264,13 +264,13 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			});
 		});
 		await new Promise((resolve, reject) => {
-			// 获取 muxers/dDemuxers
+			// 获取 muxers/demuxers
 			const ffmpeg = new FFmpeg(this.ffmpegPath, 4, ['-formats']);
 			ffmpeg.on('formats', async (formatsResult) => {
-				log.info(`格式概览扫描完成，支持复用器 ${formatsResult.muxers.length} 个、设备解复用器 ${formatsResult.dDemuxers.length} 个。即将扫描详细信息。`);
+				log.info(`格式概览扫描完成，支持复用器 ${formatsResult.muxers.length} 个、解复用器 ${formatsResult.demuxers.length} 个。即将扫描详细信息。`);
 				console.log(formatsResult);
 				const muxerFinalResult: FFmpegMuxerDetail[] = [];
-				const dDemuxerFinalResult: FFmpegMuxerDetail[] = [];
+				const demuxerFinalResult: FFmpegDemuxerDetail[] = [];
 				for (const muxer of formatsResult.muxers) {
 					// console.log(`正在读取 ${filter.name}`);
 					await new Promise((resolve, _) => {
@@ -291,27 +291,26 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				log.info('复用器扫描结果', muxerFinalResult);
 				this.ffmpegInfo.muxersCount = muxerFinalResult.length;
 				this.emitFFmpegInfo();
-				for (const dDemuxer of formatsResult.dDemuxers) {
+				for (const demuxer of formatsResult.demuxers) {
 					// console.log(`正在读取 ${filter.name}`);
 					await new Promise((resolve, _) => {
-						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 4, ['-hide_banner', '-h', `demuxer=${dDemuxer.name}`]);
+						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 4, ['-hide_banner', '-h', `demuxer=${demuxer.name}`]);
 						ffmpeg2.on('formats', (_, formatResult) => {
-							dDemuxerFinalResult.push({
-								name: dDemuxer.name,
-								description: dDemuxer.description,
+							demuxerFinalResult.push({
+								name: demuxer.name,
+								description: demuxer.description,
 								extensions: formatResult.commonExtensions,
-								defaultVideoCodec: formatResult.defaultVideoCodec,
-								defaultAudioCodec: formatResult.defaultAudioCodec,
+								isDevice: demuxer.isDevice,
 								options: formatResult.options,
 							});
 							resolve(0);
 						});
 					});
 				}
-				log.info('设备解复用器扫描结果', dDemuxerFinalResult);
-				this.ffmpegInfo.dDemuxersCount = dDemuxerFinalResult.length;
+				log.info('解复用器扫描结果', demuxerFinalResult);
+				this.ffmpegInfo.demuxersCount = demuxerFinalResult.length;
 				this.emitFFmpegInfo();
-				this.ffmpegFormats = { muxer: muxerFinalResult, dDemuxer: dDemuxerFinalResult };
+				this.ffmpegFormats = { muxer: muxerFinalResult, demuxer: demuxerFinalResult };
 				parseFFmpegMuDeMuxersToList(this.ffmpegFormats);
 				resolve(0);
 			});
@@ -352,12 +351,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			audioEncodersCount: this.ffmpegInfo.audioEncodersCount,
 			videoEncodersCount: this.ffmpegInfo.videoEncodersCount,
 			muxersCount: this.ffmpegInfo.muxersCount,
-			dDemuxersCount: this.ffmpegInfo.dDemuxersCount,
+			demuxersCount: this.ffmpegInfo.demuxersCount,
 			filtersCount: this.ffmpegInfo.filtersCount,
 			videoCodecs: JSON.stringify(this.ffmpegCodecs.video),
 			audioCodecs: JSON.stringify(this.ffmpegCodecs.audio),
 			muxers: JSON.stringify(this.ffmpegFormats.muxer),
-			dDemuxers: JSON.stringify(this.ffmpegFormats.dDemuxer),
+			demuxers: JSON.stringify(this.ffmpegFormats.demuxer),
 			filters: JSON.stringify(this.ffmpegFilters),
 		});
 	}

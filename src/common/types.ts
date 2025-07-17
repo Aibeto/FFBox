@@ -27,7 +27,7 @@ export interface FFmpegInfo {
 	videoEncodersCount: number;
 	audioEncodersCount: number;
 	muxersCount: number;
-	dDemuxersCount: number;
+	demuxersCount: number;
 	filtersCount: number;
 }
 
@@ -121,6 +121,13 @@ export interface FFmpegCodecDetail {
 }
 
 // 由 service 向前端报告的复用器详情（将会在前端转换为 MenuItem）
+export interface FFmpegDemuxerDetail {
+	name: string;
+	description: string;
+	extensions: string[];
+	isDevice: boolean;
+	options: EncoderDetail['options'];
+};
 export interface FFmpegMuxerDetail {
 	name: string;
 	description: string;
@@ -147,6 +154,7 @@ export interface InputFile {
 	// type: 'url';	// 将来支持 lavfi
 	hwaccel?: string;
 	filePath?: string;		// 本地模式下直接是文件全路径，网络模式下 merge 之后获得的文件名填充到此处
+	demuxer?: string;
 	begin?: string;
 	end?: string;
 	realtime?: boolean;
@@ -229,6 +237,7 @@ export type OutputParams_mux = {
 	filename: string;
 	begin?: string;
 	end?: string;
+	detail: Record<string, any>;
 	keepMetadata?: false | 'map' | 'movflags' | 'both';
 	keepFileTime?: false | 'original' | 'autoShift' | 'fixCTbyMTandShift' | 'fixByFilenameAndShift';
 	custom?: string;

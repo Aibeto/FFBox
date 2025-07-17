@@ -4,6 +4,7 @@ export const defaultParams: OutputParams = {
 	input: {
 		files: [{
 			filePath: '[输入文件路径]',
+			demuxer: '自动',
 		}],
 	},
 	filter: {
@@ -33,6 +34,7 @@ export const defaultParams: OutputParams = {
 				filename: '[filedir]/[filebasename]_converted.[fileext]',
 				begin: '',
 				end: '',
+				detail: {},
 			},
 		}
 	],

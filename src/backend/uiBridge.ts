@@ -283,8 +283,8 @@ function getRouter(): Router {
 		ctx.response.body = result;
 	});
 
-	// 获取已扫描的 FFmpeg 编码器、复用器、滤镜信息
-	router.get('/codecsFormatsFilters', async function (ctx) {
+	// 获取已扫描的 FFmpeg 编码器、（解）复用器、滤镜信息
+	router.get('/AVOptions', async function (ctx) {
 		const result = {
 			codecs: ffboxService.ffmpegCodecs,
 			formats: ffboxService.ffmpegFormats,

@@ -1,13 +1,14 @@
 import { computed, defineComponent, ref } from 'vue';
 import { deleteNode } from '@common/params/filter';
+import InputAutoSize from '@renderer/components/InputAutoSize/InputAutoSize.vue';
+import { durationFixer, durationValidator } from '../../../../components/validatorAndFixer';
+import { hwaccels, generator, builtInDemuxers, allDemuxers } from '@common/params/formats'
+import { useAppStore } from '@renderer/stores/appStore';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import Button from '@renderer/components/Button/Button';
-import InputAutoSize from '@renderer/components/InputAutoSize/InputAutoSize.vue';
-import { durationFixer, durationValidator } from '../../../../components/validatorAndFixer';
-import { hwaccels, generator } from '@common/params/formats'
-import { useAppStore } from '@renderer/stores/appStore';
+import DropdownInput from '@renderer/components/DropdownInput/DropdownInput.vue';
 import IconDelete from '@renderer/assets/×.svg?component';
 import style from './InputView.module.less';
 
@@ -17,6 +18,20 @@ const InputView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 	const editingIndex = ref();
 	const centerDraggerPos = ref(50);
+
+	const combinedDemuxersList = computed(() => (
+		[
+			...builtInDemuxers,
+			{ type: 'separator' },
+			{ type: 'submenu', label: '全部可用复用器', subMenu: [
+				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
+					appStore.fetchAVOptions();
+				} },
+				...(allDemuxers.length ? [{ type: 'separator' }] : []),
+				...allDemuxers,
+			] },
+		] as typeof builtInDemuxers
+	));
 
 	// 在一个输入文件都没有的情况下，应该编辑默认输入
 	const editingInput = computed(() => appStore.globalParams.input.files[editingIndex.value]);
@@ -137,9 +152,12 @@ const InputView = defineComponent((props: Props) => {
 					{extendedFiles.value.map((file, index) => (
 						<div class={`${style.listItem} ${editingIndex.value === index ? style.listItemSelected : ''}`} onClick={() => editingIndex.value = index}>
 							{file.filePath !== '' && (
-								<button class={style.delete} aria-label="删除输入文件" onClick={() => handleFileDelete(index)}>
-									<IconDelete />
-								</button>
+								<>
+									<button class={style.delete} aria-label="删除输入文件" onClick={() => handleFileDelete(index)}>
+										<IconDelete />
+									</button>
+									<DropdownInput class={style.dropdownInput} list={combinedDemuxersList.value} text={file.demuxer} onChange={(value: string) => handleDetailChange('demuxer', value)} />
+								</>
 							)}
 							{editingIndex.value === index ? (
 								<InputAutoSize
