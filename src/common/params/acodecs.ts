@@ -80,300 +80,56 @@ const q100slider: SliderOptions = {
 
 // #region 预置音频采样率
 
-const sr_96000: NarrowedMenuItem = {
-	type: 'normal',
-	value: '96000',
-	label: '96000 Hz',
-	tooltip: '',
-}
-
-const sr_88200: NarrowedMenuItem = {
-	type: 'normal',
-	value: '88200',
-	label: '88200 Hz',
-	tooltip: '',
-}
-
-const sr_64000: NarrowedMenuItem = {
-	type: 'normal',
-	value: '64000',
-	label: '64000 Hz',
-	tooltip: '',
-}
-
-const sr_48000: NarrowedMenuItem = {
-	type: 'normal',
-	value: '48000',
-	label: '48000 Hz',
-	tooltip: '',
-}
-
-const sr_44100: NarrowedMenuItem = {
-	type: 'normal',
-	value: '44100',
-	label: '44100 Hz',
-	tooltip: '',
-}
-
-const sr_32000: NarrowedMenuItem = {
-	type: 'normal',
-	value: '32000',
-	label: '32000 Hz',
-	tooltip: '',
-}
-
-const sr_24000: NarrowedMenuItem = {
-	type: 'normal',
-	value: '24000',
-	label: '24000 Hz',
-	tooltip: '',
-}
-
-const sr_22050: NarrowedMenuItem = {
-	type: 'normal',
-	value: '22050',
-	label: '22050 Hz',
-	tooltip: '',
-}
-
-const sr_16000: NarrowedMenuItem = {
-	type: 'normal',
-	value: '16000',
-	label: '16000 Hz',
-	tooltip: '',
-}
-
-const sr_12000: NarrowedMenuItem = {
-	type: 'normal',
-	value: '12000',
-	label: '12000 Hz',
-	tooltip: '',
-}
-
-const sr_11025: NarrowedMenuItem = {
-	type: 'normal',
-	value: '11025',
-	label: '11025 Hz',
-	tooltip: '',
-}
-
-const sr_8000: NarrowedMenuItem = {
-	type: 'normal',
-	value: '8000',
-	label: '8000 Hz',
-	tooltip: '',
-}
-
-const sr_7350: NarrowedMenuItem = {
-	type: 'normal',
-	value: '7350',
-	label: '7350 Hz',
-	tooltip: '',
-}
+const [ sr_96000 ,  sr_88200 ,  sr_64000 ,  sr_48000 ,  sr_44100 ,  sr_32000 ,  sr_24000 ,  sr_22050 ,  sr_16000 ,  sr_12000 ,  sr_11025 ,  sr_8000 ,  sr_7350 ] =
+	  ['sr_96000', 'sr_88200', 'sr_64000', 'sr_48000', 'sr_44100', 'sr_32000', 'sr_24000', 'sr_22050', 'sr_16000', 'sr_12000', 'sr_11025', 'sr_8000', 'sr_7350'].map((n) => ({
+		type: 'normal' as const, 
+		value: n, label: `${n} Hz`,
+		tooltip: '',
+	  }));
 
 // #endregion
 
 // #region 预置声道布局
 
-const lo_mono: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'mono',
-	label: 'mono',
-	tooltip: '单声道\nFC',
-}
-
-const lo_stereo: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'stereo',
-	label: 'stereo',
-	tooltip: '立体声\nFL+FR',
-}
-
-const lo_2_1: NarrowedMenuItem = {
-	type: 'normal',
-	value: '2.1',
-	label: '2.1',
-	tooltip: '左右前置 + 重低音\nFL+FR+LFE',
-}
-
-const lo_3_0: NarrowedMenuItem = {
-	type: 'normal',
-	value: '3.0',
-	label: '3.0',
-	tooltip: '左右前置 + 前中置\nFL+FR+FC',
-}
-
-const lo_3_0_back: NarrowedMenuItem = {
-	type: 'normal',
-	value: '3.0(back)',
-	label: '3.0(back)',
-	tooltip: '左右前置 + 后中置\nFL+FR+BC',
-}
-
-const lo_4_0: NarrowedMenuItem = {
-	type: 'normal',
-	value: '4.0',
-	label: '4.0',
-	tooltip: '左右前置 + 前后中置\nFL+FR+FC+BC',
-}
-
-const lo_quad: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'quad',
-	label: 'quad',
-	tooltip: '左右前置 + 左右后置\nFL+FR+BL+BR',
-}
-
-const lo_quad_side: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'quad(side)',
-	label: 'quad(side)',
-	tooltip: '左右前置 + 左右侧置\nFL+FR+SL+SR',
-}
-
-const lo_3_1: NarrowedMenuItem = {
-	type: 'normal',
-	value: '3.1',
-	label: '3.1',
-	tooltip: '左中右前置 + 重低音\nFL+FR+FC+LFE',
-}
-
-const lo_5_0: NarrowedMenuItem = {
-	type: 'normal',
-	value: '5.0',
-	label: '5.0',
-	tooltip: '左中右前置 + 左右后置\nFL+FR+FC+BL+BR',
-}
-
-const lo_5_0_side: NarrowedMenuItem = {
-	type: 'normal',
-	value: '5.0(side)',
-	label: '5.0(side)',
-	tooltip: '左中右前置 + 左右侧置\nFL+FR+FC+SL+SR',
-}
-
-const lo_4_1: NarrowedMenuItem = {
-	type: 'normal',
-	value: '4.1',
-	label: '4.1',
-	tooltip: '左右前置 + 前后中置 + 重低音\nFL+FR+FC+LFE+BC',
-}
-
-const lo_5_1: NarrowedMenuItem = {
-	type: 'normal',
-	value: '5.1',
-	label: '5.1',
-	tooltip: '左中右前置 + 左右后置 + 重低音\nFL+FR+FC+LFE+BL+BR',
-}
-
-const lo_5_1_side: NarrowedMenuItem = {
-	type: 'normal',
-	value: '5.1(side)',
-	label: '5.1(side)',
-	tooltip: '左中右前置 + 左右侧置 + 重低音\nFL+FR+FC+LFE+SL+SR',
-}
-
-const lo_6_0: NarrowedMenuItem = {
-	type: 'normal',
-	value: '6.0',
-	label: '6.0',
-	tooltip: '左右前置 + 前后中置 + 左右侧置\nFL+FR+FC+BC+SL+SR',
-}
-
-const lo_6_0_front: NarrowedMenuItem = {
-	type: 'normal',
-	value: '6.0(front)',
-	label: '6.0(front)',
-	tooltip: 'FL+FR+FLC+FRC+SL+SR',
-}
-
-const lo_hexagonal: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'hexagonal',
-	label: 'hexagonal',
-	tooltip: '左中右前置 + 左中右后置\nFL+FR+FC+BL+BR+BC',
-}
-
-const lo_6_1: NarrowedMenuItem = {
-	type: 'normal',
-	value: '6.1',
-	label: '6.1',
-	tooltip: '左右前置 + 前后中置 + 左右侧置 + 重低音\nFL+FR+FC+LFE+BC+SL+SR',
-}
-
-const lo_6_1_back: NarrowedMenuItem = {
-	type: 'normal',
-	value: '6.1(back)',
-	label: '6.1(back)',
-	tooltip: '左中右前置 + 左中右后置 + 重低音\nFL+FR+FC+LFE+BL+BR+BC',
-}
-
-const lo_6_1_front: NarrowedMenuItem = {
-	type: 'normal',
-	value: '6.1(front)',
-	label: '6.1(front)',
-	tooltip: 'FL+FR+LF+FLC+FRC+SL+SR',
-}
-
-const lo_7_0: NarrowedMenuItem = {
-	type: 'normal',
-	value: '7.0',
-	label: '7.0',
-	tooltip: '左中右前置 + 左右后置 + 左右侧置\nFL+FR+FC+BL+BR+SL+SR',
-}
-
-const lo_7_0_front: NarrowedMenuItem = {
-	type: 'normal',
-	value: '7.0(front)',
-	label: '7.0(front)',
-	tooltip: 'FL+FR+FC+FLC+FRC+SL+SR',
-}
-
-const lo_7_1: NarrowedMenuItem = {
-	type: 'normal',
-	value: '7.1',
-	label: '7.1',
-	tooltip: '左中右前置 + 左右后置 + 左右侧置 + 重低音\nFL+FR+FC+LFE+BL+BR+SL+SR',
-}
-
-const lo_7_1_wide: NarrowedMenuItem = {
-	type: 'normal',
-	value: '7.1(wide)',
-	label: '7.1(wide)',
-	tooltip: 'FL+FR+FC+LFE+BL+BR+FLC+FRC',
-}
-
-const lo_7_1_wide_side: NarrowedMenuItem = {
-	type: 'normal',
-	value: '7.1(wide-side)',
-	label: '7.1(wide-side)',
-	tooltip: 'FL+FR+FC+LFE+FLC+FRC+SL+SR',
-}
-
-const lo_octagonal: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'octagonal',
-	label: 'octagonal',
-	tooltip: '左中右前置 + 左中右后置 + 左右侧置\nFL+FR+FC+BL+BR+BC+SL+SR',
-}
-
-const lo_hexadecagonal: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'hexadecagonal',
-	label: 'hexadecagonal',
-	tooltip: '这个就很牛逼了\nFL+FR+FC+BL+BR+BC+SL+SR+TFL+TFC+TFR+TBL+TBC+TBR+WL+WR',
-}
-
-const lo_downmix: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'downmix',
-	label: 'downmix',
-	tooltip: 'DL+DR',
-}
+const [lo_mono, lo_stereo, lo_2_1, lo_3_0, lo_3_0_back, lo_4_0, lo_quad, lo_quad_side, lo_3_1, lo_5_0, lo_5_0_side, lo_4_1, lo_5_1, lo_5_1_side, lo_6_0, lo_6_0_front, lo_hexagonal, lo_6_1, lo_6_1_back, lo_6_1_front, lo_7_0, lo_7_0_front, lo_7_1, lo_7_1_wide, lo_7_1_wide_side, lo_octagonal, lo_hexadecagonal, lo_downmix] =
+	[
+		['mono', '单声道\nFC'],
+		['stereo', '立体声\nFL+FR'],
+		['2.1', '左右前置 + 重低音\nFL+FR+LFE'],
+		['3.0', '左右前置 + 前中置\nFL+FR+FC'],
+		['3.0(back)', '左右前置 + 后中置\nFL+FR+BC'],
+		['4.0', '左右前置 + 前后中置\nFL+FR+FC+BC'],
+		['quad', '左右前置 + 左右后置\nFL+FR+BL+BR'],
+		['quad(side)', '左右前置 + 左右侧置\nFL+FR+SL+SR'],
+		['3.1', '左中右前置 + 重低音\nFL+FR+FC+LFE'],
+		['5.0', '左中右前置 + 左右后置\nFL+FR+FC+BL+BR'],
+		['5.0(side)', '左中右前置 + 左右侧置\nFL+FR+FC+SL+SR'],
+		['4.1', '左右前置 + 前后中置 + 重低音\nFL+FR+FC+LFE+BC'],
+		['5.1', '左中右前置 + 左右后置 + 重低音\nFL+FR+FC+LFE+BL+BR'],
+		['5.1(side)', '左中右前置 + 左右侧置 + 重低音\nFL+FR+FC+LFE+SL+SR'],
+		['6.0', '左右前置 + 前后中置 + 左右侧置\nFL+FR+FC+BC+SL+SR'],
+		['6.0(front)', 'FL+FR+FLC+FRC+SL+SR'],
+		['hexagonal', '左中右前置 + 左中右后置\nFL+FR+FC+BL+BR+BC'],
+		['6.1', '左右前置 + 前后中置 + 左右侧置 + 重低音\nFL+FR+FC+LFE+BC+SL+SR'],
+		['6.1(back)', '左中右前置 + 左中右后置 + 重低音\nFL+FR+FC+LFE+BL+BR'],
+		['6.1(front)', 'FL+FR+LF+FLC+FRC+SL+SR'],
+		['7.0', '左右前置 + 前后中置 + 左右侧置\nFL+FR+FC+BC+SL+SR'],
+		['7.0(front)', 'FL+FR+FLC+FRC+SL+SR'],
+		['7.1', '左中右前置 + 左右后置 + 前后中置 + 重低音\nFL+FR+FC+LFE+BL+BR+BC'],
+		['7.1(wide)', '左中右前置 + 左右后置 + 前后中置 + 重低音 + 宽声道\nFL+FR+FC+LFE+BL+BR+BC'],
+		['7.1(wide,side)', '左中右前置 + 左右后置 + 前后中置 + 重低音 + 宽声道侧置\nFL+FR+FC+LFE+BL+BR+BC'],
+		['octagonal', '八边形环绕声道布局\nFL+FR+C+BLS+BRS+BLC+BRC'],
+		['hexadecagonal', '十六边形环绕声道布局\nFL1, FL2, FR1, FR2, FC, BLS, BRS, BLC, BRC, LFE1, LFE2'],
+		['downmix', 'DL+DR'],
+	].map(([value, tooltip]) => ({
+		type: 'normal' as const,
+		value, label: value,
+		tooltip,
+	}));
 
 // #endregion
 
-const volSlider: SliderOptions = {
+export const volSlider: SliderOptions = {
 	min: -48,
 	max: 48,
 	tags: new Map([
@@ -401,7 +157,7 @@ const volSlider: SliderOptions = {
 	}
 }
 
-const acodecsList: MenuItem<ACodecDetail>[] = [
+export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 	{
 		type: 'submenu',
 		label: 'OPUS',
@@ -944,146 +700,143 @@ const acodecsList: MenuItem<ACodecDetail>[] = [
 	},
 ];
 
-const allAcodecsList: MenuItem<ACodecDetail>[] = [];
+export const allAcodecs: MenuItem<ACodecDetail>[] = [];
 
-const generator = {
-	getAudioParam: function (audioParams: OutputParams_audio) {
-		const ret = [];
-		let strict2 = false;
-		if (audioParams.acodec == '禁用') {
-			ret.push('-an');
-		} else if (audioParams.acodec == 'copy') {
-			ret.push('-acodec');
-			ret.push('copy');
-		} else if (audioParams.acodec !== '自动') {
-			ret.push('-acodec');
-			ret.push(audioParams.acodec);
-			let acodecItem = getMenuItemByValue(acodecsList, audioParams.acodec) as any;
-			if (!acodecItem) {
-				acodecItem = getMenuItemByValue(allAcodecsList, audioParams.acodec) as any;
+export const getAudioFFmpegParam = function (audioParams: OutputParams_audio) {
+	const ret = [];
+	let strict2 = false;
+	if (audioParams.acodec == '禁用') {
+		ret.push('-an');
+	} else if (audioParams.acodec == 'copy') {
+		ret.push('-acodec');
+		ret.push('copy');
+	} else if (audioParams.acodec !== '自动') {
+		ret.push('-acodec');
+		ret.push(audioParams.acodec);
+		let acodecItem = getMenuItemByValue(builtInAcodecs, audioParams.acodec) as any;
+		if (!acodecItem) {
+			acodecItem = getMenuItemByValue(allAcodecs, audioParams.acodec) as any;
+		}
+		const acodecDetail = (acodecItem?.extra) as ACodecDetail;
+		if (acodecDetail) {
+			if (acodecDetail.strict2) {
+				strict2 = true;
 			}
-			const acodecDetail = (acodecItem?.extra) as ACodecDetail;
-			if (acodecDetail) {
-				if (acodecDetail.strict2) {
-					strict2 = true;
+			for (const parameter of acodecDetail.parameters || []) {
+				if (parameter.optional && audioParams.detail[parameter.parameter] === undefined) {
+					continue;
 				}
-				for (const parameter of acodecDetail.parameters || []) {
-					if (parameter.optional && audioParams.detail[parameter.parameter] === undefined) {
-						continue;
-					}
-					if (parameter.mode === 'combo') {
-						if (audioParams.detail[parameter.parameter] != '默认' && audioParams.detail[parameter.parameter] != '自动') {
-							ret.push('-' + parameter.parameter);
-							ret.push(audioParams.detail[parameter.parameter]);
-						}
-						// 检查参数项是否有 strict2 标记
-						var item = parameter.items.find((item) => item.value === audioParams.detail[parameter.parameter]);
-						if (item?.strict2) {
-							strict2 = true;
-						}
-					} else if (parameter.mode == 'slider') {
+				if (parameter.mode === 'combo') {
+					if (audioParams.detail[parameter.parameter] != '默认' && audioParams.detail[parameter.parameter] != '自动') {
 						ret.push('-' + parameter.parameter);
-						const floatValue = audioParams.detail[parameter.parameter];
-						const value = parameter.valueToParam ? parameter.valueToParam(floatValue) : floatValue;
-						ret.push(value);
-					} else if (parameter.mode === 'switch') {
-						if (audioParams.detail[parameter.parameter] !== undefined) {
-							ret.push('-' + parameter.parameter);
-							ret.push(audioParams.detail[parameter.parameter]);
-						}
-					} else if (parameter.mode === 'text') {
-						if (audioParams.detail[parameter.parameter] && audioParams.detail[parameter.parameter] != '默认' && audioParams.detail[parameter.parameter] != '自动') {
-							ret.push('-' + parameter.parameter);
-							ret.push(audioParams.detail[parameter.parameter]);
-						}
+						ret.push(audioParams.detail[parameter.parameter]);
+					}
+					// 检查参数项是否有 strict2 标记
+					var item = parameter.items.find((item) => item.value === audioParams.detail[parameter.parameter]);
+					if (item?.strict2) {
+						strict2 = true;
+					}
+				} else if (parameter.mode == 'slider') {
+					ret.push('-' + parameter.parameter);
+					const floatValue = audioParams.detail[parameter.parameter];
+					const value = parameter.valueToParam ? parameter.valueToParam(floatValue) : floatValue;
+					ret.push(value);
+				} else if (parameter.mode === 'switch') {
+					if (audioParams.detail[parameter.parameter] !== undefined) {
+						ret.push('-' + parameter.parameter);
+						ret.push(audioParams.detail[parameter.parameter]);
+					}
+				} else if (parameter.mode === 'text') {
+					if (audioParams.detail[parameter.parameter] && audioParams.detail[parameter.parameter] != '默认' && audioParams.detail[parameter.parameter] != '自动') {
+						ret.push('-' + parameter.parameter);
+						ret.push(audioParams.detail[parameter.parameter]);
 					}
 				}
-				const ratecontrolItem = (acodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === audioParams.ratecontrol) as any;
-				if (ratecontrolItem) {
-					const ratecontrol = ratecontrolItem.extra as RateControl;
-					// 计算值
-					const floatValue = audioParams.ratevalue;
-					const value = ratecontrol.valueToParam(floatValue);
-					// 将值插入参数列表中
-					for (const item of ratecontrol.cmd) {
-						if (item === VALUE) {
-							ret.push(value);
-						} else {
-							ret.push(item);
-						}
-					}
-				}
-				if (strict2) {
-					ret.push('-strict');
-					ret.push('-2');
-				}
 			}
-		} // 如果编码为自动，则不设置 acodec 参数，返回空 Array
-		if (audioParams.acodec !== '禁用' && audioParams.acodec !== 'copy') {
-			if (audioParams.vol !== 0) {
-				ret.push('-vol');
-				ret.push(volSlider.valueToParam(audioParams.vol));
-			}
-		}
-		if (audioParams.custom) {
-			ret.push(...audioParams.custom.split(' '));
-		}
-		return ret;
-	},
-	// 获取 ratecontrol 方面的参数，主要是给 taskitem 用
-	getRateControlParam: function (audioParams: OutputParams_audio) {
-		let ret = {
-			mode: '-',
-			value: '-'
-		};
-		if (audioParams.acodec == '禁用' || audioParams.acodec == '不重新编码' || audioParams.acodec == '自动') {
-			return ret;
-		} else {
-			const acodecItem = getMenuItemByValue(acodecsList, audioParams.acodec) as any;
-			const acodecDetail = (acodecItem?.extra) as ACodecDetail;
-			if (!acodecDetail || !acodecDetail.rateControl?.length) {
-				return ret;
-			}
-			// 找到 ratecontrol 参数
-			const ratecontrolItem = acodecDetail.rateControl.find((item) => {
-				return item.type === 'normal' && item.value == audioParams.ratecontrol;
-			}) as any;
+			const ratecontrolItem = (acodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === audioParams.ratecontrol) as any;
 			if (ratecontrolItem) {
 				const ratecontrol = ratecontrolItem.extra as RateControl;
 				// 计算值
 				const floatValue = audioParams.ratevalue;
-				const value = (() => {
-					const vtt = ratecontrol.valueToDisplay;
-					if (vtt instanceof Function) {
-						return vtt(floatValue);
+				const value = ratecontrol.valueToParam(floatValue);
+				// 将值插入参数列表中
+				for (const item of ratecontrol.cmd) {
+					if (item === VALUE) {
+						ret.push(value);
 					} else {
-						if (vtt.type === 'bitrate') {
-							const bps = Math.round(vtt.base * 2 ** (floatValue as number));
-							if (window.frontendSettings.useIEC) {
-								if (bps >= 10 * 1024 ** 2) {
-									return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
-								} else {
-									return (bps / 1024).toFixed(0) + ' kibps';
-								}
-							} else {
-								if (bps >= 10 * 1000 ** 2) {
-									return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
-								} else {
-									return (bps / 1000).toFixed(0) + ' kbps';
-								}
-							}
-						} else if (vtt.type === 'integer') {
-							return floatValue + '';
-						} else if (vtt.type === 'revertInteger') {
-							return ratecontrol.max - +floatValue + '';
-						}
+						ret.push(item);
 					}
-				})();
-				ret = { mode: ratecontrolItem.value, value };
+				}
 			}
-			return ret;
+			if (strict2) {
+				ret.push('-strict');
+				ret.push('-2');
+			}
+		}
+	} // 如果编码为自动，则不设置 acodec 参数，返回空 Array
+	if (audioParams.acodec !== '禁用' && audioParams.acodec !== 'copy') {
+		if (audioParams.vol !== 0) {
+			ret.push('-vol');
+			ret.push(volSlider.valueToParam(audioParams.vol));
 		}
 	}
+	if (audioParams.custom) {
+		ret.push(...audioParams.custom.split(' '));
+	}
+	return ret;
 }
 
-export { acodecsList, allAcodecsList as allAcodecsList, volSlider, generator }
+// 获取 ratecontrol 方面的参数，主要是给 taskitem 用
+export const getAudioRateControlParam = function (audioParams: OutputParams_audio) {
+	let ret = {
+		mode: '-',
+		value: '-'
+	};
+	if (audioParams.acodec == '禁用' || audioParams.acodec == '不重新编码' || audioParams.acodec == '自动') {
+		return ret;
+	} else {
+		const acodecItem = getMenuItemByValue(builtInAcodecs, audioParams.acodec) as any;
+		const acodecDetail = (acodecItem?.extra) as ACodecDetail;
+		if (!acodecDetail || !acodecDetail.rateControl?.length) {
+			return ret;
+		}
+		// 找到 ratecontrol 参数
+		const ratecontrolItem = acodecDetail.rateControl.find((item) => {
+			return item.type === 'normal' && item.value == audioParams.ratecontrol;
+		}) as any;
+		if (ratecontrolItem) {
+			const ratecontrol = ratecontrolItem.extra as RateControl;
+			// 计算值
+			const floatValue = audioParams.ratevalue;
+			const value = (() => {
+				const vtt = ratecontrol.valueToDisplay;
+				if (vtt instanceof Function) {
+					return vtt(floatValue);
+				} else {
+					if (vtt.type === 'bitrate') {
+						const bps = Math.round(vtt.base * 2 ** (floatValue as number));
+						if (window.frontendSettings.useIEC) {
+							if (bps >= 10 * 1024 ** 2) {
+								return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
+							} else {
+								return (bps / 1024).toFixed(0) + ' kibps';
+							}
+						} else {
+							if (bps >= 10 * 1000 ** 2) {
+								return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
+							} else {
+								return (bps / 1000).toFixed(0) + ' kbps';
+							}
+						}
+					} else if (vtt.type === 'integer') {
+						return floatValue + '';
+					} else if (vtt.type === 'revertInteger') {
+						return ratecontrol.max - +floatValue + '';
+					}
+				}
+			})();
+			ret = { mode: ratecontrolItem.value, value };
+		}
+		return ret;
+	}
+}

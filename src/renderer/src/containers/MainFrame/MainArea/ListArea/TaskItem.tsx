@@ -1,8 +1,8 @@
 import { computed, defineComponent, onBeforeUnmount, ref, Transition, watch, onMounted, StyleValue } from 'vue';
 import { TaskStatus, TransferStatus } from '@common/types';
 import { UITask } from '@renderer/types'
-import { generator as vGenerator } from '@common/params/vcodecs';
-import { generator as aGenerator } from '@common/params/acodecs';
+import { getVideoRateControlParam } from '@common/params/vcodecs';
+import { getAudioRateControlParam } from '@common/params/acodecs';
 import { useAppStore } from '@renderer/stores/appStore';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import showMenu from '@renderer/components/Menu/Menu';
@@ -64,8 +64,8 @@ export const TaskItem = defineComponent((props: Props) => {
 	const durationBefore = computed(() => stringifyTimeValue(props.task.before.duration));
 	const durationAfter = computed(() => stringifyTimeValue(outputDuration.value));
 	const smpteBefore = computed(() => props.task.before.vresolution && props.task.before.vframerate ? `${props.task.before.vresolution.replace('<br />', '×')}@${props.task.before.vframerate}` : '-');
-	const videoRateControlValue = computed(() => vGenerator.getRateControlParam(props.task.after.outputs[0]?.video)?.value);
-	const audioRateControlValue = computed(() => aGenerator.getRateControlParam(props.task.after.outputs[0]?.audio)?.value);
+	const videoRateControlValue = computed(() => getVideoRateControlParam(props.task.after.outputs[0]?.video)?.value);
+	const audioRateControlValue = computed(() => getAudioRateControlParam(props.task.after.outputs[0]?.audio)?.value);
 	const videoRateControl = computed(() => (videoRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.video.ratecontrol} ${videoRateControlValue.value}`));
 	const audioRateControl = computed(() => (audioRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.audio.ratecontrol} ${audioRateControlValue.value}`));
 	const videoInputBitrate = computed(() => props.task.before.vbitrate > 0 ? `@${beforeBitrateFilter(props.task.before.vbitrate)}` : '');

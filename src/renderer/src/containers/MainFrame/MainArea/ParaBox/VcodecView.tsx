@@ -1,5 +1,5 @@
-import { computed, defineComponent } from 'vue';
-import { vcodecsList, resolution, framerate, VCodecDetail, allVcodecsList } from '@common/params/vcodecs';
+import { computed, defineComponent, ref } from 'vue';
+import { builtInVcodecs, resolution, framerate, VCodecDetail, allVcodecs } from '@common/params/vcodecs';
 import { allMuxers, builtInMuxers } from '@common/params/formats';
 import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
@@ -7,6 +7,8 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { framerateValidator } from '../../../../components/validatorAndFixer';
 import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
 import { renderDetailParameters } from './utils';
+import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrapper.vue';
+import Button, { ButtonType } from '@renderer/components/Button/Button';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -20,6 +22,7 @@ interface Props {
 
 const VcodecView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
+	const showDetailParams = ref(true);
 	
 	const videoParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.video);
 	const muxerDefaultCodec = computed(() => {
@@ -67,16 +70,16 @@ const VcodecView = defineComponent((props: Props) => {
 				tooltip: muxerDefaultCodec.value ? `不指定，让 ffmpeg 根据复用器默认设定选择编码\n根据你选择的复用器【${muxerDefaultCodec.value.muxer}】，默认使用【${muxerDefaultCodec.value.vcodec}】编码器` : '不指定，让 ffmpeg 根据复用器默认设定选择编码',
 			},
 			{ type: 'separator' },
-			...vcodecsList,
+			...builtInVcodecs,
 			{ type: 'separator' },
 			{ type: 'submenu', label: '全部可用编码', subMenu: [
 				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
 					appStore.fetchAVOptions();
 				} },
-				...(allVcodecsList.length ? [{ type: 'separator' }] : []),
-				...allVcodecsList,
+				...(allVcodecs.length ? [{ type: 'separator' }] : []),
+				...allVcodecs,
 			] },
-		] as typeof vcodecsList
+		] as typeof builtInVcodecs
 	));
 
 	const vcodec = computed(() => {
@@ -155,6 +158,13 @@ const VcodecView = defineComponent((props: Props) => {
 		appStore.applyParameters();
 	};
 
+	const handleApplyToAll = () => {
+		const params = videoParams.value;
+		for (const outputParams of appStore.globalParams.outputs) {
+			outputParams.video = JSON.parse(JSON.stringify(params));
+		}
+	};
+
 	// console.log(vcodec.value?.parameters);
 	return () => videoParams.value && videoContainsInOutput.value ? (
 		<div class={style.container}>
@@ -184,11 +194,23 @@ const VcodecView = defineComponent((props: Props) => {
 			)}
 			<BoxedNormalInput title="自定义参数" value={videoParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 			{(vcodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
-				<>
-					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
+				<AutoSizeWrapper class={style.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
+					<div class={style.bar}>
+						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
+					</div>
 					{renderDetailParameters(vcodec.value?.parameters, videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
-				</>
+					<div class={style.bar}>
+						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
+					</div>
+				</AutoSizeWrapper>
 			) || null}
+			{appStore.globalParams.outputs.length > 1 && (
+				<div style={{ margin: '12px' }}>
+					<Button onClick={handleApplyToAll}>
+						应用视频参数到全部输出
+					</Button>
+				</div>			
+			)}
 		</div>
 	) : (
 		<div class={style.noOutput}>

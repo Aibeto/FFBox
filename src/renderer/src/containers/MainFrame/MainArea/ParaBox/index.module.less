@@ -9,31 +9,40 @@
 	/* align-content: space-between;	 多行 */
 	justify-content: space-around;
 	font-size: 14px;
-	.belowDetail {
-		position: relative;
-		width: calc(100% - 28px);
-		margin: 8px;
-		font-size: 12px;
-		opacity: 0.5;
-		&::before {
-			content: '';
-			width: calc(50vw - 160px);
-			height: 2px;
-			background: linear-gradient(to left, hwb(var(--opposite80) / 0.3), hwb(var(--opposite80) / 0.1));
-			display: block;
-			position: absolute;
-			top: 8px;
-			right: calc(50% + 110px);
-		}
-		&::after {
-			content: '';
-			width: calc(50vw - 160px);
-			height: 2px;
-			background: linear-gradient(to right, hwb(var(--opposite80) / 0.3), hwb(var(--opposite80) / 0.1));
-			display: block;
-			position: absolute;
-			top: 8px;
-			left: calc(50% + 110px);
+	.detailParameters {
+		width: 100%;
+		overflow: hidden;
+		transition: height 0.5s ease;
+		&>div {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;	/* 一行 */
+			/* align-content: space-between;	 多行 */
+			justify-content: space-around;
+			.bar {
+				position: relative;
+				width: calc(100% - 28px);
+				margin: 8px;
+				font-size: 12px;
+				opacity: 0.7;
+				&::before, &::after {
+					content: '';
+					width: calc(50% - 80px);
+					height: 2px;
+					display: block;
+					position: absolute;
+					top: 12px;
+					opacity: 0.7;
+				}
+				&::before {
+					background: linear-gradient(to left, hwb(var(--opposite80) / 0.3), hwb(var(--opposite80) / 0.1));
+					right: calc(50% + 80px);
+				}
+				&::after {
+					background: linear-gradient(to right, hwb(var(--opposite80) / 0.3), hwb(var(--opposite80) / 0.1));
+					left: calc(50% + 80px);
+				}	
+			}
 		}
 	}
 }

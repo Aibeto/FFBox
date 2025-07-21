@@ -158,6 +158,7 @@ export interface InputFile {
 	begin?: string;
 	end?: string;
 	realtime?: boolean;
+	detail?: Record<string, any>;
 	custom?: string;
 }
 

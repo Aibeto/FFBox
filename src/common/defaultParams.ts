@@ -5,6 +5,7 @@ export const defaultParams: OutputParams = {
 		files: [{
 			filePath: '[输入文件路径]',
 			demuxer: '自动',
+			hwaccel: '自动',
 		}],
 	},
 	filter: {
@@ -29,7 +30,7 @@ export const defaultParams: OutputParams = {
 				detail: {},
 			},
 			mux: {
-				format: 'MP4',
+				format: 'mp4',
 				moveflags: false,
 				filename: '[filedir]/[filebasename]_converted.[fileext]',
 				begin: '',

@@ -6,10 +6,10 @@ import { version } from '@common/constants';
 import { Server } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
-import { getInitialUITask, randomString, replaceOutputParams } from '@common/utils';
+import { randomString, replaceOutputParams } from '@common/utils';
 import { getMenuItemByValue } from '@common/menu';
-import { allVcodecsList, VCodecDetail, vcodecsList } from '@common/params/vcodecs';
-import { ACodecDetail, acodecsList, allAcodecsList } from '@common/params/acodecs';
+import { allVcodecs, builtInVcodecs } from '@common/params/vcodecs';
+import { allAcodecs, builtInAcodecs } from '@common/params/acodecs';
 import { allMuxers, builtInMuxers } from '@common/params/formats';
 import path from '@common/path';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
@@ -410,7 +410,7 @@ export const useAppStore = defineStore('app', {
 			const 这 = useAppStore();
 			if (who.video) {
 				const v = 这.globalParams.outputs[outputIndex].video;
-				const vcodec = getMenuItemByValue(vcodecsList, v.vcodec) ?? getMenuItemByValue(allVcodecsList, v.vcodec)
+				const vcodec = getMenuItemByValue(builtInVcodecs, v.vcodec) ?? getMenuItemByValue(allVcodecs, v.vcodec)
 				for (const parameter of ((vcodec as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
 						continue;	// 默认不启用可选参数。在勾选后才读取默认值
@@ -428,8 +428,8 @@ export const useAppStore = defineStore('app', {
 			}
 			if (who.audio) {
 				const a = 这.globalParams.outputs[outputIndex].audio;
-				const acodec = getMenuItemByValue(acodecsList, a.acodec) ?? getMenuItemByValue(allAcodecsList, a.acodec)
-				for (const parameter of ((acodec as any)?.parameters || [])) {
+				const acodec = getMenuItemByValue(builtInAcodecs, a.acodec) ?? getMenuItemByValue(allAcodecs, a.acodec)
+				for (const parameter of ((acodec as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
 						continue;	// 默认不启用可选参数。在勾选后才读取默认值
 					}
@@ -447,7 +447,7 @@ export const useAppStore = defineStore('app', {
 			if (who.mux) {
 				const m = 这.globalParams.outputs[outputIndex].mux;
 				const muxer = getMenuItemByValue(builtInMuxers, m.format) ?? getMenuItemByValue(allMuxers, m.format)
-				for (const parameter of ((muxer as any)?.parameters || [])) {
+				for (const parameter of ((muxer as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
 						continue;	// 默认不启用可选参数。在勾选后才读取默认值
 					}

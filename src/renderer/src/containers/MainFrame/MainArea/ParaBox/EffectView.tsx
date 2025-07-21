@@ -1276,132 +1276,136 @@ const EffectView = defineComponent((props: Props) => {
 	});
 
 	const renderCanvas = () => {
-		const getNodeTooltip = (node: FilterNode) => {
-			if (node.name.match(/^in_\d+$/)) {
-				const index = +node.name.match(/^in_(\d+)$/)[1];
-				return `输入文件 ${appStore.globalParams.input.files[index].filePath}`;
-			} else if (node.name.match(/^out_\d+$/)) {
-				const index = +node.name.match(/^out_(\d+)$/)[1];
-				return `输出文件 ${index}`;
-			} else {
-				const filterDetail = Object.entries(node.params).filter(([key, value]) => value !== undefined).map(([key, value]) => `\n${key}: ${value}`);
-				return `滤镜 ${node.name}${filterDetail}`;
-			}
-		};
-		return (
-			<div class={style.center} style={{ transform: canvasTransform.value }} ref={canvasRef}>
-				<div class={style.xline}></div>
-				<div class={style.yline}></div>
-				{nodes.value.map((node) => (
-					<div
-						class={`${style.node} ${selectedNode.value === node ? style.nodeSelected : ''}`}
-						style={{ left: `${node.x}px`, top: `${node.y}px`, height: `${getNodeHeight(node)}px` }}
-						onClick={(event) => handleNodeClick(event, node)}
-						onMousedown={(event) => handleNodeMouseDown(event, node)}
-						onTouchstart={(event) => handleNodeMouseDown(event, node)}
-						onContextmenu={(event) => handleNodeContextMenu(event, node)}
-						{...useTooltip(getNodeTooltip(node), 't')}
-					>
-						<div class={style.name} style={{ lineHeight: `${getNodeHeight(node)}px` }}>{node.name}</div>
-						<div class={style.inputList}>
-							{getNodeInputPoints(node).map((point, i) => (
-								<div
-									class={style.port}
-									data-type={point.type}
-									onMousedown={(event) => handlePortMouseDown(event, node, 'input', i)}
-									onTouchstart={(event) => handlePortMouseDown(event, node, 'input', i)}
-								/>
-							))}
+		try {
+			const getNodeTooltip = (node: FilterNode) => {
+				if (node.name.match(/^in_\d+$/)) {
+					const index = +node.name.match(/^in_(\d+)$/)[1];
+					return `输入文件 ${appStore.globalParams.input.files[index].filePath}`;
+				} else if (node.name.match(/^out_\d+$/)) {
+					const index = +node.name.match(/^out_(\d+)$/)[1];
+					return `输出文件 ${index}`;
+				} else {
+					const filterDetail = Object.entries(node.params).filter(([key, value]) => value !== undefined).map(([key, value]) => `\n${key}: ${value}`);
+					return `滤镜 ${node.name}${filterDetail}`;
+				}
+			};
+			return (
+				<div class={style.center} style={{ transform: canvasTransform.value }} ref={canvasRef}>
+					<div class={style.xline}></div>
+					<div class={style.yline}></div>
+					{nodes.value.map((node) => (
+						<div
+							class={`${style.node} ${selectedNode.value === node ? style.nodeSelected : ''}`}
+							style={{ left: `${node.x}px`, top: `${node.y}px`, height: `${getNodeHeight(node)}px` }}
+							onClick={(event) => handleNodeClick(event, node)}
+							onMousedown={(event) => handleNodeMouseDown(event, node)}
+							onTouchstart={(event) => handleNodeMouseDown(event, node)}
+							onContextmenu={(event) => handleNodeContextMenu(event, node)}
+							{...useTooltip(getNodeTooltip(node), 't')}
+						>
+							<div class={style.name} style={{ lineHeight: `${getNodeHeight(node)}px` }}>{node.name}</div>
+							<div class={style.inputList}>
+								{getNodeInputPoints(node).map((point, i) => (
+									<div
+										class={style.port}
+										data-type={point.type}
+										onMousedown={(event) => handlePortMouseDown(event, node, 'input', i)}
+										onTouchstart={(event) => handlePortMouseDown(event, node, 'input', i)}
+									/>
+								))}
+							</div>
+							<div class={style.outputList}>
+								{getNodeOutputPoints(node).map((point, i) => (
+									<div
+										class={style.port}
+										data-type={point.type}
+										onMousedown={(event) => handlePortMouseDown(event, node, 'output', i)}
+										onTouchstart={(event) => handlePortMouseDown(event, node, 'output', i)}
+									/>
+								))}
+							</div>
 						</div>
-						<div class={style.outputList}>
-							{getNodeOutputPoints(node).map((point, i) => (
-								<div
-									class={style.port}
-									data-type={point.type}
-									onMousedown={(event) => handlePortMouseDown(event, node, 'output', i)}
-									onTouchstart={(event) => handlePortMouseDown(event, node, 'output', i)}
+					))}
+					{lines.value.map((line, index) => (
+						<svg
+							class={style.line}
+							data-type={line.type}
+							data-creating={line.invisiblePort ? 'T' : ''}
+							onClick={() => setTimeout(() => selectedNode.value = nodes.value.find((node) => node.id === line.prevNodeId), 0)}
+							onContextmenu={(event) => handleLineContextMenu(event, line as any)}
+							onMouseenter={handleLineMouseEnter}
+							onMouseleave={handleLineMouseLeave}
+						>
+							<defs>
+								<filter id={`filterLineShadow_${index}`} x="-50vw" y="-50vw" width="150vw" height="150vw" filterUnits="userSpaceOnUse">
+									{h('feDropShadow', { in: 'border', dx: '0', dy: '2', stdDeviation: '2', 'flood-color': 'currentColor', 'flood-opacity': '0.6', result: 'shadow' })}
+									<feComposite in="SourceGraphic" in2="shadow" operator="over" />
+								</filter>
+								<filter id={`filterLineTextFilter_${index}`} x="-50%" y="-50%" width="200%" height="200%">
+									<feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded" />
+									<feFlood flood-color="hwb(var(--bg94))" flood-opacity="1" result="flooded" />
+									<feComposite in2="expanded" operator="in" result="border" />
+									<feComposite in="SourceGraphic" in2="border" operator="over" />
+								</filter>
+								<linearGradient id={`filterLineCircleFill_${index}`} x1="0" y1="-0.5" x2="0" y2="1">
+									<stop offset="0%" stop-color="white" stop-opacity="1"/>
+									<stop offset="60%" stop-color="currentColor" stop-opacity="1"/>
+								</linearGradient>
+							</defs>
+							<line class={style.invisibleLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} />
+							<line class={style.svgLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} stroke-dasharray="24 4" stroke-dashoffset="0" filter={`url(#filterLineShadow_${index})`}>
+								<animate
+									attributeName="stroke-dashoffset"
+									values="0;-28"
+									dur="1s"
+									repeatCount="indefinite"
 								/>
-							))}
+							</line>
+							{line.invisiblePort !== 'prev' && (
+								<circle cx={line.prevXY[0]} cy={line.prevXY[1]} r="5" fill={`url(#filterLineCircleFill_${index})`} filter={`url(#filterLineShadow_${index})`} />
+							)}
+							{line.invisiblePort !== 'next' && (
+								<circle cx={line.nextXY[0]} cy={line.nextXY[1]} r="5" fill={`url(#filterLineCircleFill_${index})`} filter={`url(#filterLineShadow_${index})`} />
+							)}
+							{line.name && (
+								<>
+									<rect
+										class={style.invisibleRect}
+										x={`${line.prevXY[0]}px`}
+										y={`${line.prevXY[1]}px`}
+										style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
+									/>
+									<rect
+										class={style.rect}
+										x={`${line.prevXY[0]}px`}
+										y={`${line.prevXY[1]}px`}
+										style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
+									/>
+									<text
+										x={`${line.prevXY[0]}px`}
+										y={`${line.prevXY[1]}px`}
+										style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(20px, -10px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
+										filter={`url(#filterLineTextFilter_${index})`}
+									>
+										{line.name}
+									</text>
+								</>
+							)}
+						</svg>
+					))}
+					{creatingFilterInCanvas.value && (
+						<div
+							class={`${style.node} ${style.nodeCreating}`}
+							style={{ left: `${creatingFilterInCanvas.value[0]}px`, top: `${creatingFilterInCanvas.value[1]}px`, height: `30px`, cursor: 'move' }}
+						>
+							<div class={style.name}>{creatingFilter.value[0].name}</div>
 						</div>
-					</div>
-				))}
-				{lines.value.map((line, index) => (
-					<svg
-						class={style.line}
-						data-type={line.type}
-						data-creating={line.invisiblePort ? 'T' : ''}
-						onClick={() => setTimeout(() => selectedNode.value = nodes.value.find((node) => node.id === line.prevNodeId), 0)}
-						onContextmenu={(event) => handleLineContextMenu(event, line as any)}
-						onMouseenter={handleLineMouseEnter}
-						onMouseleave={handleLineMouseLeave}
-					>
-						<defs>
-							<filter id={`filterLineShadow_${index}`} x="-50vw" y="-50vw" width="150vw" height="150vw" filterUnits="userSpaceOnUse">
-								{h('feDropShadow', { in: 'border', dx: '0', dy: '2', stdDeviation: '2', 'flood-color': 'currentColor', 'flood-opacity': '0.6', result: 'shadow' })}
-								<feComposite in="SourceGraphic" in2="shadow" operator="over" />
-							</filter>
-							<filter id={`filterLineTextFilter_${index}`} x="-50%" y="-50%" width="200%" height="200%">
-								<feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded" />
-								<feFlood flood-color="hwb(var(--bg94))" flood-opacity="1" result="flooded" />
-								<feComposite in2="expanded" operator="in" result="border" />
-								<feComposite in="SourceGraphic" in2="border" operator="over" />
-							</filter>
-							<linearGradient id={`filterLineCircleFill_${index}`} x1="0" y1="-0.5" x2="0" y2="1">
-								<stop offset="0%" stop-color="white" stop-opacity="1"/>
-								<stop offset="60%" stop-color="currentColor" stop-opacity="1"/>
-							</linearGradient>
-						</defs>
-						<line class={style.invisibleLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} />
-						<line class={style.svgLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} stroke-dasharray="24 4" stroke-dashoffset="0" filter={`url(#filterLineShadow_${index})`}>
-							<animate
-								attributeName="stroke-dashoffset"
-								values="0;-28"
-								dur="1s"
-								repeatCount="indefinite"
-							/>
-						</line>
-						{line.invisiblePort !== 'prev' && (
-							<circle cx={line.prevXY[0]} cy={line.prevXY[1]} r="5" fill={`url(#filterLineCircleFill_${index})`} filter={`url(#filterLineShadow_${index})`} />
-						)}
-						{line.invisiblePort !== 'next' && (
-							<circle cx={line.nextXY[0]} cy={line.nextXY[1]} r="5" fill={`url(#filterLineCircleFill_${index})`} filter={`url(#filterLineShadow_${index})`} />
-						)}
-						{line.name && (
-							<>
-								<rect
-									class={style.invisibleRect}
-									x={`${line.prevXY[0]}px`}
-									y={`${line.prevXY[1]}px`}
-									style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
-								/>
-								<rect
-									class={style.rect}
-									x={`${line.prevXY[0]}px`}
-									y={`${line.prevXY[1]}px`}
-									style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
-								/>
-								<text
-									x={`${line.prevXY[0]}px`}
-									y={`${line.prevXY[1]}px`}
-									style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(20px, -10px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
-									filter={`url(#filterLineTextFilter_${index})`}
-								>
-									{line.name}
-								</text>
-							</>
-						)}
-					</svg>
-				))}
-				{creatingFilterInCanvas.value && (
-					<div
-						class={`${style.node} ${style.nodeCreating}`}
-						style={{ left: `${creatingFilterInCanvas.value[0]}px`, top: `${creatingFilterInCanvas.value[1]}px`, height: `30px`, cursor: 'move' }}
-					>
-						<div class={style.name}>{creatingFilter.value[0].name}</div>
-					</div>
-				)}
-			</div>
-		);
+					)}
+				</div>
+			);
+		} catch (e) {
+			Popup({ message: '渲染滤镜图时发生了错误，可能是配置数据有误（有可能是 FFBox 的 bug）只得点击“重置”去试试修复此问题了 T^T\n' + e , level: 3 })
+		}
 	};
 
 	const renderDetailParameters = () => (

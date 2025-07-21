@@ -1,11 +1,13 @@
-import { computed, defineComponent } from 'vue';
-import { acodecsList, volSlider, ACodecDetail, allAcodecsList } from '@common/params/acodecs';
+import { computed, defineComponent, ref } from 'vue';
+import { builtInAcodecs, volSlider, ACodecDetail, allAcodecs } from '@common/params/acodecs';
 import { RateControl } from '@common/params/parameter';
 import { allMuxers, builtInMuxers } from '@common/params/formats';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
 import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
 import { renderDetailParameters } from './utils';
+import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrapper.vue';
+import Button, { ButtonType } from '@renderer/components/Button/Button';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -19,6 +21,7 @@ interface Props {
 
 const AcodecView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
+	const showDetailParams = ref(true);
 
 	const audioParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.audio);
 	const muxerDefaultCodec = computed(() => {
@@ -66,16 +69,16 @@ const AcodecView = defineComponent((props: Props) => {
 				tooltip: muxerDefaultCodec.value ? `不指定，让 ffmpeg 根据复用器默认设定选择编码\n根据你选择的复用器【${muxerDefaultCodec.value.muxer}】，默认使用【${muxerDefaultCodec.value.vcodec}】编码器` : '不指定，让 ffmpeg 根据复用器默认设定选择编码',
 			},
 			{ type: 'separator' },
-			...acodecsList,
+			...builtInAcodecs,
 			{ type: 'separator' },
 			{ type: 'submenu', label: '全部可用编码', subMenu: [
 				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
 					appStore.fetchAVOptions();
 				} },
-				...(allAcodecsList.length ? [{ type: 'separator' }] : []),
-				...allAcodecsList,
+				...(allAcodecs.length ? [{ type: 'separator' }] : []),
+				...allAcodecs,
 			] },
-		] as typeof acodecsList
+		] as typeof builtInAcodecs
 	));
 
 	const acodec = computed(() => {
@@ -148,6 +151,13 @@ const AcodecView = defineComponent((props: Props) => {
 		appStore.applyParameters();
 	};
 
+	const handleApplyToAll = () => {
+		const params = audioParams.value;
+		for (const outputParams of appStore.globalParams.outputs) {
+			outputParams.audio = JSON.parse(JSON.stringify(params));
+		}
+	};
+
 	return () => audioParams.value && audioContainsInOutput.value ? (
 		<div class={style.container}>
 			<BoxedDropdownInput title="音频编码器" text={audioParams.value.acodec} list={combinedVcodecsList.value} onChange={(value: string) => handleChange('acodec', value)} />
@@ -185,11 +195,23 @@ const AcodecView = defineComponent((props: Props) => {
 			)}
 			<BoxedNormalInput title="自定义参数" value={audioParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 			{(acodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
-				<>
-					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
+				<AutoSizeWrapper class={style.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
+					<div class={style.bar}>
+						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
+					</div>
 					{renderDetailParameters(acodec.value?.parameters, audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
-				</>
+					<div class={style.bar}>
+						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
+					</div>
+				</AutoSizeWrapper>
 			) || null}
+			{appStore.globalParams.outputs.length > 1 && (
+				<div style={{ margin: '12px' }}>
+					<Button onClick={handleApplyToAll}>
+						应用音频参数到全部输出
+					</Button>
+				</div>			
+			)}
 		</div>
 	) : (
 		<div class={style.noOutput}>

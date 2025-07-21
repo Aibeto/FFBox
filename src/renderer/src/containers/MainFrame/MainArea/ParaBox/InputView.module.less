@@ -18,6 +18,7 @@
 			height: 24px;
 		}
 		.listContainer {
+			position: relative;
 			width: 100%;
 			height: calc(100% - 24px);
 			box-sizing: border-box;
@@ -28,6 +29,7 @@
 						0 -1px 1px 0px hwb(var(--highlight) / 0.6) inset,	// 上高光
 						0 4px 6px hwb(0 0% 100% / 0.03) inset, // 内部凹陷阴影（短）
 						0 4px 24px hwb(0 0% 100% / 0.06) inset; // 内部凹陷阴影（长）
+			overflow: hidden auto;
 			.listItem {
 				position: relative;
 				display: flex;
@@ -48,31 +50,50 @@
 					background-color: hwb(var(--hoverShadow) / 0.05);
 					height: 1px;
 				}
-				.delete {
+				&:hover {
+					.operations {
+						width: 76px;
+						box-shadow: -14px 0 12px -14px hwb(var(--highlight));
+						transition: box-shadow 0.6s cubic-bezier(0.1, 6, 0.6, 1), width 0.4s cubic-bezier(0.1, 1.6, 0.6, 0.9);
+					}
+				}
+				.operations {
+					width: 0px;
 					flex: 0 0 auto;
-					display: inline-block;
-					width: 20px;
-					height: 20px;
-					border: none;
-					outline: none;
-					background: none;
-					padding: 0;
-					margin-right: 8px;
-					opacity: 0.5;
-					border-radius: 4px;
-					&:hover {
-						box-shadow: 0 1px 4px hwb(var(--hoverShadow) / 0.2),
-									0 4px 2px -2px hwb(var(--highlight) / 0.5) inset;
-					}
-					&:active {
-						box-shadow: 0 0px 1px hwb(var(--hoverShadow) / 0.2),
-									0 15px 20px -10px hwb(var(--hoverShadow) / 0.15) inset;
-						transform: translateY(0.25px);
-					}
-					svg {
-						color: var(--33);
-						width: 100%;
-						height: 100%;
+					white-space: nowrap;
+					border-radius: 8px;
+					box-shadow: -14px 0 12px -16px hwb(var(--highlight) / 0);
+					transition: width 2s cubic-bezier(1, -0.05, 0.8, 0.1);
+					button {
+						flex: 0 0 auto;
+						width: 26px;
+						height: 24px;
+						display: inline-flex;
+						justify-content: center;
+						align-items: center;
+						border: none;
+						outline: none;
+						background: none;
+						padding: 0;
+						margin: 0px;
+						font-size: 16px;
+						vertical-align: middle;
+						border-radius: 4px;
+						&:hover {
+							box-shadow: 0 1px 4px hwb(var(--hoverShadow) / 0.2),
+										0 4px 2px -2px hwb(var(--highlight) / 0.5) inset;
+						}
+						&:active {
+							box-shadow: 0 0px 1px hwb(var(--hoverShadow) / 0.2),
+										0 15px 20px -10px hwb(var(--hoverShadow) / 0.15) inset;
+							transform: translateY(0.25px);
+						}
+						svg {
+							color: var(--33);
+							width: 20px;
+							height: 20px;
+							opacity: 0.5;
+						}
 					}
 				}
 				.dropdownInput {
@@ -83,7 +104,9 @@
 					box-shadow: 0px 1px 2px hwb(var(--hoverShadow) / 0.1);
 				}
 				.inputAutoSize {
+					flex: 1 1 auto;
 					margin-left: -4px;
+					overflow: hidden;
 				}
 				span {
 					flex: 1 1 auto;
@@ -94,10 +117,52 @@
 			}
 			.listItemSelected {
 				background-color: var(--primaryColor);
-				.delete svg {
+				.operations .delete svg {
 					color: white;
 				}
 			}
+			.listItemMove {
+				transition: all 0.3s ease;
+			}
+			.listItemFromTo {
+				opacity: 0;
+				// transform: translateX(30px);
+			}
+			.listItemLeaveActive {
+				position: absolute;
+			}
+			.dragFrame {
+				position: absolute;
+				left: 0;
+				right: 0;
+				top: 0;
+				bottom: 0;
+				background-color: hwb(var(--bg98) / 0.5);
+				pointer-events: none;
+				.inner {
+					position: absolute;
+					top: 0;
+					bottom: 0;
+					width: 100%;
+					display: flex;
+					flex-direction: column;
+					justify-content: center;
+					align-items: center;
+					font-size: 24px;
+					p {
+						margin: 0;
+					}
+				}
+			}
+			.dragFrameLeaveFrom {
+			}
+			.dragFrameLeaveActive {
+				transition: opacity 0.3s linear, filter 0.3s ease-in;
+			}
+			.dragFrameLeaveTo {
+				opacity: 0;
+				filter: blur(8px);
+			}		
 		}
 	}
 	.dragger {
@@ -131,6 +196,42 @@
 		flex-wrap: wrap;
 		align-items: center;	/* 一行 */
 		/* align-content: space-between;	 多行 */
-		justify-content: space-around;	
+		justify-content: space-around;
+		.detailParameters {
+			width: 100%;
+			overflow: hidden;
+			transition: height 0.5s ease;
+			&>div {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;	/* 一行 */
+				/* align-content: space-between;	 多行 */
+				justify-content: space-around;
+				.bar {
+					position: relative;
+					width: calc(100% - 28px);
+					margin: 8px;
+					font-size: 12px;
+					opacity: 0.7;
+					&::before, &::after {
+						content: '';
+						width: calc(50% - 80px);
+						height: 2px;
+						display: block;
+						position: absolute;
+						top: 12px;
+						opacity: 0.7;
+					}
+					&::before {
+						background: linear-gradient(to left, hwb(var(--opposite80) / 0.3), hwb(var(--opposite80) / 0.1));
+						right: calc(50% + 80px);
+					}
+					&::after {
+						background: linear-gradient(to right, hwb(var(--opposite80) / 0.3), hwb(var(--opposite80) / 0.1));
+						left: calc(50% + 80px);
+					}	
+				}
+			}
+		}
 	}
 }

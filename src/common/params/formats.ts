@@ -18,7 +18,7 @@ export interface Hwaccel extends NarrowedMenuItem {
 	hwaccel: string;
 }
 
-const builtInDemuxers: MenuItem[] = [
+export const builtInDemuxers: MenuItem[] = [
 	{
 		type: 'normal',
 		value: '自动',
@@ -33,9 +33,9 @@ const builtInDemuxers: MenuItem[] = [
 	// },
 ];
 
-const allDemuxers: MenuItem<Muxer>[] = [];
+export const allDemuxers: MenuItem<Muxer>[] = [];
 
-const builtInMuxers: MenuItem<Muxer>[] = [
+export const builtInMuxers: MenuItem<Muxer>[] = [
 	{
 		type: 'normal',
 		value: '无',
@@ -269,9 +269,9 @@ const builtInMuxers: MenuItem<Muxer>[] = [
 	},
 ];
 
-const allMuxers: MenuItem<Muxer>[] = [];
+export const allMuxers: MenuItem<Muxer>[] = [];
 
-const hwaccels: Hwaccel[] = [
+export const hwaccels: Hwaccel[] = [
 	{
 		type: 'normal',
 		value: '不使用',
@@ -323,7 +323,7 @@ const hwaccels: Hwaccel[] = [
 	},
 ]
 
-const keepMeatadataList: NarrowedMenuItem[] = [
+export const keepMeatadataList: NarrowedMenuItem[] = [
 	{
 		type: 'normal',
 		value: false,
@@ -348,7 +348,7 @@ const keepMeatadataList: NarrowedMenuItem[] = [
 	},
 ];
 
-const keepFileTimeList: NarrowedMenuItem[] = [
+export const keepFileTimeList: NarrowedMenuItem[] = [
 	{
 		type: 'normal',
 		value: false,
@@ -380,164 +380,160 @@ const keepFileTimeList: NarrowedMenuItem[] = [
 	},
 ];
 
-const generator = {
-	/**
-	 * 获取输出参数的命令行（对每个输出均需调用一次）
-	 */
-	getMuxParam: function (muxParams: OutputParams_mux, filedir: string, filebasename: string, withQuotes = false, overrideFilePath: string) {
-		let ret = [];
-		if (muxParams.format.length && muxParams.format !== '无') {
-			let formatItem = getMenuItemByValue(builtInMuxers, muxParams.format) as any;
-			if (!formatItem) {
-				formatItem = getMenuItemByValue(allMuxers, muxParams.format) as any;
-			}
-			let extension;
-			if (formatItem) {
-				const match = (formatItem.value as string).match(/(.+) \((.+)\)/);
-				extension = match?.[1] ?? muxParams.format;
-				let needExplicitMuxer = false;
-				if (match?.[2] && (getMenuItemByValue(builtInMuxers, match[1]) || getMenuItemByValue(allMuxers, match[1]))) {
-					needExplicitMuxer = true;
-				}
-				if (!muxParams.filename.includes('[fileext]') || needExplicitMuxer) {
-					// 指定格式但没扩展名的情况下，或者在格式列表里具有不带括号的同名复用器（比如 image2 中的各种重名复用器），需要手动指定 muxer
-					ret.push('-f');
-					ret.push(match?.[2] ?? muxParams.format);	// -f 后需要指定的是 muxer 而不是扩展名，除非扩展名和 muxer 一致
-				}
-				const formatDetail = (formatItem.extra) as Muxer;
-				for (const parameter of formatDetail.parameters || []) {
-					if (parameter.optional && muxParams.detail[parameter.parameter] === undefined) {
-						continue;
-					}
-					if (parameter.mode === 'combo') {
-						if (muxParams.detail[parameter.parameter] != '默认' && muxParams.detail[parameter.parameter] != '自动') {
-							ret.push('-' + parameter.parameter);
-							ret.push(muxParams.detail[parameter.parameter]);
-						}
-					} else if (parameter.mode == 'slider') {
-						ret.push('-' + parameter.parameter);
-						const floatValue = muxParams.detail[parameter.parameter];
-						const value = parameter.valueToParam ? parameter.valueToParam(floatValue) : floatValue;
-						ret.push(value);
-					} else if (parameter.mode === 'switch') {
-						if (muxParams.detail[parameter.parameter] !== undefined) {
-							ret.push('-' + parameter.parameter);
-							ret.push(muxParams.detail[parameter.parameter]);
-						}
-					} else if (parameter.mode === 'text') {
-						if (muxParams.detail[parameter.parameter] && muxParams.detail[parameter.parameter] != '默认' && muxParams.detail[parameter.parameter] != '自动') {
-							ret.push('-' + parameter.parameter);
-							ret.push(muxParams.detail[parameter.parameter]);
-						}
-					}
-				}
-			} else {
-				// 用户手动输入的格式
-				extension = muxParams.format;
-				if (!muxParams.filename.includes('[fileext]')) {
-					ret.push('-f');
-					ret.push(muxParams.format);
-				}
-			}
-			if (muxParams.moveflags) {
-				ret.push('-movflags')
-				ret.push('+faststart')
-			}
-			if (muxParams.begin) {
-				ret.push('-ss')
-				ret.push(muxParams.begin)
-			}
-			if (muxParams.end) {
-				ret.push('-to')
-				ret.push(muxParams.end)
-			}
-			if (muxParams.keepMetadata) {
-				if (muxParams.keepMetadata === 'map') {
-					ret.push('-map_metadata');
-					ret.push('0');
-				} else if (muxParams.keepMetadata === 'movflags') {
-					ret.push('-movflags');
-					ret.push('use_metadata_tags');
-				} else if (muxParams.keepMetadata === 'both') {
-					ret.push('-map_metadata');
-					ret.push('0');
-					ret.push('-movflags');
-					ret.push('use_metadata_tags');
-				}
-			}
-			let outputFileName;
-			if (overrideFilePath) {
-				outputFileName = overrideFilePath;
-			} else {
-				outputFileName = muxParams.filename;
-				outputFileName = outputFileName.replace(/\[filedir\]/g, filedir);
-				outputFileName = outputFileName.replace(/\[filebasename\]/g, filebasename);
-				outputFileName = outputFileName.replace(/\[fileext\]/g, extension);
-			}
-			if (withQuotes) {
-				outputFileName = '"' + outputFileName + '"';
-			}
-			ret.push(outputFileName);
-		} else {
-			ret.push('-f')
-			ret.push('null')
-			ret.push('-');	// 这个就相当于输出文件名了，以这个或者输出文件名为分割，下一个输出文件可以接在后面
-			// ret.push('-benchmark')   // 可有可无
+/**
+ * 获取输出参数的命令行（对每个输出均需调用一次）
+ */
+export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, filebasename: string, withQuotes = false, overrideFilePath: string) {
+	let ret = [];
+	if (muxParams.format.length && muxParams.format !== '无') {
+		let formatItem = getMenuItemByValue(builtInMuxers, muxParams.format) as any;
+		if (!formatItem) {
+			formatItem = getMenuItemByValue(allMuxers, muxParams.format) as any;
 		}
-		if (muxParams.custom) {
-			ret.push(...muxParams.custom.split(' '));
-		}
-		return ret;
-	},
-	/**
-	 * 获取输入参数的命令行（全局唯一）
-	 */
-	getInputParam: function (inputParams: OutputParams_input, withQuotes = false) {
-		let ret = [];
-		const quoteStr = withQuotes ? `"` : '';
-		// 确保至少有一个输入
-		const files = inputParams.files.length ? inputParams.files : [{
-			filePath: '[输入文件路径]',
-			begin: '',
-			end: '',
-			custom: '',
-			hwaccel: '',
-			realtime: false,
-		}];
-		for (const file of files) {
-			if (file.demuxer && file.demuxer !== '自动') {
+		let extension;
+		if (formatItem) {
+			const match = (formatItem.value as string).match(/(.+) \((.+)\)/);
+			extension = match?.[1] ?? muxParams.format;
+			let needExplicitMuxer = false;
+			if (match?.[2] && (getMenuItemByValue(builtInMuxers, match[1]) || getMenuItemByValue(allMuxers, match[1]))) {
+				needExplicitMuxer = true;
+			}
+			if (!muxParams.filename.includes('[fileext]') || needExplicitMuxer) {
+				// 指定格式但没扩展名的情况下，或者在格式列表里具有不带括号的同名复用器（比如 image2 中的各种重名复用器），需要手动指定 muxer
 				ret.push('-f');
-				ret.push(file.demuxer);
+				ret.push(match?.[2] ?? muxParams.format);	// -f 后需要指定的是 muxer 而不是扩展名，除非扩展名和 muxer 一致
 			}
-			// custom 参数（字符串直接拆分）
-			if (file.custom) {
-				ret.push(...file.custom.split(' '));
-			}	
-			// hwaccel 参数
-			if (file.hwaccel && file.hwaccel !== '不使用') {
-				ret.push('-hwaccel');
-				let hwaccel = hwaccels.find((item) => item.value === file.hwaccel)?.hwaccel;
-				ret.push(hwaccel);
+			const formatDetail = (formatItem.extra) as Muxer;
+			for (const parameter of formatDetail?.parameters || []) {
+				if (parameter.optional && muxParams.detail[parameter.parameter] === undefined) {
+					continue;
+				}
+				if (parameter.mode === 'combo') {
+					if (muxParams.detail[parameter.parameter] != '默认' && muxParams.detail[parameter.parameter] != '自动') {
+						ret.push('-' + parameter.parameter);
+						ret.push(muxParams.detail[parameter.parameter]);
+					}
+				} else if (parameter.mode == 'slider') {
+					ret.push('-' + parameter.parameter);
+					const floatValue = muxParams.detail[parameter.parameter];
+					const value = parameter.valueToParam ? parameter.valueToParam(floatValue) : floatValue;
+					ret.push(value);
+				} else if (parameter.mode === 'switch') {
+					if (muxParams.detail[parameter.parameter] !== undefined) {
+						ret.push('-' + parameter.parameter);
+						ret.push(muxParams.detail[parameter.parameter]);
+					}
+				} else if (parameter.mode === 'text') {
+					if (muxParams.detail[parameter.parameter] && muxParams.detail[parameter.parameter] != '默认' && muxParams.detail[parameter.parameter] != '自动') {
+						ret.push('-' + parameter.parameter);
+						ret.push(muxParams.detail[parameter.parameter]);
+					}
+				}
 			}
-			// realtime 参数
-			if (file.realtime) {
-				ret.push('-re');
+		} else {
+			// 用户手动输入的格式
+			extension = muxParams.format;
+			if (!muxParams.filename.includes('[fileext]')) {
+				ret.push('-f');
+				ret.push(muxParams.format);
 			}
-			// 输入裁剪参数（放在 -i 前）
-			if (file.begin) {
-				ret.push('-ss');
-				ret.push(file.begin);
-			}
-			if (file.end) {
-				ret.push('-to');
-				ret.push(file.end);
-			}
-			// 输入路径
-			ret.push('-i');
-			ret.push(quoteStr + file.filePath + quoteStr);
 		}
-		return ret;
+		if (muxParams.moveflags) {
+			ret.push('-movflags')
+			ret.push('+faststart')
+		}
+		if (muxParams.begin) {
+			ret.push('-ss')
+			ret.push(muxParams.begin)
+		}
+		if (muxParams.end) {
+			ret.push('-to')
+			ret.push(muxParams.end)
+		}
+		if (muxParams.keepMetadata) {
+			if (muxParams.keepMetadata === 'map') {
+				ret.push('-map_metadata');
+				ret.push('0');
+			} else if (muxParams.keepMetadata === 'movflags') {
+				ret.push('-movflags');
+				ret.push('use_metadata_tags');
+			} else if (muxParams.keepMetadata === 'both') {
+				ret.push('-map_metadata');
+				ret.push('0');
+				ret.push('-movflags');
+				ret.push('use_metadata_tags');
+			}
+		}
+		let outputFileName;
+		if (overrideFilePath) {
+			outputFileName = overrideFilePath;
+		} else {
+			outputFileName = muxParams.filename;
+			outputFileName = outputFileName.replace(/\[filedir\]/g, filedir);
+			outputFileName = outputFileName.replace(/\[filebasename\]/g, filebasename);
+			outputFileName = outputFileName.replace(/\[fileext\]/g, extension);
+		}
+		if (withQuotes) {
+			outputFileName = '"' + outputFileName + '"';
+		}
+		ret.push(outputFileName);
+	} else {
+		ret.push('-f')
+		ret.push('null')
+		ret.push('-');	// 这个就相当于输出文件名了，以这个或者输出文件名为分割，下一个输出文件可以接在后面
+		// ret.push('-benchmark')   // 可有可无
 	}
+	if (muxParams.custom) {
+		ret.push(...muxParams.custom.split(' '));
+	}
+	return ret;
 }
-
-export { builtInMuxers, allMuxers, builtInDemuxers, allDemuxers, hwaccels, keepMeatadataList, keepFileTimeList, generator }
+/**
+ * 获取输入参数的命令行（全局唯一）
+ */
+export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes = false) {
+	let ret = [];
+	const quoteStr = withQuotes ? `"` : '';
+	// 确保至少有一个输入
+	const files = inputParams.files.length ? inputParams.files : [{
+		filePath: '[输入文件路径]',
+		begin: '',
+		end: '',
+		custom: '',
+		hwaccel: '',
+		realtime: false,
+	}];
+	for (const file of files) {
+		if (file.demuxer && file.demuxer !== '自动') {
+			ret.push('-f');
+			ret.push(file.demuxer);
+		}
+		// custom 参数（字符串直接拆分）
+		if (file.custom) {
+			ret.push(...file.custom.split(' '));
+		}	
+		// hwaccel 参数
+		if (file.hwaccel && file.hwaccel !== '不使用') {
+			ret.push('-hwaccel');
+			let hwaccel = hwaccels.find((item) => item.value === file.hwaccel)?.hwaccel;
+			ret.push(hwaccel);
+		}
+		// realtime 参数
+		if (file.realtime) {
+			ret.push('-re');
+		}
+		// 输入裁剪参数（放在 -i 前）
+		if (file.begin) {
+			ret.push('-ss');
+			ret.push(file.begin);
+		}
+		if (file.end) {
+			ret.push('-to');
+			ret.push(file.end);
+		}
+		// 输入路径
+		ret.push('-i');
+		ret.push(quoteStr + file.filePath + quoteStr);
+	}
+	return ret;
+}

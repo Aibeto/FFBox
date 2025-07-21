@@ -1,6 +1,6 @@
 import { EncoderDetail, FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail } from '@common/types';
-import { ACodecDetail, acodecsList, allAcodecsList } from './acodecs';
-import { allVcodecsList, VCodecDetail, vcodecsList } from './vcodecs';
+import { ACodecDetail, builtInAcodecs, allAcodecs } from './acodecs';
+import { allVcodecs, VCodecDetail, builtInVcodecs } from './vcodecs';
 import { allDemuxers, allMuxers, builtInDemuxers, builtInMuxers, Demuxer, Muxer } from './formats';
 import { Parameter } from './parameter';
 import { filtersList } from './filter';
@@ -155,7 +155,7 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 
 export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }) {
 	// 视频
-	allVcodecsList.splice(0, allVcodecsList.length);	// 清空之前的全部编码器列表
+	allVcodecs.splice(0, allVcodecs.length);	// 清空之前的全部编码器列表
 	for (const iVideo of input.video) {
 		const menuItem: MenuItem<VCodecDetail> = {
 			type: 'submenu',
@@ -169,7 +169,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 					// 对每款编码器进行参数扫描组装
 					const parameters: Parameter[] = [];
 					// 如果 FFBox 已预置该编码器的部分信息，那么进行 append
-					const outsideItem = getMenuItemByValue(vcodecsList, encoder.name) as any;
+					const outsideItem = getMenuItemByValue(builtInVcodecs, encoder.name) as any;
 					const outsideDetail = (outsideItem?.extra) as VCodecDetail;
 					let existParameters: string[] = [];	// 对于已经预置的选项，不在详细参数中重复添加
 					if (outsideDetail) {
@@ -192,10 +192,10 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 				})(),
 			})),
 		}
-		allVcodecsList.push(menuItem);
+		allVcodecs.push(menuItem);
 	}
 	// 音频
-	allAcodecsList.splice(0, allAcodecsList.length);	// 清空之前的全部编码器列表
+	allAcodecs.splice(0, allAcodecs.length);	// 清空之前的全部编码器列表
 	for (const iAudio of input.audio) {
 		const menuItem: MenuItem<VCodecDetail> = {
 			type: 'submenu',
@@ -209,7 +209,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 					// 对每款编码器进行参数扫描组装
 					const parameters: Parameter[] = [];
 					// 如果 FFBox 已预置该编码器的部分信息，那么进行 append
-					const outsideItem = getMenuItemByValue(acodecsList, encoder.name) as any;
+					const outsideItem = getMenuItemByValue(builtInAcodecs, encoder.name) as any;
 					const outsideDetail = (outsideItem?.extra) as ACodecDetail;
 					let existParameters: string[] = [];	// 对于已经预置的选项，不在详细参数中重复添加
 					if (outsideDetail) {
@@ -232,7 +232,7 @@ export function parseFFmpegCodecsToCodecsList(input: { video: FFmpegCodecDetail[
 				})(),
 			})),
 		}
-		allAcodecsList.push(menuItem);
+		allAcodecs.push(menuItem);
 	}
 }
 

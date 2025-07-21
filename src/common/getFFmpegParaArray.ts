@@ -1,8 +1,8 @@
 import path from './path';
 import { associateNodesAndLines, getFilterParam } from './params/filter';
-import { generator as fGenerator, builtInMuxers, allMuxers } from './params/formats';
-import { generator as vGenerator } from './params/vcodecs';
-import { generator as aGenerator } from './params/acodecs';
+import { getInputFFmpegParam, builtInMuxers, allMuxers, getMuxFFmpegParam } from './params/formats';
+import { getVideoFFmpegParam } from './params/vcodecs';
+import { getAudioFFmpegParam } from './params/acodecs';
 import { OutputParams } from '@common/types';
 import { randomString } from './utils';
 import { getMenuItemByValue } from './menu';
@@ -22,7 +22,7 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 	outputDir = outputDir || dirname(inputFilePath || '[输出目录]');
 	
 	ret.push('-hide_banner');
-	ret.push(...fGenerator.getInputParam(outputParams.input, withQuotes));
+	ret.push(...getInputFFmpegParam(outputParams.input, withQuotes));
 
 	associateNodesAndLines(outputParams.filter.nodes, outputParams.filter.lines);
 	const filterStr = getFilterParam(outputParams.filter.nodes, outputParams.filter.lines);
@@ -53,15 +53,15 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 			}
 			if (outputNode.prevs?.length) {
 				// 至少需要有连线才能输出
-				ret.push(...vGenerator.getVideoParam(outputParams.outputs[outputIndex].video));
-				ret.push(...aGenerator.getAudioParam(outputParams.outputs[outputIndex].audio));
-				ret.push(...fGenerator.getMuxParam(outputParams.outputs[outputIndex].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[outputIndex]));
+				ret.push(...getVideoFFmpegParam(outputParams.outputs[outputIndex].video));
+				ret.push(...getAudioFFmpegParam(outputParams.outputs[outputIndex].audio));
+				ret.push(...getMuxFFmpegParam(outputParams.outputs[outputIndex].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[outputIndex]));
 			}
 		}
 	} else {
-		ret.push(...vGenerator.getVideoParam(outputParams.outputs[0].video));
-		ret.push(...aGenerator.getAudioParam(outputParams.outputs[0].audio));
-		ret.push(...fGenerator.getMuxParam(outputParams.outputs[0].mux, outputDir, outputBaseName, withQuotes, undefined));
+		ret.push(...getVideoFFmpegParam(outputParams.outputs[0].video));
+		ret.push(...getAudioFFmpegParam(outputParams.outputs[0].audio));
+		ret.push(...getMuxFFmpegParam(outputParams.outputs[0].mux, outputDir, outputBaseName, withQuotes, undefined));
 	}
 	ret.push('-y');
 	return ret;

@@ -795,244 +795,22 @@ const extended: NarrowedMenuItem = {
 
 // #region 预置 pixel format
 
-const yuv420p: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv420p',
-	label: 'yuv420p',
-	tooltip: '',
-}
-const yuv422p: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv422p',
-	label: 'yuv422p',
-	tooltip: '',
-}
-const yuv440p: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv440p',
-	label: 'yuv440p',
-	tooltip: '',
-}
-const yuv444p: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv444p',
-	label: 'yuv444p',
-	tooltip: '',
-}
-const yuva420p: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuva420p',
-	label: 'yuva420p',
-	tooltip: '',
-}
-const yuvj420p: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuvj420p',
-	label: 'yuvj420p',
-	tooltip: '',
-}
-const yuvj422p: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuvj422p',
-	label: 'yuvj422p',
-	tooltip: '',
-}
-const yuvj444p: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuvj444p',
-	label: 'yuvj444p',
-	tooltip: '',
-}
-const nv12: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'nv12',
-	label: 'nv12',
-	tooltip: '',
-}
-const nv16: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'nv16',
-	label: 'nv16',
-	tooltip: '',
-}
-const nv21: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'nv21',
-	label: 'nv21',
-	tooltip: '',
-}
-const gbrp: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'gbrp',
-	label: 'gbrp',
-	tooltip: '',
-}
-const yuv420p10le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv420p10le',
-	label: 'yuv420p10le',
-	tooltip: '',
-}
-const yuv422p10le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv422p10le',
-	label: 'yuv422p10le',
-	tooltip: '',
-}
-const yuv440p10le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv440p10le',
-	label: 'yuv440p10le',
-	tooltip: '',
-}
-const yuv444p10le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv444p10le',
-	label: 'yuv444p10le',
-	tooltip: '',
-}
-const yuv420p12le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv420p12le',
-	label: 'yuv420p12le',
-	tooltip: '',
-}
-const yuv422p12le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv422p12le',
-	label: 'yuv422p12le',
-	tooltip: '',
-}
-const yuv440p12le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv440p12le',
-	label: 'yuv440p12le',
-	tooltip: '',
-}
-const yuv444p12le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv444p12le',
-	label: 'yuv444p12le',
-	tooltip: '',
-}
-const yuv444p16le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'yuv444p16le',
-	label: 'yuv444p16le',
-	tooltip: '',
-}
-const nv20le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'nv20le',
-	label: 'nv20le',
-	tooltip: '',
-}
-const gbrp10le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'gbrp10le',
-	label: 'gbrp10le',
-	tooltip: '',
-}
-const gbrp12le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'gbrp12le',
-	label: 'gbrp12le',
-	tooltip: '',
-}
-const gray: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'gray',
-	label: 'gray',
-	tooltip: '',
-}
-const gray10le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'gray10le',
-	label: 'gray10le',
-	tooltip: '',
-}
-const p010le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'p010le',
-	label: 'p010le',
-	tooltip: '',
-}
-const p016le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'p016le',
-	label: 'p016le',
-	tooltip: '',
-}
-const qsv: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'qsv',
-	label: 'qsv',
-	tooltip: '',
-}
-const bgr0: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'bgr0',
-	label: 'bgr0',
-	tooltip: '',
-}
-const rgb0: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'rgb0',
-	label: 'rgb0',
-	tooltip: '',
-}
-const bgr24: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'bgr24',
-	label: 'bgr24',
-	tooltip: '',
-}
-const rgb24: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'rgb24',
-	label: 'rgb24',
-	tooltip: '',
-}
-const bgra: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'bgra',
-	label: 'bgra',
-	tooltip: '',
-}
-const cuda: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'cuda',
-	label: 'cuda',
-	tooltip: '',
-}
-const d3d11: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'd3d11',
-	label: 'd3d11',
-	tooltip: '',
-}
-const dxva2_vld: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'dxva2_vld',
-	label: 'dxva2_vld',
-	tooltip: '',
-}
-const videotoolbox_vld: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'videotoolbox_vld',
-	label: 'videotoolbox_vld',
-	tooltip: '',
-}
-const rgb555le: NarrowedMenuItem = {
-	type: 'normal',
-	value: 'rgb555le',
-	label: 'rgb555le',
-	tooltip: '',
-}
+const [ yuv420p ,  yuv422p ,  yuv440p ,  yuv444p ,  yuva420p ,  yuvj420p ,  yuvj422p ,  yuvj444p ,  nv12 ,  nv16 ,  nv21 ,  gbrp ,  yuv420p10le ,  yuv422p10le ,  yuv440p10le ,  yuv444p10le ,  yuv420p12le ,  yuv422p12le ,  yuv440p12le ,  yuv444p12le ,  yuv444p16le ] =
+	  ['yuv420p', 'yuv422p', 'yuv440p', 'yuv444p', 'yuva420p', 'yuvj420p', 'yuvj422p', 'yuvj444p', 'nv12', 'nv16', 'nv21', 'gbrp', 'yuv420p10le', 'yuv422p10le', 'yuv440p10le', 'yuv444p10le', 'yuv420p12le', 'yuv422p12le', 'yuv440p12le', 'yuv444p12le', 'yuv444p16le'].map((n) => ({
+		type: 'normal' as const,
+		value: n, label: n,
+		tooltip: '',
+	  }));
+const [ nv20le ,  gbrp10le ,  gbrp12le ,  gray ,  gray10le ,  p010le ,  p016le ,  qsv ,  bgr0 ,  rgb0 ,  bgr24 ,  rgb24 ,  bgra ,  cuda ,  d3d11 ,  dxva2_vld ,  videotoolbox_vld ,  rgb555le ] =
+	  ['nv20le', 'gbrp10le', 'gbrp12le', 'gray', 'gray10le', 'p010le', 'p016le', 'qsv', 'bgr0', 'rgb0', 'bgr24', 'rgb24', 'bgra', 'cuda', 'd3d11', 'dxva2_vld', 'videotoolbox_vld', 'rgb555le'].map((n) => ({
+		type: 'normal' as const,
+		value: n, label: n,
+		tooltip: '',
+	  }));
 
 // #endregion
 
-const vcodecsList: MenuItem<VCodecDetail>[] = [
+export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 	{
 		type: 'submenu',
 		label: 'AV1',
@@ -1897,10 +1675,10 @@ const vcodecsList: MenuItem<VCodecDetail>[] = [
 	},
 ];
 
-const allVcodecsList: MenuItem<VCodecDetail>[] = [];
+export const allVcodecs: MenuItem<VCodecDetail>[] = [];
 
 // https://zh.wikipedia.org/wiki/显示分辨率列表
-const resolution: MenuItem[] = [
+export const resolution: MenuItem[] = [
 	{ type: 'normal', label: '不改变', value: '不改变', tooltip: '不改变分辨率' },
 	{ type: 'submenu', label: '横向 16:9', subMenu: [
 		{ type: 'normal', label: '7680×4320', value: '7680x4320', tooltip: 'UHD 8K, 33.2M 像素' },
@@ -1999,7 +1777,7 @@ const resolution: MenuItem[] = [
 	] },
 ];
 
-const framerate: MenuItem[] = [
+export const framerate: MenuItem[] = [
 	{ type: 'normal', label: '不改变', value: '不改变', tooltip: '按源平均帧率输出' },
 	{ type: 'submenu', label: '常见帧率', subMenu: [
 		{ type: 'normal', label: '1920', value: '1920', tooltip: '1920p' },
@@ -2049,162 +1827,160 @@ const framerate: MenuItem[] = [
 	] },
 ];
 
-const generator = {
-	getVideoParam: function (videoParams: OutputParams_video) {
-		const ret = [];
-		let strict2 = false;
-		let flags = '';
-		if (videoParams.vcodec === '禁用') {
-			ret.push('-vn');
-		} else if (videoParams.vcodec === 'copy') {
-			ret.push('-vcodec');
-			ret.push('copy');
-		} else if (videoParams.vcodec !== '自动') {
-			ret.push('-vcodec');
-			ret.push(videoParams.vcodec);
-			let vcodecItem = getMenuItemByValue(vcodecsList, videoParams.vcodec) as any;
-			if (!vcodecItem) {
-				vcodecItem = getMenuItemByValue(allVcodecsList, videoParams.vcodec) as any;
-			}
-			const vcodecDetail = (vcodecItem?.extra) as VCodecDetail;
-			if (vcodecDetail) {
-				if (vcodecDetail.strict2) {
-					strict2 = true;
-				}
-				for (const parameter of vcodecDetail.parameters || []) {
-					if (parameter.optional && videoParams.detail[parameter.parameter] === undefined) {
-						continue;
-					}
-					if (parameter.mode === 'combo') {
-						if (videoParams.detail[parameter.parameter] != '默认' && videoParams.detail[parameter.parameter] != '自动') {
-							ret.push('-' + parameter.parameter);
-							ret.push(videoParams.detail[parameter.parameter]);
-						}
-						// 检查参数项是否有 strict2 标记
-						const item = parameter.items.find((item) => item.value === videoParams.detail[parameter.parameter]);
-						if (item?.strict2) {
-							strict2 = true;
-						}
-					} else if (parameter.mode == 'slider') {
-						ret.push('-' + parameter.parameter);
-						const floatValue = videoParams.detail[parameter.parameter];
-						const value = parameter.valueToParam ? parameter.valueToParam(floatValue) : floatValue;
-						ret.push(value);
-					} else if (parameter.mode === 'switch') {
-						if (videoParams.detail[parameter.parameter] !== undefined) {
-							ret.push('-' + parameter.parameter);
-							ret.push(videoParams.detail[parameter.parameter]);
-						}
-					} else if (parameter.mode === 'text') {
-						if (videoParams.detail[parameter.parameter] && videoParams.detail[parameter.parameter] != '默认' && videoParams.detail[parameter.parameter] != '自动') {
-							ret.push('-' + parameter.parameter);
-							ret.push(videoParams.detail[parameter.parameter]);
-						}
-					}
-				}
-								// 调试用↓
-								// ret.push('-threads')
-								// ret.push('1')
-								// 调试用↑
-				const ratecontrolItem = (vcodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === videoParams.ratecontrol) as any;
-				if (ratecontrolItem) {
-					const ratecontrol = ratecontrolItem.extra as RateControl;
-					// 计算值
-					const floatValue = videoParams.ratevalue;
-					const value = ratecontrol.valueToParam(floatValue);
-					// 将值插入参数列表中
-					for (const item of ratecontrol.cmd) {
-						if (item === VALUE) {
-							ret.push(value);
-						} else {
-							ret.push(item);
-						}
-					}
-				}
-				if (strict2) {
-					ret.push('-strict');
-					ret.push('-2');
-				}
-				// 设置通用参数
-				if (videoParams.resolution != '不改变') {
-					ret.push('-s');
-					ret.push(videoParams.resolution);
-				}
-				if (videoParams.framerate != '不改变') {
-					if (videoParams.framerate.includes('i') && videoParams.framerate.match(/^\d+(.\d+)?i?$/)) {
-						const fieldrate = Number(videoParams.framerate.match(/^(\d+(.\d+)?)/)[0]);
-						ret.push('-r');
-						ret.push(fieldrate / 2);	
-						flags += '+ilme+ildct';
-					} else {
-						ret.push('-r');
-						ret.push(videoParams.framerate);
-					}
-				}
-				if (flags) {
-					ret.push('-flags:v');
-					ret.push(flags);
-				}
-			}
-		} // 如果编码为自动，则不设置 vcodec 参数，返回空 Array
-		if (videoParams.custom) {
-			ret.push(...videoParams.custom.split(' '));
+export function getVideoFFmpegParam(videoParams: OutputParams_video) {
+	const ret = [];
+	let strict2 = false;
+	let flags = '';
+	if (videoParams.vcodec === '禁用') {
+		ret.push('-vn');
+	} else if (videoParams.vcodec === 'copy') {
+		ret.push('-vcodec');
+		ret.push('copy');
+	} else if (videoParams.vcodec !== '自动') {
+		ret.push('-vcodec');
+		ret.push(videoParams.vcodec);
+		let vcodecItem = getMenuItemByValue(builtInVcodecs, videoParams.vcodec) as any;
+		if (!vcodecItem) {
+			vcodecItem = getMenuItemByValue(allVcodecs, videoParams.vcodec) as any;
 		}
-		return ret;
-	},
-	// 获取 ratecontrol 方面的参数，主要是给 taskitem 用
-	getRateControlParam: function (videoParams: OutputParams_video) {
-		let ret = {
-			mode: '-',
-			value: '-'
-		};
-		if (videoParams.vcodec == '禁用' || videoParams.vcodec == 'copy' || videoParams.vcodec == '自动') {
-			return ret;
-		} else {
-			const vcodecItem = getMenuItemByValue(vcodecsList, videoParams.vcodec) as any;
-			const vcodecDetail = (vcodecItem?.extra) as VCodecDetail;
-			if (!vcodecDetail || !vcodecDetail.rateControl?.length) {
-				return ret;
+		const vcodecDetail = (vcodecItem?.extra) as VCodecDetail;
+		if (vcodecDetail) {
+			if (vcodecDetail.strict2) {
+				strict2 = true;
 			}
-			// 找到 ratecontrol 参数
-			const ratecontrolItem = vcodecDetail.rateControl.find((item) => {
-				return item.type === 'normal' && item.value == videoParams.ratecontrol;
-			}) as any;
+			for (const parameter of vcodecDetail.parameters || []) {
+				if (parameter.optional && videoParams.detail[parameter.parameter] === undefined) {
+					continue;
+				}
+				if (parameter.mode === 'combo') {
+					if (videoParams.detail[parameter.parameter] != '默认' && videoParams.detail[parameter.parameter] != '自动') {
+						ret.push('-' + parameter.parameter);
+						ret.push(videoParams.detail[parameter.parameter]);
+					}
+					// 检查参数项是否有 strict2 标记
+					const item = parameter.items.find((item) => item.value === videoParams.detail[parameter.parameter]);
+					if (item?.strict2) {
+						strict2 = true;
+					}
+				} else if (parameter.mode == 'slider') {
+					ret.push('-' + parameter.parameter);
+					const floatValue = videoParams.detail[parameter.parameter];
+					const value = parameter.valueToParam ? parameter.valueToParam(floatValue) : floatValue;
+					ret.push(value);
+				} else if (parameter.mode === 'switch') {
+					if (videoParams.detail[parameter.parameter] !== undefined) {
+						ret.push('-' + parameter.parameter);
+						ret.push(videoParams.detail[parameter.parameter]);
+					}
+				} else if (parameter.mode === 'text') {
+					if (videoParams.detail[parameter.parameter] && videoParams.detail[parameter.parameter] != '默认' && videoParams.detail[parameter.parameter] != '自动') {
+						ret.push('-' + parameter.parameter);
+						ret.push(videoParams.detail[parameter.parameter]);
+					}
+				}
+			}
+							// 调试用↓
+							// ret.push('-threads')
+							// ret.push('1')
+							// 调试用↑
+			const ratecontrolItem = (vcodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === videoParams.ratecontrol) as any;
 			if (ratecontrolItem) {
 				const ratecontrol = ratecontrolItem.extra as RateControl;
 				// 计算值
 				const floatValue = videoParams.ratevalue;
-				const value = (() => {
-					const vtt = ratecontrol.valueToDisplay;
-					if (vtt instanceof Function) {
-						return vtt(floatValue);
+				const value = ratecontrol.valueToParam(floatValue);
+				// 将值插入参数列表中
+				for (const item of ratecontrol.cmd) {
+					if (item === VALUE) {
+						ret.push(value);
 					} else {
-						if (vtt.type === 'bitrate') {
-							const bps = Math.round(vtt.base * 2 ** (floatValue as number));
-							if (window.frontendSettings.useIEC) {
-								if (bps >= 10 * 1024 ** 2) {
-									return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
-								} else {
-									return (bps / 1024).toFixed(0) + ' kibps';
-								}
-							} else {
-								if (bps >= 10 * 1000 ** 2) {
-									return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
-								} else {
-									return (bps / 1000).toFixed(0) + ' kbps';
-								}
-							}
-						} else if (vtt.type === 'integer') {
-							return floatValue + '';
-						} else if (vtt.type === 'revertInteger') {
-							return ratecontrol.max - +floatValue + '';
-						}
+						ret.push(item);
 					}
-				})();
-				ret = { mode: ratecontrolItem.value, value };
+				}
 			}
+			if (strict2) {
+				ret.push('-strict');
+				ret.push('-2');
+			}
+			// 设置通用参数
+			if (videoParams.resolution != '不改变') {
+				ret.push('-s');
+				ret.push(videoParams.resolution);
+			}
+			if (videoParams.framerate != '不改变') {
+				if (videoParams.framerate.includes('i') && videoParams.framerate.match(/^\d+(.\d+)?i?$/)) {
+					const fieldrate = Number(videoParams.framerate.match(/^(\d+(.\d+)?)/)[0]);
+					ret.push('-r');
+					ret.push(fieldrate / 2);	
+					flags += '+ilme+ildct';
+				} else {
+					ret.push('-r');
+					ret.push(videoParams.framerate);
+				}
+			}
+			if (flags) {
+				ret.push('-flags:v');
+				ret.push(flags);
+			}
+		}
+	} // 如果编码为自动，则不设置 vcodec 参数，返回空 Array
+	if (videoParams.custom) {
+		ret.push(...videoParams.custom.split(' '));
+	}
+	return ret;
+}
+
+// 获取 ratecontrol 方面的参数，主要是给 taskitem 用
+export function getVideoRateControlParam(videoParams: OutputParams_video) {
+	let ret = {
+		mode: '-',
+		value: '-'
+	};
+	if (videoParams.vcodec == '禁用' || videoParams.vcodec == 'copy' || videoParams.vcodec == '自动') {
+		return ret;
+	} else {
+		const vcodecItem = getMenuItemByValue(builtInVcodecs, videoParams.vcodec) as any;
+		const vcodecDetail = (vcodecItem?.extra) as VCodecDetail;
+		if (!vcodecDetail || !vcodecDetail.rateControl?.length) {
 			return ret;
 		}
+		// 找到 ratecontrol 参数
+		const ratecontrolItem = vcodecDetail.rateControl.find((item) => {
+			return item.type === 'normal' && item.value == videoParams.ratecontrol;
+		}) as any;
+		if (ratecontrolItem) {
+			const ratecontrol = ratecontrolItem.extra as RateControl;
+			// 计算值
+			const floatValue = videoParams.ratevalue;
+			const value = (() => {
+				const vtt = ratecontrol.valueToDisplay;
+				if (vtt instanceof Function) {
+					return vtt(floatValue);
+				} else {
+					if (vtt.type === 'bitrate') {
+						const bps = Math.round(vtt.base * 2 ** (floatValue as number));
+						if (window.frontendSettings.useIEC) {
+							if (bps >= 10 * 1024 ** 2) {
+								return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
+							} else {
+								return (bps / 1024).toFixed(0) + ' kibps';
+							}
+						} else {
+							if (bps >= 10 * 1000 ** 2) {
+								return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
+							} else {
+								return (bps / 1000).toFixed(0) + ' kbps';
+							}
+						}
+					} else if (vtt.type === 'integer') {
+						return floatValue + '';
+					} else if (vtt.type === 'revertInteger') {
+						return ratecontrol.max - +floatValue + '';
+					}
+				}
+			})();
+			ret = { mode: ratecontrolItem.value, value };
+		}
+		return ret;
 	}
 }
-export { vcodecsList, allVcodecsList, resolution, framerate, generator }

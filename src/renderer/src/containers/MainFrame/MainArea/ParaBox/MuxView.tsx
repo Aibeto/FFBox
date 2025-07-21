@@ -1,9 +1,11 @@
-import { computed, defineComponent } from 'vue';
+import { computed, defineComponent, ref } from 'vue';
 import { allMuxers, builtInMuxers, Muxer, keepFileTimeList, keepMeatadataList } from '@common/params/formats'
 import { durationFixer, durationValidator, getValidator, notEmptyValidator } from '../../../../components/validatorAndFixer';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
 import { renderDetailParameters } from './utils';
+import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrapper.vue';
+import Button, { ButtonType } from '@renderer/components/Button/Button';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
@@ -17,6 +19,7 @@ interface Props {
 
 const MuxView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
+	const showDetailParams = ref(true);
 
 	const muxParams = computed(() => appStore.globalParams.outputs[props.editingOutputIndex]?.mux);
 	
@@ -65,6 +68,13 @@ const MuxView = defineComponent((props: Props) => {
 		appStore.applyParameters();
 	}
 
+	const handleApplyToAll = () => {
+		const params = muxParams.value;
+		for (const outputParams of appStore.globalParams.outputs) {
+			outputParams.mux = JSON.parse(JSON.stringify(params));
+		}
+	};
+
 	return () => muxParams.value && muxContainsInOutput.value ? (
 		<div class={style.container}>
 			<BoxedDropdownInput title="容器/格式" text={muxParams.value.format} list={combinedMuxersList.value} onChange={(value: string) => handleChange('format', value)} />
@@ -80,10 +90,22 @@ const MuxView = defineComponent((props: Props) => {
 			)}
 			<BoxedNormalInput title="自定义参数" value={muxParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 			{muxParams.value.format !== '无' && (
-				<>
-					<div class={style.belowDetail}>以下为从 ffmpeg 中获取的详细参数</div>
+				<AutoSizeWrapper class={style.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
+					<div class={style.bar}>
+						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
+					</div>
 					{renderDetailParameters(muxer.value?.parameters, muxParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
-				</>
+					<div class={style.bar}>
+						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
+					</div>
+				</AutoSizeWrapper>
+			)}
+			{appStore.globalParams.outputs.length > 1 && (
+				<div style={{ margin: '12px' }}>
+					<Button onClick={handleApplyToAll}>
+						应用封装参数到全部输出
+					</Button>
+				</div>			
 			)}
 		</div>
 	) : (
