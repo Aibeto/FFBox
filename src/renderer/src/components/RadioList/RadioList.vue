@@ -75,7 +75,7 @@ const handleConfirm = (item: Props['list'][number], value: string, index: number
 				aria-label="删除此项"
 				@click="() => (console.log('delete'), (props.onDelete || (() => {}))(`${item.value}`, index))"
 			>
-				<img src="@renderer/assets/mainArea/paraBox/×.svg?url" alt="">
+				<img src="@renderer/assets/×.svg?url" alt="">
 			</button>
 		</button>
 	</div>

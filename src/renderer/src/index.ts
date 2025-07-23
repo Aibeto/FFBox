@@ -1,5 +1,5 @@
 import { createApp } from 'vue';
-import App from './App.vue';
+import App from './App/App.vue';
 // import './samples/node-api'
 import { createPinia, setActivePinia } from 'pinia';
 

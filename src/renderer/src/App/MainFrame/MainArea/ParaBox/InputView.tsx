@@ -1,0 +1,374 @@
+import { computed, defineComponent, ref, Transition, TransitionGroup } from 'vue';
+import { deleteNode } from '@common/params/filter';
+import InputAutoSize from '@renderer/components/InputAutoSize/InputAutoSize.vue';
+import { durationFixer, durationValidator } from '../../../../components/validatorAndFixer';
+import { hwaccels, builtInDemuxers, allDemuxers, Demuxer } from '@common/params/formats'
+import { getMenuItemByValue } from '@common/menu';
+import { renderDetailParameters } from './utils';
+import { useAppStore } from '@renderer/stores/appStore';
+import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrapper.vue';
+import Button, { ButtonType } from '@renderer/components/Button/Button';
+import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
+import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
+import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
+import DropdownInput from '@renderer/components/DropdownInput/DropdownInput.vue';
+import IconDelete from '@renderer/assets/×.svg?component';
+import ImageFind from './find.svg?component';
+import style from './InputView.module.less';
+import WaveGrid from './WaveGrid.vue';
+
+interface Props {}
+
+const InputView = defineComponent((props: Props) => {
+	const appStore = useAppStore();
+	const editingIndex = ref();
+	const centerDraggerPos = ref(50);
+	const showDetailParams = ref(true);
+	const draggingStatus = ref<{ count: number, fileCount: number }>();
+
+	const inputParams = computed(() => appStore.globalParams.input);
+
+	// 在一个输入文件都没有的情况下，应该编辑默认输入
+	const editingInput = computed(() => inputParams.value.files[editingIndex.value]);
+
+	const editingInputParams = computed(() => {
+		const demuxerName = inputParams.value.files[editingIndex.value]?.demuxer;
+		return demuxerName ? (getMenuItemByValue(allDemuxers, demuxerName) as any)?.extra as Demuxer : undefined;
+	});
+
+	// 往尾部新增一个空白项
+	const extendedFiles = computed(() => (
+		inputParams.value.files.concat({
+			filePath: '',
+			demuxer: '自动',
+			begin: '',
+			end: '',
+			custom: '',
+			hwaccel: '',
+			realtime: false,
+			detail: {},
+		})
+	));
+
+	const combinedDemuxersList = computed(() => (
+		[
+			...builtInDemuxers,
+			{ type: 'separator' },
+			{ type: 'submenu', label: '全部可用复用器', subMenu: [
+				{ type: 'normal', label: '从服务器获取', value: 'fetchFromService', icon: <span>🔄️</span>, onClick: () => {
+					appStore.fetchAVOptions();
+				} },
+				...(allDemuxers.length ? [{ type: 'separator' }] : []),
+				...allDemuxers,
+			] },
+		] as typeof builtInDemuxers
+	));
+
+	const listContainerStyle = computed(() => extendedFiles.value.length >= 11 ? " --itemPadding: 0 8px " : " --itemPadding: 4px 8px ")
+
+	const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
+		const draggerRect = event.target.getBoundingClientRect();
+		const mainAreaRect = event.target.parentElement.getBoundingClientRect();
+		const inElementX = ((event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX) - draggerRect.x;	// 鼠标在元素内的 X
+		// 添加鼠标事件捕获
+		let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
+			const mouseX = (event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX;	// 鼠标在窗口内的 X
+			let listPercent = (mouseX - inElementX + 8) / mainAreaRect.width;
+			listPercent = Math.min(Math.max(listPercent, 0.2), 0.8);
+			centerDraggerPos.value = listPercent * 100;
+		}
+		let handleMouseUp = () => {
+			window.removeEventListener('mousemove', handleMouseMove);
+			window.removeEventListener('touchmove', handleMouseMove);
+			window.removeEventListener('mouseup', handleMouseUp);
+			window.removeEventListener('touchend', handleMouseUp);
+		}
+		window.addEventListener('mousemove', handleMouseMove);
+		window.addEventListener('touchmove', handleMouseMove);
+		window.addEventListener('mouseup', handleMouseUp);
+		window.addEventListener('touchend', handleMouseUp);
+	};
+
+	const handleParamChange = (sName: string, value: any) => {
+		// @ts-ignore
+		inputParams.value.files[editingIndex.value][sName] = value;
+		appStore.applyParameters();
+	};
+	const handleDetailChange = (sName: string, value: any) => {
+		// @ts-ignore
+		inputParams.value.files[editingIndex.value].detail[sName] = value;
+		appStore.applyParameters();
+	};
+	const handleDetailApplyToAll = (index: number) => {
+		const files = inputParams.value.files;
+		for (let i = 0; i < files.length; i++) {
+			files[i].begin = files[index].begin;
+			files[i].end = files[index].end;
+			files[i].hwaccel = files[index].hwaccel;
+			files[i].realtime = files[index].realtime;
+			files[i].custom = files[index].custom;
+		}	
+	};
+
+	const handleFileNameChange = (index: number, value: string) => {
+		if (value === extendedFiles.value[index].filePath) {
+			return;	// 没有修改
+		}
+		if (index === extendedFiles.value.length - 1) {
+			if (value) {
+				// 新增文件
+				inputParams.value.files.push({
+					filePath: value,
+					demuxer: '自动',
+					begin: '',
+					end: '',
+					custom: '',
+					hwaccel: '自动',
+					realtime: false,
+					detail: {},
+				});
+				if (appStore.globalParams.filter.nodes.length) {
+					const nodes = appStore.globalParams.filter.nodes;
+					const maxNodeId = nodes.reduce((prev, curr) => curr.id > prev ? curr.id : prev, -1) ?? -1;
+					const lastInputNode = nodes.find((node) => node.name === `in_${index - 1}`);
+					nodes.push({
+						name: `in_${index}`,
+						id: maxNodeId + 1,
+						x: lastInputNode?.x ?? -180,
+						y: (lastInputNode?.y ?? -90) + 60,
+						params: {},
+					});
+				}
+			}
+		} else {
+			if (value) {
+				// 修改文件
+				inputParams.value.files[index].filePath = value;
+			} else {
+				// 删除文件
+				inputParams.value.files.splice(index, 1);
+			}
+		}
+		appStore.applyParameters();
+	};
+	const handleFileNameKeyDown = (event: KeyboardEvent) => {
+		if (event.key === 'ArrowUp' && editingIndex.value !== 0) {
+			if (event.altKey) {
+				handleFileMove(event as any, editingIndex.value, 'u');
+			} else {
+				editingIndex.value--;
+			}
+		} else if (event.key === 'ArrowDown' && editingIndex.value !== extendedFiles.value.length - 1) {
+			if (event.altKey) {
+				handleFileMove(event as any, editingIndex.value, 'd');
+			} else {
+				editingIndex.value++;
+			}
+		} else if (event.key === 'Delete' && event.altKey) {
+			handleFileDelete(event as any, editingIndex.value);
+			editingIndex.value = undefined;	// 不取消选择会触发奇怪的 bug，比如 InputAutoSize 会出现 resizeOvserver 已卸载、有 TransitionGroup 时一次性清空列表等等
+		}
+	};
+	const handleFileDelete = (event: MouseEvent, index: number) => {
+		event.stopPropagation();
+		inputParams.value.files.splice(index, 1);
+		if (appStore.globalParams.filter.nodes.length) {
+			const nodes = appStore.globalParams.filter.nodes;
+			const lines = appStore.globalParams.filter.lines;
+			const node = nodes.find((node) => node.name === `in_${index}`);
+			deleteNode(nodes, lines, node);
+		}
+		appStore.applyParameters();
+	};
+	const handleFileMove = (event: MouseEvent, index: number, direction: 'u' | 'd') => {
+		event.stopPropagation();
+		if (direction === 'u' && index > 0) {
+			const prevFile = inputParams.value.files[index - 1];
+			inputParams.value.files[index - 1] = inputParams.value.files[index];
+			inputParams.value.files[index] = prevFile;
+			if (editingIndex.value === index) editingIndex.value--;
+		} else if (direction === 'd' && index < inputParams.value.files.length - 1) {
+			const nextFile = inputParams.value.files[index + 1];
+			inputParams.value.files[index + 1] = inputParams.value.files[index];
+			inputParams.value.files[index] = nextFile;
+			if (editingIndex.value === index) editingIndex.value++;
+		}
+	};
+	const handleDragEnter = (event: DragEvent) => {
+		// event.preventDefault();
+		// console.log('dragenter', event);
+		if (draggingStatus.value) {
+			draggingStatus.value.count++;
+		} else {
+			let fileCount = 0;
+			for (const item of event.dataTransfer?.items || []) {
+				if (item.kind === 'file') {
+					fileCount++;
+				} else if (item.kind === 'string') {
+					fileCount = -1;	// 文本类需要 drop 时才能拿到数据
+					break;
+				}
+			}
+			draggingStatus.value = { count: 1, fileCount };
+		}
+	}
+	const handleDragLeave = (event: DragEvent) => {
+		if (draggingStatus.value) {
+			if (draggingStatus.value.count <= 1) {
+				draggingStatus.value = undefined;
+			} else {
+				draggingStatus.value.count--;
+			}
+		}
+	}
+	const handleDrop = (event: DragEvent) => {
+		event.preventDefault();
+		draggingStatus.value = undefined;
+		const urls = [];
+		if (event.dataTransfer?.files?.length) {
+			for (const file of event.dataTransfer?.files) {
+				file.path && urls.push(file.path);	// 网页版暂不支持此操作，等后续做资源传输列表相关功能再做
+			}
+		} else if (event.dataTransfer?.items) {
+			const textUrls = event.dataTransfer?.getData('text/plain').replaceAll('\r\n', '\n').split('\n');
+			urls.push(...textUrls.filter((url) => url.length));
+		}
+		for (const url of urls) {
+			if (appStore.globalParams.filter.nodes.length) {
+				const nodes = appStore.globalParams.filter.nodes;
+				const maxNodeId = nodes.reduce((prev, curr) => curr.id > prev ? curr.id : prev, -1) ?? -1;
+				const lastInputNode = nodes.find((node) => node.name === `in_${inputParams.value.files.length - 1}`);
+				nodes.push({
+					name: `in_${inputParams.value.files.length}`,
+					id: maxNodeId + 1,
+					x: lastInputNode?.x ?? -180,
+					y: (lastInputNode?.y ?? -90) + 60,
+					params: {},
+				});
+			}
+			inputParams.value.files.push({
+				filePath: url,
+				demuxer: '自动',
+				begin: '',
+				end: '',
+				custom: '',
+				hwaccel: '自动',
+				realtime: false,
+				detail: {},
+			});
+		}
+	};	
+
+	return () => (
+		<div class={style.container}>
+			<div class={style.left} style={{ width: `${centerDraggerPos.value}%`}}>
+				<div class={style.title}>输入列表</div>
+				<div
+					class={style.listContainer}
+					style={listContainerStyle.value}
+					onDrop={handleDrop}
+					onDragenter={handleDragEnter}
+					onDragover={(e) => e.preventDefault()}
+					onDragleave={handleDragLeave}
+				>
+					<TransitionGroup
+						moveClass={style.listItemMove}
+						enterActiveClass={style.listItemMove}
+						leaveActiveClass={`${style.listItemMove} ${style.listItemLeaveActive}`}
+						enterFromClass={style.listItemFromTo}
+						leaveToClass={style.listItemFromTo}
+					>
+						{extendedFiles.value.map((file, index) => (
+							<div key={file.filePath} class={`${style.listItem} ${editingIndex.value === index ? style.listItemSelected : ''}`} onClick={() => editingIndex.value = index}>
+								{file.filePath !== '' && (
+									<DropdownInput class={style.dropdownInput} list={combinedDemuxersList.value} text={file.demuxer} onChange={(value: string) => handleParamChange('demuxer', value)} />
+								)}
+								{editingIndex.value === index ? (
+									<InputAutoSize
+										class={style.inputAutoSize}
+										value={file.filePath}
+										onBlur={(value) => handleFileNameChange(index, value)}
+										onPressEnter={(value) => handleFileNameChange(index, value)}
+										onKeyDown={handleFileNameKeyDown}
+									/>
+								) : (
+									<span
+										style={file.filePath !== '' ? {} : { opacity: 0.5 }}
+									>
+										{file.filePath || '【拖入】或【点击填入】新文件/路径'}
+									</span>
+								)}
+								{file.filePath !== '' && (
+									<div class={style.operations}>
+										<button class={style.delete} aria-label="删除输入文件" onClick={(event) => handleFileDelete(event, index)}>
+											<IconDelete />
+										</button>
+										<button class={style.delete} aria-label="向前移动文件" onClick={(event) => handleFileMove(event, index, 'u')}>
+											⬆️
+										</button>
+										<button class={style.delete} aria-label="向后移动文件" onClick={(event) => handleFileMove(event, index, 'd')}>
+											⬇️
+										</button>
+									</div>
+								)}
+							</div>
+						))}
+					</TransitionGroup>
+					<Transition leaveFromClass={style.dragFrameLeaveFrom} leaveActiveClass={style.dragFrameLeaveActive} leaveToClass={style.dragFrameLeaveTo}>
+						{draggingStatus.value ? (
+							<WaveGrid class={style.dragFrame}>
+								<div class={style.inner}>
+									<p style={{ fontSize: '2em' }}>{Math.abs(draggingStatus.value.fileCount)}</p>
+									<p>{draggingStatus.value.fileCount === -1 ? '堆文本组成的多' : ''}个路径</p>
+								</div>
+							</WaveGrid>
+						) : null}
+					</Transition>
+				</div>
+			</div>
+			<div class={style.dragger} style={{ left: `${centerDraggerPos.value}%`}} onMousedown={handleCenterDraggerDragStart} onTouchstart={handleCenterDraggerDragStart} />
+			<div class={style.right} style={{ width: `${100 - centerDraggerPos.value}%`}}>
+				{editingInput.value ? (<>
+					<BoxedDropdownInput title="硬件解码" text={editingInput.value.hwaccel} list={hwaccels} onChange={(value: string) => handleParamChange('hwaccel', value)} />
+					<BoxedNormalInput title="剪辑起点" value={editingInput.value.begin} onChange={(value: string) => handleParamChange('begin', value)} validator={durationValidator} inputFixer={durationFixer} />
+					<BoxedNormalInput title="剪辑终点" value={editingInput.value.end} onChange={(value: string) => handleParamChange('end', value)} validator={durationValidator} inputFixer={durationFixer} />
+					<BoxedSwitch title="限制一倍速" checked={editingInput.value.realtime} onChange={(value: boolean) => handleParamChange('realtime', value)} />
+					<BoxedNormalInput title="自定义参数" value={editingInput.value.custom} onChange={(value: string) => handleParamChange('custom', value)} long={true} />
+					{(editingInputParams.value?.parameters || []).filter((parameter) => parameter.optional).length && (
+						<AutoSizeWrapper class={style.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
+							<div class={style.bar}>
+								<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
+							</div>
+							{renderDetailParameters(editingInputParams.value?.parameters, inputParams.value.files[editingIndex.value].detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
+							<div class={style.bar}>
+								<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
+							</div>
+						</AutoSizeWrapper>
+					) || null}
+					<div style={{ margin: '12px' }}>
+						<Button onClick={() => handleDetailApplyToAll(editingIndex.value)}>
+							应用参数到全部输入
+						</Button>
+					</div>
+				</>) : (
+					inputParams.value.files.length ? (
+						<div>
+							<p style={{ fontSize: '3em', margin: '0 0 0.5em' }}>👈</p>
+							<p>请选择一个输入文件</p>
+						</div>
+					) : (
+						<div>
+							<ImageFind width={128} />
+							<p>巧妇难为无米之炊～</p>
+							<p>请先在左边的列表【拖入】或【填入】至少 1 个路径</p>
+						</div>
+					)
+				)}
+			</div>
+		</div>
+	);
+}, {
+	props: [],
+});
+
+export default InputView;

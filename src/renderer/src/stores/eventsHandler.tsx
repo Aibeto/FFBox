@@ -6,8 +6,8 @@ import { dashboardTimer, overallProgressTimer } from "@renderer/common/dashboard
 import { useAppStore } from "./appStore";
 import Popup from "@renderer/components/Popup/Popup";
 import Msgbox from "@renderer/components/Msgbox/Msgbox";
-import IconExitConfirm from "@renderer/assets/exitConfirm.svg";
 import { ButtonType } from "@renderer/components/Button/Button";
+import ImageExitConfirm from "./exitConfirm.svg";
 
 // #region server events
 
@@ -222,7 +222,7 @@ export function handleCloseConfirm(localServer?: Server) {
             Msgbox({
                 container: document.body,
                 // container: containerRef.value,
-                image: <IconExitConfirm />,
+                image: <ImageExitConfirm />,
                 title: '要退出吗？',
                 content: `本地服务器还有 ${queueTaskCount} 个任务未完成，退出将会强制停止任务哦～`,
                 buttons: [
