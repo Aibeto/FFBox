@@ -10,7 +10,7 @@ import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import { posIntegerFixer } from "@renderer/components/validatorAndFixer";
 import { ButtonType } from "../Button/Button";
 import Msgbox from "../Msgbox/Msgbox";
-import style from './ServerConfig.module.less';
+import css from './ServerConfig.module.less';
 
 export function showServerConfig(serverId: string) {
 	let compFuncs: any;
@@ -76,7 +76,7 @@ const Comp = defineComponent((props: P) => {
     });
 
 	return () => (
-		<div class={style.serverConfig}>
+		<div class={css.serverConfig}>
 			<BoxedNormalInput
 				title="同时转码任务数量" value={maxThreadsValue.value} onChange={(value: string) => maxThreadsValue.value = value} inputFixer={posIntegerFixer} placeholder="1"
 				{ ...useTooltip(`开始转码队列后，会使所有未完成任务进入排队状态，并持续挑选最靠前的任务开始运行。同时运行的任务数量受此控制${maxThreadsLimit.value ? `\n（您的用户等级最高支持同时运行 ${maxThreadsLimit.value} 个任务）` : ''}`, 't') }

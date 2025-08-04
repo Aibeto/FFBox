@@ -1,7 +1,7 @@
 import { FunctionalComponent, computed, ref, Transition, h } from 'vue';
 import { MsgboxOptions } from './Msgbox';
 import Button from '@renderer/components/Button/Button';
-import style from './MsgboxComponent.module.less';
+import css from './MsgboxComponent.module.less';
 
 interface Props extends MsgboxOptions {
     onClose: () => void;	// 由本组件调用，外部将本组件销毁
@@ -58,19 +58,19 @@ const MsgboxComponent: FunctionalComponent<Props> = (props) => {
 	};
 
 	return (
-		<dialog class={style.dialog} ref={dialogRef}>
+		<dialog class={css.dialog} ref={dialogRef}>
 			<Transition
 				// name={style.bganimate}
 				on-after-leave={() => {
 					document.removeEventListener('keypress', handleKeyPress);
 					props.onClose();
 				}}
-				enterActiveClass={style['bganimate-enter-active']}
-				leaveActiveClass={style['bganimate-leave-active']}
+				enterActiveClass={css['bganimate-enter-active']}
+				leaveActiveClass={css['bganimate-leave-active']}
 			>
 				{show.value && (
 					<div
-						class={style.background}
+						class={css.background}
 						onMousedown={() => backgroundMouseDown.value = true}
 						onMouseup={() => backgroundMouseDown.value = false}
 					/>
@@ -78,30 +78,30 @@ const MsgboxComponent: FunctionalComponent<Props> = (props) => {
 			</Transition>
 			<Transition
 				// name={style.boxanimate}
-				enterFromClass={style['boxanimate-enter-from']}
-				enterActiveClass={style['boxanimate-enter-active']}
-				enterToClass={style['boxanimate-enter-to']}
-				leaveFromClass={style['boxanimate-leave-from']}
-				leaveActiveClass={style['boxanimate-leave-active']}
-				leaveToClass={style['boxanimate-leave-to']}
+				enterFromClass={css['boxanimate-enter-from']}
+				enterActiveClass={css['boxanimate-enter-active']}
+				enterToClass={css['boxanimate-enter-to']}
+				leaveFromClass={css['boxanimate-leave-from']}
+				leaveActiveClass={css['boxanimate-leave-active']}
+				leaveToClass={css['boxanimate-leave-to']}
 			>
 				{show.value && (
-					<div class={style.box} style={mouseDownTransformStyle.value}>
+					<div class={css.box} style={mouseDownTransformStyle.value}>
 						{props.image && (
-							<div class={style.image}>
+							<div class={css.image}>
 								{props.image}
 							</div>
 						)}
 						{props.title && (
-							<div class={style.title}>{ props.title }</div>
+							<div class={css.title}>{ props.title }</div>
 						)}
 						{props.content && (
-							<div class={style.content}>
+							<div class={css.content}>
 								{ typeof props.content === 'string' ? props.content : h(props.content) }
 							</div>
 						)}
 						{props.buttons && (
-							<div class={style.buttons}>
+							<div class={css.buttons}>
 								{props.buttons.map((button) => (
 									<Button
 										type={button.type}

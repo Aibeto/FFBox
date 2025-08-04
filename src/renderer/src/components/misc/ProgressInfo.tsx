@@ -6,7 +6,7 @@ import { calcDashboard } from "@renderer/common/dashboardCalc";
 import { getOutputDuration } from "@common/utils";
 import Msgbox from "../Msgbox/Msgbox";
 import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
-import style from './ProgressInfo.tsx.module.less';
+import css from './ProgressInfo.tsx.module.less';
 
 type ChartType = 'progress' | 'size' | 'bitrate' | 'speed' | 'transferProgress' | 'transferSpeed';
 
@@ -465,14 +465,14 @@ const Comp = defineComponent((props: P) => {
 	});
 
 	return () => (
-		<div class={style.container}>
+		<div class={css.container}>
 			{/* {task.dashboard_smooth.progress}<br />
 			{totalTime_smooth.value}<br />
 			{task.progressLog.elapsed}__{task.progressLog.lastPaused}__{task.progressLog.lastStarted}__<br /> */}
-			<div class={style.canvasContainer}>
+			<div class={css.canvasContainer}>
 				<canvas ref={canvasRef} />
 			</div>
-			<RadioList class={style.radioList} list={selectionList.value} value={type.value} onChange={(value: any) => type.value = value} />
+			<RadioList class={css.radioList} list={selectionList.value} value={type.value} onChange={(value: any) => type.value = value} />
 		</div>
 	);
 }, { props: ['taskId', 'type'] });

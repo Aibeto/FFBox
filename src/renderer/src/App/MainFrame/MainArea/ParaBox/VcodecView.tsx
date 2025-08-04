@@ -12,9 +12,8 @@ import Button, { ButtonType } from '@renderer/components/Button/Button';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
-import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import ImageFind from './find.svg?component';
-import style from './index.module.less';
+import css from './index.module.less';
 
 interface Props {
 	editingOutputIndex: number;
@@ -167,7 +166,7 @@ const VcodecView = defineComponent((props: Props) => {
 
 	// console.log(vcodec.value?.parameters);
 	return () => videoParams.value && videoContainsInOutput.value ? (
-		<div class={style.container}>
+		<div class={css.container}>
 			<BoxedDropdownInput title="视频编码器" text={videoParams.value.vcodec} list={combinedVcodecsList.value} onChange={(value: string) => handleChange('vcodec', value)} />
 			{['禁用', 'copy'].indexOf(videoParams.value.vcodec) === -1 && (
 				<>
@@ -194,12 +193,12 @@ const VcodecView = defineComponent((props: Props) => {
 			)}
 			<BoxedNormalInput title="自定义参数" value={videoParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 			{(vcodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
-				<AutoSizeWrapper class={style.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
-					<div class={style.bar}>
+				<AutoSizeWrapper class={css.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
+					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>
 					{renderDetailParameters(vcodec.value?.parameters, videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
-					<div class={style.bar}>
+					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>
 				</AutoSizeWrapper>
@@ -213,10 +212,10 @@ const VcodecView = defineComponent((props: Props) => {
 			)}
 		</div>
 	) : (
-		<div class={style.noOutput}>
-			<div class={style.box}>
+		<div class={css.noOutput}>
+			<div class={css.box}>
 				<ImageFind />
-				<div class={style.description}>
+				<div class={css.description}>
 					<p>您正在编辑【输出 {props.editingOutputIndex}】的视频配置</p>
 					<p>但【输出文件 {props.editingOutputIndex}】节点在滤镜图中不存在或未连接任何输入</p>
 					<p>请先在“滤镜”面板中为该节点建立连线</p>

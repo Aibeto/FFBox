@@ -1,6 +1,6 @@
 import { StyleValue } from 'vue';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
-import styles from './tooltipUtil.module.less';
+import css from './tooltipUtil.module.less';
 
 export function useTooltip(content: string, position?: 'br' | 'r' | 't' | 'tl' | 'tr' | 'mtl', styleName: 'small' | 'large' = 'small') {
 	return {
@@ -28,7 +28,7 @@ export function useTooltip(content: string, position?: 'br' | 'r' | 't' | 'tl' |
 					style = { top: `${rect.top + rect.height}px`, right: `${window.innerWidth - rect.right}px` };
 					break;
 			}
-			Tooltip.show({ content, style, class: styleName === 'small' && styles.smallTip });
+			Tooltip.show({ content, style, class: styleName === 'small' && css.smallTip });
 		},
 		onMouseleave: (e: MouseEvent) => {
 			Tooltip.hide();

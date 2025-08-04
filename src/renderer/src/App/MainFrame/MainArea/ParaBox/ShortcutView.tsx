@@ -1,9 +1,9 @@
 import { FunctionalComponent, ref, VNodeRef } from 'vue';
+import { NotificationLevel } from '@common/types';
 import { useAppStore } from '@renderer/stores/appStore';
-import style from './index.module.less';
 import RadioList from '@renderer/components/RadioList/RadioList.vue'
 import Popup from '@renderer/components/Popup/Popup';
-import { NotificationLevel } from '@common/types';
+import css from './index.module.less';
 
 interface Props {}
 
@@ -20,7 +20,7 @@ const ShortcutView: FunctionalComponent<Props> = (props) => {
 		{ value: '', editable: true },
 	];
 	return (
-		<div class={style.container} ref={containerRef}>
+		<div class={css.container} ref={containerRef}>
 			<RadioList
 				list={radioListList}
 				value={appStore.presetName}

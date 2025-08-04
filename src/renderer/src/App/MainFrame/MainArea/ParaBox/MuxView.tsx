@@ -8,10 +8,8 @@ import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrappe
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
-import BoxedSlider from '@renderer/components/Slider/BoxedSlider.vue';
-import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue'
 import ImageFind from './find.svg?component';
-import style from './index.module.less';
+import css from './index.module.less';
 
 interface Props {
 	editingOutputIndex: number;
@@ -76,7 +74,7 @@ const MuxView = defineComponent((props: Props) => {
 	};
 
 	return () => muxParams.value && muxContainsInOutput.value ? (
-		<div class={style.container}>
+		<div class={css.container}>
 			<BoxedDropdownInput title="容器/格式" text={muxParams.value.format} list={combinedMuxersList.value} onChange={(value: string) => handleChange('format', value)} />
 			{/* <BoxedSwitch title="元数据前移" checked={muxParams.value.moveflags} onChange={(value: boolean) => handleChange('moveflags', value)} /> */}
 			<BoxedNormalInput title="剪辑起点" value={muxParams.value.begin} onChange={(value: string) => handleChange('begin', value)} validator={durationValidator} inputFixer={durationFixer} />
@@ -90,12 +88,12 @@ const MuxView = defineComponent((props: Props) => {
 			)}
 			<BoxedNormalInput title="自定义参数" value={muxParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
 			{muxParams.value.format !== '无' && (
-				<AutoSizeWrapper class={style.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
-					<div class={style.bar}>
+				<AutoSizeWrapper class={css.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
+					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>
 					{renderDetailParameters(muxer.value?.parameters, muxParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
-					<div class={style.bar}>
+					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>
 				</AutoSizeWrapper>
@@ -109,10 +107,10 @@ const MuxView = defineComponent((props: Props) => {
 			)}
 		</div>
 	) : (
-		<div class={style.noOutput}>
-			<div class={style.box}>
+		<div class={css.noOutput}>
+			<div class={css.box}>
 				<ImageFind />
-				<div class={style.description}>
+				<div class={css.description}>
 					<p>您正在编辑【输出 {props.editingOutputIndex}】的封装配置</p>
 					<p>但【输出文件 {props.editingOutputIndex}】节点在滤镜图中不存在或未连接任何输入</p>
 					<p>请先在“滤镜”面板中为该节点建立连线</p>

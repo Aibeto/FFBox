@@ -1,6 +1,6 @@
 import { FunctionalComponent, h } from "vue";
 import { useAppStore } from '@renderer/stores/appStore';
-import style from './Button.module.less';
+import css from './Button.module.less';
 
 export interface ButtonProps {
 	disabled?: boolean;
@@ -16,22 +16,22 @@ export enum ButtonType {
 };
 
 const getButtonClass = (type?: ButtonType, disabled?: boolean, size?: ButtonProps['size']) => {
-	let classText = style['button'];
+	let classText = css['button'];
 	classText += ' ';
 	if (type === ButtonType.Primary) {
-		classText += style['primary'];
+		classText += css['primary'];
 	} else if (type === ButtonType.Danger) {
-		classText += style['danger'];
+		classText += css['danger'];
 	} else if (type === ButtonType.NoBg) {
-		classText += style['noBg'];
+		classText += css['noBg'];
 	}
 	classText += ' ';
 	if (size) {
-		classText += style[size];
+		classText += css[size];
 	}
 	classText += ' ';
 	if (disabled) {
-		classText += style['disabled'];
+		classText += css['disabled'];
 	}
 	return classText;
 };

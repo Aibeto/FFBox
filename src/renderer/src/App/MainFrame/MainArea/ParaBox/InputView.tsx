@@ -14,8 +14,8 @@ import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import DropdownInput from '@renderer/components/DropdownInput/DropdownInput.vue';
 import IconDelete from '@renderer/assets/×.svg?component';
 import ImageFind from './find.svg?component';
-import style from './InputView.module.less';
 import WaveGrid from './WaveGrid.vue';
+import css from './InputView.module.less';
 
 interface Props {}
 
@@ -260,11 +260,11 @@ const InputView = defineComponent((props: Props) => {
 	};	
 
 	return () => (
-		<div class={style.container}>
-			<div class={style.left} style={{ width: `${centerDraggerPos.value}%`}}>
-				<div class={style.title}>输入列表</div>
+		<div class={css.container}>
+			<div class={css.left} style={{ width: `${centerDraggerPos.value}%`}}>
+				<div class={css.title}>输入列表</div>
 				<div
-					class={style.listContainer}
+					class={css.listContainer}
 					style={listContainerStyle.value}
 					onDrop={handleDrop}
 					onDragenter={handleDragEnter}
@@ -272,20 +272,20 @@ const InputView = defineComponent((props: Props) => {
 					onDragleave={handleDragLeave}
 				>
 					<TransitionGroup
-						moveClass={style.listItemMove}
-						enterActiveClass={style.listItemMove}
-						leaveActiveClass={`${style.listItemMove} ${style.listItemLeaveActive}`}
-						enterFromClass={style.listItemFromTo}
-						leaveToClass={style.listItemFromTo}
+						moveClass={css.listItemMove}
+						enterActiveClass={css.listItemMove}
+						leaveActiveClass={`${css.listItemMove} ${css.listItemLeaveActive}`}
+						enterFromClass={css.listItemFromTo}
+						leaveToClass={css.listItemFromTo}
 					>
 						{extendedFiles.value.map((file, index) => (
-							<div key={file.filePath} class={`${style.listItem} ${editingIndex.value === index ? style.listItemSelected : ''}`} onClick={() => editingIndex.value = index}>
+							<div key={file.filePath} class={`${css.listItem} ${editingIndex.value === index ? css.listItemSelected : ''}`} onClick={() => editingIndex.value = index}>
 								{file.filePath !== '' && (
-									<DropdownInput class={style.dropdownInput} list={combinedDemuxersList.value} text={file.demuxer} onChange={(value: string) => handleParamChange('demuxer', value)} />
+									<DropdownInput class={css.dropdownInput} list={combinedDemuxersList.value} text={file.demuxer} onChange={(value: string) => handleParamChange('demuxer', value)} />
 								)}
 								{editingIndex.value === index ? (
 									<InputAutoSize
-										class={style.inputAutoSize}
+										class={css.inputAutoSize}
 										value={file.filePath}
 										onBlur={(value) => handleFileNameChange(index, value)}
 										onPressEnter={(value) => handleFileNameChange(index, value)}
@@ -299,14 +299,14 @@ const InputView = defineComponent((props: Props) => {
 									</span>
 								)}
 								{file.filePath !== '' && (
-									<div class={style.operations}>
-										<button class={style.delete} aria-label="删除输入文件" onClick={(event) => handleFileDelete(event, index)}>
+									<div class={css.operations}>
+										<button class={css.delete} aria-label="删除输入文件" onClick={(event) => handleFileDelete(event, index)}>
 											<IconDelete />
 										</button>
-										<button class={style.delete} aria-label="向前移动文件" onClick={(event) => handleFileMove(event, index, 'u')}>
+										<button class={css.delete} aria-label="向前移动文件" onClick={(event) => handleFileMove(event, index, 'u')}>
 											⬆️
 										</button>
-										<button class={style.delete} aria-label="向后移动文件" onClick={(event) => handleFileMove(event, index, 'd')}>
+										<button class={css.delete} aria-label="向后移动文件" onClick={(event) => handleFileMove(event, index, 'd')}>
 											⬇️
 										</button>
 									</div>
@@ -314,10 +314,10 @@ const InputView = defineComponent((props: Props) => {
 							</div>
 						))}
 					</TransitionGroup>
-					<Transition leaveFromClass={style.dragFrameLeaveFrom} leaveActiveClass={style.dragFrameLeaveActive} leaveToClass={style.dragFrameLeaveTo}>
+					<Transition leaveFromClass={css.dragFrameLeaveFrom} leaveActiveClass={css.dragFrameLeaveActive} leaveToClass={css.dragFrameLeaveTo}>
 						{draggingStatus.value ? (
-							<WaveGrid class={style.dragFrame}>
-								<div class={style.inner}>
+							<WaveGrid class={css.dragFrame}>
+								<div class={css.inner}>
 									<p style={{ fontSize: '2em' }}>{Math.abs(draggingStatus.value.fileCount)}</p>
 									<p>{draggingStatus.value.fileCount === -1 ? '堆文本组成的多' : ''}个路径</p>
 								</div>
@@ -326,8 +326,8 @@ const InputView = defineComponent((props: Props) => {
 					</Transition>
 				</div>
 			</div>
-			<div class={style.dragger} style={{ left: `${centerDraggerPos.value}%`}} onMousedown={handleCenterDraggerDragStart} onTouchstart={handleCenterDraggerDragStart} />
-			<div class={style.right} style={{ width: `${100 - centerDraggerPos.value}%`}}>
+			<div class={css.dragger} style={{ left: `${centerDraggerPos.value}%`}} onMousedown={handleCenterDraggerDragStart} onTouchstart={handleCenterDraggerDragStart} />
+			<div class={css.right} style={{ width: `${100 - centerDraggerPos.value}%`}}>
 				{editingInput.value ? (<>
 					<BoxedDropdownInput title="硬件解码" text={editingInput.value.hwaccel} list={hwaccels} onChange={(value: string) => handleParamChange('hwaccel', value)} />
 					<BoxedNormalInput title="剪辑起点" value={editingInput.value.begin} onChange={(value: string) => handleParamChange('begin', value)} validator={durationValidator} inputFixer={durationFixer} />
@@ -335,12 +335,12 @@ const InputView = defineComponent((props: Props) => {
 					<BoxedSwitch title="限制一倍速" checked={editingInput.value.realtime} onChange={(value: boolean) => handleParamChange('realtime', value)} />
 					<BoxedNormalInput title="自定义参数" value={editingInput.value.custom} onChange={(value: string) => handleParamChange('custom', value)} long={true} />
 					{(editingInputParams.value?.parameters || []).filter((parameter) => parameter.optional).length && (
-						<AutoSizeWrapper class={style.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
-							<div class={style.bar}>
+						<AutoSizeWrapper class={css.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
+							<div class={css.bar}>
 								<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 							</div>
 							{renderDetailParameters(editingInputParams.value?.parameters, inputParams.value.files[editingIndex.value].detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
-							<div class={style.bar}>
+							<div class={css.bar}>
 								<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 							</div>
 						</AutoSizeWrapper>

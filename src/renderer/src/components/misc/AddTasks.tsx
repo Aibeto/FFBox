@@ -4,8 +4,8 @@ import { useAppStore } from "@renderer/stores/appStore";
 // import RadioList, { Props as RadioListProps } from '@renderer/containers/MainFrame/MainArea/ParaBox/components/RadioList.vue';
 import Msgbox from "../Msgbox/Msgbox";
 import Button, { ButtonType } from '@renderer/components/Button/Button';
-import style from './AddTasks.module.less';
 import Popup from "../Popup/Popup";
+import css from './AddTasks.module.less';
 
 // const selectionList: RadioListProps['list'] = [
 // 	{ value: 'batch', caption: '分别处理' },
@@ -167,8 +167,8 @@ const Comp = defineComponent((props: P) => {
     });
 
 	return () => (
-		<div class={style.container}>
-			<div class={style.line1}>
+		<div class={css.container}>
+			<div class={css.line1}>
 				{nodeBridge.env === 'electron' ? (
 					<Button type={ButtonType.Primary} onClick={handleAddFilesButtonClick}>添加文件</Button> 
 				) : (

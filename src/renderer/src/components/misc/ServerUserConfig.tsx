@@ -1,5 +1,6 @@
 import { defineComponent, onMounted, ref } from "vue";
 import CryptoJS from 'crypto-js';
+import { randomString } from "@common/utils";
 import { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import { useTooltip } from "@renderer/common/tooltipUtil";
@@ -8,8 +9,7 @@ import Button from '@renderer/components/Button/Button';
 import { ButtonType } from "../Button/Button";
 import InputAutoSize from '@renderer/components/InputAutoSize/InputAutoSize.vue';
 import Msgbox from "../Msgbox/Msgbox";
-import style from './ServerUserConfig.module.less';
-import { randomString } from "@common/utils";
+import css from './ServerUserConfig.module.less';
 
 export function showServerUserConfig(serverId: string) {
 	let compFuncs: any;
@@ -113,7 +113,7 @@ const Comp = defineComponent((props: P) => {
 	});
 
 	return () => (
-		<div class={style.serverUserConfig}>
+		<div class={css.serverUserConfig}>
 			<table>
 				<colgroup>
 					<col style="width: 140px" />
@@ -142,7 +142,7 @@ const Comp = defineComponent((props: P) => {
 								</td>
 							) : (
 								user.username ? (
-									<td class={style.editable} onClick={() => handleEdit(lineIndex, 'username')}>{user.username}</td>
+									<td class={css.editable} onClick={() => handleEdit(lineIndex, 'username')}>{user.username}</td>
 								) : (
 									<td><font {...useTooltip('仅在本地模式下可以空账号登录。空账号即为管理员', 't')} style={{ opacity: 0.5 }}>（管理员空账号）</font></td>
 								)
@@ -157,7 +157,7 @@ const Comp = defineComponent((props: P) => {
 								</td>
 							) : (
 								<td onClick={() => handleEdit(lineIndex, 'passkey')}>
-									{user.passkey ? <a class={style.editable}>更改</a> : <a class={style.editable}>　+　</a>}
+									{user.passkey ? <a class={css.editable}>更改</a> : <a class={css.editable}>　+　</a>}
 								</td>
 							)}
 							{editingLineIndex.value === lineIndex && editingAttr.value === 'maxFunctionLevel' ? (
@@ -170,13 +170,13 @@ const Comp = defineComponent((props: P) => {
 								</td>
 							) : (
 								user.username ? (
-									<td class={style.editable} {...useTooltip('决定用户可用的功能范围。大于服务器自身等级的数字表示可使用服务器支持的全部功能范围。目前此功能无用', 't')} onClick={() => handleEdit(lineIndex, 'maxFunctionLevel')}>{user.maxFunctionLevel}</td>
+									<td class={css.editable} {...useTooltip('决定用户可用的功能范围。大于服务器自身等级的数字表示可使用服务器支持的全部功能范围。目前此功能无用', 't')} onClick={() => handleEdit(lineIndex, 'maxFunctionLevel')}>{user.maxFunctionLevel}</td>
 								) : (
 									<td>{user.maxFunctionLevel}</td>
 								)
 							)}
 							<td>
-								{user.username ? <a class={style.editable} onClick={() => handleDelete(lineIndex)}>删除</a> : ''}
+								{user.username ? <a class={css.editable} onClick={() => handleDelete(lineIndex)}>删除</a> : ''}
 							</td>
 						</tr>
 					))}

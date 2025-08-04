@@ -21,7 +21,7 @@ import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import Popup from '@renderer/components/Popup/Popup';
 import ImageFind from './find.svg?component';
-import style from './EffectView.module.less';
+import css from './EffectView.module.less';
 
 const RenameLinePanel = defineComponent((props: { line: FilterLine, isInput: boolean, originalValue: string, exportFunctions: (fs: any) => void }) => {
 	const inputValue = ref<string>('');
@@ -50,7 +50,7 @@ const RenameLinePanel = defineComponent((props: { line: FilterLine, isInput: boo
 	});
 
 	return () => props.isInput ? (
-		<div class={style.renamePanel}>
+		<div class={css.renamePanel}>
 			<DropdownInput
 				text={mediaTypeValue.value}
 				list={[
@@ -67,7 +67,7 @@ const RenameLinePanel = defineComponent((props: { line: FilterLine, isInput: boo
 			<NormalInput value={mediaIndexValue.value} onChange={(value) => mediaIndexValue.value = value} validator={numberValidator.integerEmptyable} placeholder="流编号（不填则代表第一个）" />
 		</div>
 	) : (
-		<div class={style.renamePanel}>
+		<div class={css.renamePanel}>
 			<NormalInput value={inputValue.value} onChange={(value) => inputValue.value = value} />
 		</div>
 	)
@@ -346,9 +346,9 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 	});
 
 	return () => (
-		<div class={style.filterDoc}>
+		<div class={css.filterDoc}>
 			{docFilterDetail.value ? (
-				<div class={style.content}>
+				<div class={css.content}>
 					{/* <div class={style.titleLine}>
 						<div class={style.title}>
 							<h3>
@@ -363,26 +363,26 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 							))}
 						</div>
 					</div> */}
-					<h3 class={style.titleLine}>
+					<h3 class={css.titleLine}>
 						{docFilterDetail.value.name}
 					</h3>
-					<div class={style.vline}>
-						<div class={style.lrLine}></div>
-						<button class={currentTab.value === 0 ? style.itemSelected : ''} onClick={() => currentTab.value = 0}>介绍</button>
+					<div class={css.vline}>
+						<div class={css.lrLine}></div>
+						<button class={currentTab.value === 0 ? css.itemSelected : ''} onClick={() => currentTab.value = 0}>介绍</button>
 						{docFilterDetail.value.params?.length ? (
-							<button class={currentTab.value === 1 ? style.itemSelected : ''} onClick={() => currentTab.value = 1}>参数</button>
+							<button class={currentTab.value === 1 ? css.itemSelected : ''} onClick={() => currentTab.value = 1}>参数</button>
 						) : null}
 						{docFilterDetail.value.examples?.length ? (
-							<button class={currentTab.value === 2 ? style.itemSelected : ''} onClick={() => currentTab.value = 2}>示例</button>
+							<button class={currentTab.value === 2 ? css.itemSelected : ''} onClick={() => currentTab.value = 2}>示例</button>
 						) : null}
-						<div class={style.lrLine}></div>
+						<div class={css.lrLine}></div>
 					</div>
 					{currentTab.value === 0 ? (
-						<div class={style.description}>
+						<div class={css.description}>
 							{docFilterDetail.value.description.map((line) => (
 								<p>{line}</p>
 							))}
-							<p class={style.ioDesc}>
+							<p class={css.ioDesc}>
 								{(() => {
 									const inputType = FFBoxFilterDetail.value.inputType;
 									const outputType = FFBoxFilterDetail.value.outputType;
@@ -441,12 +441,12 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 					<i>滤镜文档来自 ffmpeg.org 最新版本，滤镜配置来自 FFBoxService 调用的 ffmpeg 内置帮助文档。如有不一致请按您当前使用的 ffmpeg 为准。</i>
 				</div>
 			) : (
-				<div class={style.noDoc}>
+				<div class={css.noDoc}>
 					<ImageFind />
 					<Button size="large" disabled={fetching.value} onClick={() => handleGetDocs()}>
 						{html.value ? '刷新' : '下载'}
 					</Button>
-					<div class={style.description}>
+					<div class={css.description}>
 						{html.value ? <>
 							<p>您已下载 ffmpeg 官网的滤镜文档，但文档中并没有找到这个滤镜</p>
 							<p>有可能是文档格式发生了变化导致 FFBox 无法识别，或者缓存的是旧文档，或者 ffmpeg 官网发生了异常</p>
@@ -458,7 +458,7 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 					</div>
 				</div>
 			)}
-			<div class={style.actions}>
+			<div class={css.actions}>
 				<Button onClick={() => props.onClose()}>关闭</Button>
 				{docFilterDetail.value && <Button onClick={() => handleGetDocs()} disabled={fetching.value}>刷新文档</Button>}
 			</div>
@@ -1290,12 +1290,12 @@ const EffectView = defineComponent((props: Props) => {
 				}
 			};
 			return (
-				<div class={style.center} style={{ transform: canvasTransform.value }} ref={canvasRef}>
-					<div class={style.xline}></div>
-					<div class={style.yline}></div>
+				<div class={css.center} style={{ transform: canvasTransform.value }} ref={canvasRef}>
+					<div class={css.xline}></div>
+					<div class={css.yline}></div>
 					{nodes.value.map((node) => (
 						<div
-							class={`${style.node} ${selectedNode.value === node ? style.nodeSelected : ''}`}
+							class={`${css.node} ${selectedNode.value === node ? css.nodeSelected : ''}`}
 							style={{ left: `${node.x}px`, top: `${node.y}px`, height: `${getNodeHeight(node)}px` }}
 							onClick={(event) => handleNodeClick(event, node)}
 							onMousedown={(event) => handleNodeMouseDown(event, node)}
@@ -1303,21 +1303,21 @@ const EffectView = defineComponent((props: Props) => {
 							onContextmenu={(event) => handleNodeContextMenu(event, node)}
 							{...useTooltip(getNodeTooltip(node), 't')}
 						>
-							<div class={style.name} style={{ lineHeight: `${getNodeHeight(node)}px` }}>{node.name}</div>
-							<div class={style.inputList}>
+							<div class={css.name} style={{ lineHeight: `${getNodeHeight(node)}px` }}>{node.name}</div>
+							<div class={css.inputList}>
 								{getNodeInputPoints(node).map((point, i) => (
 									<div
-										class={style.port}
+										class={css.port}
 										data-type={point.type}
 										onMousedown={(event) => handlePortMouseDown(event, node, 'input', i)}
 										onTouchstart={(event) => handlePortMouseDown(event, node, 'input', i)}
 									/>
 								))}
 							</div>
-							<div class={style.outputList}>
+							<div class={css.outputList}>
 								{getNodeOutputPoints(node).map((point, i) => (
 									<div
-										class={style.port}
+										class={css.port}
 										data-type={point.type}
 										onMousedown={(event) => handlePortMouseDown(event, node, 'output', i)}
 										onTouchstart={(event) => handlePortMouseDown(event, node, 'output', i)}
@@ -1328,7 +1328,7 @@ const EffectView = defineComponent((props: Props) => {
 					))}
 					{lines.value.map((line, index) => (
 						<svg
-							class={style.line}
+							class={css.line}
 							data-type={line.type}
 							data-creating={line.invisiblePort ? 'T' : ''}
 							onClick={() => setTimeout(() => selectedNode.value = nodes.value.find((node) => node.id === line.prevNodeId), 0)}
@@ -1352,8 +1352,8 @@ const EffectView = defineComponent((props: Props) => {
 									<stop offset="60%" stop-color="currentColor" stop-opacity="1"/>
 								</linearGradient>
 							</defs>
-							<line class={style.invisibleLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} />
-							<line class={style.svgLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} stroke-dasharray="24 4" stroke-dashoffset="0" filter={`url(#filterLineShadow_${index})`}>
+							<line class={css.invisibleLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} />
+							<line class={css.svgLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} stroke-dasharray="24 4" stroke-dashoffset="0" filter={`url(#filterLineShadow_${index})`}>
 								<animate
 									attributeName="stroke-dashoffset"
 									values="0;-28"
@@ -1370,13 +1370,13 @@ const EffectView = defineComponent((props: Props) => {
 							{line.name && (
 								<>
 									<rect
-										class={style.invisibleRect}
+										class={css.invisibleRect}
 										x={`${line.prevXY[0]}px`}
 										y={`${line.prevXY[1]}px`}
 										style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
 									/>
 									<rect
-										class={style.rect}
+										class={css.rect}
 										x={`${line.prevXY[0]}px`}
 										y={`${line.prevXY[1]}px`}
 										style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
@@ -1395,10 +1395,10 @@ const EffectView = defineComponent((props: Props) => {
 					))}
 					{creatingFilterInCanvas.value && (
 						<div
-							class={`${style.node} ${style.nodeCreating}`}
+							class={`${css.node} ${css.nodeCreating}`}
 							style={{ left: `${creatingFilterInCanvas.value[0]}px`, top: `${creatingFilterInCanvas.value[1]}px`, height: `30px`, cursor: 'move' }}
 						>
-							<div class={style.name}>{creatingFilter.value[0].name}</div>
+							<div class={css.name}>{creatingFilter.value[0].name}</div>
 						</div>
 					)}
 				</div>
@@ -1410,10 +1410,10 @@ const EffectView = defineComponent((props: Props) => {
 
 	const renderDetailParameters = () => (
 		<>
-			<div class={style.title}>
+			<div class={css.title}>
 				<h3>
 					{!selectedNode.value.name.match(/^(in)|(out)_\d+/) && (
-						<div class={style.floatBtn}>
+						<div class={css.floatBtn}>
 							<Button size="small" onClick={() => showingDoc.value = showingDoc.value ? '' : selectedNode.value.name}>
 								{showingDoc.value ? '🌐 关闭文档' : '🌐 在线文档'}
 							</Button>
@@ -1422,7 +1422,7 @@ const EffectView = defineComponent((props: Props) => {
 					{selectedNode.value.name}
 				</h3>
 			</div>
-			<div class={style.content}>
+			<div class={css.content}>
 				{(selectedNode.value.detail?.options ?? []).map((option) => {
 					const parameter = parseSingleOption(option);
 					const params = selectedNode.value.params;
@@ -1478,10 +1478,10 @@ const EffectView = defineComponent((props: Props) => {
 					}
 				})}
 				{selectedNode.value.detail?.options && (
-					<div class={style.belowDetail}>以上为滤镜参数配置</div>
+					<div class={css.belowDetail}>以上为滤镜参数配置</div>
 				)}
 				{selectedNode.value.name.match(/^in_\d+$/) && (
-					<div class={style.noParams}>
+					<div class={css.noParams}>
 						输入文件：{appStore.globalParams.input.files[+selectedNode.value.name.match(/^in_(\d+)$/)[1]].filePath}<br />
 						请在输入面板中编辑输入文件
 					</div>
@@ -1503,13 +1503,13 @@ const EffectView = defineComponent((props: Props) => {
 					)
 				})()}
 				{selectedNode.value.nexts?.length ? (
-					<div class={style.outputs}>
+					<div class={css.outputs}>
 						{(() => {
 							const node = selectedNode.value;
 							const inputNodeIndexStr = node.name.match(/^in_\d+$/) ? node.name.match(/^in_(\d+)$/)[1] : undefined;
 							return node.nexts.map((next, index) => (
-								<div class={style.output}>
-									<div class={style.name}>
+								<div class={css.output}>
+									<div class={css.name}>
 										输出端口 {index}：<code>{next.name}</code>
 									</div>
 									<Button
@@ -1548,16 +1548,16 @@ const EffectView = defineComponent((props: Props) => {
 	);
 
 	return () => nodes.value.length ? (
-		<div class={style.container} data-color_theme={appStore.frontendSettings.colorTheme}>
-			<div class={style.toolBox} style={{ width: `${dragger1Pos.value}%`}}>
-				<div class={style.search}>
+		<div class={css.container} data-color_theme={appStore.frontendSettings.colorTheme}>
+			<div class={css.toolBox} style={{ width: `${dragger1Pos.value}%`}}>
+				<div class={css.search}>
 					<NormalInput placeholder='输入滤镜名搜索' onChange={(value) => filterText.value = value} />
 				</div>
-				<div class={style.filtersList}>
-					<div class={style.items}>
+				<div class={css.filtersList}>
+					<div class={css.items}>
 						{filteredFilterList.value.map((filter) => (
 							<div
-								class={style.item}
+								class={css.item}
 								onDblclick={() => handleFilterDblclick(filter)}
 								onMousedown={(event) => handleFilterMouseDown(event, filter)}
 								onTouchstart={(event) => handleFilterMouseDown(event, filter)}
@@ -1568,25 +1568,25 @@ const EffectView = defineComponent((props: Props) => {
 							</div>
 						))}
 					</div>
-					<div class={style.button}>
+					<div class={css.button}>
 						<Button onClick={() => appStore.fetchAVOptions()}>🔄️从服务器获取滤镜</Button>
 					</div>
 				</div>
-				<div class={style.operations}>
+				<div class={css.operations}>
 					<Button size='small' onClick={(event) => showHelp(event)}>帮助</Button>
 					<Button size='small' onClick={() => initNodes()}>重置</Button>
 					<Button size='small' onClick={() => addOutput()}>添加输出</Button>
 				</div>
-				<Transition enterFromClass={style.creatingFilterTransEnterFrom} enterToClass={style.creatingFilterTransEnterTo} leaveFromClass={style.creatingFilterTransLeaveFrom} leaveToClass={style.creatingFilterTransLeaveTo}>
+				<Transition enterFromClass={css.creatingFilterTransEnterFrom} enterToClass={css.creatingFilterTransEnterTo} leaveFromClass={css.creatingFilterTransLeaveFrom} leaveToClass={css.creatingFilterTransLeaveTo}>
 					{creatingFilter.value[0] && !creatingFilterInCanvas.value && (
-						<div class={style.creatingFilter} style={{ left: `${creatingFilter.value[1]}px`, top: `${creatingFilter.value[2]}px` }}>
+						<div class={css.creatingFilter} style={{ left: `${creatingFilter.value[1]}px`, top: `${creatingFilter.value[2]}px` }}>
 							{creatingFilter.value[0].name}
 						</div>
 					)}
 				</Transition>
 			</div>
-			<div class={style.dragger} style={{ left: `${dragger1Pos.value}%`}} onMousedown={(event) => handleCenterDraggerDragStart(event, 1)} onTouchstart={(event) => handleCenterDraggerDragStart(event, 1)} />
-			<div class={style.editor}
+			<div class={css.dragger} style={{ left: `${dragger1Pos.value}%`}} onMousedown={(event) => handleCenterDraggerDragStart(event, 1)} onTouchstart={(event) => handleCenterDraggerDragStart(event, 1)} />
+			<div class={css.editor}
 				style={{ width: `${dragger2Pos.value - dragger1Pos.value}%`, visibility: showingDoc.value ? 'hidden' : 'visible' }}
 				onClick={() => selectedNode.value = undefined}
 				onMousedown={handleCanvasMouseDown}
@@ -1596,14 +1596,14 @@ const EffectView = defineComponent((props: Props) => {
 				{renderCanvas()}
 			</div>
 			{showingDoc.value && (
-				<div class={style.docs} style={{ left: `${dragger1Pos.value}%`, width: `${dragger2Pos.value - dragger1Pos.value}%`}}>
+				<div class={css.docs} style={{ left: `${dragger1Pos.value}%`, width: `${dragger2Pos.value - dragger1Pos.value}%`}}>
 					<OnlineDocPanel filterName={showingDoc.value} onClose={() => showingDoc.value = undefined} />
 				</div>
 			)}
-			<div class={style.dragger} style={{ left: `${dragger2Pos.value}%`}} onMousedown={(event) => handleCenterDraggerDragStart(event, 2)} onTouchstart={(event) => handleCenterDraggerDragStart(event, 2)} />
-			<div class={style.paramsBox} style={{ width: `${100 - dragger2Pos.value}%`}}>
+			<div class={css.dragger} style={{ left: `${dragger2Pos.value}%`}} onMousedown={(event) => handleCenterDraggerDragStart(event, 2)} onTouchstart={(event) => handleCenterDraggerDragStart(event, 2)} />
+			<div class={css.paramsBox} style={{ width: `${100 - dragger2Pos.value}%`}}>
 				{selectedNode.value ? renderDetailParameters() : (
-					<div class={style.noParams}>
+					<div class={css.noParams}>
 						<p style={{ fontSize: '3em', margin: '0 0 0.5em' }}>👈</p>
 						<p>请在画布中选择一个节点</p>
 					</div>
@@ -1611,9 +1611,9 @@ const EffectView = defineComponent((props: Props) => {
 			</div>
 		</div>
 	) : (
-		<div class={style.noFilter}>
+		<div class={css.noFilter}>
 			<Button size="large" onClick={() => initNodes()}>启用功能</Button>
-			<div class={style.description}>
+			<div class={css.description}>
 				<p>该功能用于指定视频/音频/字幕等流的分发关系</p>
 				<p>将输入直接连接到输出上，可实现混流、分离音视频等功能；或在中间串连 ffmpeg 滤镜，实现更丰富的效果</p>
 			</div>

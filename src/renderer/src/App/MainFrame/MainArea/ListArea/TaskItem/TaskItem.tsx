@@ -19,7 +19,7 @@ import IconStopping from './stopping.svg';
 import IconFinished from './finished.svg';
 import IconError from './error.svg';
 import IconRightArrow from './swap_right.svg';
-import style from './TaskItem.module.less';
+import css from './TaskItem.module.less';
 
 interface Props {
 	task: UITask;
@@ -300,12 +300,12 @@ export const TaskItem = defineComponent((props: Props) => {
 			[TaskStatus.error, <IconError />],
 		].map(([taskStatus, icon]) => (
 			<Transition
-				leaveFromClass={style['statusIconAnimation-leave-from']}
-				leaveToClass={style['statusIconAnimation-leave-to']}
-				leaveActiveClass={style['statusIconAnimation-leave-active']}
-				enterFromClass={style['statusIconAnimation-enter-from']}
-				enterToClass={style['statusIconAnimation-enter-to']}
-				enterActiveClass={style['statusIconAnimation-enter-active']}
+				leaveFromClass={css['statusIconAnimation-leave-from']}
+				leaveToClass={css['statusIconAnimation-leave-to']}
+				leaveActiveClass={css['statusIconAnimation-leave-active']}
+				enterFromClass={css['statusIconAnimation-enter-from']}
+				enterToClass={css['statusIconAnimation-enter-to']}
+				enterActiveClass={css['statusIconAnimation-enter-active']}
 			>
 				{props.task.status === taskStatus ? icon : null}
 			</Transition>
@@ -469,7 +469,7 @@ export const TaskItem = defineComponent((props: Props) => {
 				音频：{props.task.before.acodec}{audioInputBitrate.value} → {firstOutput.audio.acodec}{audioRateControl.value}<br />
 			</span>,
 			style: position,
-			class: style.paraAreaTip,
+			class: css.paraAreaTip,
 		});
 	};
 
@@ -479,17 +479,17 @@ export const TaskItem = defineComponent((props: Props) => {
 		Tooltip.show({
 			content: props.task.fileBaseName ?? '读取中',
 			style: position,
-			class: style.taskNameTip,
+			class: css.taskNameTip,
 		});
 	};
 
 	// #endregion
 
 	return () => (
-		<div class={style.taskWrapper1} onClick={props.onClick}>
-			<div class={style.taskWrapper2}>
+		<div class={css.taskWrapper1} onClick={props.onClick}>
+			<div class={css.taskWrapper2}>
 				<div
-					class={style.task}
+					class={css.task}
 					style={{ height: `${taskHeight.value}px` }}
 					data-color_theme={appStore.frontendSettings.colorTheme}
 					onMouseenter={handleTaskMouseEnter}
@@ -497,19 +497,19 @@ export const TaskItem = defineComponent((props: Props) => {
 					onDblclick={handleTaskDblClicked}
 					onContextmenu={handleTaskContextMenu}
 				>
-					<div class={style.backgroundWhite} style={taskBackgroundStyle.value} />
+					<div class={css.backgroundWhite} style={taskBackgroundStyle.value} />
 					<div>
-						<div class={`${style.backgroundProgress} ${style.progressGreen}`} style={taskBackgroundProgressStyle.value.green} />
-						<div class={`${style.backgroundProgress} ${style.progressYellow}`} style={taskBackgroundProgressStyle.value.yellow} />
-						<div class={`${style.backgroundProgress} ${style.progressGray}`} style={taskBackgroundProgressStyle.value.gray} />
-						<div class={`${style.backgroundProgress} ${style.progressRed}`} style={taskBackgroundProgressStyle.value.red} />
-						<div class={`${style.backgroundProgress} ${style.progressBlue}`} style={taskBackgroundProgressStyle.value.blue} />
+						<div class={`${css.backgroundProgress} ${css.progressGreen}`} style={taskBackgroundProgressStyle.value.green} />
+						<div class={`${css.backgroundProgress} ${css.progressYellow}`} style={taskBackgroundProgressStyle.value.yellow} />
+						<div class={`${css.backgroundProgress} ${css.progressGray}`} style={taskBackgroundProgressStyle.value.gray} />
+						<div class={`${css.backgroundProgress} ${css.progressRed}`} style={taskBackgroundProgressStyle.value.red} />
+						<div class={`${css.backgroundProgress} ${css.progressBlue}`} style={taskBackgroundProgressStyle.value.blue} />
 					</div>
-					<div class={style.previewIcon} style={{ bottom: settings.showCmd ? '66px' : undefined}}>
+					<div class={css.previewIcon} style={{ bottom: settings.showCmd ? '66px' : undefined}}>
 						{taskStatusIcon.value}
 					</div>
 					<div
-						class={style.taskName}
+						class={css.taskName}
 						style={taskNameStyle.value}
 						ref={taskNameRef}
 						onMouseenter={handleTaskNameMouseEnter}
@@ -519,7 +519,7 @@ export const TaskItem = defineComponent((props: Props) => {
 					</div>
 					{settings.showParams && (
 						<div
-							class={style.paraArea}
+							class={css.paraArea}
 							style={{ maxWidth: windowWidth.value >= 920 ? 'calc(100% - 128px)' : 'calc(0% + 120px)', pointerEvents: props.shouldHandleHover ? 'all' : undefined }}
 							ref={paramAreaRef}
 							onMouseenter={handleParaAreaMouseEnter}
@@ -529,32 +529,32 @@ export const TaskItem = defineComponent((props: Props) => {
 								windowWidth.value >= 920 ? (
 									<>
 										{/* 时间 */}
-										<div class={style.divider}><div></div></div>
-										<div class={style.durationBefore}>{durationBefore.value}</div>
+										<div class={css.divider}><div></div></div>
+										<div class={css.durationBefore}>{durationBefore.value}</div>
 										{settings.paramsVisibility.duration === 'all' && (
 											<>
-												<div class={style.durationTo}><IconRightArrow /></div>
-												<div class={style.durationAfter}>{durationAfter.value}</div>
+												<div class={css.durationTo}><IconRightArrow /></div>
+												<div class={css.durationAfter}>{durationAfter.value}</div>
 											</>
 										)}
 										{/* 容器 */}
-										<div class={style.divider}><div></div></div>
-										<div class={style.formatBefore}>{props.task.before.format}</div>
+										<div class={css.divider}><div></div></div>
+										<div class={css.formatBefore}>{props.task.before.format}</div>
 										{settings.paramsVisibility.format === 'all' && (
 											<>
-												<div class={style.formatTo}><IconRightArrow /></div>
-												<div class={style.formatAfter}>{props.task.after.outputs[0].mux.format}</div>
+												<div class={css.formatTo}><IconRightArrow /></div>
+												<div class={css.formatAfter}>{props.task.after.outputs[0].mux.format}</div>
 											</>
 										)}
 										{/* 分辨率码率 */}
 										{settings.paramsVisibility.smpte !== 'none' && (
 											<>
-												<div class={style.divider}><div></div></div>
-												<div class={style.smpteBefore}>{smpteBefore.value}</div>
+												<div class={css.divider}><div></div></div>
+												<div class={css.smpteBefore}>{smpteBefore.value}</div>
 												{settings.paramsVisibility.smpte === 'all' && (
 													<>
-														<div class={style.smpteTo}><IconRightArrow /></div>
-														<div class={style.smpteAfter}>{props.task.after.outputs[0].video.resolution}@{props.task.after.outputs[0].video.framerate}</div>
+														<div class={css.smpteTo}><IconRightArrow /></div>
+														<div class={css.smpteAfter}>{props.task.after.outputs[0].video.resolution}@{props.task.after.outputs[0].video.framerate}</div>
 													</>
 												)}
 											</>
@@ -562,12 +562,12 @@ export const TaskItem = defineComponent((props: Props) => {
 										{/* 视频 */}
 										{settings.paramsVisibility.video !== 'none' && (
 											<>
-												<div class={style.divider}><div></div></div>
-												<div class={style.videoBefore}>{props.task.before.vcodec}{videoInputBitrate.value}</div>
+												<div class={css.divider}><div></div></div>
+												<div class={css.videoBefore}>{props.task.before.vcodec}{videoInputBitrate.value}</div>
 												{settings.paramsVisibility.video === 'all' && (
 													<>
-														<div class={style.videoTo}><IconRightArrow /></div>
-														<div class={style.videoAfter}>{props.task.after.outputs[0].video.vcodec}{videoRateControl.value}</div>
+														<div class={css.videoTo}><IconRightArrow /></div>
+														<div class={css.videoAfter}>{props.task.after.outputs[0].video.vcodec}{videoRateControl.value}</div>
 													</>
 												)}
 											</>
@@ -575,12 +575,12 @@ export const TaskItem = defineComponent((props: Props) => {
 										{/* 音频 */}
 										{settings.paramsVisibility.audio !== 'none' && (
 											<>
-												<div class={style.divider}><div></div></div>
-												<div class={style.audioBefore}>{props.task.before.acodec}{audioInputBitrate.value}</div>
+												<div class={css.divider}><div></div></div>
+												<div class={css.audioBefore}>{props.task.before.acodec}{audioInputBitrate.value}</div>
 												{settings.paramsVisibility.audio === 'all' && (
 													<>
-														<div class={style.audioTo}><IconRightArrow /></div>
-														<div class={style.audioAfter}>{props.task.after.outputs[0].audio.acodec}{audioRateControl.value}</div>
+														<div class={css.audioTo}><IconRightArrow /></div>
+														<div class={css.audioAfter}>{props.task.after.outputs[0].audio.acodec}{audioRateControl.value}</div>
 													</>
 												)}
 											</>
@@ -589,90 +589,90 @@ export const TaskItem = defineComponent((props: Props) => {
 								) : (
 									<>
 										{/* 预设 */}
-										<div class={style.divider}><div></div></div>
-										<div class={style.videoBefore}>{props.task.after.extra?.presetName === undefined ? '查看配置' : props.task.after.extra.presetName || '自定义配置'}</div>
+										<div class={css.divider}><div></div></div>
+										<div class={css.videoBefore}>{props.task.after.extra?.presetName === undefined ? '查看配置' : props.task.after.extra.presetName || '自定义配置'}</div>
 									</>
 								)
 							) : (
 								<>
-									<div class={style.divider}><div></div></div>
-									<div class={style.videoBefore}>{`${props.task.after.input.files.length} 个输入，${props.task.after.outputs.length} 个输出`}</div>
+									<div class={css.divider}><div></div></div>
+									<div class={css.videoBefore}>{`${props.task.after.input.files.length} 个输入，${props.task.after.outputs.length} 个输出`}</div>
 								</>
 							)}
 						</div>
 					)}
-					<Transition enterActiveClass={style['dashboardTrans-enter-active']} leaveActiveClass={style['dashboardTrans-leave-active']}>
+					<Transition enterActiveClass={css['dashboardTrans-enter-active']} leaveActiveClass={css['dashboardTrans-leave-active']}>
 						{showDashboard.value && (
-							<div class={style.dashboardArea} style={{ pointerEvents: props.shouldHandleHover ? 'all' : undefined }}>
+							<div class={css.dashboardArea} style={{ pointerEvents: props.shouldHandleHover ? 'all' : undefined }}>
 								{dashboardType.value === 'convert' ? (
 									<>
-										<div class={style.linearGraphItems} onClick={() => showProgressInfo(props.task, props.id, 'progress')}>
-											<div class={style.linearGraphItem}>
-												<span class={style.data}>{ graphTime.value }</span>
-												<span class={style.description}>时间</span>
+										<div class={css.linearGraphItems} onClick={() => showProgressInfo(props.task, props.id, 'progress')}>
+											<div class={css.linearGraphItem}>
+												<span class={css.data}>{ graphTime.value }</span>
+												<span class={css.description}>时间</span>
 											</div>
-											<div class={style.linearGraphItem}>
-												<span class={style.data}>{ props.task.dashboard_smooth.frame.toFixed(0) }</span>
-												<span class={style.description}>帧</span>
+											<div class={css.linearGraphItem}>
+												<span class={css.data}>{ props.task.dashboard_smooth.frame.toFixed(0) }</span>
+												<span class={css.description}>帧</span>
 											</div>
 										</div>
-										<div class={style.roundGraphItem} onClick={() => showProgressInfo(props.task, props.id, 'bitrate')}>
-											<div class={style.ring} style={graphBitrateStyle.value}></div>
-											<span class={style.data}>{ graphBitrate.value }</span>
-											<span class={style.description}>码率</span>
+										<div class={css.roundGraphItem} onClick={() => showProgressInfo(props.task, props.id, 'bitrate')}>
+											<div class={css.ring} style={graphBitrateStyle.value}></div>
+											<span class={css.data}>{ graphBitrate.value }</span>
+											<span class={css.description}>码率</span>
 										</div>
-										<div class={style.roundGraphItem} onClick={() => showProgressInfo(props.task, props.id, 'speed')}>
-											<div class={style.ring} style={graphSpeedStyle.value}></div>
-											<span class={style.data}>{ graphSpeed.value }</span>
-											<span class={style.description}>速度</span>
+										<div class={css.roundGraphItem} onClick={() => showProgressInfo(props.task, props.id, 'speed')}>
+											<div class={css.ring} style={graphSpeedStyle.value}></div>
+											<span class={css.data}>{ graphSpeed.value }</span>
+											<span class={css.description}>速度</span>
 										</div>
-										<div class={style.textItem} onClick={() => showProgressInfo(props.task, props.id, 'size')}>
-											<span class={style.data}>{ graphSize.value }</span>
-											<span class={style.description}>输出大小</span>
+										<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, 'size')}>
+											<span class={css.data}>{ graphSize.value }</span>
+											<span class={css.description}>输出大小</span>
 										</div>
 									</>
 								) : (
 									<>
-										<div class={style.roundGraphItem} onClick={() => showProgressInfo(props.task, props.id, 'transferSpeed')}>
-											<div class={style.ring} style={graphTransferSpeedStyle.value}></div>
-											<span class={style.data}>{ graphTransferSpeed.value }</span>
-											<span class={style.description}>传输秒速</span>
+										<div class={css.roundGraphItem} onClick={() => showProgressInfo(props.task, props.id, 'transferSpeed')}>
+											<div class={css.ring} style={graphTransferSpeedStyle.value}></div>
+											<span class={css.data}>{ graphTransferSpeed.value }</span>
+											<span class={css.description}>传输秒速</span>
 										</div>
-										<div class={style.textItem} onClick={() => showProgressInfo(props.task, props.id, 'transferProgress')}>
-											<span class={style.data}>{graphTransferred.value}</span>
-											<span class={style.description}>传输总量</span>
+										<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, 'transferProgress')}>
+											<span class={css.data}>{graphTransferred.value}</span>
+											<span class={css.description}>传输总量</span>
 										</div>
 									</>
 								)}
-								<div class={style.textItem} onClick={() => showProgressInfo(props.task, props.id, dashboardType.value === 'convert' ? 'progress' : 'transferProgress')}>
-									<span class={style.data}>{ graphLeftTime.value }</span>
-									<span class={style.description}>预计剩余时间</span>
+								<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, dashboardType.value === 'convert' ? 'progress' : 'transferProgress')}>
+									<span class={css.data}>{ graphLeftTime.value }</span>
+									<span class={css.description}>预计剩余时间</span>
 								</div>
-								<div class={style.textItem} onClick={() => showProgressInfo(props.task, props.id, dashboardType.value === 'convert' ? 'progress' : 'transferProgress')}>
-									<span class={`${style.data} ${style.dataLarge}`}>{ overallProgress.value === 1 ? '🆗' : `${(overallProgress.value * 100).toFixed(1)}%` }</span>
-									<span class={style.description}>{ overallProgressDescription.value }</span>
+								<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, dashboardType.value === 'convert' ? 'progress' : 'transferProgress')}>
+									<span class={`${css.data} ${css.dataLarge}`}>{ overallProgress.value === 1 ? '🆗' : `${(overallProgress.value * 100).toFixed(1)}%` }</span>
+									<span class={css.description}>{ overallProgressDescription.value }</span>
 								</div>
 							</div>
 						)}
 					</Transition>
 					{settings.showCmd && (
-						<div class={style.cmdArea} style={{ top: `${(settings.showParams ? 1 : 0) * 24 + (showDashboard.value ? 1 : 0) * 72 + 2}px` }}>
-							<div class={style.margin}>
-								<div class={style.switch}>
+						<div class={css.cmdArea} style={{ top: `${(settings.showParams ? 1 : 0) * 24 + (showDashboard.value ? 1 : 0) * 72 + 2}px` }}>
+							<div class={css.margin}>
+								<div class={css.switch}>
 									<button
-										class={`${style.item} ${settings.cmdDisplay === 'input' ? style.itemSelected : ''}`}
+										class={`${css.item} ${settings.cmdDisplay === 'input' ? css.itemSelected : ''}`}
 										onMousedown={() => settings.cmdDisplay = 'input'}
 									>
 										输入
 									</button>
 									<button
-										class={`${style.item} ${settings.cmdDisplay === 'output' ? style.itemSelected : ''}`}
+										class={`${css.item} ${settings.cmdDisplay === 'output' ? css.itemSelected : ''}`}
 										onMousedown={() => settings.cmdDisplay = 'output'}
 									>
 										输出
 									</button>
 								</div>
-								<div class={style.code}>
+								<div class={css.code}>
 									<textarea
 										aria-label="任务命令行"
 										readonly
@@ -683,8 +683,8 @@ export const TaskItem = defineComponent((props: Props) => {
 							</div>
 						</div>
 					)}
-					<div class={style.vline} style={{ bottom: settings.showCmd ? '66px' : undefined}}><div></div></div>
-					<button aria-label='重置或删除任务' class={style.button} style={{ bottom: settings.showCmd ? '64px' : undefined}} onClick={handlePauseNremove}>
+					<div class={css.vline} style={{ bottom: settings.showCmd ? '66px' : undefined}}><div></div></div>
+					<button aria-label='重置或删除任务' class={css.button} style={{ bottom: settings.showCmd ? '64px' : undefined}} onClick={handlePauseNremove}>
 						<div style={{ backgroundPositionX: deleteButtonBackgroundPositionX.value }}></div>
 					</button>
 				</div>
