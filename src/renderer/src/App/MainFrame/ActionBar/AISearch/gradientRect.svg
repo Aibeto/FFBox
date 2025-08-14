@@ -1,0 +1,27 @@
+<!-- Animated gradient stroke rectangle -->
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Animated gradient stroke rectangle">
+	<defs>
+		<!-- 使用 objectBoundingBox 后，坐标系会变为元素归一化到 0~1 之间的值，因此居中使用 0.5 -->
+		<linearGradient id="strokeGradient" gradientUnits="objectBoundingBox" x1="0" y1="50%" x2="100%" y2="50%">
+			<stop offset="0%"   stop-color="#3377fe"/>
+			<!-- <stop offset="40%"  stop-color="#4c6fff"/>
+			<stop offset="70%"  stop-color="#8370ff"/> -->
+			<stop offset="100%" stop-color="#ba59ff"/>
+			<!-- rotate the gradient around center (100 100) -->
+			<animateTransform
+				attributeName="gradientTransform"
+				type="rotate"
+				from="0 0.5 0.5" to="360 0.5 0.5"
+				dur="4s" repeatCount="indefinite"
+			/>
+		</linearGradient>
+	</defs>
+	<rect
+		x="0.5" y="0.5"
+		width="calc(100% - 1px)" height="calc(100% - 1px)"
+		rx="16" ry="16"
+		fill="none"
+		stroke="url(#strokeGradient)"
+		stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+	/>
+</svg>

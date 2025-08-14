@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { WorkingStatus } from '@common/types';
+import AISearch from './AISearch/AISearchWithConfig.vue';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import IconSelectAll from './selectAll.svg?component';
 
@@ -57,7 +58,10 @@ const handleApplyAllClick = () => {
 			>
 				应用参数到全部任务
 			</Button>
-			</div>
+		</div>
+		<div class="center">
+			<AISearch />
+		</div>
 		<div class="right">
 			<button class="startbutton" :class="startButtonClass" @click="appStore.startNpause()">{{ startButtonText }}</button>
 		</div>
@@ -81,13 +85,14 @@ const handleApplyAllClick = () => {
 		&>* {
 			-webkit-app-region: none;
 		}
-		.left, .right {
+		.left, .center, .right {
 			display: flex;
 			justify-content: center;
 			align-items: center;
 			height: 100%;
 		}
 		.left {
+			flex: 0 0 auto;
 			padding-left: 96px;
 			opacity: 0.9;
 			button:not(.smallButton) {
@@ -99,12 +104,19 @@ const handleApplyAllClick = () => {
 					height: 18px;
 					vertical-align: -4px;
 					margin-right: 4px;
-					color: var(--primaryColor);
+					color: hwb(var(--primaryColor));
 				}
 			}
 			.description {
 				font-size: 13px;
 				margin-right: 16px;
+			}
+		}
+		.center {
+			flex: 1 1 auto;
+			-webkit-app-region: drag;
+			&>div {
+				width: clamp(104px, calc(40px + 50%), 100%);
 			}
 		}
 		.right {

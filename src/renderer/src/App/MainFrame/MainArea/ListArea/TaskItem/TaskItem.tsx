@@ -194,17 +194,17 @@ export const TaskItem = defineComponent((props: Props) => {
 	const graphBitrateStyle = computed(() => {
 		let value = Math.log(props.task.dashboard_smooth.bitrate / 62.5) / Math.log(8) / 4;		// 62.5K, 500K, 4M, 32M, 256M
 		value = Math.min(Math.max(value, 0), 1);
-		return `background: conic-gradient(var(--primaryColor) 0%, var(--primaryColor) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
+		return `background: conic-gradient(hwb(var(--primaryColor)) 0%, hwb(var(--primaryColor)) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
 	});
 	const graphSpeedStyle = computed(() => {
 		let value = Math.log(props.task.dashboard_smooth.speed / 0.04) / Math.log(5) / 6;			// 0.04, 0.2, 1, 5, 25, 125, 625
 		value = Math.min(Math.max(value, 0), 1);
-		return `background: conic-gradient(var(--primaryColor) 0%, var(--primaryColor) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
+		return `background: conic-gradient(hwb(var(--primaryColor)) 0%, hwb(var(--primaryColor)) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
 	});
 	const graphTransferSpeedStyle = computed(() => {
 		let value = Math.log(props.task.dashboard_smooth.transferSpeed / 62500) / Math.log(10) / 4;	// 62.5K, 500K, 4M, 32M, 256M, 512M, 1024M
 		value = Math.min(Math.max(value, 0), 1);
-		return `background: conic-gradient(var(--primaryColor) 0%, var(--primaryColor) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
+		return `background: conic-gradient(hwb(var(--primaryColor)) 0%, hwb(var(--primaryColor)) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
 	});
 
 	const overallProgress = computed(() => props.task.transferStatus === 'normal' ? props.task.dashboard_smooth.progress : props.task.dashboard_smooth.transferred / props.task.transferProgressLog.total);

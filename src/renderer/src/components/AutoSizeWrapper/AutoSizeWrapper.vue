@@ -1,9 +1,16 @@
 <script setup lang="ts">
+/**
+ * 本组件适用于需要对不定高度组件进行通过高度变化的动画进行显隐的场景
+ * AutoSizeWrapper 自身是一个 div，能测量 slot 中所有组件的高度并反馈到 AutoSizeWrapper 的 style 或 customStyle 函数的参数中
+ * 由于 slot 可以是多个组件，所以会多一层 div 进行打包测量高度
+ * 注意此组件并不适用于通过动态高度 slot 组件的高度修改 slot 组件的高度，因为这个逻辑回环了。子组件的高度应当是自由撑开的，否则无法测量高度
+ */
 import { onMounted, ref, onBeforeUnmount, nextTick, computed, StyleValue } from 'vue'
 
 interface Props {
 	useResizeObserver?: boolean;
 	style?: (size: { width: number; height: number }) => StyleValue;
+	customStyle?: (size: { width: number; height: number }) => StyleValue;	// 若 style 不生效，使用 customStyle
 	onResize?: (size: { width: number; height: number }) => void;
 }
 
@@ -37,7 +44,7 @@ onBeforeUnmount(() => {
 	}
 });
 
-const computedStyle = computed(() => props.style?.({ width: width.value, height: height.value }) || {});
+const computedStyle = computed(() => (props.style || props.customStyle)?.({ width: width.value, height: height.value }) || {});
 
 </script>
 

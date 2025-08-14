@@ -379,6 +379,7 @@ onUnmounted(() => {
 		.lower {
 			position: relative;
 			height: 100%;
+			isolation: isolate;
 		}
 	}
 

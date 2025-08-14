@@ -60,7 +60,7 @@ const handleInfoCenterButtonClicked = () => {
 		height: 24px;
 		flex: 0 0 auto;
 		padding: 0 4px;
-		background-color: var(--primaryColor);
+		background-color: hwb(var(--primaryColor));
 		color: white;
 		/* box-shadow: 0 3px 2px -2px hwb(0deg 100% 0%) inset; */
 		font-size: 14px;
