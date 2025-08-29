@@ -1,6 +1,6 @@
 import { app, dialog, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 // import ElectronStore from 'electron-store';
-import { exec } from 'child_process';
+import { exec, spawn, SpawnOptions } from 'child_process';
 import path from 'path';
 import parsePath from 'parse-path';
 import CryptoJS from 'crypto-js';
@@ -462,6 +462,11 @@ class ElectronApp {
 				data: responseData,
 			};
 		});
+
+		// 代为启动程序
+		ipcMain.on('spawn', async (event, url: string, params?: string[], options?: SpawnOptions) => {
+			spawn(url, params || [], options).on('error', () => {});
+		});		
 
 		// 半透明窗体
 		ipcMain.on('setBlurBehindWindow', (event, on: boolean) => {

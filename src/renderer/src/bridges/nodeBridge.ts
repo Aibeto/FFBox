@@ -1,6 +1,5 @@
 // import _ElectronStore from 'electron-store';
 import { IpcRenderer } from 'electron';
-import { ChildProcess } from 'child_process';
 import parsePath from 'parse-path';
 import { getEnv } from '@common/utils';
 
@@ -118,13 +117,13 @@ const nodeBridge = {
 		return window.jsb?.ipcRenderer as any;
 	},
 
-	get spawn(): (...args: any) => ChildProcess | undefined {
-		return window.jsb?.spawn;
-	},
+	// get spawn(): (...args: any) => ChildProcess | undefined {
+	// 	return window.jsb?.spawn;
+	// },
 
-	get exec(): (...args: any) => ChildProcess | undefined {
-		return window.jsb?.exec;
-	},
+	// get exec(): (...args: any) => ChildProcess | undefined {
+	// 	return window.jsb?.exec;
+	// },
 
 	get os(): 'Windows' | 'Linux' | 'MacOS' | 'Unix' | 'Android' | 'iPadOS' | 'iOS' | 'unknown' {
 		// TODO this.isElectron 不可用
@@ -275,6 +274,10 @@ const nodeBridge = {
 
 	request(url: string, options?: { method?: string; body?: any; headers?: Record<string, string> }) {
 		return window.jsb?.ipcRenderer?.invoke('request', url, options);
+	},
+
+	spawn(url: string, args?: string[], options?: any) {
+		window.jsb?.ipcRenderer?.send('spawn', url, args, options);
 	},
 
 	localConfig: {

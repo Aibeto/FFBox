@@ -372,6 +372,7 @@ onMounted(() => {
 	}
 	h2 {
 		font-size: 20px;
+		font-weight: 600;
 		margin: 2em 0 1em;
 		color: var(--titleText);
 	}

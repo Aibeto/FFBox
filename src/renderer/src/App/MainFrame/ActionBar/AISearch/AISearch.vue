@@ -1,34 +1,46 @@
 <script setup lang="ts">
-import { ref, nextTick, computed } from 'vue';
+import { ref, nextTick, computed, onMounted, watch } from 'vue';
 import gsap from 'gsap';
+import AISearchConfig from './types';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
+import { useTooltip } from '@renderer/common/tooltipUtil';
+import { showActivateCodeGen } from './activateCodeGen';
 import GradientRect from './gradientRect.svg?skipsvgo';	// svgo 存在 bug 导致 svg 中的 id 跨 svg 产生重复，见 https://svgo.dev/docs/plugins/cleanupIds/
 import IconRefresh from './refresh.svg';
 import IconAI from './AI.svg';
 import IconX from '@renderer/assets/×.svg';
+import nodeBridge from '@renderer/bridges/nodeBridge';
 
 interface Props {
 	enabled?: boolean;	// 是否启用并显示该组件，未定义则启用
 	chatAPI?: (message: string) => Promise<string>;	// 聊天 API，未定义则将在对话框中输出当前时间，出错将显示错误信息
+	resetChat?: () => any;	// 点击重置对话时需要处理的副作用
+	init?: () => any;	// 首次打开窗口时需要处理的副作用
 	titleName?: string;	// 标题名，未定义则使用“FFBox AI 帮助”
 	modelName?: string;	// 显示在标题旁的模型名，未定义则不显示
 	initialPlaceholders?: string[];	// 未激活窗口时的 placeholder，未定义则使用“智能帮助”
-	initialPlaceholderInterval: number;	// 未激活窗口时的 placeholder 的轮换间隔（ms），未定义则使用 4000
+	initialPlaceholderInterval?: number;	// 未激活窗口时的 placeholder 的轮换间隔（ms），未定义则使用 4000
+	initSystemMessage?: string;	// 初始化窗口以及重置对话前补充一条系统信息
+	requestKeywordLink?: AISearchConfig['requestKeywordLink'];	// 发送内容若出现关键字则打开一个链接
+	responseKeywordLink?: AISearchConfig['responseKeywordLink'];	// 返回内容若出现关键字则则打开一个链接
+	requestKeywordSystemMessage?: AISearchConfig['requestKeywordSystemMessage'];	// 发送内容若出现关键字则显示一条系统信息
+	responseKeywordSystemMessage?: AISearchConfig['responseKeywordSystemMessage'];	// 返回内容若出现关键字则显示一条系统信息
 	activatedPlaceholder?: string;	// 激活窗口时的 placeholder，未定义则使用“输入问题...”
-	maxInputLength?: string;	// 用户输入的最大长度，未定义则无限
-	maxRounds?: string;	// 用户允许在单个对话中发送的消息回合数，未定义则无限
-	quotaUsed?: number;	// 用户已使用的额度，0~1，达到 1 后不允许再使用
+	maxInputLength?: number;	// 用户输入的最大长度，未定义则 10000
+	maxRounds?: number;	// 用户允许在单个对话中发送的消息回合数，未定义则无限
+	maxRoundsMessage?: string;	// 用户允许在单个对话中发送的消息回合数达到上限时显示一条系统信息
+	quotaUsed?: AISearchConfig['tokenLimit'];	// 用户已使用的额度，0~1，达到 1 后不允许再使用
 }
 
+const props = defineProps<Props>();
+
 interface Message {
-	role: 'user' | 'ai';
+	role: 'user' | 'ai' | 'aiErr';
 	text: string;
 }
 
-const url = "YOUR_API_URL";
-const apiKey = "YOUR_API_KEY";
-
 const isOpened = ref<'closed' | 'opening' | 'opened' | 'closing'>('closed');
+let hasOpened = false;
 const inputValue = ref('');
 const messages = ref<Message[]>([]);
 const sessionId = ref<string | null>(null);
@@ -37,13 +49,54 @@ const loading = ref(false);
 const defaultAnchorRef = ref<HTMLDivElement>(null);
 const anchorRef = ref<HTMLDivElement>(null);
 const textRef = ref<HTMLTextAreaElement>(null);
+const messagesRef = ref<HTMLDivElement>(null);
 
 const anchorStyle = ref<Record<string, string> | null>(null);
 
 const openedClass = computed(() => isOpened.value === 'opening' || isOpened.value === 'opened' ? 'opened' : '');
 
+const currentRoundsPerMax = computed(() => props.maxRounds && messages.value.filter((msg) => msg.role === 'user').length / (props.maxRounds || Number.MAX_SAFE_INTEGER));
+
+const usageTouchedWarning = computed(() => 
+	props.quotaUsed?.day >= 0.75 || props.quotaUsed?.week >= 0.75 || props.quotaUsed?.total >= 0.75 ||
+	(currentRoundsPerMax.value >= 0.75)
+);
+
+const roundsSvgPiePath = computed(() => {
+	const cx = 24, cy = 24, r = 20;
+	const pct = currentRoundsPerMax.value;
+	const startAngle = -Math.PI / 2;	// 从正上方开始
+	const endAngle = startAngle + pct * 2 * Math.PI;
+
+	const x1 = cx + r * Math.cos(startAngle);
+	const y1 = cy + r * Math.sin(startAngle);
+	const x2 = cx + r * Math.cos(endAngle);
+	const y2 = cy + r * Math.sin(endAngle);
+
+	const largeArcFlag = pct > 0.5 ? 1 : 0;
+
+	if (pct >= 1) {
+		// 满圆用 circle 代替，避免弧线闭合 bug
+		return `M ${cx} ${cy - r}
+				A ${r} ${r} 0 1 1 ${cx} ${cy + r}
+				A ${r} ${r} 0 1 1 ${cx} ${cy - r}
+				Z`;
+	}
+
+	return `M ${cx},${cy}
+			L ${x1},${y1}
+			A ${r},${r} 0 ${largeArcFlag},1 ${x2},${y2}
+			Z`;
+});
+
 const openWindow = () => {
 	if (!defaultAnchorRef.value) return;
+
+	if (!hasOpened && props.init) {
+		hasOpened = true;
+		props.init();
+	}
+
 	const defaultRect = defaultAnchorRef.value.getBoundingClientRect();	// 记录默认位置
 	// 按默认位置转换为 fixed 定位
 	anchorStyle.value = {
@@ -129,54 +182,163 @@ const closeWindow = async () => {
 const sendMessage = async () => {
 	if (!inputValue.value.trim() || loading.value) return;
 
+	// 对话轮数检查
+	if (props.maxRounds) {
+		if (messages.value.filter((msg) => msg.role === 'user').length > props.maxRounds) {
+			messages.value.push({ role: "aiErr", text: props.maxRoundsMessage || '本轮对话发言次数已达到上限' });
+			return;
+		}
+	}
+
 	const userText = inputValue.value.trim();
 	messages.value.push({ role: "user", text: userText });
 	inputValue.value = "";
+
+	// 发送匹配关键词打开链接
+	if (props.requestKeywordLink) {
+		let needContinue = true;
+		for (const item of props.requestKeywordLink) {
+			const isContain = item.keywords.some((keyword) => userText.includes(keyword));
+			if (isContain) {
+				for (const url of (item.urls || [])) {
+					window.open(url, '_blank');
+				}
+				if (item.needContinue === false) {
+					needContinue = false;
+				}
+				for (const url of (item.execute || [])) {
+					nodeBridge.spawn(url);
+				}
+			}
+		}
+		if (!needContinue) {
+			return;
+		}
+	}
+	// 发送警告词检查
+	if (props.requestKeywordSystemMessage) {
+		for (const item of props.requestKeywordSystemMessage) {
+			const isContain = item.keywords.some((keyword) => userText.includes(keyword));
+			if (isContain) {
+				messages.value.push({ role: "aiErr", text: item.message });
+				if (item.forbid) {
+					return;
+				}
+			}
+		}
+	}
+
 	loading.value = true;
-
-	try {
-		const data: any = {
-			input: { prompt: userText },
-			parameters: {},
-			debug: {}
-		};
-		if (sessionId.value) {
-			data.input.session_id = sessionId.value;
-		}
-
-		const res = await fetch(url, {
-			method: "POST",
-			headers: {
-				"Authorization": `Bearer ${apiKey}`,
-				"Content-Type": "application/json"
-			},
-			body: JSON.stringify(data)
+	if (props.chatAPI) {
+		props.chatAPI(userText).then((result) => {
+			messages.value.push({ role: "ai", text: result });
+			// 接收匹配关键词打开链接
+			if (props.responseKeywordLink) {
+				for (const item of props.responseKeywordLink) {
+					const isContain = item.keywords.some((keyword) => result.includes(keyword));
+					if (isContain) {
+						for (const url of (item.urls || [])) {
+							window.open(url, '_blank');
+						}
+						for (const url of (item.execute || [])) {
+							nodeBridge.spawn(url);
+						}
+					}
+				}
+			}
+			// 响应警告词检查
+			if (props.responseKeywordSystemMessage) {
+				for (const item of props.responseKeywordSystemMessage) {
+					const isContain = item.keywords.some((keyword) => result.includes(keyword));
+					if (isContain) {
+						messages.value.push({ role: "aiErr", text: item.message });
+					}
+				}
+			}
+			// 激活
+			const matchEnd = /[A-Z]kn[A-Z]ui[A-Z]ev[A-Z]hr[A-Z]tg/i.exec(result);
+			const keyEnd =
+				result.match(/最终.+分/) ||
+				result.match(/((考核|测试|题目).{0,2}(通过|结束|完成))|((通过|结束|完成).{0,2}(考核|测试|题目))/) ||
+				result.includes('激活') && (result.includes('恭喜') || result.includes('完成了') || result.includes('通过了') || result.includes('成功'));
+			if (matchEnd || keyEnd) {
+				let total = -1;
+				const regex = /[得总]分[是为:：-\s]{0,3}(\d+(\.\d+)?)/g;
+				let match1;
+				// 找到文本中最高的分数
+				while ((match1 = regex.exec(result)) !== null && match1[1]) {
+					if (!isNaN(+match1[1])) {
+						total = +match1[1] > total ? +match1[1] : total;
+					}
+				}
+				if (total === -1) {
+					total = 25;
+				} else {
+					total += 1;
+				}
+				// 找到文本中的总分
+				const matchFull = /满分[是为:：-\s]{0,3}(\d+(\.\d+)?)/.exec(result)?.[1];
+				const full = +matchFull || 40;
+				console.log(`修行：${15 + (total / full) * 45}`);
+				showActivateCodeGen(Math.round(15 + (total / full) * 45));
+			}
+		}).catch((error) => {
+			messages.value.push({ role: "aiErr", text: error });
+		}).finally(() => {
+			loading.value = false;
 		});
-
-		if (!res.ok) throw new Error(`HTTP ${res.status}`);
-		const resData = await res.json();
-
-		// 保存 session_id
-		if (!sessionId.value) {
-			sessionId.value = resData.output.session_id;
-		}
-
-		messages.value.push({ role: "ai", text: resData.output.text });
-	} catch (err: any) {
-		messages.value.push({ role: "ai", text: `请求失败: ${err.message}` });
-	} finally {
-		loading.value = false;
+	} else {
+		setTimeout(() => {
+			messages.value.push({ role: "ai", text: new Date().toISOString() });
+			loading.value = false;
+		}, 1000);
 	}
 };
 
-const clearChat = () => {
+const resetChat = () => {
 	messages.value = [];
 	sessionId.value = null;
+	(props.resetChat || (() => {}))();
+	if (props.initSystemMessage) {
+		setTimeout(() => {
+			messages.value.push({ role: "aiErr", text: props.initSystemMessage });
+		}, 0);
+	}
 };
+
+let initialPlaceholderTimer: number;
+const initialPlaceholderIndex = ref(0);
+const initialPlaceholderText = computed(() => props.initialPlaceholders?.[initialPlaceholderIndex.value] ?? '智能帮助');
+watch(() => props.initialPlaceholderInterval, () => {
+	clearInterval(initialPlaceholderTimer);
+	if (props.initialPlaceholderInterval) {
+		initialPlaceholderTimer = setInterval(() => {
+			// initialPlaceholderIndex.value = initialPlaceholderIndex.value >= (props.initialPlaceholders?.length ?? 1) - 1 ? 0 : initialPlaceholderIndex.value + 1;
+			let newIndex = 0;
+			do {
+				newIndex = Math.floor(Math.random() * props.initialPlaceholders?.length || 1);
+			} while (newIndex === initialPlaceholderIndex.value);
+			initialPlaceholderIndex.value = newIndex;
+		}, props.initialPlaceholderInterval) as any;
+	}
+}, { immediate: true });
+
+watch(() => props.enabled, () => {
+	if (props.enabled) {
+		if (props.initSystemMessage) {
+			messages.value.push({ role: "aiErr", text: props.initSystemMessage });
+		}
+	}
+}, { immediate: true });
+
+watch(() => messages.value.length, () => {
+	nextTick(() => messagesRef.value.scrollTo(0, Number.MAX_SAFE_INTEGER));
+});
+
 </script>
 
 <template>
-	<div class="defaultAnchor" ref="defaultAnchorRef">
+	<div class="defaultAnchor" ref="defaultAnchorRef" :class="props.enabled === false ? 'disabled' : ''">
 		<div class="aiSearchPositionAnchor" :style="anchorStyle" ref="anchorRef">
 			<transition name="panelAnim">
 				<div v-show="openedClass || true" :class="['panel', openedClass]" >
@@ -184,17 +346,89 @@ const clearChat = () => {
 					<div class="chatHeader">
 						<div class="left">
 							<IconAI />
-							<h3>FFBox AI 帮助</h3>
+							<h3>{{ props.titleName ?? 'FFBox AI 帮助' }}</h3>
+							<span class="modelName" v-if="props.modelName">{{ props.modelName }}</span>
+							<!-- Three Concentric Progress Rings (SVG only) -->
+							<div
+								v-if="props.quotaUsed"
+								class="usage"
+								v-bind="useTooltip(`\
+									${props.quotaUsed.day !== undefined ? `今日用量：${(props.quotaUsed.day * 100).toFixed(1)}%\n` : ''}\
+									${props.quotaUsed.week !== undefined ? `本周用量：${(props.quotaUsed.week * 100).toFixed(1)}%\n` : ''}\
+									${props.quotaUsed.total !== undefined ? `累计用量：${(props.quotaUsed.total * 100).toFixed(1)}%\n` : ''}\
+									${props.maxRounds !== undefined ? `本次对话：${messages.filter((msg) => msg.role === 'user').length} / ${props.maxRounds}\n` : ''}`
+								.slice(0, -1))"
+							>
+								<svg class="usageRing" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AI 使用量">
+									<defs>
+										<filter id="quotaUsageBgShadow" x="-50%" y="-50%" width="200%" height="200%">
+											<feDropShadow dx="0" dy="0" stdDeviation="2" :flood-color="usageTouchedWarning ? 'var(--red1)' : 'var(--blue1)'" flood-opacity="0.4"/>
+										</filter>
+										<filter id="quotaUsageRingShadow" x="-50%" y="-50%" width="200%" height="200%">
+											<feDropShadow dx="0" dy="0" stdDeviation="1" flood-color="hwb(var(--bg97))" flood-opacity="1"/>
+										</filter>
+	
+										<!-- 渐变（外/中/内） -->
+										<linearGradient id="gOuter" x1="0" y1="0" x2="1" y2="1">
+											<stop offset="0%" :stop-color="usageTouchedWarning ? 'var(--red1)' : 'var(--blue1)'" />
+											<stop offset="100%" :stop-color="usageTouchedWarning ? 'var(--red2)' : 'var(--blue2)'" />
+										</linearGradient>
+										<linearGradient id="gMiddle" x1="1" y1="0" x2="0" y2="1">
+											<stop offset="0%" :stop-color="usageTouchedWarning ? 'var(--red1)' : 'var(--blue1)'" />
+											<stop offset="100%" :stop-color="usageTouchedWarning ? 'var(--red2)' : 'var(--blue2)'" />
+										</linearGradient>
+										<linearGradient id="gInner" x1="0" y1="1" x2="1" y2="0">
+											<stop offset="0%" :stop-color="usageTouchedWarning ? 'var(--red1)' : 'var(--blue1)'" />
+											<stop offset="100%" :stop-color="usageTouchedWarning ? 'var(--red2)' : 'var(--blue2)'" />
+										</linearGradient>
+									</defs>
+	
+									<!-- 背景 -->
+									<circle cx="24" cy="24" r="22" fill="hwb(var(--bg97))" filter="url(#quotaUsageBgShadow)" />
+									<!-- <circle cx="24" cy="24" r="24" fill="none" stroke="#F5F7FB" stroke-width="1"/> -->
+	
+									<!-- 进度圆 -->
+									<path
+										v-if="props.maxRounds !== undefined"
+										:d="roundsSvgPiePath"
+										:fill="usageTouchedWarning ? 'var(--red2)' : 'var(--blue2)'" opacity="0.1"
+									/>
+	
+									<!-- 外圈 -->
+									<circle v-if="props.quotaUsed.day !== undefined" class="track"
+										cx="24" cy="24" r="18" />
+									<circle v-if="props.quotaUsed.day !== undefined" class="progress" :style="`stroke: url(#gOuter); stroke-dasharray: ${props.quotaUsed.day * 100} 100`"
+										cx="24" cy="24" r="18" pathLength="100" filter="url(#quotaUsageRingShadow)" />
+	
+									<!-- 中圈 -->
+									<circle v-if="props.quotaUsed.week !== undefined" class="track"
+										cx="24" cy="24" r="13"/>
+									<circle v-if="props.quotaUsed.week !== undefined" class="progress" :style="`stroke: url(#gMiddle); stroke-dasharray: ${props.quotaUsed.week * 100} 100`"
+										cx="24" cy="24" r="13" pathLength="100" filter="url(#quotaUsageRingShadow)" />
+	
+									<!-- 内圈 -->
+									<circle v-if="props.quotaUsed.total !== undefined" class="track"
+										cx="24" cy="24" r="8"/>
+									<circle v-if="props.quotaUsed.total !== undefined" class="progress" :style="`stroke: url(#gInner); stroke-dasharray: ${props.quotaUsed.total * 100} 100`"
+										cx="24" cy="24" r="8" pathLength="100" filter="url(#quotaUsageRingShadow)" />
+								</svg>
+								<span class="text" v-if="usageTouchedWarning">注意用量</span>
+							</div>
 						</div>
 						<div class="right">
-							<Button @click="clearChat" :type="ButtonType.NoBg"><IconRefresh /></Button>
+							<Button @click="resetChat" :type="ButtonType.NoBg" :disabled="loading"><IconRefresh /></Button>
 							<Button @click="closeWindow" :type="ButtonType.NoBg"><IconX style="height: 20px" /></Button>
 						</div>
 					</div>
-					<div class="chatMessages">
+					<div class="chatMessages" ref="messagesRef">
 						<TransitionGroup name="msgAnim">
 							<div v-for="(msg, idx) in messages" :key="idx" :class="['msg', msg.role]">
-								<div>{{ msg.text }}</div>
+								<div>
+									<!-- {{ msg.text }} -->
+									<template v-for="(line, index) in msg.text.split('\n')" :key="index">
+										{{ line }}<br />
+									</template>
+								</div>
 							</div>
 						</TransitionGroup>
 					</div>
@@ -209,20 +443,21 @@ const clearChat = () => {
 					v-model="inputValue"
 					:placeholder="openedClass.length ? '输入问题...' : ''"
 					:disabled="loading"
+					:maxlength="props.maxInputLength ?? 10000"
 					oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
 					@focus="() => isOpened === 'closed' ? openWindow() : null"
 					@keyup.enter="sendMessage"
 				/>
 				<div :class="['iconAI', openedClass]">
 					<IconAI />
-					智能帮助
+					<span>{{ initialPlaceholderText }}</span>
 				</div>
 				<!-- <div class="gradientTemparory"></div> -->
 				<GradientRect v-if="isOpened === 'closed'" class="gradientRect" />
 				<Button @click="sendMessage" :disabled="loading" :class="openedClass">🚀</Button>
-				<div v-if="loading" class="loading-overlay">
+				<!-- <div v-if="loading" class="loading-overlay">
 					<div class="spinner"></div>
-				</div>
+				</div> -->
 			</div>
 		</div>
 	</div>
@@ -232,6 +467,11 @@ const clearChat = () => {
 	.defaultAnchor {
 		position: relative;
 		height: 32px;
+		transition: width 0.5s ease;
+		&.disabled {
+			width: 0 !important;
+			overflow: hidden;
+		}
 		.aiSearchPositionAnchor {
 			position: relative;	// 激活时由 js 改为 fixed
 			height: 100%;	// 激活时由 js 控制
@@ -258,6 +498,7 @@ const clearChat = () => {
 					border-radius: 16px;
 					font-family: inherit;
 					font-size: 14px;
+					line-height: 19px;
 					color: inherit;
 					background-color: hwb(var(--bg99));
 					box-shadow: 0 0 1px 0.5px hwb(var(--highlight)),
@@ -293,6 +534,12 @@ const clearChat = () => {
 					}
 					svg {
 						height: 32px;
+					}
+					span {
+						max-width: calc(100% - 32px - 16px);
+						overflow: hidden;
+						text-overflow: ellipsis;
+						white-space: nowrap;
 					}
 				}
 				&:hover:not(&.opened) .iconAI {
@@ -371,7 +618,7 @@ const clearChat = () => {
 				box-shadow: 0 3px 2px -2px hwb(var(--highlight)) inset,	// 上亮光
 						0 16px 32px 0px hwb(var(--hoverShadow) / 0.02),	// 远阴影
 						0 6px 6px 0px hwb(var(--hoverShadow) / 0.02),	// 近阴影
-						0 10px 40px -8px rgba(77, 128, 255, 0.2),
+						0 10px 40px -8px hwb(220 30% 0% / 0.2),
 						0 0 0 1px hwb(var(--highlight) / 0.9);	// 包边
 				display: flex;
 				flex-direction: column;
@@ -406,6 +653,52 @@ const clearChat = () => {
 							margin: 0 8px;
 							font-size: 18px;
 							font-weight: 500;
+						}
+						.modelName {
+							display: inline-block;
+							padding: 2px 4px;
+							margin-left: 4px;
+							font-size: 10px;
+							border: hwb(255 50% 0% / 0.5) 1px solid;
+							border-radius: 4px;
+							background-color: hwb(255 50% 0% / 0.2);
+						}
+						.usage {
+							display: flex;
+							align-items: center;
+							.usageRing {
+								--blue1: #5B8DEF;
+								--blue2: #1AD6FF;
+								--green1: #7BD88F;
+								--green2: #2ED573;
+								--red1: hwb(20 20% 0%);
+								--red2: hwb(5 40% 5%);
+								// --red1: #FAD961;
+								// --red2: #F76B1C;
+								margin-left: 12px;
+								width: 22px;
+								height: 22px;
+								.track {
+									fill: none;
+									stroke: hwb(0 65% 35% / 0.05);
+									stroke-width: 2px;
+								}
+								.progress {
+									fill: none;
+									stroke-linecap: round;
+									stroke-dashoffset: 0;
+									stroke-dasharray: var(--p,0) 100;
+									stroke-width: 2.5px;
+									transform-origin: 24px 24px;	// 方便整体旋转让起点在正上方
+									transform: rotate(-90deg);
+									transition: stroke-dasharray .6s ease;
+									opacity: 0.5;
+								}
+							}
+							.text {
+								margin-left: 8px;
+								font-size: 10px;
+							}
 						}
 					}
 					.right {
@@ -450,6 +743,13 @@ const clearChat = () => {
 							transition: all 0.7s cubic-bezier(0.1, 2, 0.3, 1);
 						}
 					}
+					.msgAnim-leave-to {
+						opacity: 0;
+						transform: scale(0.6);
+					}
+					.msgAnim-leave-active {
+						transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(1, 0, 1, 1);
+					}
 					.msg {
 						margin-bottom: 24px;
 						div {
@@ -475,7 +775,7 @@ const clearChat = () => {
 										0 0 0 9999px hwb(210 5% 5% / 0.85) inset;	// 背景色
 							}
 						}
-						&.ai {
+						&.ai, &.aiErr {
 							text-align: left;
 							div {
 								color: var(--33);
@@ -485,6 +785,10 @@ const clearChat = () => {
 										0 1px 0.5px 0px hwb(var(--highlight) / 0.5) inset,	// 上高光
 										0 0 0 9999px hwb(var(--hoverLightBg) / 0.85) inset;	// 背景色
 							}
+						}
+						&.aiErr>div {
+							color: #dd8800;
+							font-style: italic;
 						}
 					}
 				}

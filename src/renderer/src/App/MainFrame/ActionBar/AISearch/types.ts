@@ -1,0 +1,68 @@
+/**
+ * 随机选择模型的参数
+ */
+interface ModelConfig {
+	name: string;   // 模型显示名称
+	id: string; // 模型传递名称
+	probabilitySum: number; // 权重和（在数组中必须递增）
+}
+
+/**
+ * 已使用模型的用量计算算法
+ */
+type ModelPrice = {
+	modelIdOrIndex: string;
+	inputMultiplyer: number; // 输入乘数
+	outputMultiplyer: number; // 输出乘数
+}[];
+
+/**
+ * 服务商配置类型
+ */
+interface ProviderConfig {
+	appId: string;
+	key: string;
+	probabilitySum: number; // 权重和（在数组中必须递增）
+	models: ModelConfig[];
+	modelPrice?: ModelPrice; // 已使用模型的用量计算算法
+}
+
+interface ResponseKeywordMessage {
+	keywords: string[];
+	message: string;
+	once?: boolean;	// 是否只显示一次，默认 false
+}
+type RequestKeywordMessage = ResponseKeywordMessage & { forbid: boolean };
+
+interface ResponseResponseKeywordLink {
+	keywords: string[];
+	urls?: string[];
+	blank?: boolean;	// 是否新标签打开，网页版默认 true，PC 版无论如何为 true
+	execute?: string[];	// 执行程序
+}
+type RequestResponseKeywordLink = ResponseResponseKeywordLink & { needContinue?: boolean };	// continue 表示匹配到后是否继续向 API 发送消息，默认 true
+
+/**
+ * 整体配置对象类型
+ */
+interface AISearchConfig {
+	ali?: ProviderConfig;
+	baidu?: ProviderConfig;
+	requestKeywordLink?: RequestResponseKeywordLink[];	// 请求关键词匹配到则打开一个链接
+	responseKeywordLink?: ResponseResponseKeywordLink[];	// 响应关键词匹配到则打开一个链接
+	requestKeywordSystemMessage?: RequestKeywordMessage[];	// 请求关键词匹配到则显示一条系统消息
+	responseKeywordSystemMessage?: ResponseKeywordMessage[];	// 响应关键词匹配到则显示一条系统消息
+	tokenLimit?: { day?: number, week?: number, total?: number };
+	tokenLimitMessage?: { day?: string, week?: string, total?: string };
+	maxInputLength?: number;
+	initialPlaceholders?: string[];
+	initialPlaceholderInterval?: number;
+	maxRounds?: number;
+	maxRoundsMessage?: string;
+	titleName?: string;
+	initMsgbox?: string;	// 第一次打开聊天窗时的弹窗
+	initSystemMessage?: string;	// 第一次打开聊天窗和重置对话时显示一条系统消息
+	invalidReply?: string;	// AI 检测到非法内容不予回答时显示一条系统消息
+}
+
+export default AISearchConfig;
