@@ -25,10 +25,8 @@ export function showServerConfig(serverId: string) {
 			buttons: [
 				{ text: '保存', role: 'confirm', type: ButtonType.Primary, callback: async () => {
 					const result = await compFuncs.exportData();
-					const { maxThreads, customFFmpegPath, preserveUnfinishedTasks } = result;
-					nodeBridge.localConfig.set('service.maxThreads', maxThreads);
-					nodeBridge.localConfig.set('service.customFFmpegPath', customFFmpegPath);
-					nodeBridge.localConfig.set('service.preserveUnfinishedTasks', preserveUnfinishedTasks);
+					const { maxThreads, customFFmpegPath, preserveUnfinishedTasks, deleteFinishedTasks } = result;
+					nodeBridge.localConfig.set('service', { maxThreads, customFFmpegPath, preserveUnfinishedTasks, deleteFinishedTasks });
 					const server = appStore.servers.find((server) => server.data.id === serverId) as Server;
 					setTimeout(() => {
 						// 留时间写盘完成后再通知服务器刷新
@@ -50,6 +48,7 @@ const Comp = defineComponent((props: P) => {
 	const maxThreadsValue = ref<string>();
 	const customFFmpegPathValue = ref<string>();
 	const preserveUnfinishedTasksValue = ref(true);
+	const deleteFinishedTasksValue = ref(false);
 
 	const exports = {
 		exportData: async () => {
@@ -57,6 +56,7 @@ const Comp = defineComponent((props: P) => {
 				maxThreads: +maxThreadsValue.value,
 				customFFmpegPath: customFFmpegPathValue.value,
 				preserveUnfinishedTasks: preserveUnfinishedTasksValue.value,
+				deleteFinishedTasks: deleteFinishedTasksValue.value,
 			};
 		}
 	};
@@ -66,12 +66,12 @@ const Comp = defineComponent((props: P) => {
 	onMounted(() => {
 		props.exportFunctions(exports);
 		(async () => {
-			const currentMaxThreads = (await nodeBridge.localConfig.get('service.maxThreads') as number) || 1;
-			maxThreadsValue.value = currentMaxThreads + '';
-			const currentCustomFFmpegPath = await nodeBridge.localConfig.get('service.customFFmpegPath');
-			customFFmpegPathValue.value = currentCustomFFmpegPath || '';
-			const preserveUnfinishedTasks = await nodeBridge.localConfig.get('service.preserveUnfinishedTasks');
-			preserveUnfinishedTasksValue.value = preserveUnfinishedTasks === false ? false : true;
+			const serviceSettings = await nodeBridge.localConfig.get('service') || {};
+			
+			maxThreadsValue.value = (serviceSettings.maxThreads || 1) + '';
+			customFFmpegPathValue.value = serviceSettings.currentCustomFFmpegPath || '';
+			preserveUnfinishedTasksValue.value = serviceSettings.preserveUnfinishedTasks === false ? false : true;
+			deleteFinishedTasksValue.value = serviceSettings.deleteFinishedTasks === true ? true : false;
 		})();
     });
 
@@ -84,6 +84,10 @@ const Comp = defineComponent((props: P) => {
 			<BoxedSwitch
 				title="保留未完成任务" checked={preserveUnfinishedTasksValue.value} onChange={(value: boolean) => preserveUnfinishedTasksValue.value = value}
 				{ ...useTooltip('若转码服务意外退出，下次运行时将自动将转码途中未完成任务恢复到任务列表', 't')}
+			/>
+			<BoxedSwitch
+				title="任务完成自动移除" checked={deleteFinishedTasksValue.value} onChange={(value: boolean) => deleteFinishedTasksValue.value = value}
+				{ ...useTooltip('任务成功转码后自动从任务列表中移除。任务出错则不受此设置影响', 't')}
 			/>
 			<BoxedNormalInput
 				title="ffmpeg 路径" value={customFFmpegPathValue.value} onChange={(value: string) => customFFmpegPathValue.value = value} placeholder="建议留空，自动检测" long={true}

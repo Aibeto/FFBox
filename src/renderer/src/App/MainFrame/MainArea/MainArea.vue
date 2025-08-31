@@ -5,6 +5,7 @@ import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import ListArea from './ListArea/ListArea.vue';
 import ParaBox from './ParaBox/ParaBox.vue';
+import DragFilesOverlay from './DragFilesOverlay/DragFilesOverlay.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import ImageDisconnected from './disconnect.svg?component';
@@ -25,6 +26,8 @@ const ip = ref('127.0.0.1');
 const port = ref('33269');
 const username = ref('');
 const password = ref('');
+const draggingCount = ref(0);
+
 const loginBoxVisible = computed(() => [ServiceBridgeStatus.Idle, ServiceBridgeStatus.Connecting].includes(appStore.currentServer?.entity.status));
 const isConnecting = computed(() => [ServiceBridgeStatus.Connecting, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status));
 const isDisconnected = computed(() => [ServiceBridgeStatus.Disconnected, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status));
@@ -60,10 +63,35 @@ const handleReconnectClicked = async () => {
 	}
 	appStore.reConnectServer(appStore.currentServerId);
 };
+
+const handleDragEnter = () => {
+	draggingCount.value++;
+	appStore.showDragFilesOverlay = true;
+};
+const handleDragLeave = () => {
+	if (draggingCount.value <= 1) {
+		appStore.showDragFilesOverlay = false;
+		draggingCount.value = 0;
+	} else {
+		draggingCount.value--;
+	}
+};
+const handleDrop = () => {
+	draggingCount.value = 0;
+	appStore.showDragFilesOverlay = false;
+};
+
 </script>
 
 <template>
-	<div class="mainarea" :ref="(el) => appStore.componentRefs['MainArea'] = (el as Element)">
+	<div
+		class="mainarea"
+		:ref="(el) => appStore.componentRefs['MainArea'] = (el as Element)"
+		@dragover="(e) => e.preventDefault()"
+		@dragenter="handleDragEnter"
+		@dragleave="handleDragLeave"
+		@drop="handleDrop"
+	>
 		<div class="upperArea" :style="{ height: `${appStore.draggerPos * 100}%`, position: 'relative' }">
 			<!-- 登录窗口 -->
 			<div class="loginArea" v-if="loginBoxVisible">
@@ -135,6 +163,7 @@ const handleReconnectClicked = async () => {
 			</div>
 		</div>
 		<ParaBox :style="{ height: `${(1 - appStore.draggerPos) * 100}%` }" />
+		<DragFilesOverlay />
 	</div>
 </template>
 

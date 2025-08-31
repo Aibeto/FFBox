@@ -20,10 +20,13 @@ export function showAddTaskPrompt(initialValue?: string) {
 		title: '添加任务',
 		content: <Comp exportFunctions={(fs) => compFuncs = fs} initialValue={initialValue} />,
 		buttons: [
-			{ text: '好', role: 'confirm', type: ButtonType.Primary, callback: async () => {
+			{ text: '批量添加为多个任务', role: 'confirm', type: ButtonType.Primary, callback: async () => {
 				const result = await compFuncs.exportData();
-				// console.log(result);
-				appStore.addTasks(result);
+				appStore.addTasks(result, 'multiTask');
+			} },
+			{ text: '合并添加为一个任务', callback: async () => {
+				const result = await compFuncs.exportData();
+				appStore.addTasks(result, 'multiInput');
 			} },
 			{ text: '取消', role: 'cancel' },
 		]

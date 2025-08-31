@@ -27,8 +27,9 @@
 2. `node.js`：它是一个 JavaScript 运行环境，主要用于项目的编译。建议使用 `nvm`，当项目运行不起来的时候可尝试使用它来切换一下 node.js 的版本。
 3. `pnpm`：它是本项目推荐使用的依赖管理器。
 4. `pnpm set registry ___` `pnpm set ELECTRON_MIRROR`：如果您无法正常下载依赖，请配置源。
-5. `Visual Studio 2022`：如果您要在 Windows 平台上编译 FFBoxHelper，那么这是必须的。
-6. `Inno Setup 6`: 如果要在 Windows 平台上制作安装包，那么需要将软件放置在环境变量中。另外，`ChineseSimplified.isl` 也需要另行准备放在该软件目录下。
+5. `npm run build:everything ` 可根据当前操作系统进行全量编译。如果在 package 过程中遇到 node gyp 相关错误，报 Visual Studio 未安装错误，这可能是由于无法连接到 Github 拉取预编译依赖导致的，你可以通过在命令后添加参数 -proxy="http://your-ip:port" 解决。
+6. `Visual Studio 2022`：如果您要在 Windows 平台上编译 FFBoxHelper，那么这是必须的。
+7. `Inno Setup 6`: 如果要在 Windows 平台上制作安装包，那么需要将软件放置在环境变量中。另外，`ChineseSimplified.isl` 也需要另行准备放在该软件目录下。
 
 ## FFmpeg
 

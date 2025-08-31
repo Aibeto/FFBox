@@ -39,6 +39,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private maxThreads = 1;
 	private customFFmpegPath: string;
 	private preserveUnfinishedTasks = true;
+	private deleteFinishedTasks = false;
 
 	constructor() {
 		super();
@@ -100,6 +101,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				}
 			} catch (error) {}
 		}
+
+		this.deleteFinishedTasks = await localConfig.get('service.deleteFinishedTasks') === false ? false : true;
 	}
 
 	/**
@@ -386,9 +389,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 	/**
 	 * 新增任务
+	 * @param isRemote 该值由 uiBridge 传入，前端无法指定
 	 * @emits tasklistUpdate
 	 */
-	public taskAdd(taskName: string, outputParams: OutputParams): Promise<number> {
+	public taskAdd(taskName: string, outputParams: OutputParams, isRemote?: boolean): Promise<number> {
 		const maxTaskCount = this.functionLevel < 40 ? 66 : this.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
 		if (Object.keys(this.tasklist).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
 			this.setNotification(
@@ -405,24 +409,25 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 		const id = this.latestTaskId++;
 		// 目前只处理单输入的情况
-		const filePath = outputParams.input.files[0].filePath;
-		log.info(`[任务 ${id}] 新增任务：${taskName}（${filePath ? '本地' : '网络'}）。`);
+		const firstFilePath = outputParams.input.files?.[0]?.filePath;
+		log.info(`[任务 ${id}] 新增任务：${taskName}（${firstFilePath ? '单输入普通任务' : '多输入/网络任务'}）。`);
 		const task = getInitialServiceTask(taskName, outputParams);
 		this.tasklist[id] = task;
 
 		// 更新命令行参数
 
-		if (filePath && filePath.length) {
+		if (firstFilePath?.length) {
 			task.paraArray = getFFmpegParaArray(task.after, true);
 			// 本地文件直接获取媒体信息
-			this.getFileMetadata(id, task, filePath);
-		} else {
+			this.getFileMetadata(id, task, firstFilePath);
+		} else if (isRemote) {
 			task.outputFiles = genTaskOutputFiles(task.after, `${os.tmpdir()}/FFBoxDownloadCache`);
 			task.paraArray = getFFmpegParaArray(task.after, true, undefined, undefined, task.outputFiles);
 			// 网络文件等待上传完成后再另行调用获取媒体信息
 			task.status = TaskStatus.initializing;
 			task.remoteTask = true;
 		}
+		// 本地多输入任务不调用获取媒体信息函数，由前端在添加任务后手动调用
 
 		this.emit('tasklistUpdate', { content: Object.keys(this.tasklist).map(Number) });
 		return Promise.resolve(id);
@@ -450,14 +455,15 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.before.abitrate = parseInt(input.abitrate || '-1');
 			this.emitTaskUpdate(id, task);
 		});
-		ffmpeg.on('closed', (errorCode, errors, runningResult) => {
-			if (errors.length) {
-				this.setNotification(id, filePath + '：' + [...errors].join(''), NotificationLevel.warning);
-				setTimeout(() => {
-					this.taskDelete(id);
-				}, 100);
-			}
-		});
+		// 从 5.0 开始支持特殊输入，此情况下并不能直接使用自动解复用器读取媒体信息，此时会报错
+		// ffmpeg.on('closed', (errorCode, errors, runningResult) => {
+		// 	if (errors.length) {
+		// 		this.setNotification(id, filePath + '：' + [...errors].join(''), NotificationLevel.warning);
+		// 		setTimeout(() => {
+		// 			this.taskDelete(id);
+		// 		}, 100);
+		// 	}
+		// });
 	}
 
 	/**
@@ -648,6 +654,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					this.setNotification(id, '任务「' + task.fileBaseName + '」已转码完成，但修改文件时间失败。请检查文件权限。', NotificationLevel.warning);
 				} else {
 					this.setNotification(id, `任务「${task.fileBaseName}」已转码完成`, NotificationLevel.ok);
+				}
+				if (this.deleteFinishedTasks) {
+					setTimeout(() => {
+						this.taskDelete(id);
+					}, 0);
 				}
 			}
 			this.emitTaskUpdate(id, task);

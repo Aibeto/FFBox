@@ -41,6 +41,8 @@ interface Message {
 
 const isOpened = ref<'closed' | 'opening' | 'opened' | 'closing'>('closed');
 let hasOpened = false;
+const showedRequestKeywordMessage: string[] = [];
+const showedResponseKeywordMessage: string[] = [];
 const inputValue = ref('');
 const messages = ref<Message[]>([]);
 const sessionId = ref<string | null>(null);
@@ -218,9 +220,13 @@ const sendMessage = async () => {
 	// 发送警告词检查
 	if (props.requestKeywordSystemMessage) {
 		for (const item of props.requestKeywordSystemMessage) {
-			const isContain = item.keywords.some((keyword) => userText.includes(keyword));
-			if (isContain) {
-				messages.value.push({ role: "aiErr", text: item.message });
+			const keywordIndex = item.keywords.findIndex((keyword) => userText.includes(keyword));
+			if (keywordIndex >= 0) {
+				const dontShowSecondTime = item.once && showedRequestKeywordMessage.includes(item.keywords[keywordIndex]);
+				if (!dontShowSecondTime) {
+					messages.value.push({ role: "aiErr", text: item.message });
+				}
+				showedRequestKeywordMessage.push(item.keywords[keywordIndex]);
 				if (item.forbid) {
 					return;
 				}
@@ -249,9 +255,13 @@ const sendMessage = async () => {
 			// 响应警告词检查
 			if (props.responseKeywordSystemMessage) {
 				for (const item of props.responseKeywordSystemMessage) {
-					const isContain = item.keywords.some((keyword) => result.includes(keyword));
-					if (isContain) {
-						messages.value.push({ role: "aiErr", text: item.message });
+					const keywordIndex = item.keywords.findIndex((keyword) => result.includes(keyword));
+					if (keywordIndex >= 0) {
+						const dontShowSecondTime = item.once && showedResponseKeywordMessage.includes(item.keywords[keywordIndex]);
+						if (!dontShowSecondTime) {
+							messages.value.push({ role: "aiErr", text: item.message });
+						}
+						showedResponseKeywordMessage.push(item.keywords[keywordIndex]);
 					}
 				}
 			}

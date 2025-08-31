@@ -7,6 +7,7 @@ import { getMenuItemByValue } from '@common/menu';
 import { renderDetailParameters } from './utils';
 import { useAppStore } from '@renderer/stores/appStore';
 import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrapper.vue';
+import WaveGrid from '@renderer/components/WaveGrid/WaveGrid.vue';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
@@ -14,7 +15,6 @@ import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import DropdownInput from '@renderer/components/DropdownInput/DropdownInput.vue';
 import IconDelete from '@renderer/assets/×.svg?component';
 import ImageFind from './find.svg?component';
-import WaveGrid from './WaveGrid.vue';
 import css from './InputView.module.less';
 
 interface Props {}

@@ -28,7 +28,6 @@ const sidebarColors = computed(() =>
 const deviderRef = ref<Element>(null);
 const animationName = ref('animationLeft');
 const editingOutputIndex = ref(0);
-const paraSelected = ref(1);
 const showGlobalParams = ref(true);
 
 const outputSelectionList = computed(() => appStore.globalParams.outputs.map((output, index) => ({
@@ -74,8 +73,8 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 };
 
 const handleParaButtonClicked = (index: number) => {
-	animationName.value = index < paraSelected.value ? 'animationLeft' : 'animationRight';
-	paraSelected.value = index;
+	animationName.value = index < appStore.paraSelected ? 'animationLeft' : 'animationRight';
+	appStore.paraSelected = index;
 }
 
 const handleOutputSelectionListChange = (value: string) => {
@@ -89,14 +88,14 @@ const handleOutputSelectionListChange = (value: string) => {
 };
 
 const handleForceRefresh = () => {
-	const current = paraSelected.value;
-	paraSelected.value = undefined;
+	const current = appStore.paraSelected;
+	appStore.paraSelected = undefined;
 	setTimeout(() => {
-		paraSelected.value = current;
+		appStore.paraSelected = current;
 	}, 120);
 }
 
-const getButtonColorStyle = (index: number) => ({ color: paraSelected.value === index ? sidebarColors.value[index] : 'hwb(0 50% 50%)' });
+const getButtonColorStyle = (index: number) => ({ color: appStore.paraSelected === index ? sidebarColors.value[index] : 'hwb(0 50% 50%)' });
 
 onMounted(() => {
 	window.addEventListener('finished-fetch-codecs', handleForceRefresh);
@@ -137,22 +136,22 @@ onUnmounted(() => {
 		</div>
 		<div class="lower">
 			<transition :name="animationName">
-				<ShortcutView v-if="paraSelected == 0" />
+				<ShortcutView v-if="appStore.paraSelected == 0" />
 			</transition>
 			<transition :name="animationName">
-				<InputView v-if="paraSelected == 1" />
+				<InputView v-if="appStore.paraSelected == 1" />
 			</transition>
 			<transition :name="animationName">
-				<EffectView v-if="paraSelected == 2" :editingOutputIndex="editingOutputIndex" :onEditingOutputIndexChange="(index) => editingOutputIndex = index" />
+				<EffectView v-if="appStore.paraSelected == 2" :editingOutputIndex="editingOutputIndex" :onEditingOutputIndexChange="(index) => editingOutputIndex = index" />
 			</transition>
 			<transition :name="animationName">
-				<VcodecView v-if="paraSelected == 3" :editingOutputIndex="editingOutputIndex" />
+				<VcodecView v-if="appStore.paraSelected == 3" :editingOutputIndex="editingOutputIndex" />
 			</transition>
 			<transition :name="animationName">
-				<AcodecView v-if="paraSelected == 4" :editingOutputIndex="editingOutputIndex" />
+				<AcodecView v-if="appStore.paraSelected == 4" :editingOutputIndex="editingOutputIndex" />
 			</transition>
 			<transition :name="animationName">
-				<MuxView v-if="paraSelected == 5" :editingOutputIndex="editingOutputIndex" />
+				<MuxView v-if="appStore.paraSelected == 5" :editingOutputIndex="editingOutputIndex" />
 			</transition>
 		</div>
 	</div>

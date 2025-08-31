@@ -11,7 +11,6 @@ import ImageNoffmpeg from './noffmpeg.svg?component';
 const appStore = useAppStore();
 
 const selectedTask_last = ref(-1);
-const dragging = ref(false);
 
 const tasks = computed(() => {
 	// console.log('服务器', appStore.currentServer, '任务', appStore.currentServer?.data.tasks);
@@ -105,37 +104,10 @@ const handleDownloadFFmpegClicked = () => {
 	nodeBridge.jumpToUrl('https://ffmpeg.org/download.html');
 };
 
-const onDragenter = (event: DragEvent) => {
-	// 这里把 dragenter 和 dragover 都引到这里了，拖动时会高频率调用，虽然不是很好，但是不加 dragover 会导致 drop 没反应
-	if (!appStore.currentServer || !appStore.currentServer.data.ffmpegInfo?.version) {
-		return;
-	}
-	event.preventDefault();
-	dragging.value = true;
-};
-const onDragleave = (event: DragEvent) => {
-	event.preventDefault();
-	dragging.value = false;
-};
-/**
- * 此函数触发四次 taskList update，分别为加入任务、ffmpeg data、ffmpeg metadata、selectedTask update（不知道现在还是不是这样）
- * 目前仅处理“分别处理”模式的输入，待后期支持“拼接”之后再判断 drop 的是哪个
- * @param event 
- */
-const onDrop = (event: DragEvent) => {	// 
-	event.preventDefault();
-	dragging.value = false;
-	if (event.dataTransfer?.files?.length) {
-		appStore.addTasks(event.dataTransfer?.files);
-	} else if (event.dataTransfer?.items) {
-		showAddTaskPrompt(event.dataTransfer?.getData('text/plain'));
-	}
-};
-
 </script>
 
 <template>
-	<div class="listarea"  @dragenter="onDragenter($event)" @dragover="onDragenter($event)" @dragleave="onDragleave($event)" @drop="onDrop($event)">
+	<div class="listarea">
 		<div class="tasklist">
 			<TaskItem
 				v-for="(task, index) in tasks"
@@ -154,7 +126,7 @@ const onDrop = (event: DragEvent) => {	//
 			@mousedown="debugLauncher($event)"
 			@dblclick="nodeBridge.env === 'electron' ? showAddTaskPrompt() : showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList))"
 		>
-			<div class="dropfilesimage" :class="dragging ? 'imgDragging' : 'imgNormal'" />
+			<div class="dropfilesimage" :class="false ? 'imgDragging' : 'imgNormal'" />
 		</div>
 		<div v-else class="noffmpeg">
 			<div class="box">
@@ -206,9 +178,9 @@ const onDrop = (event: DragEvent) => {	//
 			.imgNormal {
 				background-image: url(./drop_files.svg);
 			}
-			.imgDragging {
-				background-image: url(./drop_files_ok.svg);
-			}
+			// .imgDragging {
+			// 	background-image: url(./drop_files_ok.svg);
+			// }
 		}
 		.noffmpeg {
 			position: absolute;

@@ -354,7 +354,7 @@ function getRouter(): Router {
 			return;
 		}
 		const body = ctx.request.body;
-		const result = await ffboxService!.taskAdd(body.fileBaseName, body.outputParams);
+		const result = await ffboxService!.taskAdd(body.fileBaseName, body.outputParams, ctx.URL.hostname !== 'localhost');
 		ctx.response.status = 200;
 		ctx.response.body = result;
 	});

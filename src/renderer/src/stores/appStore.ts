@@ -24,6 +24,8 @@ interface StoreState {
 	// 界面类
 	showMenuCenter: 0 | 1 | 2; // 0：关闭　1：开启菜单栏　2：全开
 	showInfoCenter: boolean;
+	showDragFilesOverlay: boolean;
+	paraSelected: number,
 	draggerPos: number,
 	taskViewSettings: {
 		showParams: boolean,
@@ -68,6 +70,8 @@ export const useAppStore = defineStore('app', {
 			// 界面类
 			showMenuCenter: 0,
 			showInfoCenter: false,
+			showDragFilesOverlay: false,
+			paraSelected: 1,
 			draggerPos: 0.57,
 			taskViewSettings: {
 				showParams: true,
@@ -115,123 +119,182 @@ export const useAppStore = defineStore('app', {
 		// #region 任务处理
 		/**
 		 * 添加一系列任务。仅支持本地文件和远程路径，本地文件夹需展开后再传入，未知路径传入无效
+		 * Promise 最终会在后端返回任务更新（或 200ms 超时）后，并将 globalParams 替换后 resolve
 		 */
-		addTasks (inputList: string[] | FileList) {
-			async function checkAndUploadFile(filename: string, fileInfo: { size: number, file: Buffer | Blob }, id: number) {
-				const { file } = fileInfo;
-				let buffer: Buffer | ArrayBuffer;
-				if (file instanceof Blob) {
-					const reader = new FileReader();
-					reader.readAsArrayBuffer(file);
-					buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-						reader.addEventListener('loadend', () => {
-							resolve(reader.result as ArrayBuffer);
-						})
+		addTasks (inputList: string[] | FileList, type: 'multiTask' | 'multiInput' = 'multiTask') {
+			return new Promise(async (resolve) => {
+				async function checkAndUploadFile(filename: string, fileInfo: { size: number, file: Buffer | Blob }, id: number) {
+					const { file } = fileInfo;
+					let buffer: Buffer | ArrayBuffer;
+					if (file instanceof Blob) {
+						const reader = new FileReader();
+						reader.readAsArrayBuffer(file);
+						buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+							reader.addEventListener('loadend', () => {
+								resolve(reader.result as ArrayBuffer);
+							})
+						});
+					} else {
+						buffer = file;
+					}
+					console.log(filename, '开始计算文件校验码');
+					const wordArray = CryptoJS.lib.WordArray.create(buffer as any);
+					let hash = CryptoJS.SHA1(wordArray).toString();
+					console.log(filename, '校验码：' + hash);		
+	
+					const response = await fetch(`http://${server.entity.ip}:${server.entity.port}/upload/check/`, {
+						method: 'post',
+						body: JSON.stringify({
+							hashs: [hash]
+						}),
+						headers: new Headers({
+							'Content-Type': 'application/json'
+						}),
 					});
-				} else {
-					buffer = file;
+					const responseText = await response.text();
+					let content = JSON.parse(responseText) as number[];
+					if (content[0] % 2) {
+						console.log(filename, '已缓存');
+						server.entity.mergeUploaded(id, [hash]);
+					} else {
+						console.log(filename, '未缓存');
+						// 运行到此时，虽然代码逻辑上不保证本地 tasklist 一定有此任务，但正常操作下 tasklist update 一早就到达了，而且用户也不会在上传开始前删除任务
+						await uploadFile(id, hash, filename, buffer);
+						server.entity.mergeUploaded(id, [hash]);
+						const currentServer = 这.currentServer.data;
+						const task = currentServer.tasks[id];
+						task.transferStatus = TransferStatus.normal;
+					}
 				}
-				console.log(filename, '开始计算文件校验码');
-				const wordArray = CryptoJS.lib.WordArray.create(buffer as any);
-				let hash = CryptoJS.SHA1(wordArray).toString();
-				console.log(filename, '校验码：' + hash);		
+				function uploadFile(id: number, hash: string, filename: string, buffer: Buffer | ArrayBuffer) {
+					return new Promise((resolve) => {
+						const currentServer = 这.currentServer.data;
+						const task = currentServer.tasks[id];
+						task.transferStatus = TransferStatus.uploading;
+						task.transferProgressLog.total = buffer instanceof ArrayBuffer ? buffer.byteLength : buffer.length;
+						const lastStarted = new Date().getTime() / 1000;
+						task.transferProgressLog.lastStarted = lastStarted;
+						const form = new FormData();
+						form.append('name', hash);
+						// form.append('file', file);
+						const file_blob = new Blob([buffer]);
+						form.append('file', file_blob, hash);
+						const xhr = new XMLHttpRequest;
+						xhr.upload.addEventListener('progress', (event) => {
+							// let progress = event.loaded / event.total;
+							const transferred = task.transferProgressLog.transferred;
+							transferred.push([new Date().getTime() / 1000 - lastStarted, event.loaded]);
+						}, false);
+						xhr.onreadystatechange = function (e) {
+							if (xhr.readyState !== 0) {
+								if (xhr.status >= 400 && xhr.status < 500) {
+									Popup({
+										message: `【${filename}】网络请求故障，上传失败`,
+										level: NotificationLevel.error,
+									})
+								} else if (xhr.status >= 500 && xhr.status < 600) {
+									Popup({
+										message: `【${filename}】服务器故障，上传失败`,
+										level: NotificationLevel.error,
+									})
+								}
+							}
+						}
+						xhr.onload = function () {
+							console.log(filename, `发送完成`);
+							resolve(0);
+							clearInterval(task.dashboardTimer);
+							task.dashboardTimer = NaN;
+						}
+						xhr.open('post', `http://${server.entity.ip}:${server.entity.port}/upload/file/`, true);
+						// xhr.setRequestHeader('Content-Type', 'multipart/form-data');
+						xhr.send(form);
+						task.dashboardTimer = setInterval(dashboardTimer, 50, task) as any;
+					});
+				}
+				function allTimerFinish() {
+					Promise.all(newlyAddedTaskIds).then((ids) => {
+						这.selectedTask = new Set(ids);
+						// 从 5.0 开始，由于支持多输入，addTask 函数向后端传的是替换了文件名的 globalParams，因此需要 applySelectedTask 使参数变成当前选中的 task 的参数，否则不一致
+						// 需要等待一次 taskUpdate，待另一个监听器替换了任务参数之后，再在此处 applySelectedTask，否则会导致参数为空
+						// 由于网络到达顺序的不确定性，Promise 完成时可能所有任务都完成了 taskUpdate，此时再加监听器则无法触发。因此需要加一个 timeout 做兜底
+						const handler = () => {
+							clearTimeout(timer);
+							server.entity.off('taskUpdate', handler);
+							setTimeout(() => {
+								这.applySelectedTask();
+								这.globalParams.extra.presetName = '';
+								这.presetName = '';			
+								resolve(ids);
+							}, 0);
+						};
+						const timer = setTimeout(handler, 200);
+						server.entity.on('taskUpdate', handler);
+					});
+				}
+	
+				const 这 = useAppStore();
+				const server = 这.currentServer;
+				const isRemoteService = server.entity.ip !== 'localhost';
+				const newlyAddedTaskIds: Promise<number>[] = [];	// 考虑到 timer 的最后一项并不一定是网络到达的最后一项，这里使用 Promise。待后期远程调用批量化后可改进
+				let dropDelayCount = 0;
+				const maxTaskCount = 这.functionLevel < 40 ? 66 : 这.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
 
-				fetch(`http://${server.entity.ip}:${server.entity.port}/upload/check/`, {
-					method: 'post',
-					body: JSON.stringify({
-						hashs: [hash]
-					}),
-					headers: new Headers({
-						'Content-Type': 'application/json'
-					}),
-				}).then((response) => {
-					response.text().then((text) => {
-						let content = JSON.parse(text) as number[];
-						if (content[0] % 2) {
-							console.log(filename, '已缓存');
-							server.entity.mergeUploaded(id, [hash]);
-						} else {
-							console.log(filename, '未缓存');
-							uploadFile(id, hash, filename, buffer);
-						}
-					})
-				});
-			}
-			function uploadFile(id: number, hash: string, filename: string, buffer: Buffer | ArrayBuffer) {
-				const currentServer = 这.currentServer.data;
-				const task = currentServer.tasks[id];
-				task.transferStatus = TransferStatus.uploading;
-				task.transferProgressLog.total = buffer instanceof ArrayBuffer ? buffer.byteLength : buffer.length;
-				const lastStarted = new Date().getTime() / 1000;
-				task.transferProgressLog.lastStarted = lastStarted;
-				const form = new FormData();
-				form.append('name', hash);
-				// form.append('file', file);
-				const file_blob = new Blob([buffer]);
-				form.append('file', file_blob, hash);
-				const xhr = new XMLHttpRequest;
-				xhr.upload.addEventListener('progress', (event) => {
-					// let progress = event.loaded / event.total;
-					const transferred = task.transferProgressLog.transferred;
-					transferred.push([new Date().getTime() / 1000 - lastStarted, event.loaded]);
-				}, false);
-				xhr.onreadystatechange = function (e) {
-					if (xhr.readyState !== 0) {
-						if (xhr.status >= 400 && xhr.status < 500) {
-							Popup({
-								message: `【${filename}】网络请求故障，上传失败`,
-								level: NotificationLevel.error,
-							})
-						} else if (xhr.status >= 500 && xhr.status < 600) {
-							Popup({
-								message: `【${filename}】服务器故障，上传失败`,
-								level: NotificationLevel.error,
-							})
-						}
+				if (type === 'multiTask') {
+					let needStopCuzLimit = false;	// 因为使用了 setTimeout，所以使用标记位停止后续添加
+					for (const input of inputList) {
+						setTimeout(async () => {	// v2.4 版本开始完全可以不要延时，但是太生硬，所以加个动画
+							if (needStopCuzLimit) {
+								return;
+							}
+							if (Object.keys(server.data.tasks).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
+								needStopCuzLimit = true;
+								这.pushMsg(
+									`😞任务数量达到上限了（前端）\n` +
+									`💔您的用户等级最高支持在任务列表中放入 ${maxTaskCount} 个任务，您可以先删除一些任务再添加\n` +
+									'🤫开发者设计该项限制的意图是避免超出合理范围的操作导致前端卡顿（实测 100 个任务同时运行一遍或能导致前端卡顿半小时），\n' +
+									'　并给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
+									'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
+									NotificationLevel.warning
+								);
+								allTimerFinish();
+								return;
+							}
+							const filename = typeof input === 'string' ? path.parse(input).name : input.name;
+							const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
+							const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
+							// console.log('添加任务', input, fileType);
+							let fileInfo: { size: number, file: Buffer | Blob };
+							if (needUpload) {
+								const limitedFileSizeMB = isRemoteService ? (这.functionLevel >= 60 ? 192 : 127) : Infinity;
+								// 超过约 200MB 的文件在进行 CryptoJS.SHA1 时会导致页面崩溃
+								fileInfo = typeof input === 'string' ? await nodeBridge.getLocalFile(input, limitedFileSizeMB * 1000 * 1000) : { file: input, size: input.size };
+								if (fileInfo.size > limitedFileSizeMB * 1000 * 1000) {
+									Popup({
+										message: `${filename} 文件大小超过 ${limitedFileSizeMB} MB，暂不支持上传操作`,
+										level: 2,
+									});
+									return;
+								}
+							}
+							let promise: Promise<number> = 这.addTask(trimExt(filename), [needUpload ? '' : (typeof input === 'string' ? input : input.path)]);	// 网页版拖入文件必定上传，electron 版拖入文件则直接以路径输入
+							if (needUpload) {
+								// 代码逻辑上来说不稳定，因为 addTask 后，后端通过发送一个 tasklistUpdate 来使前端更新任务列表，然后 resolve 掉 addTask 请求。但若 addTask 请求先完成，checkAndUploadFile 就会出错
+								// 但目前未触发此 bug
+								promise.then((id) => {
+									checkAndUploadFile(filename, fileInfo, id);
+								});
+							}
+							newlyAddedTaskIds.push(promise);
+							if (newlyAddedTaskIds.length === inputList.length) {
+								allTimerFinish();
+							}
+						}, dropDelayCount);
+						// console.log(dropDelayCount)
+						dropDelayCount += 33.33;
 					}
-				}
-				xhr.onload = function () {
-					console.log(filename, `发送完成`);
-					server.entity.mergeUploaded(id, [hash]);
-					task.transferStatus = TransferStatus.normal;
-					clearInterval(task.dashboardTimer);
-					task.dashboardTimer = NaN;
-				}
-				xhr.open('post', `http://${server.entity.ip}:${server.entity.port}/upload/file/`, true);
-				// xhr.setRequestHeader('Content-Type', 'multipart/form-data');
-				xhr.send(form);
-				task.dashboardTimer = setInterval(dashboardTimer, 50, task) as any;
-			}
-			const 这 = useAppStore();
-			const server = 这.currentServer;
-			const isRemoteService = server.entity.ip !== 'localhost';
-			const newlyAddedTaskIds: Promise<number>[] = [];
-			let dropDelayCount = 0;
-			const maxTaskCount = 这.functionLevel < 40 ? 66 : 这.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
-			function allTimerFinish() {
-				Promise.all(newlyAddedTaskIds).then((ids) => {
-					这.selectedTask = new Set(ids);
-					// 从 5.0 开始，由于支持多输入，addTask 函数向后端传的是替换了文件名的 globalParams，因此需要 applySelectedTask 使参数变成当前选中的 task 的参数，否则不一致
-					// 需要等待一次 taskUpdate，待另一个监听器替换了任务参数之后，再在此处 applySelectedTask，否则会导致参数为空
-					const handler = () => {
-						server.entity.off('taskUpdate', handler);
-						setTimeout(() => {
-							这.applySelectedTask();
-							这.globalParams.extra.presetName = '';
-							这.presetName = '';			
-						}, 0);
-					};
-					server.entity.on('taskUpdate', handler);
-				})
-			}
-			let needStopCuzLimit = false;
-			for (const input of inputList) {
-				setTimeout(async () => {	// v2.4 版本开始完全可以不要延时，但是太生硬，所以加个动画
-					if (needStopCuzLimit) {
-						return;
-					}
+				} else if (type === 'multiInput') {
 					if (Object.keys(server.data.tasks).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
-						needStopCuzLimit = true;
 						这.pushMsg(
 							`😞任务数量达到上限了（前端）\n` +
 							`💔您的用户等级最高支持在任务列表中放入 ${maxTaskCount} 个任务，您可以先删除一些任务再添加\n` +
@@ -243,59 +306,88 @@ export const useAppStore = defineStore('app', {
 						allTimerFinish();
 						return;
 					}
-					const filename = typeof input === 'string' ? path.parse(input).name : input.name;
-					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
-					const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
-					// console.log('添加任务', input, fileType);
-					let fileInfo: { size: number, file: Buffer | Blob };
-					if (needUpload) {
-						const limitedFileSizeMB = isRemoteService ? (这.functionLevel >= 60 ? 192 : 127) : Infinity;
-						// 超过约 200MB 的文件在进行 CryptoJS.SHA1 时会导致页面崩溃
-						fileInfo = typeof input === 'string' ? await nodeBridge.getLocalFile(input, limitedFileSizeMB * 1000 * 1000) : { file: input, size: input.size };
-						if (fileInfo.size > limitedFileSizeMB * 1000 * 1000) {
-							Popup({
-								message: `${filename} 文件大小超过 ${limitedFileSizeMB} MB，暂不支持上传操作`,
-								level: 2,
-							});
-							return;
+	
+					const inputPaths: string[] = [];
+					// 先添加空白任务，然后检查上传
+					const firstFilename = typeof inputList[0] === 'string' ? path.parse(inputList[0]).name : inputList[0].name;
+					const taskId = await 这.addTask(trimExt(firstFilename), []);
+					newlyAddedTaskIds.push(Promise.resolve(taskId));
+	
+					for (const input of inputList) {
+						// const filename = typeof input === 'string' ? path.parse(input).name : input.name;
+						// const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
+						// const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
+						// // console.log('添加任务', input, fileType);
+						// let fileInfo: { size: number, file: Buffer | Blob };
+						// if (needUpload) {
+						// 	const limitedFileSizeMB = isRemoteService ? (这.functionLevel >= 60 ? 192 : 127) : Infinity;
+						// 	// 超过约 200MB 的文件在进行 CryptoJS.SHA1 时会导致页面崩溃
+						// 	fileInfo = typeof input === 'string' ? await nodeBridge.getLocalFile(input, limitedFileSizeMB * 1000 * 1000) : { file: input, size: input.size };
+						// 	if (fileInfo.size > limitedFileSizeMB * 1000 * 1000) {
+						// 		Popup({
+						// 			message: `${filename} 文件大小超过 ${limitedFileSizeMB} MB，暂不支持上传操作`,
+						// 			level: 2,
+						// 		});
+						// 		return;
+						// 	}
+						// }
+						// if (needUpload) {
+						// 	// checkAndUploadFile 是为单输入任务做的函数
+						// 	// 目前版本中，网络任务暂不支持多输入，此处代码理论上永远运行不到，只作为占位符
+						// 	checkAndUploadFile(filename, fileInfo, taskId);
+						// }
+	
+						if (typeof input === 'string') {
+							inputPaths.push(input);
+						} else if (input.path) {
+							inputPaths.push(input.path);
 						}
 					}
-					let promise: Promise<number> = 这.addTask(trimExt(filename), needUpload ? '' : (typeof input === 'string' ? input : input.path));	// 网页版拖入文件必定上传，electron 版拖入文件则直接以路径输入
-					if (needUpload) {
-						promise.then((id) => {
-							checkAndUploadFile(filename, fileInfo, id);
-						});
-					}
-					newlyAddedTaskIds.push(promise);
-					if (newlyAddedTaskIds.length === inputList.length) {
-						allTimerFinish();
-					}
-				}, dropDelayCount);
-				// console.log(dropDelayCount)
-				dropDelayCount += 33.33;
-			}
+	
+					// 完成任务添加后，设置输入列表
+					const entity = 这.currentServer?.entity;
+					const params = 这.globalParams;
+					entity.setParameters([taskId], [{
+						...params,
+						input: {
+							files: inputPaths.map((path, index) => ({
+								filePath: path.replace(/\\/g, '/'),
+								demuxer: params.input.files[index]?.demuxer ?? '自动',
+								begin: params.input.files[index]?.begin ?? '',
+								end: params.input.files[index]?.end ?? '',
+								hwaccel: params.input.files[index]?.hwaccel ?? '自动',
+								realtime: params.input.files[index]?.realtime ?? false,
+								detail: params.input.files[index]?.realtime ?? {},
+								custom: params.input.files[index]?.custom ?? '',
+							})),
+						},
+					}]);
+					allTimerFinish();
+				}
+			});
 		},
 		/**
 		 * 添加任务
 		 * path 将自动添加到 params 中去
 		 * @param path 输入文件（仅支持 1 个）的路径。若为远程任务则留空
 		 */
-		addTask(baseName: string, path?: string): Promise<number> {
+		addTask(baseName: string, paths: string[]): Promise<number> {
 			const 这 = useAppStore();
 			const currentBridge = 这.currentServer?.entity;
 			if (!currentBridge) {
 				return;
 			}
 			const params: OutputParams = JSON.parse(JSON.stringify(这.globalParams));
-			// TODO 支持多个文件作为一个任务输入
-			params.input.files[0] = {
+			params.input.files = paths.map((path, index) => ({
 				filePath: path ? path.replace(/\\/g, '/') : undefined,
-				begin: params.input.files[0]?.begin ?? '',
-				end: params.input.files[0]?.end ?? '',
-				hwaccel: params.input.files[0]?.hwaccel ?? '',
-				realtime: params.input.files[0]?.realtime ?? false,
-				custom: params.input.files[0]?.custom ?? '',
-			}
+				demuxer: params.input.files[index]?.demuxer ?? '自动',
+				begin: params.input.files[index]?.begin ?? '',
+				end: params.input.files[index]?.end ?? '',
+				hwaccel: params.input.files[index]?.hwaccel ?? '自动',
+				realtime: params.input.files[index]?.realtime ?? false,
+				detail: params.input.files[index]?.detail ?? {},
+				custom: params.input.files[index]?.custom ?? '',
+			}));
 			const result = currentBridge.taskAdd(baseName, params);
 			return result;
 		},

@@ -212,7 +212,7 @@ const Comp = defineComponent((props: P) => {
 		const { K: frameK, B: frameB, currentValue: currentFrame } = calcDashboard(progressLog.frame.slice(-5), 0);
 		const { K: timeK, B: timeB, currentValue: currentTime } = calcDashboard(progressLog.time.slice(-5), 0);
 		const { K: sizeK, B: sizeB, currentValue: currentSize } = calcDashboard(dedupProgressLogSize.value.slice(-5).map((value) => [value[1], value[2]]), 0);
-		const afterFramerate = task.after.video.framerate === '不改变' ? task.before.vframerate : +task.after.video.framerate;
+		const afterFramerate = task.after.outputs[0]?.video.framerate === '不改变' ? task.before.vframerate : +task.after.outputs[0]?.video.framerate;
 		return {
 			speed: frameK / afterFramerate || timeK,	// 媒体时间相对真实时间。如果可以读出帧速，或者输出的是视频，用帧速算 speed 更准确；否则用时间算 speed
 			bitrate: sizeK * 8,	// 尺寸变化相对媒体时间

@@ -4,10 +4,11 @@ import { computed, onMounted, ref } from 'vue';
 import CryptoJS from 'crypto-js';
 import AISearchConfig from './types';
 import { version } from '@common/constants';
+import { randomString } from '@common/utils';
 import nodeBridge from '@renderer/bridges/nodeBridge';
+import AISearch from './AISearch.vue';
 import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import { ButtonType } from '@renderer/components/Button/Button';
-import AISearch from './AISearch.vue';
 
 const fetchedConfig = ref<AISearchConfig>();
 
@@ -28,9 +29,9 @@ const quotaUsed = computed(() => ({
 const checkQuota = async () => {
 	const aiAssistantData = await nodeBridge.localStorage.get('aiAssistant');
 
-	if (Number.isInteger(aiAssistantData?.tokenUsed?.day)) tokenUsed.value.day = aiAssistantData.tokenUsed.day;
-	if (Number.isInteger(aiAssistantData?.tokenUsed?.week)) tokenUsed.value.week = aiAssistantData.tokenUsed.week;
-	if (Number.isInteger(aiAssistantData?.tokenUsed?.total)) tokenUsed.value.total = aiAssistantData.tokenUsed.total;
+	if (Number.isFinite(aiAssistantData?.tokenUsed?.day)) tokenUsed.value.day = aiAssistantData.tokenUsed.day;
+	if (Number.isFinite(aiAssistantData?.tokenUsed?.week)) tokenUsed.value.week = aiAssistantData.tokenUsed.week;
+	if (Number.isFinite(aiAssistantData?.tokenUsed?.total)) tokenUsed.value.total = aiAssistantData.tokenUsed.total;
 
 	lastUsedTime = +aiAssistantData?.lastUsedTime || 0;
 	const lastUsedDay = Math.floor((lastUsedTime - new Date().getTimezoneOffset() * 60000) / 86400000);
@@ -233,7 +234,7 @@ onMounted(async () => {
 		userIdv1 = await nodeBridge.localStorage.get('aiAssistant.userIdv1');
 		if (!userIdv1) {
 			const t = new Date();
-			userIdv1 = `${t.getFullYear()}-${(t.getMonth() + 1 + '').padStart(2, '0')}-${(t.getDate() + '').padStart(2, '0')} / Client ${version} / ${navigator.platform} / ${navigator.userAgent}`;
+			userIdv1 = `${randomString()}｜${t.getFullYear()}-${(t.getMonth() + 1 + '').padStart(2, '0')}-${(t.getDate() + '').padStart(2, '0')}｜Client｜${version}｜${navigator.platform}｜${navigator.userAgent}`;
 			nodeBridge.localStorage.set('aiAssistant.userIdv1', userIdv1);
 		}
 
