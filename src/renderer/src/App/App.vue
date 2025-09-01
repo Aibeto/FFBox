@@ -94,6 +94,12 @@ onMounted(async () => {
 		appStore.applyFrontendSettings(false);
 	})();
 
+	// 检查版本更新
+	fetch('https://ffbox.ttqf.tech/api/v1/FFBoxVersion/latest').then(async (response) => {
+		const latestVersion = await response.text();
+		appStore.latestVersion = latestVersion;
+	});
+
 	setTimeout(() => {
 		nodeBridge.appReady();
 	}, 0);

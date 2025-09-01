@@ -1,4 +1,4 @@
-import { VNodeRef } from 'vue';
+import { h, VNodeRef } from 'vue';
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
 import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, TaskStatus, TransferStatus, WorkingStatus } from '@common/types';
@@ -16,7 +16,9 @@ import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFF
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from './eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { dashboardTimer } from '@renderer/common/dashboardCalc';
+import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import Popup from '@renderer/components/Popup/Popup';
+import ImageBow from '@renderer/assets/cartoons/bow.svg';
 
 const { trimExt } = path;
 
@@ -43,6 +45,7 @@ interface StoreState {
 	frontendSettings: {
 		colorTheme: string,
 		useIEC: boolean,
+		aiDisabled: boolean,
 	},
 	unreadNotificationCount: number,
 	componentRefs: { [key: string]: VNodeRef | Element },
@@ -56,6 +59,7 @@ interface StoreState {
 	presetName: string | undefined;
 	availablePresets: string[];
 	downloadMap: Map<string, { serverId: string, taskId: number }>;
+	latestVersion?: string;
 	functionLevel: number;
 }
 
@@ -89,6 +93,7 @@ export const useAppStore = defineStore('app', {
 			frontendSettings: {
 				colorTheme: 'themeLight',
 				useIEC: false,
+				aiDisabled: false,
 			},
 			unreadNotificationCount: 0,
 			componentRefs: {},
@@ -102,6 +107,7 @@ export const useAppStore = defineStore('app', {
 			presetName: '',
 			availablePresets: [],
 			downloadMap: new Map(),
+			latestVersion: undefined,
 			functionLevel: 20,
 		};
 	},
@@ -214,19 +220,17 @@ export const useAppStore = defineStore('app', {
 				}
 				function allTimerFinish() {
 					Promise.all(newlyAddedTaskIds).then((ids) => {
-						这.selectedTask = new Set(ids);
 						// 从 5.0 开始，由于支持多输入，addTask 函数向后端传的是替换了文件名的 globalParams，因此需要 applySelectedTask 使参数变成当前选中的 task 的参数，否则不一致
 						// 需要等待一次 taskUpdate，待另一个监听器替换了任务参数之后，再在此处 applySelectedTask，否则会导致参数为空
 						// 由于网络到达顺序的不确定性，Promise 完成时可能所有任务都完成了 taskUpdate，此时再加监听器则无法触发。因此需要加一个 timeout 做兜底
 						const handler = () => {
 							clearTimeout(timer);
 							server.entity.off('taskUpdate', handler);
-							setTimeout(() => {
-								这.applySelectedTask();
-								这.globalParams.extra.presetName = '';
-								这.presetName = '';			
-								resolve(ids);
-							}, 0);
+							这.selectedTask = new Set(ids);
+							这.applySelectedTask();
+							这.globalParams.extra.presetName = '';
+							这.presetName = '';			
+							resolve(ids);
 						};
 						const timer = setTimeout(handler, 200);
 						server.entity.on('taskUpdate', handler);
@@ -309,8 +313,8 @@ export const useAppStore = defineStore('app', {
 	
 					const inputPaths: string[] = [];
 					// 先添加空白任务，然后检查上传
-					const firstFilename = typeof inputList[0] === 'string' ? path.parse(inputList[0]).name : inputList[0].name;
-					const taskId = await 这.addTask(trimExt(firstFilename), []);
+					const firstFilename = typeof inputList[0] === 'string' ? path.parse(inputList[0])?.name : inputList[0]?.name;
+					const taskId = await 这.addTask(firstFilename ? trimExt(firstFilename) : `新任务 ${new Date().toISOString()}`, []);
 					newlyAddedTaskIds.push(Promise.resolve(taskId));
 	
 					for (const input of inputList) {
@@ -774,6 +778,22 @@ export const useAppStore = defineStore('app', {
 		 */
 		addServer() {
 			const 这 = useAppStore();
+			if (这.servers.length >= 1) {
+				Msgbox({
+					container: document.body,
+					image: h(ImageBow),
+					title: '🚧维修中🚧',
+					content: h('div', [
+						`FFBox 5.0 版本因设计上未对远程场景进行优化，存在安全性问题，故添加服务器功能暂不开放`,
+						h('br'),
+						`如有需要，您可使用 FFBox 4.5 版本，或检查是否有更新的版本`
+					]),
+					buttons: [
+						{ text: '行', role: 'cancel' },
+					]
+				})
+				return;
+			}
 			const id = randomString(6);
 			这.servers.push({
 				data: {

@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import axios, { AxiosError } from 'axios';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import CryptoJS from 'crypto-js';
 import AISearchConfig from './types';
 import { version } from '@common/constants';
 import { randomString } from '@common/utils';
 import nodeBridge from '@renderer/bridges/nodeBridge';
+import { useAppStore } from '@renderer/stores/appStore';
 import AISearch from './AISearch.vue';
 import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import { ButtonType } from '@renderer/components/Button/Button';
 
-const fetchedConfig = ref<AISearchConfig>();
+const appStore = useAppStore();
 
+const fetchedConfig = ref<AISearchConfig>();
 const providerName = ref<string>();
 const model = ref<{ name: string; id: string }>();
 let conversationId: string;
@@ -56,8 +58,8 @@ const useQuota = async (count: number) => {
 	await nodeBridge.localStorage.set('aiAssistant.tokenUsed', tokenUsed.value);
 }
 
-// 只有 config 加载出来才会加载 AISearch，加载 AISearch 第一次打开弹窗才会 init()
-const init = () => {
+// 只有 config 加载出来才会加载 AISearch，加载 AISearch 第一次打开弹窗才会 initWindow()
+const initWindow = () => {
 	if (fetchedConfig.value.initMsgbox) {
 		Msgbox({
 			content: fetchedConfig.value.initMsgbox,
@@ -93,7 +95,7 @@ const resetChat = () => {
 	if (providerName.value === 'ali') {
 		conversationId = undefined;
 	} else if (providerName.value === 'baidu') {
-		init();
+		initWindow();
 	}
 };
 
@@ -217,7 +219,10 @@ const chatAPI = async (message: string) => {
 	}
 }
 
-onMounted(async () => {
+let inited = false;
+const init = async () => {
+	if (inited) return;
+
 	// 获取配置，失败则退出
 	try {
 		const encryptedConfig = await axios.get('https://ffbox.ttqf.tech/api/v1/FFBoxAIConfig/5.0')
@@ -254,17 +259,28 @@ onMounted(async () => {
 				break;
 			}
 		}
+		inited = true;
 	} catch (error) {
 		console.log('AI 帮助配置加载失败');
 	}
-})
+}
+
+watch(() => appStore.frontendSettings.aiDisabled, () => {
+	if (!appStore.frontendSettings.aiDisabled) init();
+});
+
+onMounted(() => {
+	setTimeout(() => {
+		if (!appStore.frontendSettings.aiDisabled) init();
+	}, 100);	// 给点时间读盘
+});
 
 </script>
 
 <template>
-	<AISearch
+	<AISearch v-if="!appStore.frontendSettings.aiDisabled"
 		:enabled="fetchedConfig ? true : false"
-		:chatAPI="chatAPI" :init="init" :resetChat="resetChat"
+		:chatAPI="chatAPI" :init="initWindow" :resetChat="resetChat"
 		:titleName="fetchedConfig?.titleName" :modelName="model ? model.name : undefined"
 		:initialPlaceholders="fetchedConfig?.initialPlaceholders" :initialPlaceholderInterval="fetchedConfig?.initialPlaceholderInterval"
 		:initSystemMessage="fetchedConfig?.initSystemMessage"

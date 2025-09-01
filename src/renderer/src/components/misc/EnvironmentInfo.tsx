@@ -33,6 +33,7 @@ export function showEnvironmentInfo() {
             `前端引擎环境：${nodeBridge.env === 'electron' ? 'electron' : navigator.userAgent}`,
             ...(backendInfo.length ? [h('br'), '·'] : []),
             ...(backendInfo.length ? [h('br'), ...backendInfo] : []),
+            ...(appStore.latestVersion && appStore.latestVersion !== version ? [h('br'), '·', h('br'), `官网上的 FFBox 最新版本：${appStore.latestVersion}`] : []),
         ]),
         buttons: [
             { text: '关闭', role: 'cancel' },

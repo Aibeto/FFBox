@@ -44,7 +44,11 @@ const handleInfoCenterButtonClicked = () => {
 	<div class="statusbar" :data-color_theme="appStore.frontendSettings.colorTheme">
 		<div class="left">
 			<div>
-				<div class="version" :style="versionStyle" @click="showEnvironmentInfo">FFBox：{{ FFBoxVersionText }}<br />FFmpeg：{{ appStore.currentServer?.data.ffmpegInfo?.version || '-' }}<IconLoading class="loading" v-if="appStore.currentServer?.data.ffmpegInfo?.scanning" /></div>
+				<div class="version" :style="versionStyle" @click="showEnvironmentInfo">
+					FFBox：{{ FFBoxVersionText }}{{ appStore.latestVersion && appStore.latestVersion !== version ? `（最新版本：${appStore.latestVersion}）` : '' }}
+					<br />
+					FFmpeg：{{ appStore.currentServer?.data.ffmpegInfo?.version || '-' }}<IconLoading class="loading" v-if="appStore.currentServer?.data.ffmpegInfo?.scanning" />
+				</div>
 			</div>
 			<div @click="handleInfoCenterButtonClicked">
 				<IconInfo />{{ appStore.unreadNotificationCount }}

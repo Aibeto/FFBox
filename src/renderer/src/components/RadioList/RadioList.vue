@@ -58,6 +58,7 @@ const handleConfirm = (item: Props['list'][number], value: string, index: number
 		>
 			<InputAutoSize
 				v-if="editingIndex === index"
+				:focusOnMounted="true"
 				:value="`${item.value}`"
 				:onBlur="(value) => handleConfirm(item, value, index)"
 				:onPressEnter="() => editingIndex = undefined"

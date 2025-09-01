@@ -21,7 +21,7 @@ interface Props {}
 
 const InputView = defineComponent((props: Props) => {
 	const appStore = useAppStore();
-	const editingIndex = ref();
+	const editingIndex = ref(0);
 	const centerDraggerPos = ref(50);
 	const showDetailParams = ref(true);
 	const draggingStatus = ref<{ count: number, fileCount: number }>();
@@ -287,6 +287,7 @@ const InputView = defineComponent((props: Props) => {
 									<InputAutoSize
 										class={css.inputAutoSize}
 										value={file.filePath}
+										focusOnMounted={false}
 										onBlur={(value) => handleFileNameChange(index, value)}
 										onPressEnter={(value) => handleFileNameChange(index, value)}
 										onKeyDown={handleFileNameKeyDown}

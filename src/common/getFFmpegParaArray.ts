@@ -61,7 +61,7 @@ export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = fals
 	} else {
 		ret.push(...getVideoFFmpegParam(outputParams.outputs[0].video));
 		ret.push(...getAudioFFmpegParam(outputParams.outputs[0].audio));
-		ret.push(...getMuxFFmpegParam(outputParams.outputs[0].mux, outputDir, outputBaseName, withQuotes, undefined));
+		ret.push(...getMuxFFmpegParam(outputParams.outputs[0].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[0]));
 	}
 	ret.push('-y');
 	return ret;
@@ -85,7 +85,7 @@ export function genTaskOutputFiles(outputParams: OutputParams, remoteDownloadDir
 			if (!formatItem) {
 				formatItem = getMenuItemByValue(allMuxers, output.mux.format);
 			}
-            extension = formatItem ? (formatItem.value as string).match(/(.+) \(.+\)/)?.[1] : output.mux.format;
+            extension = formatItem ? (formatItem.value as string).match(/(.+) \(.+\)/)?.[1] || formatItem.value : output.mux.format;
         }
 
 		if (remoteDownloadDir) {

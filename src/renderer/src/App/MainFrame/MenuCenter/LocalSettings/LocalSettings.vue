@@ -20,6 +20,10 @@ const progressModeList: RadioListProps['list'] = [
 	{ value: '预测实时值', disabled: true },
 	{ value: 'ffmpeg 真实值', disabled: true },
 ];
+const aiDisabledList: RadioListProps['list'] = [
+	{ value: false, caption: '可用时启用' },
+	{ value: true, caption: '不用' },
+];
 
 const localServiceStatus = computed(() => {
 	if (appStore.servers[0]?.entity.ip === 'localhost') {
@@ -45,8 +49,10 @@ const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value:
 			<RadioList :list="dataRadixList" :value="appStore.frontendSettings.useIEC" @change="(value) => handleSettingChange('useIEC', value)" />
 			<span>颜色主题</span>
 			<RadioList :list="colorThemeList" :value="appStore.frontendSettings.colorTheme" @change="(value) => handleSettingChange('colorTheme', value)" />
-			<span>进度显示模式</span>
-			<RadioList :list="progressModeList" value="预测实时值" />
+			<!-- <span>进度显示模式</span>
+			<RadioList :list="progressModeList" value="预测实时值" /> -->
+			<span>AI 帮助功能</span>
+			<RadioList :list="aiDisabledList" :value="appStore.frontendSettings.aiDisabled" @change="(value) => handleSettingChange('aiDisabled', value)" />
 		</div>
 		<div class="configArea">
 			<p>转码服务相关设置请到“服务器配置”页面配置</p>

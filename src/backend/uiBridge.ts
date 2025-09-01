@@ -251,6 +251,11 @@ function getRouter(): Router {
 			// 非法请求
 			ctx.response.status = 400;
 			return;
+		} else if (ctx.URL.hostname !== 'localhost') {
+			// 5.0 版本暂不支持远程模式
+			ctx.response.status = 403;
+			ctx.response.body = { isUserExist: false, isSuccess: false, functionLevel: 0 };
+			return;
 		}
 		const result = { isUserExist: false, isSuccess: false, functionLevel: 0 };
 		const body = ctx.request.body;

@@ -421,7 +421,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			// 本地文件直接获取媒体信息
 			this.getFileMetadata(id, task, firstFilePath);
 		} else if (isRemote) {
-			task.outputFiles = genTaskOutputFiles(task.after, `${os.tmpdir()}/FFBoxDownloadCache`);
+			task.outputFiles = genTaskOutputFiles(task.after, `.`);
 			task.paraArray = getFFmpegParaArray(task.after, true, undefined, undefined, task.outputFiles);
 			// 网络文件等待上传完成后再另行调用获取媒体信息
 			task.status = TaskStatus.initializing;
@@ -574,8 +574,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		// const filePath = task.after.input.files[0].filePath!; // 需要上传完成，状态为 TASK_STOPPED 时才能开始任务，因此 filePath 非空
 		let newFFmpeg: FFmpeg;
 		if (task.remoteTask) {
-			task.outputFiles = genTaskOutputFiles(task.after, `${os.tmpdir()}/FFBoxDownloadCache`);
-			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray(task.after, false));
+			task.outputFiles = genTaskOutputFiles(task.after, `.`);
+			newFFmpeg = new FFmpeg(
+				this.ffmpegPath,
+				0,
+				getFFmpegParaArray(task.after, false, undefined, undefined, genTaskOutputFiles(task.after, `${os.tmpdir()}/FFBoxDownloadCache`))
+			);
 		} else {
 			task.outputFiles = genTaskOutputFiles(task.after);
 			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray(task.after, false));
@@ -936,7 +940,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.after = replaceOutputParams(param, task.after, true);
 			if (task.remoteTask) {
 				// 如果修改了输出格式，需要重新计算 outputFile
-				task.outputFiles = genTaskOutputFiles(task.after, `${os.tmpdir()}/FFBoxDownloadCache`);
+				task.outputFiles = genTaskOutputFiles(task.after, `.`);
 				task.paraArray = getFFmpegParaArray(task.after, true, undefined, undefined, task.outputFiles);
 			} else {
 				task.paraArray = getFFmpegParaArray(task.after, true);

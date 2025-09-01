@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import { useAppStore } from '@renderer/stores/appStore';
 import ShortcutView from './ShortcutView';
@@ -96,6 +96,12 @@ const handleForceRefresh = () => {
 }
 
 const getButtonColorStyle = (index: number) => ({ color: appStore.paraSelected === index ? sidebarColors.value[index] : 'hwb(0 50% 50%)' });
+
+watch(() => appStore.globalParams.outputs.length, () => {
+	if (editingOutputIndex.value >= appStore.globalParams.outputs.length) {
+		editingOutputIndex.value = 0;
+	}
+});
 
 onMounted(() => {
 	window.addEventListener('finished-fetch-codecs', handleForceRefresh);

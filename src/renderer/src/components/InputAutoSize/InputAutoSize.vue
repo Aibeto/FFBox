@@ -5,6 +5,7 @@ import { CSSProperties, nextTick, onBeforeUnmount, onMounted, ref, watch } from 
 interface Props {
 	style?: CSSProperties;
 	value?: string;
+	focusOnMounted?: boolean;
 	onInput?: (event: Event) => void | false;
 	onKeyDown?: (event: Event) => void | false;
 	onPressEnter?: (value: string) => void;
@@ -51,7 +52,7 @@ onMounted(() => {
 		refreshSize();
 	});
 	ro.value.observe(divRef.value);
-	inputRef.value.focus();
+	props.focusOnMounted && inputRef.value.focus();
 	divRef.value.style.fontFamily = getComputedStyle(inputRef.value).fontFamily;
 	// nextTick(refreshSize); 已在 ResizeObserver 处理
 });
