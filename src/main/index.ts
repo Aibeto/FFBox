@@ -358,6 +358,34 @@ class ElectronApp {
 			return { size: stats.size, file: buffer };
 		});
 
+		// 获取本地文件属性
+		ipcMain.handle('getLocalFileStats', async (event, url: string) => {
+			try {
+				const stats = await fs.stat(url);
+				if (!stats.isFile()) {
+					// 理论上不应出现对非本地文件调用此方法的现象，此处是为了避免用户手动将文件改为文件夹之类的特殊情况
+					return undefined;
+				}
+				// return { size: stats.size, mtimeMs: stats.mtimeMs };
+				return stats;
+			} catch (e) {
+				return undefined;
+			}
+		});
+
+		// 获取本地文件块
+		ipcMain.handle('getLocalFileChunk', async (event, url: string, start: number, length: number) => {
+			try {
+				const fd = await fs.open(url, 'r');
+				const buffer = new Uint8Array(length);
+				await fd.read(buffer, 0, length, start);
+				await fd.close();
+				return buffer;
+			} catch (e) {
+				return undefined;
+			}
+		});
+
 		// 闪烁任务栏图标
 		ipcMain.on('flashFrame', (event, value) => {
 			this.mainWindow!.flashFrame(value);

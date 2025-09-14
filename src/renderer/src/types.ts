@@ -33,12 +33,33 @@ export interface UITask extends Task {
 	};
 }
 
+export interface UploadFile {
+	taskId: number;
+	fileName: string;
+	chunks: UploadChunk[];
+	url?: string;	// 使用字符串输入
+	blob?: File;	// 拖入文件输入
+	size?: number;	// B
+	status: 'waiting' | 'hashing' | 'uploading' | 'paused' | 'finished' | 'error';
+}
+export interface UploadChunk {
+	file?: UploadFile;
+	abortController: AbortController;
+	buffer?: Uint8Array;
+	status: 'waiting' | 'hashing' | 'uploading' | 'paused' | 'finished' | 'error';
+	tryCount: number;
+	transferred: number;	// B
+	size: number;			// B
+	hash?: string;
+}
+
 export interface ServerData {
 	id: string;			// 仅供前端一次性使用
 	name: string;		// 默认为空
 	nickName?: string;	// 暂不支持
 	tasks: UITask[];
 	notifications: Notification[];
+	uploadFiles: UploadFile[];
 	ffmpegInfo: FFmpegInfo;
 	version?: string;
 	os?: 'Windows' | 'Linux' | 'MacOS' | 'unknown';

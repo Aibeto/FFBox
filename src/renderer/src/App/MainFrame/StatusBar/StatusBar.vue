@@ -5,6 +5,7 @@ import { version } from '@common/constants'
 import { showEnvironmentInfo } from '@renderer/components/misc/EnvironmentInfo';
 import IconLoading from '@renderer/assets/loading.svg?component';
 import IconInfo from './info.svg?component';
+import IconArrow from '@renderer/assets/swap_right.svg?component'
 
 const appStore = useAppStore();
 
@@ -29,6 +30,16 @@ const handleInfoCenterButtonClicked = () => {
 	}
 	appStore.setUnreadNotifationCount(true);
 }
+const handleTransferCenterButtonClicked = () => {
+	appStore.showMenuCenter = 0;
+	appStore.showTransferCenter = appStore.showMenuCenter || appStore.showInfoCenter ? true : !appStore.showTransferCenter;
+	if (appStore.showMenuCenter) {
+		appStore.showMenuCenter = 0;
+	}
+	if (appStore.showInfoCenter) {
+		appStore.showInfoCenter = false;
+	}
+}
 // const handleThemeButtonClicked = () => {
 // 	if (appStore.frontendSettings.colorTheme === 'themeDark') {
 // 		appStore.frontendSettings.colorTheme = 'themeLight';
@@ -52,6 +63,12 @@ const handleInfoCenterButtonClicked = () => {
 			</div>
 			<div @click="handleInfoCenterButtonClicked">
 				<IconInfo />{{ appStore.unreadNotificationCount }}
+			</div>
+			<div @click="handleTransferCenterButtonClicked">
+				<IconArrow style="transform: rotate(-90deg);" />
+				<div style="margin-right: -12px"></div>
+				<IconArrow style="transform: rotate(90deg);" />
+				传输中心
 			</div>
 			<!-- <div @click="handleThemeButtonClicked">{{ appStore.frontendSettings.colorTheme }}</div> -->
 		</div>

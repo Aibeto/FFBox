@@ -4,7 +4,7 @@ import Conf from 'conf';
 const appDataPath = (
     () => { switch (process.platform) {
         case 'win32': return process.env.APPDATA;
-        case 'linux': return process.env.XDG_CONFIG_HOME;
+        case 'linux': case 'android': return process.env.XDG_CONFIG_HOME || path.join(process.env.HOME, '.config');
         case 'darwin': return path.join(process.env.HOME, 'Library', 'Application Support');
     } }
 )();

@@ -15,6 +15,8 @@ import path from '@common/path';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from './eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
+import { uploadFile } from './transferManager';
+import { getLimitaion } from './limitaions';
 import { dashboardTimer } from '@renderer/common/dashboardCalc';
 import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import Popup from '@renderer/components/Popup/Popup';
@@ -26,6 +28,7 @@ interface StoreState {
 	// 界面类
 	showMenuCenter: 0 | 1 | 2; // 0：关闭　1：开启菜单栏　2：全开
 	showInfoCenter: boolean;
+	showTransferCenter: boolean;
 	showDragFilesOverlay: boolean;
 	paraSelected: number,
 	draggerPos: number,
@@ -74,6 +77,7 @@ export const useAppStore = defineStore('app', {
 			// 界面类
 			showMenuCenter: 0,
 			showInfoCenter: false,
+			showTransferCenter: false,
 			showDragFilesOverlay: false,
 			paraSelected: 1,
 			draggerPos: 0.57,
@@ -129,95 +133,95 @@ export const useAppStore = defineStore('app', {
 		 */
 		addTasks (inputList: string[] | FileList, type: 'multiTask' | 'multiInput' = 'multiTask') {
 			return new Promise(async (resolve) => {
-				async function checkAndUploadFile(filename: string, fileInfo: { size: number, file: Buffer | Blob }, id: number) {
-					const { file } = fileInfo;
-					let buffer: Buffer | ArrayBuffer;
-					if (file instanceof Blob) {
-						const reader = new FileReader();
-						reader.readAsArrayBuffer(file);
-						buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-							reader.addEventListener('loadend', () => {
-								resolve(reader.result as ArrayBuffer);
-							})
-						});
-					} else {
-						buffer = file;
-					}
-					console.log(filename, '开始计算文件校验码');
-					const wordArray = CryptoJS.lib.WordArray.create(buffer as any);
-					let hash = CryptoJS.SHA1(wordArray).toString();
-					console.log(filename, '校验码：' + hash);		
+				// async function checkAndUploadFile(filename: string, fileInfo: { size: number, file: Buffer | Blob }, id: number) {
+				// 	const { file } = fileInfo;
+				// 	let buffer: Buffer | ArrayBuffer;
+				// 	if (file instanceof Blob) {
+				// 		const reader = new FileReader();
+				// 		reader.readAsArrayBuffer(file);
+				// 		buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+				// 			reader.addEventListener('loadend', () => {
+				// 				resolve(reader.result as ArrayBuffer);
+				// 			})
+				// 		});
+				// 	} else {
+				// 		buffer = file;
+				// 	}
+				// 	console.log(filename, '开始计算文件校验码');
+				// 	const wordArray = CryptoJS.lib.WordArray.create(buffer as any);
+				// 	let hash = CryptoJS.SHA1(wordArray).toString();
+				// 	console.log(filename, '校验码：' + hash);		
 	
-					const response = await fetch(`http://${server.entity.ip}:${server.entity.port}/upload/check/`, {
-						method: 'post',
-						body: JSON.stringify({
-							hashs: [hash]
-						}),
-						headers: new Headers({
-							'Content-Type': 'application/json'
-						}),
-					});
-					const responseText = await response.text();
-					let content = JSON.parse(responseText) as number[];
-					if (content[0] % 2) {
-						console.log(filename, '已缓存');
-						server.entity.mergeUploaded(id, [hash]);
-					} else {
-						console.log(filename, '未缓存');
-						// 运行到此时，虽然代码逻辑上不保证本地 tasklist 一定有此任务，但正常操作下 tasklist update 一早就到达了，而且用户也不会在上传开始前删除任务
-						await uploadFile(id, hash, filename, buffer);
-						server.entity.mergeUploaded(id, [hash]);
-						const currentServer = 这.currentServer.data;
-						const task = currentServer.tasks[id];
-						task.transferStatus = TransferStatus.normal;
-					}
-				}
-				function uploadFile(id: number, hash: string, filename: string, buffer: Buffer | ArrayBuffer) {
-					return new Promise((resolve) => {
-						const currentServer = 这.currentServer.data;
-						const task = currentServer.tasks[id];
-						task.transferStatus = TransferStatus.uploading;
-						task.transferProgressLog.total = buffer instanceof ArrayBuffer ? buffer.byteLength : buffer.length;
-						const lastStarted = new Date().getTime() / 1000;
-						task.transferProgressLog.lastStarted = lastStarted;
-						const form = new FormData();
-						form.append('name', hash);
-						// form.append('file', file);
-						const file_blob = new Blob([buffer]);
-						form.append('file', file_blob, hash);
-						const xhr = new XMLHttpRequest;
-						xhr.upload.addEventListener('progress', (event) => {
-							// let progress = event.loaded / event.total;
-							const transferred = task.transferProgressLog.transferred;
-							transferred.push([new Date().getTime() / 1000 - lastStarted, event.loaded]);
-						}, false);
-						xhr.onreadystatechange = function (e) {
-							if (xhr.readyState !== 0) {
-								if (xhr.status >= 400 && xhr.status < 500) {
-									Popup({
-										message: `【${filename}】网络请求故障，上传失败`,
-										level: NotificationLevel.error,
-									})
-								} else if (xhr.status >= 500 && xhr.status < 600) {
-									Popup({
-										message: `【${filename}】服务器故障，上传失败`,
-										level: NotificationLevel.error,
-									})
-								}
-							}
-						}
-						xhr.onload = function () {
-							console.log(filename, `发送完成`);
-							resolve(0);
-							clearInterval(task.dashboardTimer);
-							task.dashboardTimer = NaN;
-						}
-						xhr.open('post', `http://${server.entity.ip}:${server.entity.port}/upload/file/`, true);
-						// xhr.setRequestHeader('Content-Type', 'multipart/form-data');
-						xhr.send(form);
-						task.dashboardTimer = setInterval(dashboardTimer, 50, task) as any;
-					});
-				}
+				// 	const response = await fetch(`http://${server.entity.ip}:${server.entity.port}/upload/check/`, {
+				// 		method: 'post',
+				// 		body: JSON.stringify({
+				// 			hashs: [hash]
+				// 		}),
+				// 		headers: new Headers({
+				// 			'Content-Type': 'application/json'
+				// 		}),
+				// 	});
+				// 	const responseText = await response.text();
+				// 	let content = JSON.parse(responseText) as number[];
+				// 	if (content[0] % 2) {
+				// 		console.log(filename, '已缓存');
+				// 		server.entity.mergeUploaded(id, [hash]);
+				// 	} else {
+				// 		console.log(filename, '未缓存');
+				// 		// 运行到此时，虽然代码逻辑上不保证本地 tasklist 一定有此任务，但正常操作下 tasklist update 一早就到达了，而且用户也不会在上传开始前删除任务
+				// 		await uploadFile(id, hash, filename, buffer);
+				// 		server.entity.mergeUploaded(id, [hash]);
+				// 		const currentServer = 这.currentServer.data;
+				// 		const task = currentServer.tasks[id];
+				// 		task.transferStatus = TransferStatus.normal;
+				// 	}
+				// }
+				// function uploadFile(id: number, hash: string, filename: string, buffer: Buffer | ArrayBuffer) {
+				// 	return new Promise((resolve) => {
+				// 		const currentServer = 这.currentServer.data;
+				// 		const task = currentServer.tasks[id];
+				// 		task.transferStatus = TransferStatus.uploading;
+				// 		task.transferProgressLog.total = buffer instanceof ArrayBuffer ? buffer.byteLength : buffer.length;
+				// 		const lastStarted = new Date().getTime() / 1000;
+				// 		task.transferProgressLog.lastStarted = lastStarted;
+				// 		const form = new FormData();
+				// 		form.append('name', hash);
+				// 		// form.append('file', file);
+				// 		const file_blob = new Blob([buffer]);
+				// 		form.append('file', file_blob, hash);
+				// 		const xhr = new XMLHttpRequest;
+				// 		xhr.upload.addEventListener('progress', (event) => {
+				// 			// let progress = event.loaded / event.total;
+				// 			const transferred = task.transferProgressLog.transferred;
+				// 			transferred.push([new Date().getTime() / 1000 - lastStarted, event.loaded]);
+				// 		}, false);
+				// 		xhr.onreadystatechange = function (e) {
+				// 			if (xhr.readyState !== 0) {
+				// 				if (xhr.status >= 400 && xhr.status < 500) {
+				// 					Popup({
+				// 						message: `【${filename}】网络请求故障，上传失败`,
+				// 						level: NotificationLevel.error,
+				// 					})
+				// 				} else if (xhr.status >= 500 && xhr.status < 600) {
+				// 					Popup({
+				// 						message: `【${filename}】服务器故障，上传失败`,
+				// 						level: NotificationLevel.error,
+				// 					})
+				// 				}
+				// 			}
+				// 		}
+				// 		xhr.onload = function () {
+				// 			console.log(filename, `发送完成`);
+				// 			resolve(0);
+				// 			clearInterval(task.dashboardTimer);
+				// 			task.dashboardTimer = NaN;
+				// 		}
+				// 		xhr.open('post', `http://${server.entity.ip}:${server.entity.port}/upload/file/`, true);
+				// 		// xhr.setRequestHeader('Content-Type', 'multipart/form-data');
+				// 		xhr.send(form);
+				// 		task.dashboardTimer = setInterval(dashboardTimer, 50, task) as any;
+				// 	});
+				// }
 				function allTimerFinish() {
 					Promise.all(newlyAddedTaskIds).then((ids) => {
 						// 从 5.0 开始，由于支持多输入，addTask 函数向后端传的是替换了文件名的 globalParams，因此需要 applySelectedTask 使参数变成当前选中的 task 的参数，否则不一致
@@ -242,7 +246,7 @@ export const useAppStore = defineStore('app', {
 				const isRemoteService = server.entity.ip !== 'localhost';
 				const newlyAddedTaskIds: Promise<number>[] = [];	// 考虑到 timer 的最后一项并不一定是网络到达的最后一项，这里使用 Promise。待后期远程调用批量化后可改进
 				let dropDelayCount = 0;
-				const maxTaskCount = 这.functionLevel < 40 ? 66 : 这.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
+				const maxTaskCount = getLimitaion('maxTaskListCount');
 
 				if (type === 'multiTask') {
 					let needStopCuzLimit = false;	// 因为使用了 setTimeout，所以使用标记位停止后续添加
@@ -270,12 +274,11 @@ export const useAppStore = defineStore('app', {
 							// console.log('添加任务', input, fileType);
 							let fileInfo: { size: number, file: Buffer | Blob };
 							if (needUpload) {
-								const limitedFileSizeMB = isRemoteService ? (这.functionLevel >= 60 ? 192 : 127) : Infinity;
-								// 超过约 200MB 的文件在进行 CryptoJS.SHA1 时会导致页面崩溃
-								fileInfo = typeof input === 'string' ? await nodeBridge.getLocalFile(input, limitedFileSizeMB * 1000 * 1000) : { file: input, size: input.size };
-								if (fileInfo.size > limitedFileSizeMB * 1000 * 1000) {
+								const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
+								fileInfo = typeof input === 'string' ? await nodeBridge.getLocalFile(input, limitedFileSizeGB * 1000 * 1000 * 1000) : { file: input, size: input.size };
+								if (fileInfo.size > limitedFileSizeGB * 1000 * 1000 * 1000) {
 									Popup({
-										message: `${filename} 文件大小超过 ${limitedFileSizeMB} MB，暂不支持上传操作`,
+										message: `${filename} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
 										level: 2,
 									});
 									return;
@@ -285,8 +288,10 @@ export const useAppStore = defineStore('app', {
 							if (needUpload) {
 								// 代码逻辑上来说不稳定，因为 addTask 后，后端通过发送一个 tasklistUpdate 来使前端更新任务列表，然后 resolve 掉 addTask 请求。但若 addTask 请求先完成，checkAndUploadFile 就会出错
 								// 但目前未触发此 bug
-								promise.then((id) => {
-									checkAndUploadFile(filename, fileInfo, id);
+								promise.then(async (taskId) => {
+									const file = await uploadFile(server as any, input, taskId, typeof input === 'string' ? filename : input.name);
+									server.data.uploadFiles.push(file);
+									// checkAndUploadFile(filename, fileInfo, taskId);
 								});
 							}
 							newlyAddedTaskIds.push(promise);
@@ -778,22 +783,6 @@ export const useAppStore = defineStore('app', {
 		 */
 		addServer() {
 			const 这 = useAppStore();
-			if (这.servers.length >= 1) {
-				Msgbox({
-					container: document.body,
-					image: h(ImageBow),
-					title: '🚧维修中🚧',
-					content: h('div', [
-						`FFBox 5.0 版本因设计上未对远程场景进行优化，存在安全性问题，故添加服务器功能暂不开放`,
-						h('br'),
-						`如有需要，您可使用 FFBox 4.5 版本，或检查是否有更新的版本`
-					]),
-					buttons: [
-						{ text: '行', role: 'cancel' },
-					]
-				})
-				return;
-			}
 			const id = randomString(6);
 			这.servers.push({
 				data: {
@@ -801,6 +790,7 @@ export const useAppStore = defineStore('app', {
 					name: '未连接',
 					tasks: [],
 					notifications: [],
+					uploadFiles: [],
 					ffmpegInfo: { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, muxersCount: 0, demuxersCount: 0, filtersCount: 0 },
 					version: '',
 					workingStatus: WorkingStatus.idle,

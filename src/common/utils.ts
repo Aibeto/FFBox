@@ -310,6 +310,7 @@ export function getInitialTask(fileBaseName: string, outputParams?: OutputParams
 						format: '',
 						moveflags: false,
 						filename: '',
+						detail: {},
 					},
 				}
 			],

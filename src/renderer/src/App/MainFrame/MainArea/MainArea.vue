@@ -5,6 +5,7 @@ import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import ListArea from './ListArea/ListArea.vue';
 import ParaBox from './ParaBox/ParaBox.vue';
+import TransferCenter from './TransferCenter/TransferCenter.vue';
 import DragFilesOverlay from './DragFilesOverlay/DragFilesOverlay.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
@@ -162,7 +163,14 @@ const handleDrop = () => {
 				</Transition>
 			</div>
 		</div>
-		<ParaBox :style="{ height: `${(1 - appStore.draggerPos) * 100}%` }" />
+		<div class="lowerArea" :style="{ height: `${(1 - appStore.draggerPos) * 100}%` }">
+			<Transition name="paraboxanim">
+				<ParaBox v-if="!appStore.showTransferCenter" />
+			</Transition>
+			<Transition name="paraboxanim">
+				<TransferCenter v-if="appStore.showTransferCenter" />
+			</Transition>
+		</div>
 		<DragFilesOverlay />
 	</div>
 </template>
@@ -174,7 +182,7 @@ const handleDrop = () => {
 		// height: 24px;
 		background-color: hwb(var(--bg92));
 		flex: 1 1 auto;
-		overflow-y: auto;
+		overflow: hidden;
 		.upperArea {
 			.loginArea, .disconnectArea {
 				overflow: hidden;
@@ -311,6 +319,30 @@ const handleDrop = () => {
 			// .ListArea
 		}
 		// .ParaBox
+		.paraboxanim-enter-from, .paraboxanim-leave-to {
+			transform: translateY(30px);
+			opacity: 0;
+		}
+		.paraboxanim-enter-active {
+			transition: opacity 0.3s, transform 0.6s cubic-bezier(0.2, 1.3, 0.3, 1);
+			// transition: transform 0.5s cubic-bezier(0.1, 1.2, 0.5, 1), opacity 0.2s ease-out;
+		}
+		.paraboxanim-leave-active {
+			transition: opacity 0.3s, transform 0.3s cubic-bezier(0.5, 0, 1, 1);
+		}
+		.lowerArea {
+			position: absolute;
+			bottom: 0;
+			width: 100%;
+			min-height: 28px;
+			// overflow: hidden;
+			&>div {
+				position: absolute;
+				top: 0;
+				box-shadow: 0px 0px 8px hwb(0 0% 100% / 0.05), // 远距离上阴影
+							0px 1px 1px hwb(0 100% 0% / 0.25) inset; // 内部上阴影
+			}
+		}
 	}
 
 </style>

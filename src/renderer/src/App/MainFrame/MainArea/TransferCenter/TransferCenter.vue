@@ -1,0 +1,372 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+import { useAppStore } from '@renderer/stores/appStore';
+import IconUpArrow from '../Parabox/uparrow.svg?component';
+
+const appStore = useAppStore();
+const deviderRef = ref<Element>(null);
+const centerDraggerPos = ref(50);
+const selectedFileIndex = ref(undefined);
+
+const fileList = computed(() => {
+	// const tasks = appStore.currentServer?.data.tasks || [];
+	const serverUploadFiles = appStore.currentServer?.data.uploadFiles || [];
+	return serverUploadFiles.map((serverUploadFile) => ({
+		fileBasename: serverUploadFile.fileName,
+		isCurrentTask: appStore.selectedTask.has(serverUploadFile.taskId),
+		status: serverUploadFile.status,
+		chunks: serverUploadFile.chunks,
+		progress: serverUploadFile.status === 'hashing'
+			? serverUploadFile.chunks.filter((chunk) => chunk.hash).length / serverUploadFile.chunks.length
+			: serverUploadFile.chunks.reduce((prev, curr) => prev + curr.transferred, 0) / serverUploadFile.size,
+	}));
+});
+
+const chunkList = computed(() => {
+	const serverUploadFile = fileList.value[selectedFileIndex.value];
+	return (serverUploadFile?.chunks || []).map((chunk) => ({
+		hash: chunk.hash,
+		status: chunk.status,
+		progress: chunk.transferred / chunk.size,
+	}));
+})
+
+const handleDragStart = (event: MouseEvent | TouchEvent) => {
+	// event.preventDefault();
+	const deviderRect = deviderRef.value.getBoundingClientRect();	// 列表元素的 rect
+	const mainAreaRect = (appStore.componentRefs['MainArea'] as Element).getBoundingClientRect();	// 列表元素的 rect
+	const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
+	// const inElementY = (event as MouseEvent).offsetY || (event as TouchEvent).touches[0].offsetY;	// 鼠标在元素内的 Y
+	const inElementY = mouseY - deviderRect.top;	// 不直接用 offsetY 的原因是，鼠标所在的元素不一定是 devider
+	// 添加鼠标事件捕获
+	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
+		const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
+		let listPercent = (mouseY - mainAreaRect.top - inElementY) / mainAreaRect.height;
+		listPercent = Math.min(Math.max(listPercent, 0), 1);
+		appStore.draggerPos = listPercent;
+	}
+	let handleMouseUp = () => {
+		window.removeEventListener('mousemove', handleMouseMove);
+		window.removeEventListener('touchmove', handleMouseMove);
+		window.removeEventListener('mouseup', handleMouseUp);
+		window.removeEventListener('touchend', handleMouseUp);
+	}
+	window.addEventListener('mousemove', handleMouseMove);
+	window.addEventListener('touchmove', handleMouseMove);
+	window.addEventListener('mouseup', handleMouseUp);
+	window.addEventListener('touchend', handleMouseUp);
+};
+
+const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
+	const draggerRect = event.target.getBoundingClientRect();
+	const mainAreaRect = event.target.parentElement.getBoundingClientRect();
+	const inElementX = ((event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX) - draggerRect.x;	// 鼠标在元素内的 X
+	// 添加鼠标事件捕获
+	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
+		const mouseX = (event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX;	// 鼠标在窗口内的 X
+		let listPercent = (mouseX - inElementX + 8) / mainAreaRect.width;
+		listPercent = Math.min(Math.max(listPercent, 0.2), 0.8);
+		centerDraggerPos.value = listPercent * 100;
+	}
+	let handleMouseUp = () => {
+		window.removeEventListener('mousemove', handleMouseMove);
+		window.removeEventListener('touchmove', handleMouseMove);
+		window.removeEventListener('mouseup', handleMouseUp);
+		window.removeEventListener('touchend', handleMouseUp);
+	}
+	window.addEventListener('mousemove', handleMouseMove);
+	window.addEventListener('touchmove', handleMouseMove);
+	window.addEventListener('mouseup', handleMouseUp);
+	window.addEventListener('touchend', handleMouseUp);
+};
+
+watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
+	if (selectedFileIndex.value >= (appStore.currentServer?.data.uploadFiles || []).length - 1) {
+		selectedFileIndex.value = undefined;
+	}
+});
+
+</script>
+
+<template>
+	<div class="transferCenter">
+		<div class="upper">
+			<div class="devider" :ref="(el) => deviderRef = el as Element">
+				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
+					<h2>传输中心</h2>
+				</div>
+				<button class="showGlobalButton" @click="appStore.showTransferCenter = false" aria-label="传输中心面板开关">
+					<span>返回参数</span>
+					<IconUpArrow :style="{ transform: 'rotate(-90deg)' }" />
+				</button>
+			</div>
+		</div>
+		<div class="lower">
+			<div class="left" :style="{ width: `${centerDraggerPos}%`}">
+				<div class="title">文件列表</div>
+				<div class="listContainer">
+					<div v-for="(file, index) in fileList" class="listItem" :class="selectedFileIndex === index ? 'listItemSelected' : undefined" :style="file.isCurrentTask ? {} : { opacity: 0.7 }" @click="selectedFileIndex = index">
+						<span>{{ file.fileBasename }} {{ file.status }} {{ file.progress }}</span>
+					</div>
+				</div>
+			</div>
+			<div class="dragger" :style="{ left: `${centerDraggerPos}%` }" @mousedown="handleCenterDraggerDragStart($event)" @touchstart="handleCenterDraggerDragStart($event)" />
+			<div class="right" :style="{ width: `${100 - centerDraggerPos}%`}">
+				<div class="title">分片列表</div>
+				<div class="listContainer">
+					<div v-for="chunk in chunkList" class="listItem">
+						<span>{{ chunk.hash }} {{ chunk.progress }}</span>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</template>
+
+<style lang="less" scoped>
+	.transferCenter {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		background-color: hwb(var(--bg94));
+		overflow: hidden;
+		.upper {
+			position: relative;
+			height: 30px;
+			flex: 0 0 auto;
+			background-color: hwb(var(--bg97));
+			box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.02), // 远距离下阴影
+						0px -2px 1px -1px rgba(0, 0, 0, 0.1) inset; // 内部下阴影
+			overflow: hidden;
+			transition: height 0.4s cubic-bezier(0.2, 1.4, 0.65, 1);
+			.devider {
+				cursor: ns-resize;
+				.buttons {
+					height: 28px;
+					overflow: hidden;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					h2 {
+						font-size: 16px;
+						font-weight: 500;
+						text-align: center;
+						color: var(--titleText);
+
+					}
+				}
+				.showGlobalButton {
+					position: absolute;
+					top: 0;
+					right: 0;
+					width: 40px;
+					height: 28px;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					padding: 0;
+					background-color: transparent;
+					border: none;
+					transition: width 0.3s ease;
+					&:hover {
+						background-color: hwb(var(--hoverLightBg) / 0.5);
+						box-shadow: 0 0 4px 2px hwb(var(--hoverShadow) / 0.05);
+					}
+					&:active {
+						background-color: transparent;
+						box-shadow: 0 0 2px 1px hwb(var(--hoverShadow) / 0.05), // 外部阴影
+									0 6px 12px hwb(var(--hoverShadow) / 0.1) inset; // 内部凹陷阴影
+						transform: translateY(0.25px);
+					}
+					span {
+						position: relative;
+						display: inline-block;
+						width: 0px;
+						margin-right: 0px;
+						letter-spacing: 1px;
+						top: -0.5px;
+						white-space: nowrap;
+						overflow: hidden;
+						color: #777;
+						transition: width 0.3s ease, padding 0.3s ease;
+						filter: var(--paraBoxButtonDropFilterText);
+					}
+					svg {
+						width: 20px;
+						height: 20px;
+						color: #777;
+						transition: transform 0.4s cubic-bezier(0.2, 1.4, 0.65, 1);
+					}
+					@media only screen and (min-width: 960px) {
+						width: 120px;
+						span {
+							width: 62px;
+							margin-right: 8px;
+						}
+					}
+				}
+			}
+		}
+		.lower {
+			position: relative;
+			height: 100%;
+			isolation: isolate;
+			overflow: hidden;
+			display: flex;
+			// align-items: center;	/* 一行 */
+			/* align-content: space-between;	 多行 */
+			justify-content: center;
+			font-size: 14px;
+			.left, .right {
+				height: 100%;
+				box-sizing: border-box;
+				padding: 12px;
+				text-align: left;
+				// outline: red 1px solid;
+				.title {
+					height: 24px;
+				}
+				.listContainer {
+					position: relative;
+					width: 100%;
+					height: calc(100% - 24px);
+					box-sizing: border-box;
+					padding: 4px;
+					border-radius: 6px;
+					background: hwb(var(--bg98) / 0.5);
+					box-shadow: 0 0 1px 1px hwb(0 0% 100% / 0.05), // 外部阴影
+								0 -1px 1px 0px hwb(var(--highlight) / 0.6) inset,	// 上高光
+								0 4px 6px hwb(0 0% 100% / 0.03) inset, // 内部凹陷阴影（短）
+								0 4px 24px hwb(0 0% 100% / 0.06) inset; // 内部凹陷阴影（长）
+					overflow: hidden auto;
+					.listItem {
+						position: relative;
+						display: flex;
+						align-items: center;
+						height: 26px;
+						line-height: 26px;
+						padding: var(--itemPadding);
+						border-radius: 6px;
+						font-size: 13px;
+						overflow: hidden;
+						transition: padding 0.3s ease;
+						&::after {
+							content: '';
+							position: absolute;
+							left: 4px;
+							bottom: 0;
+							right: 4px;
+							background-color: hwb(var(--hoverShadow) / 0.05);
+							height: 1px;
+						}
+						&:hover {
+							.operations {
+								width: 76px;
+								box-shadow: -14px 0 12px -14px hwb(var(--highlight));
+								transition: box-shadow 0.6s cubic-bezier(0.1, 6, 0.6, 1), width 0.4s cubic-bezier(0.1, 1.6, 0.6, 0.9);
+							}
+						}
+						.operations {
+							width: 0px;
+							flex: 0 0 auto;
+							white-space: nowrap;
+							border-radius: 8px;
+							box-shadow: -14px 0 12px -16px hwb(var(--highlight) / 0);
+							transition: width 2s cubic-bezier(1, -0.05, 0.8, 0.1);
+							button {
+								flex: 0 0 auto;
+								width: 26px;
+								height: 24px;
+								display: inline-flex;
+								justify-content: center;
+								align-items: center;
+								border: none;
+								outline: none;
+								background: none;
+								padding: 0;
+								margin: 0px;
+								font-size: 16px;
+								vertical-align: middle;
+								border-radius: 4px;
+								&:hover {
+									box-shadow: 0 1px 4px hwb(var(--hoverShadow) / 0.2),
+												0 4px 2px -2px hwb(var(--highlight) / 0.5) inset;
+								}
+								&:active {
+									box-shadow: 0 0px 1px hwb(var(--hoverShadow) / 0.2),
+												0 15px 20px -10px hwb(var(--hoverShadow) / 0.15) inset;
+									transform: translateY(0.25px);
+								}
+								svg {
+									color: var(--33);
+									width: 20px;
+									height: 20px;
+									opacity: 0.5;
+								}
+							}
+						}
+						.dropdownInput {
+							flex: 0 0 auto;
+							min-width: 56px;
+							width: calc(10% + 32px);
+							margin-right: 8px;
+							box-shadow: 0px 1px 2px hwb(var(--hoverShadow) / 0.1);
+						}
+						.inputAutoSize {
+							flex: 1 1 auto;
+							margin-left: -4px;
+							overflow: hidden;
+						}
+						span {
+							flex: 1 1 auto;
+							font-family: Arial;
+							white-space: nowrap;
+							overflow: hidden;
+						}
+					}
+					.listItemSelected {
+						background-color: hwb(var(--primaryColor));
+						.operations .delete svg {
+							color: white;
+						}
+					}
+					.listItemMove {
+						transition: all 0.3s ease;
+					}
+					.listItemFromTo {
+						opacity: 0;
+						// transform: translateX(30px);
+					}
+					.listItemLeaveActive {
+						position: absolute;
+					}
+				}
+
+			}
+			.dragger {
+				height: 100%;
+				width: 16px;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				margin: 0 -8px;
+				z-index: 1;	// 为了防止被 .right 遮住
+				cursor: ew-resize;
+				// outline: green 1px solid;
+				&::after {
+					content: '';
+					height: calc(100% - 24px);
+					width: 4px;
+					// background-color: hwb(var(--opposite80)  / 0.2);
+					border-radius: 2px;
+					background-color: hwb(var(--hoverLightBg) / 0.5);
+					box-shadow: 0.5px 1px 4px hwb(var(--hoverShadow) / 0.2),    // 阴影（写在最前面，渲染时最后渲染）
+								0 0 0.5px 1.5px hwb(var(--hoverLightBg)), // 斜坡，其中扩展半径是斜坡长度，模糊半径是斜坡底的缓坡
+								0 1px 1px 0px hwb(var(--highlight) / 0.5) inset;	// 上高光
+					pointer-events: none;
+				}
+			}
+		}
+	}
+</style>

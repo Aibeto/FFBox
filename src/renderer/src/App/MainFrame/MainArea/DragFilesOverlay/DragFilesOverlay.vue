@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
+import { getLimitaion } from '@renderer/stores/limitaions';
 import { showAddTaskPrompt } from '@renderer/components/misc/AddTasks';
 // import WaveGrid from '@renderer/components/WaveGrid/WaveGrid.vue';
 
@@ -96,7 +97,7 @@ const handleDrop = (event: DragEvent) => {
 					<p :style="{ fontSize: '2em' }">{{ Math.abs(draggingStatus.fileCount) }}</p>
 					<p>{{ draggingStatus.fileCount === -1 ? '堆文本组成的多' : '' }}个{{ multiInputMode ? '输入路径' : '独立任务' }}</p>
 					<p v-if="appStore.functionLevel < 60" :style="{ fontSize: '0.5em' }">
-						<br />{{ appStore.functionLevel < 40 ? '（上限 66 个任务）' : appStore.functionLevel < 60 ? '（上限 99 个任务）' : '' }}
+						<br />{{ getLimitaion('maxTaskListCount') ? `（上限 ${getLimitaion('maxTaskListCount')} 个任务）` : '' }}
 					</p>
 				</div>
 				<div class="inner" v-else>

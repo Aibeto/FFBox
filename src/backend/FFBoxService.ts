@@ -468,19 +468,26 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 	/**
 	 * 对于远程文件，上传完成后调用此函数合并文件
+	 * 前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并
 	 * @emits taskUpdate
 	 */
-	public mergeUploaded(id: number, hashs: Array<string>): void {
+	public async mergeUploaded(id: number, hashs: string[], fileName: string): Promise<void> {
 		const task = this.tasklist[id];
 		if (!task) {
 			// 上传完成之前删除了任务
 			return;
 		}
 		const uploadDir = os.tmpdir() + '/FFBoxUploadCache'; // 文件上传目录
-		const destPath = uploadDir + '/' + task.fileBaseName;
-		task.after.input.files[0].filePath = uploadDir + '/' + hashs[0]; // 暂时不做多输入功能，默认文件 0
-		if (hashs.length > 1) {
-			// 目前不做分片功能，此处永假
+		const concatedHash = CryptoJS.enc.Utf8.parse(hashs.join(''));
+		const fileHash = CryptoJS.SHA1(concatedHash).toString();
+		const destPath = `${uploadDir}/${fileName}⬝${fileHash}`;
+		let fileExists = false;
+		try {
+			await fs.accessSync(destPath, fs.constants.R_OK);	
+			fileExists = true;
+		} catch (error) {}
+		if (!fileExists) {
+			// 将分片合并为一个文件（无论分片数量均会执行此逻辑，因此即使 1 个分片，最终文件名也是按分片 hash 的 hash 命名）
 			fs.writeFile(destPath, '', (err) => {
 				if (err) {
 					this.setNotification(id, task.fileBaseName + '：合并文件写入失败', NotificationLevel.error);
@@ -488,11 +495,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				}
 				for (const hash of hashs) {
 					const source = uploadDir + '/' + hash;
-					fs.appendFileSync(destPath, fs.readFileSync(source));
+					fs.appendFileSync(destPath, fs.readFileSync(source) as any);
 					fs.rmSync(source);
 				}
 			});
 		}
+		task.after.input.files[task.after.input.files.length - 1].filePath = destPath;
 		task.status = TaskStatus.idle;
 		this.getFileMetadata(id, task, task.after.input.files[0].filePath || '');
 		task.paraArray = getFFmpegParaArray(task.after, true, undefined, undefined, task.outputFiles);

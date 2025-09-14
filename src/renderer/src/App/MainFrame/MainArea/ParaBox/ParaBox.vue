@@ -165,16 +165,12 @@ onUnmounted(() => {
 
 <style lang="less">
 	.parabox  {
-		position: absolute;
-		bottom: 0;
+		width: 100%;
+		height: 100%;
+		// min-height: 28px;
 		display: flex;
 		flex-direction: column;
-		width: 100%;
-		min-height: 28px;
-		// height: 40%;
 		background-color: hwb(var(--bg94));
-		box-shadow: 0px 0px 8px hwb(0 0% 100% / 0.05), // 远距离上阴影
-					0px 1px 1px hwb(0 100% 0% / 0.25) inset; // 内部上阴影
 		overflow: hidden;
 		// 切换动画（向左）
 		.animationLeft-enter-from {
@@ -182,7 +178,7 @@ onUnmounted(() => {
 			opacity: 0;
 			transform: translateX(-30px);
 		}
-		.animationLeft-enter-active, .animationLeft-leave-active {
+		.animationLeft-enter-active {
 			transition: opacity 0.3s, transform 0.5s cubic-bezier(0.2, 1.25, 0.3, 1);
 		}
 		.animationLeft-enter-to, .animationLeft-leave-from {
@@ -203,7 +199,7 @@ onUnmounted(() => {
 			opacity: 0;
 			transform: translateX(30px);
 		}
-		.animationRight-enter-active, .animationRight-leave-active {
+		.animationRight-enter-active {
 			transition: opacity 0.3s, transform 0.5s cubic-bezier(0.2, 1.25, 0.3, 1);
 		}
 		.animationRight-enter-to, .animationRight-leave-from {

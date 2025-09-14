@@ -1,5 +1,6 @@
 // import _ElectronStore from 'electron-store';
 import { IpcRenderer } from 'electron';
+import type { Stats } from 'fs';
 import parsePath from 'parse-path';
 import { getEnv } from '@common/utils';
 
@@ -214,6 +215,14 @@ const nodeBridge = {
 
 	getLocalFile(url: string, limitSize: number): Promise<{ size: 0, file: Buffer }> {
 		return window.jsb?.ipcRenderer.invoke('getLocalFile', url, limitSize);
+	},
+
+	getLocalFileStats(url: string): Promise<Stats> {
+		return window.jsb?.ipcRenderer.invoke('getLocalFileStats', url);
+	},
+
+	getLocalFileChunk(url: string, start: number, length: number): Promise<Uint8Array> {
+		return window.jsb?.ipcRenderer.invoke('getLocalFileChunk', url, start, length);
 	},
 
 	listItemsInDirectory(path: string, options?: { mode?: 'getFiles' | 'getDirectories', recursive?: boolean, fullPath?: boolean }): Promise<string[]> {

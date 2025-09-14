@@ -267,10 +267,10 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		})
 	}
 
-	public mergeUploaded(id: number, hashs: Array<string>) {
+	public mergeUploaded(id: number, hashs: string[], fileName: string) {
 		let data: FFBoxServiceFunctionApi = {
 			function: 'mergeUploaded',
-			args: [id, hashs],
+			args: [id, hashs, fileName],
 		}
 		this.sendWs(data);
 	}

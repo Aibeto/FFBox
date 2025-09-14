@@ -7,6 +7,7 @@ import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
+import { getLimitaion } from '@renderer/stores/limitaions';
 import IconGithub from './github.svg?component';
 import IconGitee from './gitee.svg?component';
 import IconKoFi from './ko-fi.svg?component';
@@ -234,33 +235,33 @@ onMounted(() => {
 		</div>
 		<table>
 			<tbody>
-				<tr v-if="appStore.functionLevel < 50">
+				<tr>
 					<td>媒体时长上限</td>
-					<td>11:11</td>
+					<td>{{ appStore.functionLevel < 50 ? '11:11' : '无限制' }}</td>
 				</tr>
-				<tr v-if="appStore.functionLevel < 50">
+				<tr>
 					<td>转码时长上限</td>
-					<td>11:11</td>
+					<td>{{ appStore.functionLevel < 50 ? '11:11' : '无限制' }}</td>
 				</tr>
-				<tr v-if="appStore.functionLevel < 50">
+				<tr>
 					<td>视频 ABR/CBR 码率设定限制</td>
-					<td>500Kbps ~ 32Mbps</td>
+					<td>{{ appStore.functionLevel < 50 ? '500Kbps ~ 32Mbps' : '无限制' }}</td>
 				</tr>
 				<tr>
 					<td>远程单文件上传大小上限</td>
-					<td>{{ appStore.functionLevel < 60 ? 127 : 192 }} MB</td>
+					<td>{{ getLimitaion('maxUploadSizeGB') ? getLimitaion('maxUploadSizeGB') + 'GB' : '无限制' }}</td>
 				</tr>
-				<tr v-if="appStore.functionLevel < 60">
+				<tr>
 					<td>任务列表数量上限</td>
-					<td>{{ appStore.functionLevel < 40 ? 66 : 99 }}</td>
+					<td>{{ getLimitaion('maxTaskListCount') || '无限制' }}</td>
 				</tr>
-				<tr v-if="appStore.functionLevel < 60">
+				<tr>
 					<td>同时转码任务数量设定上限</td>
-					<td>{{ appStore.functionLevel < 40 ? 6 : 9 }}</td>
+					<td>{{ getLimitaion('maxThreads') || '无限制' }}</td>
 				</tr>
-				<tr v-if="appStore.functionLevel < 60">
+				<tr>
 					<td>滤镜功能节点数量上限</td>
-					<td>{{ appStore.functionLevel < 40 ? 66 : 99 }}</td>
+					<td>{{ getLimitaion('maxFilterNodeCount') || '无限制' }}</td>
 				</tr>
 			</tbody>
 		</table>

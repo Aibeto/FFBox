@@ -2,6 +2,7 @@ import { computed, defineComponent, defineExpose, onMounted, ref } from "vue";
 import nodeBridge from "@renderer/bridges/nodeBridge";
 import { useAppStore } from "@renderer/stores/appStore";
 // import RadioList, { Props as RadioListProps } from '@renderer/containers/MainFrame/MainArea/ParaBox/components/RadioList.vue';
+import { getLimitaion } from "@renderer/stores/limitaions";
 import Msgbox from "../Msgbox/Msgbox";
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import Popup from "../Popup/Popup";
@@ -61,11 +62,12 @@ const Comp = defineComponent((props: P) => {
 			// const r = categorized.value.remotes.length;
 			// const u = categorized.value.unknowns.length;
 			const { localFilesCount: lf, localDirsCount: ld, remotesCount: r, unknownsCount: u } = categorized.value;
+			const maxTaskCount = getLimitaion('maxTaskListCount');
 			if (lf + ld + r + u === 0) {
 				return '您未填入文件';
 			} else {
 				return `您已填入${lf ? ` ${lf} 个本地${window.jsb ? '文件' : '路径'}，` : ''}${ld ? ` ${ld} 个本地文件夹，` : ''}${r ? ` ${r} 个远程路径，` : ''}${u ? ` ${u} 个未知文件，` : ''}`.slice(0, -1) +
-						(appStore.functionLevel < 40 ? '。（上限 66 个）' : appStore.functionLevel < 60 ? '。（上限 99 个）' : '');
+						(maxTaskCount ? `。（上限 ${maxTaskCount} 个）` : '');
 			}
 		}
 	});

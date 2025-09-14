@@ -18,7 +18,7 @@ import IconPausedQueued from './paused_queued.svg';
 import IconStopping from './stopping.svg';
 import IconFinished from './finished.svg';
 import IconError from './error.svg';
-import IconRightArrow from './swap_right.svg';
+import IconRightArrow from '@renderer/assets/swap_right.svg';
 import css from './TaskItem.module.less';
 
 interface Props {
