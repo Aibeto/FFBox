@@ -415,19 +415,17 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.tasklist[id] = task;
 
 		// 更新命令行参数
-
-		if (firstFilePath?.length) {
-			task.paraArray = getFFmpegParaArray(task.after, true);
-			// 本地文件直接获取媒体信息
-			this.getFileMetadata(id, task, firstFilePath);
-		} else if (isRemote) {
-			task.outputFiles = genTaskOutputFiles(task.after, `.`);
-			task.paraArray = getFFmpegParaArray(task.after, true, undefined, undefined, task.outputFiles);
-			// 网络文件等待上传完成后再另行调用获取媒体信息
+		if (isRemote) {
+			task.outputFiles = genTaskOutputFiles(task.after, ``);
+			task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
 			task.status = TaskStatus.initializing;
 			task.remoteTask = true;
+		} else {
+			task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true });
+			if (firstFilePath?.length) {
+				this.getFileMetadata(id, task, firstFilePath);
+			}
 		}
-		// 本地多输入任务不调用获取媒体信息函数，由前端在添加任务后手动调用
 
 		this.emit('tasklistUpdate', { content: Object.keys(this.tasklist).map(Number) });
 		return Promise.resolve(id);
@@ -469,9 +467,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	/**
 	 * 对于远程文件，上传完成后调用此函数合并文件
 	 * 前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并
+	 * @param fileName 文件名参数不包含 hash，仅用于作为 input.files[].filePath 最终文件名的一部分供用户识别。相同 hash 但文件名不同的话，服务器会保留多份
+	 * @param inputName 在新建任务上传文件之前，或添加输入文件上传之前，hash 尚未得知，因此前端应发起修改输入参数的调用，生成这个上传文件的一个临时占位符。上传完毕后，往 inputName 传入生成的占位符，以便后端将其替换为真实文件名
 	 * @emits taskUpdate
 	 */
-	public async mergeUploaded(id: number, hashs: string[], fileName: string): Promise<void> {
+	public async mergeUploaded(id: number, hashs: string[], fileName: string, inputName?: string): Promise<void> {
 		const task = this.tasklist[id];
 		if (!task) {
 			// 上传完成之前删除了任务
@@ -480,7 +480,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const uploadDir = os.tmpdir() + '/FFBoxUploadCache'; // 文件上传目录
 		const concatedHash = CryptoJS.enc.Utf8.parse(hashs.join(''));
 		const fileHash = CryptoJS.SHA1(concatedHash).toString();
-		const destPath = `${uploadDir}/${fileName}⬝${fileHash}`;
+		const destName = `${fileName}⬝${fileHash}`;
+		const destPath = `${uploadDir}/${destName}`;
 		let fileExists = false;
 		try {
 			await fs.accessSync(destPath, fs.constants.R_OK);	
@@ -500,12 +501,29 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				}
 			});
 		}
-		task.after.input.files[task.after.input.files.length - 1].filePath = destPath;
-		task.status = TaskStatus.idle;
-		this.getFileMetadata(id, task, task.after.input.files[0].filePath || '');
-		task.paraArray = getFFmpegParaArray(task.after, true, undefined, undefined, task.outputFiles);
-		this.setNotification(id, `任务「${task.fileBaseName}」输入文件上传完成`, NotificationLevel.info);
+		const inputIndex = task.after.input.files.findIndex((file) => file.filePath === inputName);
+		if (inputIndex >= 0) {
+			task.after.input.files[inputIndex].filePath = destName;	// 远程任务隐藏目录结构，运行时才 override 输入参数
+		}
+		task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
+		this.setNotification(id, `任务「${task.fileBaseName}」输入文件「${fileName}」上传完成`, NotificationLevel.info);
 		this.emitTaskUpdate(id, task);
+	}
+
+	/**
+	 * 切换任务状态的初始化或待命状态
+	 */
+	public setUploadStatus(id: number, isUploading: boolean): void {
+		const task = this.tasklist[id];
+		if (isUploading && task.status === TaskStatus.idle) {
+			task.status = TaskStatus.initializing;
+			this.emitTaskUpdate(id, task);
+		} else if (!isUploading && task.status === TaskStatus.initializing) {
+			task.status = TaskStatus.idle;
+			this.getFileMetadata(id, task, task.after.input.files[0].filePath || '');
+			// this.setNotification(id, `任务「${task.fileBaseName}」输入文件上传完成`, NotificationLevel.info);
+			this.emitTaskUpdate(id, task);
+		}
 	}
 
 	/**
@@ -582,15 +600,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		// const filePath = task.after.input.files[0].filePath!; // 需要上传完成，状态为 TASK_STOPPED 时才能开始任务，因此 filePath 非空
 		let newFFmpeg: FFmpeg;
 		if (task.remoteTask) {
-			task.outputFiles = genTaskOutputFiles(task.after, `.`);
 			newFFmpeg = new FFmpeg(
 				this.ffmpegPath,
 				0,
-				getFFmpegParaArray(task.after, false, undefined, undefined, genTaskOutputFiles(task.after, `${os.tmpdir()}/FFBoxDownloadCache`))
+				getFFmpegParaArray({ outputParams: task.after, inputDir: `${os.tmpdir()}/FFBoxUploadCache`, overrideFilePaths: task.outputFiles.map((slashFileName) => `${os.tmpdir()}/FFBoxDownloadCache${slashFileName}`) })
 			);
 		} else {
-			task.outputFiles = genTaskOutputFiles(task.after);
-			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray(task.after, false));
+			task.outputFiles = genTaskOutputFiles(task.after);	// 本地任务的 outputFiles 在任务开始时才生成，而远程任务则是在添加和修改参数时就刷新
+			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray({ outputParams: task.after }));
 		}
 		newFFmpeg.on('closed', async (errorCode, errors, runningResult) => {
 			if (errorCode) {
@@ -948,10 +965,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.after = replaceOutputParams(param, task.after, true);
 			if (task.remoteTask) {
 				// 如果修改了输出格式，需要重新计算 outputFile
-				task.outputFiles = genTaskOutputFiles(task.after, `.`);
-				task.paraArray = getFFmpegParaArray(task.after, true, undefined, undefined, task.outputFiles);
+				task.outputFiles = genTaskOutputFiles(task.after, ``);
+				task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
 			} else {
-				task.paraArray = getFFmpegParaArray(task.after, true);
+				task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true });
 			}
 			this.emitTaskUpdate(id);
 		}

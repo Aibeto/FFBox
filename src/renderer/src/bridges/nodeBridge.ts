@@ -213,10 +213,6 @@ const nodeBridge = {
 		}
 	},
 
-	getLocalFile(url: string, limitSize: number): Promise<{ size: 0, file: Buffer }> {
-		return window.jsb?.ipcRenderer.invoke('getLocalFile', url, limitSize);
-	},
-
 	getLocalFileStats(url: string): Promise<Stats> {
 		return window.jsb?.ipcRenderer.invoke('getLocalFileStats', url);
 	},

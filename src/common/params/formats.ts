@@ -491,7 +491,7 @@ export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, 
 /**
  * 获取输入参数的命令行（全局唯一）
  */
-export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes = false) {
+export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes = false, inputDir?: string) {
 	let ret = [];
 	const quoteStr = withQuotes ? `"` : '';
 	// 确保至少有一个输入
@@ -533,7 +533,7 @@ export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes 
 		}
 		// 输入路径
 		ret.push('-i');
-		ret.push(quoteStr + file.filePath + quoteStr);
+		ret.push(quoteStr + (inputDir ? `${inputDir}/` : '') + file.filePath + quoteStr);
 	}
 	return ret;
 }

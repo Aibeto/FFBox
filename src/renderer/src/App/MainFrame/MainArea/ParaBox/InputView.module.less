@@ -34,13 +34,14 @@
 				position: relative;
 				display: flex;
 				align-items: center;
-				height: 26px;
-				line-height: 26px;
-				padding: var(--itemPadding);
+				height: var(--itemHeight);
+				line-height: var(--itemHeight);
+				padding: 0 8px;
+				border: 1px solid transparent;
 				border-radius: 6px;
 				font-size: 13px;
 				overflow: hidden;
-				transition: padding 0.3s ease;
+				transition: padding 0.3s ease, background-color 0.3s;
 				&::after {
 					content: '';
 					position: absolute;
@@ -116,10 +117,8 @@
 				}
 			}
 			.listItemSelected {
-				background-color: hwb(var(--primaryColor));
-				.operations .delete svg {
-					color: white;
-				}
+				background-color: hwb(var(--menuItemHovered));
+				border: hwb(var(--menuItemSelected)) 1px solid;
 			}
 			.listItemMove {
 				transition: all 0.3s ease;

@@ -1,5 +1,6 @@
 import { Task, TransferStatus, SingleProgressLog, WorkingStatus, Notification, FFmpegInfo } from '@common/types';
 import { ServiceBridge } from '@renderer/bridges/serviceBridge'
+import { SingleTaskScheduler } from './stores/transferManager2';
 
 export interface UITask extends Task {
 	dashboard: {
@@ -40,13 +41,16 @@ export interface UploadFile {
 	url?: string;	// 使用字符串输入
 	blob?: File;	// 拖入文件输入
 	size?: number;	// B
-	status: 'waiting' | 'hashing' | 'uploading' | 'paused' | 'finished' | 'error';
+	status: 'waiting' | 'reading' | 'hashing' | 'uploading' | 'paused' | 'finished' | 'error';
+	readTask?: SingleTaskScheduler;		// 用于暂停
+	hashTask?: SingleTaskScheduler;
+	uploadTask?: SingleTaskScheduler;
 }
 export interface UploadChunk {
 	file?: UploadFile;
 	abortController: AbortController;
-	buffer?: Uint8Array;
-	status: 'waiting' | 'hashing' | 'uploading' | 'paused' | 'finished' | 'error';
+	buffer?: ArrayBuffer;
+	status: 'waiting' | 'reading' | 'hashing' | 'uploading' | 'paused' | 'finished' | 'error';
 	tryCount: number;
 	transferred: number;	// B
 	size: number;			// B

@@ -38,7 +38,7 @@ const outputSelectionList = computed(() => appStore.globalParams.outputs.map((ou
 
 const globalParamsText = computed(() => {
 	try {
-		const globalparamsArray = getFFmpegParaArray(appStore.globalParams);
+		const globalparamsArray = getFFmpegParaArray({ outputParams: appStore.globalParams, withQuotes: true });
 		return ['ffmpeg', ...globalparamsArray].join(' ');
 	} catch (e) {
 		console.error(e);

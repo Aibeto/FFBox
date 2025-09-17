@@ -343,21 +343,6 @@ class ElectronApp {
 			return result.resultArr;
 		});
 
-		// 获取本地文件。如果文件大小未超过限制，则计算 hash，返回文件内容、大小，否则只返回大小
-		ipcMain.handle('getLocalFile', async (event, url: string, limitSize: number) => {
-			const stats = await fs.stat(url);
-			if (!stats.isFile()) {
-				// 理论上不应出现对非本地文件调用此方法的现象，此处是为了避免用户手动将文件改为文件夹之类的特殊情况
-				return { size: 0, file: undefined };
-			}
-			if (stats.size > limitSize) {
-				return { size: stats.size, file: undefined };
-			}
-			console.log(url, '读取文件');
-			const buffer = await fs.readFile(url);
-			return { size: stats.size, file: buffer };
-		});
-
 		// 获取本地文件属性
 		ipcMain.handle('getLocalFileStats', async (event, url: string) => {
 			try {

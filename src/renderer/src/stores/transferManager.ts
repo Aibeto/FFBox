@@ -5,10 +5,6 @@ import { TransferStatus } from '@common/types';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import HashWorker from './transferHashWorker?worker';
 
-// const hashWorker = new Worker(new URL('./transferHashWorker.ts', import.meta.url), {
-// 	type: 'module'
-// });
-
 export async function uploadFile(server: Server, input: string | File, taskId: number, fileName: string) {
 	let fileSize = 0;
 	if (typeof input === 'string') {
@@ -37,15 +33,15 @@ export async function uploadFile(server: Server, input: string | File, taskId: n
 	// 基础信息收集完成，返回 file，剩余校验和上传工作在 timeout 后进行
 	setTimeout(async () => {
 		// 对每个分片进行文件读取和 hash 生成，若读取错误则直接退出
-		file.status = 'hashing';
+		file.status = 'reading';
 		for (let offset = 0; offset < fileSize; offset += segment) {
 			const chunkSize = Math.min(segment, fileSize - offset);
-			let buffer: Uint8Array;
+			let buffer: ArrayBuffer;
 			const chunk: UploadChunk = {
 				file,
 				abortController: new AbortController(),
 				buffer: undefined,
-				status: 'waiting',
+				status: 'reading',
 				tryCount: 0,
 				transferred: 0,
 				size: chunkSize,
@@ -53,20 +49,18 @@ export async function uploadFile(server: Server, input: string | File, taskId: n
 			};
 			file.chunks.push(chunk);
 			if (typeof input === 'string') {
-				buffer = await nodeBridge.getLocalFileChunk(input, offset, chunkSize);	// 使用字符串输入
+				buffer = (await nodeBridge.getLocalFileChunk(input, offset, chunkSize)).buffer as ArrayBuffer;
 			} else {
 				const blob = input.slice(offset, offset + chunkSize);
-				buffer = (await blob.arrayBuffer()) as any;								// 拖入文件输入
+				buffer = (await blob.arrayBuffer()) as any;
 			}
 			chunk.buffer = buffer;
-
-			// const chunkHash = CryptoJS.SHA1(CryptoJS.lib.WordArray.create(buffer as any)).toString();
-			// console.log(`【${fileName}】文件 hash 已计算：${offset} / ${fileSize}`);
-			// chunk.hash = chunkHash;
+			chunk.status = 'hashing';
 		}
 		// 根据 CPU 数量划分成若干个 worker 任务
+		file.status = 'hashing';
 		const cpuCount = navigator.hardwareConcurrency || 4;
-		const taskList = new Array(cpuCount).fill(0).map(() => [] as { buffer: Uint8Array, index: number }[]);
+		const taskList = new Array(cpuCount).fill(0).map(() => [] as { buffer: ArrayBuffer, index: number }[]);
 		for (let i = 0; i < file.chunks.length; i++) {
 			const taskIndex = i % cpuCount;
 			taskList[taskIndex].push({ buffer: file.chunks[i].buffer, index: i });
@@ -78,7 +72,7 @@ export async function uploadFile(server: Server, input: string | File, taskId: n
 				if (event.data.type === 'result') {
 					file.chunks[event.data.index].hash = event.data.hash;
 					console.log(`【${fileName}】【${event.data.index}】hash 已计算：${event.data.hash}`);
-					file.chunks[event.data.index].buffer = event.data.buffer;;
+					file.chunks[event.data.index].buffer = event.data.buffer;
 				} else if (event.data.type === 'finish') {
 					resolve(0);
 					worker.terminate();

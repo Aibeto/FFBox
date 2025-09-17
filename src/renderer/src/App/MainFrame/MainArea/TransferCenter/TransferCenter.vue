@@ -1,24 +1,30 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { UploadFile } from '@renderer/types';
 import { useAppStore } from '@renderer/stores/appStore';
+import { useTooltip } from '@renderer/common/tooltipUtil';
 import IconUpArrow from '../Parabox/uparrow.svg?component';
+import Checkbox from '@renderer/components/Checkbox/Checkbox.vue';
 
 const appStore = useAppStore();
 const deviderRef = ref<Element>(null);
 const centerDraggerPos = ref(50);
 const selectedFileIndex = ref(undefined);
+const showAllTaskFiles = ref(true);
 
 const fileList = computed(() => {
 	// const tasks = appStore.currentServer?.data.tasks || [];
 	const serverUploadFiles = appStore.currentServer?.data.uploadFiles || [];
 	return serverUploadFiles.map((serverUploadFile) => ({
-		fileBasename: serverUploadFile.fileName,
+		fileName: serverUploadFile.fileName,
+		taskId: serverUploadFile.taskId,
 		isCurrentTask: appStore.selectedTask.has(serverUploadFile.taskId),
 		status: serverUploadFile.status,
 		chunks: serverUploadFile.chunks,
-		progress: serverUploadFile.status === 'hashing'
-			? serverUploadFile.chunks.filter((chunk) => chunk.hash).length / serverUploadFile.chunks.length
-			: serverUploadFile.chunks.reduce((prev, curr) => prev + curr.transferred, 0) / serverUploadFile.size,
+		size: serverUploadFile.size,
+		readProgress: serverUploadFile.chunks.reduce((prev, curr) => prev + curr.size, 0) / serverUploadFile.size,
+		hashProgress: serverUploadFile.chunks.reduce((prev, curr) => prev + (curr.hash ? curr.size : 0), 0) / serverUploadFile.size,
+		uploadProgress: serverUploadFile.chunks.reduce((prev, curr) => prev + curr.transferred, 0) / serverUploadFile.size,
 	}));
 });
 
@@ -30,6 +36,9 @@ const chunkList = computed(() => {
 		progress: chunk.transferred / chunk.size,
 	}));
 })
+
+const fileListStyle = computed(() => fileList.value.filter((file) => showAllTaskFiles.value && file.isCurrentTask).length >= 11 ? "--itemHeight: 26px" : "--itemHeight: 34px");
+const chunkListStyle = computed(() => chunkList.value ? "--itemHeight: 26px" : "--itemHeight: 34px");
 
 const handleDragStart = (event: MouseEvent | TouchEvent) => {
 	// event.preventDefault();
@@ -80,6 +89,13 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 	window.addEventListener('touchend', handleMouseUp);
 };
 
+const handleFileClick = (file: UploadFile, index: number) => {
+	selectedFileIndex.value = index;
+	appStore.selectedTask = new Set([file.taskId]);
+	appStore.taskSelectionModified = false;
+	appStore.applySelectedTask();
+};
+
 watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 	if (selectedFileIndex.value >= (appStore.currentServer?.data.uploadFiles || []).length - 1) {
 		selectedFileIndex.value = undefined;
@@ -89,7 +105,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 </script>
 
 <template>
-	<div class="transferCenter">
+	<div class="transferCenter" :data-color_theme="appStore.frontendSettings.colorTheme">
 		<div class="upper">
 			<div class="devider" :ref="(el) => deviderRef = el as Element">
 				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
@@ -103,19 +119,45 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 		</div>
 		<div class="lower">
 			<div class="left" :style="{ width: `${centerDraggerPos}%`}">
-				<div class="title">文件列表</div>
-				<div class="listContainer">
-					<div v-for="(file, index) in fileList" class="listItem" :class="selectedFileIndex === index ? 'listItemSelected' : undefined" :style="file.isCurrentTask ? {} : { opacity: 0.7 }" @click="selectedFileIndex = index">
-						<span>{{ file.fileBasename }} {{ file.status }} {{ file.progress }}</span>
+				<div class="title">
+					文件列表
+					<div class="right">
+						<Checkbox style="margin-right: 8px;" :checked="showAllTaskFiles" @change="(value) => showAllTaskFiles = value"/>显示所有任务的文件
+					</div>
+				</div>
+				<div class="listContainer" :style="fileListStyle">
+					<div
+						v-for="(file, index) in fileList"
+						class="listItem" :class="selectedFileIndex === index ? 'listItemSelected' : undefined"
+						:style="file.isCurrentTask ? {} : (showAllTaskFiles ? { opacity: 0.6 } : { display: 'none' })"
+						@click="handleFileClick(file as any, index)"
+						v-bind="useTooltip(`文件名：${file.fileName}\n大小：${file.size}\n分段数：${file.chunks.length}`)"
+					>
+						<div class="progress">
+							<div :style="{
+								width: '100%',
+								clipPath: `polygon(
+									0% 0%, ${file.readProgress * 100}% 0%,    ${file.readProgress * 100}% 33.3%,
+									       ${file.hashProgress * 100}% 33.3%,   ${file.hashProgress * 100}% 66.7%,
+									       ${file.uploadProgress * 100}% 66.7%, ${file.uploadProgress * 100}% 100%, 0% 100%
+								)`
+							}" />
+						</div>
+						<span>{{ file.fileName }}</span>
 					</div>
 				</div>
 			</div>
 			<div class="dragger" :style="{ left: `${centerDraggerPos}%` }" @mousedown="handleCenterDraggerDragStart($event)" @touchstart="handleCenterDraggerDragStart($event)" />
 			<div class="right" :style="{ width: `${100 - centerDraggerPos}%`}">
 				<div class="title">分片列表</div>
-				<div class="listContainer">
+				<div class="listContainer" :style="chunkListStyle">
 					<div v-for="chunk in chunkList" class="listItem">
-						<span>{{ chunk.hash }} {{ chunk.progress }}</span>
+						<div class="progress">
+							<div :style="{
+								width: `${chunk.progress * 100}%`,
+							}" />
+						</div>
+						<span>{{ chunk.hash }}</span>
 					</div>
 				</div>
 			</div>
@@ -218,14 +260,26 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 			/* align-content: space-between;	 多行 */
 			justify-content: center;
 			font-size: 14px;
-			.left, .right {
+			&>.left, &>.right {
 				height: 100%;
 				box-sizing: border-box;
-				padding: 12px;
+				padding: 10px 12px;
 				text-align: left;
 				// outline: red 1px solid;
 				.title {
 					height: 24px;
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+					white-space: nowrap;
+					overflow: hidden;
+					.right {
+						flex: 0 1 auto;
+						display: flex;
+						justify-content: space-between;
+						align-items: center;
+						white-space: nowrap;
+					}
 				}
 				.listContainer {
 					position: relative;
@@ -244,13 +298,15 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						position: relative;
 						display: flex;
 						align-items: center;
-						height: 26px;
-						line-height: 26px;
-						padding: var(--itemPadding);
+						height: var(--itemHeight);
+						line-height: var(--itemHeight);
+						padding: 0 8px;
+						border: 1px solid transparent;
 						border-radius: 6px;
 						font-size: 13px;
-						overflow: hidden;
-						transition: padding 0.3s ease;
+						// overflow: hidden;
+						isolation: isolate;
+						transition: padding 0.3s ease, background-color 0.3s;
 						&::after {
 							content: '';
 							position: absolute;
@@ -306,30 +362,29 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 								}
 							}
 						}
-						.dropdownInput {
-							flex: 0 0 auto;
-							min-width: 56px;
-							width: calc(10% + 32px);
-							margin-right: 8px;
-							box-shadow: 0px 1px 2px hwb(var(--hoverShadow) / 0.1);
-						}
-						.inputAutoSize {
-							flex: 1 1 auto;
-							margin-left: -4px;
-							overflow: hidden;
-						}
 						span {
 							flex: 1 1 auto;
 							font-family: Arial;
 							white-space: nowrap;
 							overflow: hidden;
 						}
+						.progress {
+							position: absolute;
+							top: 0;
+							left: 0;
+							height: 100%;
+							width: 100%;
+							z-index: -1;
+							div {
+								height: 100%;
+								transition: width 0.1s linear;
+								border-radius: 6px;
+							}
+						}
 					}
 					.listItemSelected {
-						background-color: hwb(var(--primaryColor));
-						.operations .delete svg {
-							color: white;
-						}
+						background-color: hwb(var(--menuItemHovered));
+						border: hwb(var(--menuItemSelected)) 1px solid;
 					}
 					.listItemMove {
 						transition: all 0.3s ease;
@@ -366,6 +421,28 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 								0 1px 1px 0px hwb(var(--highlight) / 0.5) inset;	// 上高光
 					pointer-events: none;
 				}
+			}
+		}
+	}
+
+	// 主题
+	.transferCenter[data-color_theme="themeLight"] {
+		.progress {
+			filter: drop-shadow(0 3px 8px hwb(225 40% 20% / 0.4));
+			&>div {
+				background: linear-gradient(180deg, hwb(225 80% 0% / 0.7), hwb(225 60% 0% / 0.7));
+				// box-shadow: 0 3px 8px 0 hwb(225 40% 20% / 0.15),
+				// 			0 0px 1px 0.75px hwb(225 80% 0%) inset;
+			}
+		}
+	}
+	.transferCenter[data-color_theme="themeDark"] {
+		.progress {
+			filter: drop-shadow(0 3px 8px hwb(225 40% 20% / 0.1));
+			&>div {
+				background: linear-gradient(180deg, hwb(225 25% 15% / 0.7), hwb(225 20% 30% / 0.7));
+				// box-shadow: 0 3px 8px 0 hwb(225 40% 20% / 0.1),
+				// 			0 0px 1px 0.75px hwb(225 80% 0% / 0.25) inset;
 			}
 		}
 	}

@@ -64,7 +64,7 @@ const InputView = defineComponent((props: Props) => {
 		] as typeof builtInDemuxers
 	));
 
-	const listContainerStyle = computed(() => extendedFiles.value.length >= 11 ? " --itemPadding: 0 8px " : " --itemPadding: 4px 8px ")
+	const listContainerStyle = computed(() => extendedFiles.value.length >= 11 ? "--itemHeight: 26px" : "--itemHeight: 34px")
 
 	const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 		const draggerRect = event.target.getBoundingClientRect();
@@ -283,7 +283,7 @@ const InputView = defineComponent((props: Props) => {
 								{file.filePath !== '' && (
 									<DropdownInput class={css.dropdownInput} list={combinedDemuxersList.value} text={file.demuxer} onChange={(value: string) => handleParamChange('demuxer', value)} />
 								)}
-								{editingIndex.value === index ? (
+								{editingIndex.value === index && appStore.currentServer?.entity.ip === 'localhost' ? (
 									<InputAutoSize
 										class={css.inputAutoSize}
 										value={file.filePath}

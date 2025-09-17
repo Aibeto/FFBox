@@ -15,14 +15,16 @@ const { trimExt, dirname, basename } = path;
  * outputBaseName、outputDir 两项目前没有任何地方在使用
  * 如果任务是网络任务，输出路径是 taskName + random + ext，不包含目录（具体输出位置在 taskStart 时才生成给 ffmpeg），此时指定 task.outputFiles 为 overrideFilePath
  */
-export function getFFmpegParaArray(outputParams: OutputParams, withQuotes = false, outputBaseName?: string, outputDir?: string, overrideFilePaths?: string[]) {
+export function getFFmpegParaArray(params: { outputParams: OutputParams, withQuotes?: boolean, inputDir?: string, outputBaseName?: string, outputDir?: string, overrideFilePaths?: string[] }) {
 	const ret: Array<string> = [];
+	let { outputParams, withQuotes, inputDir, outputBaseName, outputDir, overrideFilePaths } = params;
+
 	const inputFilePath = outputParams.input.files[0]?.filePath;	// 暂时以第一个输入文件定目录
 	outputBaseName = outputBaseName || trimExt(basename(inputFilePath || '[输出文件名]'));	// 暂时以第一个输入文件的 basename 定义输出文件名
 	outputDir = outputDir || dirname(inputFilePath || '[输出目录]');
 	
 	ret.push('-hide_banner');
-	ret.push(...getInputFFmpegParam(outputParams.input, withQuotes));
+	ret.push(...getInputFFmpegParam(outputParams.input, withQuotes, inputDir));
 
 	associateNodesAndLines(outputParams.filter.nodes, outputParams.filter.lines);
 	const filterStr = getFilterParam(outputParams.filter.nodes, outputParams.filter.lines);
@@ -88,7 +90,7 @@ export function genTaskOutputFiles(outputParams: OutputParams, remoteDownloadDir
             extension = formatItem ? (formatItem.value as string).match(/(.+) \(.+\)/)?.[1] || formatItem.value : output.mux.format;
         }
 
-		if (remoteDownloadDir) {
+		if (remoteDownloadDir !== undefined) {
 			// 联机任务：直接拼路径和随机名（暂时只允许不同输出文件使用不同格式，因为 basename 会被完全忽略）
 			const randomBase = `${Date.now()}${randomString(3)}`;
 			const filename = extension ? `${randomBase}.${extension}` : randomBase;

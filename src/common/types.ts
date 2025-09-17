@@ -40,7 +40,8 @@ export interface FFBoxServiceInterface {
 	initFFmpeg(): void;
 	emitFFmpegInfo(): void;
 	taskAdd(taskName: string, outputParams?: OutputParams): Promise<number>;
-	mergeUploaded(id: number, hashs: string[], fileName: string): void;
+	mergeUploaded(id: number, hashs: string[], fileName: string, inputName?: string): void;
+	setUploadStatus(id: number, isUploading: boolean): void;
 	taskDelete(id: number): void;
 	taskStart(id: number): void;
 	taskPause(id: number): void;

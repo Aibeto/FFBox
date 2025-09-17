@@ -10,6 +10,7 @@ import { showProgressInfo } from '@renderer/components/misc/ProgressInfo';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { getOutputDuration, stringifyTimeValue } from '@common/utils';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
+import IconInitializing from './initializing.svg';
 import IconIdle from './idle.svg';
 import IconIdleQueued from './idle_queued.svg';
 import IconRunning from './running.svg';
@@ -290,6 +291,7 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	const taskStatusIcon = computed(() => (
 		[
+			[TaskStatus.initializing, <IconInitializing />],
 			[TaskStatus.idle, <IconIdle />],
 			[TaskStatus.idle_queued, <IconIdleQueued />],
 			[TaskStatus.running, <IconRunning />],
@@ -398,11 +400,11 @@ export const TaskItem = defineComponent((props: Props) => {
 		showMenu({
 			menu: [
 				{ type: 'normal', label: props.task.fileBaseName, value: '状态', disabled: true,
-					icon: [<IconIdle />, <IconIdleQueued />, <IconRunning />, <IconPaused />, <IconPausedQueued />, <IconStopping />, <IconFinished />, <IconError />][
-						[TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finished, TaskStatus.error].indexOf(props.task.status)
+					icon: [<IconInitializing />, <IconIdle />, <IconIdleQueued />, <IconRunning />, <IconPaused />, <IconPausedQueued />, <IconStopping />, <IconFinished />, <IconError />][
+						[TaskStatus.initializing, TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finished, TaskStatus.error].indexOf(props.task.status)
 					],
-					tooltip: ['状态：空闲', '状态：空闲（等待开始）', '状态：运行中', '状态：已暂停', '状态：已暂停（等待恢复）', '状态：正在停止', '状态：已完成', '状态：出错'][
-						[TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finished, TaskStatus.error].indexOf(props.task.status)
+					tooltip: ['状态：正在初始化', '状态：空闲', '状态：空闲（等待开始）', '状态：运行中', '状态：已暂停', '状态：已暂停（等待恢复）', '状态：正在停止', '状态：已完成', '状态：出错'][
+						[TaskStatus.initializing, TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finished, TaskStatus.error].indexOf(props.task.status)
 					],
 				},
 				{ type: 'separator' },
