@@ -1,7 +1,7 @@
 import { h, VNodeRef } from 'vue';
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
-import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, TaskStatus, TransferStatus, WorkingStatus } from '@common/types';
+import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, WorkingStatus } from '@common/types';
 import { version } from '@common/constants'; 
 import { Server } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
@@ -17,10 +17,7 @@ import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklist
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { addUploadTask } from './transferManager2';
 import { getLimitaion } from './limitaions';
-import { dashboardTimer } from '@renderer/common/dashboardCalc';
-import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import Popup from '@renderer/components/Popup/Popup';
-import ImageBow from '@renderer/assets/cartoons/bow.svg';
 
 const { trimExt } = path;
 
@@ -29,6 +26,7 @@ interface StoreState {
 	showMenuCenter: 0 | 1 | 2; // 0：关闭　1：开启菜单栏　2：全开
 	showInfoCenter: boolean;
 	showTransferCenter: boolean;
+	showTaskInfo: number | undefined;
 	showDragFilesOverlay: boolean;
 	paraSelected: number,
 	draggerPos: number,
@@ -61,7 +59,7 @@ interface StoreState {
 	globalParams: OutputParams;
 	presetName: string | undefined;
 	availablePresets: string[];
-	downloadMap: Map<string, { serverId: string, taskId: number }>;
+	downloadMap: Map<string, string>;	// <url, serverId>
 	latestVersion?: string;
 	functionLevel: number;
 }
@@ -78,6 +76,7 @@ export const useAppStore = defineStore('app', {
 			showMenuCenter: 0,
 			showInfoCenter: false,
 			showTransferCenter: false,
+			showTaskInfo: undefined,
 			showDragFilesOverlay: false,
 			paraSelected: 1,
 			draggerPos: 0.57,
@@ -120,6 +119,7 @@ export const useAppStore = defineStore('app', {
 			return state.servers.find((server) => server.data.id === state.currentServerId);
 		},
 		localServer: (state) => {
+			// app 初始化逻辑中会通过识别 nodeBridge.env 添加一个 localhost 服务器。除此以外没有添加 localhost 的渠道
 			return state.servers.length && state.servers[0].entity.ip === 'localhost' ? state.servers[0] : undefined;
 		},
 	},
@@ -704,6 +704,7 @@ export const useAppStore = defineStore('app', {
 					tasks: [],
 					notifications: [],
 					uploadFiles: [],
+					downloadFiles: [],
 					ffmpegInfo: { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, muxersCount: 0, demuxersCount: 0, filtersCount: 0 },
 					version: '',
 					workingStatus: WorkingStatus.idle,
@@ -737,69 +738,74 @@ export const useAppStore = defineStore('app', {
 			const server = 这.servers.find((server) => server.data.id === serverId) as Server;
 			const entity = server.entity;
 			if (!ip) {
-				return;
+				return Promise.reject();
 			}
 			const _port = port ?? 33269;
 			console.log('初始化服务器连接', server.data);
-			entity.connect(ip, _port, username, password);
 
 			const destroy = () => {
 				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegInfo', 'workingStatusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'taskNotification'] as any[]) {
 					entity.removeAllListeners(eventName);
 				}
 			}
-			entity.on('connected', () => {
-				server.data.name = ip === 'localhost' ? '本地服务器' : ip;
-				console.log(`成功连接到服务器 ${server.entity.ip}`);
-				这.pushMsg(`成功连接到服务器 ${server.data.name}`, NotificationLevel.ok);
-				server.data.tasks = [];	// 由于 taskList 只包含 id，重新连接后需要清除原 task 信息以获取新的
-				这.updateServerProperties(server);
-				// 这.updateGlobalTask(server);
-				这.updateTask(server, -1);
-				这.updateTaskList(server);
-				// entity.updateTaskList();
-				这.updateNotifications(server);
-			});
-			entity.on('disconnected', () => {
-				console.log(`已断开服务器 ${server.entity.ip} 的连接`);
-				这.pushMsg(`已断开服务器 ${server.data.name} 的连接`, NotificationLevel.warning);
-				destroy();
-			});
-			entity.on('error', (reason) => {
-				if (!retryCount || reason.includes('连接失败')) {
-					console.log(`服务器 ${server.entity.ip} ${reason}`);
-					这.pushMsg(`服务器 ${server.data.name} ${reason}`, NotificationLevel.error);
+			return new Promise((resolve, reject) => {
+				entity.connect(ip, _port, username, password);
+	
+				entity.on('connected', () => {
+					server.data.name = ip === 'localhost' ? '本地服务器' : ip;
+					console.log(`成功连接到服务器 ${server.entity.ip}`);
+					这.pushMsg(`成功连接到服务器 ${server.data.name}`, NotificationLevel.ok);
+					server.data.tasks = [];	// 由于 taskList 只包含 id，重新连接后需要清除原 task 信息以获取新的
+					这.updateServerProperties(server);
+					// 这.updateGlobalTask(server);
+					这.updateTask(server, -1);
+					这.updateTaskList(server);
+					// entity.updateTaskList();
+					这.updateNotifications(server);
+					resolve(server);
+				});
+				entity.on('disconnected', () => {
+					console.log(`已断开服务器 ${server.entity.ip} 的连接`);
+					这.pushMsg(`已断开服务器 ${server.data.name} 的连接`, NotificationLevel.warning);
 					destroy();
-				} else {
-					console.log(`服务器 ${server.entity.ip} ${reason}，剩余重试次数 ${retryCount}`);
-					setTimeout(() => {
-						这.initializeServer(serverId, ip, port, username, password, retryCount - 1);
-					}, 150);
-				}
-			});
-
-			entity.on('ffmpegInfo', (data) => {
-				handleFFmpegInfo(server, data);
-			});
-			entity.on('workingStatusUpdate', (data) => {
-				handleWorkingStatusUpdate(server, data.value);
-			});
-			entity.on('tasklistUpdate', (data) => {
-				handleTasklistUpdate(server, data.content);
-				这.recalcChangedParams();
-			});
-			entity.on('taskUpdate', (data) => {
-				handleTaskUpdate(server, data.taskId, data.task);
-				这.recalcChangedParams();
-			});
-			entity.on('cmdUpdate', (data) => {
-				handleCmdUpdate(server, data.taskId, data.content);
-			});
-			entity.on('progressUpdate', (data) => {
-				handleProgressUpdate(server, data.taskId, data.time, data.status, 这.functionLevel);
-			});
-			entity.on('notificationUpdate', (data) => {
-				handleNotificationUpdate(server, data.notificationId, data.notification);
+				});
+				entity.on('error', (reason) => {
+					if (!retryCount || reason.includes('连接失败')) {
+						console.log(`服务器 ${server.entity.ip} ${reason}`);
+						这.pushMsg(`服务器 ${server.data.name} ${reason}`, NotificationLevel.error);
+						destroy();
+						reject(reason);
+					} else {
+						console.log(`服务器 ${server.entity.ip} ${reason}，剩余重试次数 ${retryCount}`);
+						setTimeout(() => {
+							这.initializeServer(serverId, ip, port, username, password, retryCount - 1);
+						}, 150);
+					}
+				});
+	
+				entity.on('ffmpegInfo', (data) => {
+					handleFFmpegInfo(server, data);
+				});
+				entity.on('workingStatusUpdate', (data) => {
+					handleWorkingStatusUpdate(server, data.value);
+				});
+				entity.on('tasklistUpdate', (data) => {
+					handleTasklistUpdate(server, data.content);
+					这.recalcChangedParams();
+				});
+				entity.on('taskUpdate', (data) => {
+					handleTaskUpdate(server, data.taskId, data.task);
+					这.recalcChangedParams();
+				});
+				entity.on('cmdUpdate', (data) => {
+					handleCmdUpdate(server, data.taskId, data.content);
+				});
+				entity.on('progressUpdate', (data) => {
+					handleProgressUpdate(server, data.taskId, data.time, data.status, 这.functionLevel);
+				});
+				entity.on('notificationUpdate', (data) => {
+					handleNotificationUpdate(server, data.notificationId, data.notification);
+				});
 			});
 		},
 		/**

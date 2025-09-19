@@ -438,7 +438,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private getFileMetadata(id: number, task: ServiceTask, filePath: string): void {
 		// FFmpeg 读取媒体信息
 		log.info(`[任务 ${id}] 读取输入媒体信息。`);
-		const ffmpeg = new FFmpeg(this.ffmpegPath, 2, ['-hide_banner', '-i', filePath, '-f', 'null']);
+		const ffmpeg = new FFmpeg(this.ffmpegPath, 2, ['-hide_banner', '-i', task.remoteTask ? `${os.tmpdir()}/FFBoxUploadCache/${filePath}` : filePath, '-f', 'null']);
 		ffmpeg.on('data', ({ content }) => {
 			this.setCmdText(id, content);
 		});
@@ -520,9 +520,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.emitTaskUpdate(id, task);
 		} else if (!isUploading && task.status === TaskStatus.initializing) {
 			task.status = TaskStatus.idle;
-			this.getFileMetadata(id, task, task.after.input.files[0].filePath || '');
-			// this.setNotification(id, `任务「${task.fileBaseName}」输入文件上传完成`, NotificationLevel.info);
 			this.emitTaskUpdate(id, task);
+			setTimeout(() => {
+				this.getFileMetadata(id, task, task.after.input.files[0].filePath || '');
+			}, 150);	// 正常顺序是 mergeUploaded -> setUploadStatus，但函数并不等待而是接连调用，再考虑网络因素，稍微等待再 getFileMetadata 可避免输入文件名还没改过来就进行信息读取
 		}
 	}
 
@@ -603,7 +604,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			newFFmpeg = new FFmpeg(
 				this.ffmpegPath,
 				0,
-				getFFmpegParaArray({ outputParams: task.after, inputDir: `${os.tmpdir()}/FFBoxUploadCache`, overrideFilePaths: task.outputFiles.map((slashFileName) => `${os.tmpdir()}/FFBoxDownloadCache${slashFileName}`) })
+				getFFmpegParaArray({ outputParams: task.after, inputDir: `${os.tmpdir()}/FFBoxUploadCache`, overrideFilePaths: task.outputFiles.map((fileName) => `${os.tmpdir()}/FFBoxDownloadCache/${fileName}`) })
 			);
 		} else {
 			task.outputFiles = genTaskOutputFiles(task.after);	// 本地任务的 outputFiles 在任务开始时才生成，而远程任务则是在添加和修改参数时就刷新

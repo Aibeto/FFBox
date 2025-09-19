@@ -4,8 +4,8 @@ import { exec, spawn, SpawnOptions } from 'child_process';
 import path from 'path';
 import parsePath from 'parse-path';
 import CryptoJS from 'crypto-js';
+import { utimes } from 'utimes';
 import fs from 'fs/promises';
-import { TransferStatus } from '@common/types';
 import ProcessInstance from '@common/processInstance';
 import localConfig from '@common/localConfig';
 import { convertFFBoxMenuToElectronMenuTemplate, getOs } from './utils';
@@ -19,6 +19,7 @@ class ElectronApp {
 	// electronStore: ElectronStore;
 	service: ProcessInstance | null = null;
 	blockWindowClose = true;
+	downloadMap: Map<string, { item?: Electron.DownloadItem, finalFileName?: string, createTime?: number, modifyTime?: number }> = new Map();
 
 	constructor() {
 		this.mountAppEvents();
@@ -139,24 +140,46 @@ class ElectronApp {
 		});
 
 		mainWindow.webContents.session.on('will-download', (event, item, webContents) => {
+			const url = item.getURL();
+			const map = this.downloadMap.get(url);
+			if (!map || map?.item) return;
+			map.item = item;
+
+			item.setSaveDialogOptions({ defaultPath: map.finalFileName });
 			// item.setSavePath(folderpath + `\\${item.getFilename()}`);	// 设置文件存放位置
-			mainWindow.webContents.send('downloadStatusChange', { url: item.getURL(), status: TransferStatus.downloading });
+			mainWindow.webContents.send('downloadStatusChange', { url: url, status: 'started' });
 			item.on('updated', (event, state) => {
 				if (state === 'interrupted') {
-					console.log(item.getURL(), '下载取消');
+					console.log(url, '下载取消');
 				} else if (state === 'progressing') {
 					if (item.isPaused()) {
-						console.log(item.getURL(), '下载暂停');
+						console.log(url, '下载暂停');
 					} else {
-						mainWindow.webContents.send('downloadProgress', { url: item.getURL(), loaded: item.getReceivedBytes(), total: item.getTotalBytes() });
+						mainWindow.webContents.send('downloadProgress', { url: url, loaded: item.getReceivedBytes(), total: item.getTotalBytes() });
 					}
 				}
-			})
-			item.once('done', (event, state) => {
-				console.log(item.getURL(), `下载${state === 'completed' ? '完成' : '失败'}`);
-				mainWindow.webContents.send('downloadStatusChange', { url: item.getURL(), status: TransferStatus.normal });
-			})
-		});	
+				if (item.getSavePath()) {
+					mainWindow.webContents.send('downloadStatusChange', { url: url, status: state, finalFilePath: item.getSavePath() });
+				}
+			});
+			item.once('done', async (event, state) => {
+				console.log(url, `下载${state === 'completed' ? '完成' : state}`);
+				mainWindow.webContents.send('downloadStatusChange', { url: url, status: state, finalFilePath: item.getSavePath() });
+				if (state === 'completed') {
+					let finalPath = item.getSavePath();
+					// if (map.finalFileName) {
+					// 	const destPath = finalPath;
+					// 	const destDir = path.parse(destPath).dir;
+					// 	finalPath = path.resolve(destDir, map.finalFileName);
+					// 	await fs.rename(destPath, finalPath);
+					// }
+					if (map.createTime || map.modifyTime) {
+						utimes(finalPath, { btime: map.createTime || undefined, mtime: map.modifyTime || undefined });
+					}
+				}
+				this.downloadMap.delete(url);
+			});
+		});
 
 		// 应用菜单
 		const initialMenuTemplate = [
@@ -389,14 +412,18 @@ class ElectronApp {
 
 		/**
 		 * 启动文件下载流程：
-		 * taskitem 双击，发出带有下载 url 的 downloadFile 信号
-		 * 主进程打开另存为对话框，记录该 url 对应的保存位置，然后发送 downloadStatusChange 信号，告知主窗口改变 UI
-		 * webContents.downloadURL()，mainWindow.webContents.session.on('will-download') 在此处 handle 下载进度，不断向主窗口发送 downloadProgress
+		 * 渲染进程发出 downloadFile 调用，传入 url。此时主进程会调用主窗口的 downloadURL，将下载任务挂到主窗口的名义上，下载任务实际上还是主进程负责
+		 * 此时 mainWindow 会触发 will-download 事件。
+		 * 收到此事件后，主进程自动打开另存为对话框，记录该 url 对应的保存位置，自动下载到本地。这一切无需代码，只需要另写代码监听这个过程即可。
+		 * 监听到下载开始后，主进程保存 url 与下载对象的 DownloadItem 关系，方便后续用 url 控制下载暂停或取消。同时，向渲染进程发送 downloadStatusChange 信号，告知主窗口改变 UI
+		 * 下载过程持续向渲染进程发送 downloadProgress
 		 * 下载完成后再次发送 downloadStatusChange 信号，告知主窗口改变 UI
 		 */
-		ipcMain.on('downloadFile', (_event, params: { url: string; serverName: string; taskId: number }) => {
-			this.mainWindow!.webContents.downloadURL(params.url);
+		ipcMain.on('downloadFile', (_event, params: { url: string; finalFileName?: string; createTime?: number, modifyTime?: number }) => {
 			console.log('发动下载请求：', params.url);
+			const { finalFileName, createTime, modifyTime } = params;
+			this.downloadMap.set(params.url, { finalFileName, createTime, modifyTime });
+			this.mainWindow!.webContents.downloadURL(params.url);
 		});
 
 		// 启动一个 ffboxService，这个 ffboxService 目前钦定监听 localhost:33269，而 serviceBridge 会连接此 service

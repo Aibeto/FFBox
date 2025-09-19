@@ -34,7 +34,7 @@ const flattenedMenus = computed(() => {
 	const allMenus: InnerMenu[] = [];
 	let i = 0;
 	const queue = [{
-		menu: props.menu,
+		menu: toRaw(props.menu),	// 如果 props.menu 传入 proxy 而不 toRaw，getMenuByItem 的时候就拿不到 === 的 menu
 		menuIndex: i,
 		parent: null as any,
 	}];
@@ -386,7 +386,9 @@ const keydownListener = (e: KeyboardEvent) => {
 	let menuItem = toRaw(currentHoveredItem.value);
 	// 动作
 	if (e.key === 'Enter') {
-		handleSelect(e, menuItem);
+		if (menuItem) {
+			handleSelect(e, menuItem);
+		}
 	}
 	if (!menuItem) {
 		// 未 hover 时，上下方向，反向移动一位，以便后面检测上下方向的代码移到正确位置

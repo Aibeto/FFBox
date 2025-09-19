@@ -1,4 +1,4 @@
-import { Task, TransferStatus, SingleProgressLog, WorkingStatus, Notification, FFmpegInfo } from '@common/types';
+import { Task, WorkingStatus, Notification, FFmpegInfo } from '@common/types';
 import { ServiceBridge } from '@renderer/bridges/serviceBridge'
 import { SingleTaskScheduler } from './stores/transferManager2';
 
@@ -10,8 +10,6 @@ export interface UITask extends Task {
 		time: number;
 		frame: number;
 		size: number;	// kB
-		transferred: number;
-		transferSpeed: number;
 	};
 	dashboard_smooth: {
 		progress: number;
@@ -20,18 +18,8 @@ export interface UITask extends Task {
 		time: number;
 		frame: number;
 		size: number;	// kB
-		transferred: number;	// B
-		transferSpeed: number;	// Bps
 	};
 	dashboardTimer: number;
-	transferStatus: TransferStatus;
-	transferProgressLog: {
-		transferred: SingleProgressLog;	// B
-		total: number;					// B
-		lastStarted: number; 	// s
-		elapsed: number;		// s　暂停才更新一次，因此记录的并不是实时的任务时间
-		lastPaused: number;		// s　既用于暂停后恢复时计算速度，也用于统计任务耗时
-	};
 }
 
 export interface UploadFile {
@@ -56,6 +44,12 @@ export interface UploadChunk {
 	size: number;			// B
 	hash?: string;
 }
+export interface DownloadFile {
+	url: string;
+	finalFilePath?: string;
+	transferred: number;	// B
+	size: number;			// B
+}
 
 export interface ServerData {
 	id: string;			// 仅供前端一次性使用
@@ -64,6 +58,7 @@ export interface ServerData {
 	tasks: UITask[];
 	notifications: Notification[];
 	uploadFiles: UploadFile[];
+	downloadFiles: DownloadFile[];
 	ffmpegInfo: FFmpegInfo;
 	version?: string;
 	os?: 'Windows' | 'Linux' | 'MacOS' | 'unknown';

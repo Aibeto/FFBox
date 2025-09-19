@@ -1,5 +1,5 @@
 import nodeBridge from "@renderer/bridges/nodeBridge";
-import { FFmpegInfo, FFmpegProgress, Notification, Task, TaskStatus, TransferStatus, WorkingStatus } from "@common/types";
+import { FFmpegInfo, FFmpegProgress, Notification, Task, TaskStatus, WorkingStatus } from "@common/types";
 import { Server, UITask } from '@renderer/types';
 import { getInitialUITask, mergeTaskFromService } from "@common/utils";
 import { dashboardTimer, overallProgressTimer } from "@renderer/common/dashboardCalc";
@@ -176,26 +176,6 @@ export function handleNotificationUpdate(server: Server, notificationId: number,
 // #endregion
 
 // #region ipc events
-
-export function handleDownloadStatusChange(task: UITask, status: TransferStatus) {
-	// timer 相关处理
-	if (task.transferStatus === TransferStatus.normal && status === TransferStatus.downloading) {
-		task.transferProgressLog.transferred = [];
-        task.transferProgressLog.lastStarted = new Date().getTime() / 1000;
-		task.dashboardTimer = setInterval(dashboardTimer, 50, task) as any;
-	} else {
-		clearInterval(task.dashboardTimer);
-		task.dashboardTimer = 0;
-	}
-	task.transferStatus = status;
-}
-
-export function handleDownloadProgress(task: UITask, progress: { loaded: number, total: number }) {
-	const { transferProgressLog } = task; 
-    transferProgressLog.total = progress.total;
-	const transferred = transferProgressLog.transferred;
-	transferred.push([new Date().getTime() / 1000 - transferProgressLog.lastStarted, progress.loaded]);
-}
 
 export function handleCloseConfirm(localServer?: Server) {
     function readyToClose () {

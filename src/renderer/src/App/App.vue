@@ -3,8 +3,7 @@
 /// <reference types="vite-svg-loader" />
 import { onMounted } from 'vue'
 import { useAppStore } from '@renderer/stores/appStore';
-import { handleDownloadStatusChange, handleDownloadProgress, handleCloseConfirm } from '@renderer/stores/eventsHandler';
-import { TransferStatus } from '@common/types';
+import { handleCloseConfirm } from '@renderer/stores/eventsHandler';
 import { Server } from '@renderer/types';
 import { buildNumber, version } from '@common/constants';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
@@ -42,18 +41,29 @@ onMounted(async () => {
 	});
 
 	// 挂载下载进度指示
-	nodeBridge.ipcRenderer?.on("downloadStatusChange", (event, params: { url: string, status: TransferStatus }) => {
-		const { serverId, taskId } = appStore.downloadMap.get(params.url);
+	nodeBridge.ipcRenderer?.on("downloadStatusChange", (event, params: { url: string, status: 'started' | 'interrupted' | 'completed' | 'cancelled', finalFilePath?: string }) => {
+		const serverId = appStore.downloadMap.get(params.url);
 		const server = appStore.servers.find((server) => server.data.id === serverId);
-		const task = server.data.tasks[taskId];
-		// console.log("downloadStatusChange", params);
-		handleDownloadStatusChange(task, params.status);
+		const downloadFile = server.data.downloadFiles.find((downloadFile) => downloadFile.url === params.url);
+		if (params.status === 'started' && !downloadFile) {
+			server.data.downloadFiles.push({
+				url: params.url,
+				transferred: 0,
+				size: NaN,
+			});
+		}
+		if (params.finalFilePath && downloadFile) {
+			downloadFile.finalFilePath = params.finalFilePath;
+		}
 	});
 	nodeBridge.ipcRenderer?.on("downloadProgress", (event, params: { url: string, loaded: number, total: number }) => {
-		const { serverId, taskId } = appStore.downloadMap.get(params.url);
+		const serverId = appStore.downloadMap.get(params.url);
 		const server = appStore.servers.find((server) => server.data.id === serverId);
-		const task = server.data.tasks[taskId];
-		handleDownloadProgress(task, params);
+		const downloadFile = server.data.downloadFiles.find((downloadFile) => downloadFile.url === params.url);
+		if (downloadFile) {
+			downloadFile.transferred = params.loaded;
+			downloadFile.size = params.total;
+		};
 	});
 
 	// 挂载主进程 console 信息回传

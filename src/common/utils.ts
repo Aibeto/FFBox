@@ -1,7 +1,7 @@
 /* eslint-disable no-fallthrough */
 // #region 格式转换区
 
-import { OutputParams, ServiceTask, Task, TaskStatus, TransferStatus } from '@common/types';
+import { OutputParams, ServiceTask, Task, TaskStatus } from '@common/types';
 import { UITask } from '@renderer/types';
 import { deleteNode } from './params/filter';
 
@@ -359,8 +359,6 @@ export function getInitialUITask(fileName: string, outputParams?: OutputParams):
 				time: 0,
 				frame: 0,
 				size: 0,
-				transferred: 0,
-				transferSpeed: 0,
 			},
 			dashboard_smooth: {
 				progress: 0,
@@ -369,18 +367,8 @@ export function getInitialUITask(fileName: string, outputParams?: OutputParams):
 				time: 0,
 				frame: 0,
 				size: 0,
-				transferred: 0,
-				transferSpeed: 0,
 			},
 			dashboardTimer: NaN,
-			transferStatus: TransferStatus.normal,
-			transferProgressLog: {
-				transferred: [],
-				total: NaN,
-				lastStarted: new Date().getTime() / 1000,
-				elapsed: 0,
-				lastPaused: new Date().getTime() / 1000,	
-			},
 		},
 	};
 	return task;

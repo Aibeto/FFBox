@@ -5,6 +5,8 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import IconUpArrow from '../Parabox/uparrow.svg?component';
 import Checkbox from '@renderer/components/Checkbox/Checkbox.vue';
+import IconDownload from './Download.svg';
+import IconUpload from './Upload.svg';
 
 const appStore = useAppStore();
 const deviderRef = ref<Element>(null);
@@ -12,7 +14,7 @@ const centerDraggerPos = ref(50);
 const selectedFileIndex = ref(undefined);
 const showAllTaskFiles = ref(true);
 
-const fileList = computed(() => {
+const uploadFileList = computed(() => {
 	// const tasks = appStore.currentServer?.data.tasks || [];
 	const serverUploadFiles = appStore.currentServer?.data.uploadFiles || [];
 	return serverUploadFiles.map((serverUploadFile) => ({
@@ -29,15 +31,17 @@ const fileList = computed(() => {
 });
 
 const chunkList = computed(() => {
-	const serverUploadFile = fileList.value[selectedFileIndex.value];
+	const serverUploadFile = uploadFileList.value[selectedFileIndex.value];
 	return (serverUploadFile?.chunks || []).map((chunk) => ({
 		hash: chunk.hash,
 		status: chunk.status,
 		progress: chunk.transferred / chunk.size,
 	}));
-})
+});
 
-const fileListStyle = computed(() => fileList.value.filter((file) => showAllTaskFiles.value && file.isCurrentTask).length >= 11 ? "--itemHeight: 26px" : "--itemHeight: 34px");
+const downloadFileList = computed(() => appStore.currentServer?.data.downloadFiles || []);
+
+const fileListStyle = computed(() => uploadFileList.value.filter((file) => showAllTaskFiles.value && file.isCurrentTask).length + downloadFileList.value.length >= 11 ? "--itemHeight: 26px" : "--itemHeight: 34px");
 const chunkListStyle = computed(() => chunkList.value ? "--itemHeight: 26px" : "--itemHeight: 34px");
 
 const handleDragStart = (event: MouseEvent | TouchEvent) => {
@@ -127,11 +131,11 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 				</div>
 				<div class="listContainer" :style="fileListStyle">
 					<div
-						v-for="(file, index) in fileList"
+						v-for="(file, index) in uploadFileList"
 						class="listItem" :class="selectedFileIndex === index ? 'listItemSelected' : undefined"
 						:style="file.isCurrentTask ? {} : (showAllTaskFiles ? { opacity: 0.6 } : { display: 'none' })"
 						@click="handleFileClick(file as any, index)"
-						v-bind="useTooltip(`文件名：${file.fileName}\n大小：${file.size}\n分段数：${file.chunks.length}`)"
+						v-bind="useTooltip(`文件名：${file.fileName}\n大小：${file.size}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`)"
 					>
 						<div class="progress">
 							<div :style="{
@@ -140,10 +144,24 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 									0% 0%, ${file.readProgress * 100}% 0%,    ${file.readProgress * 100}% 33.3%,
 									       ${file.hashProgress * 100}% 33.3%,   ${file.hashProgress * 100}% 66.7%,
 									       ${file.uploadProgress * 100}% 66.7%, ${file.uploadProgress * 100}% 100%, 0% 100%
-								)`
+								)`}"
+							/>
+						</div>
+						<IconUpload />
+						<span>{{ file.fileName }}</span>
+					</div>
+					<div
+						v-for="(file, index) in downloadFileList"
+						class="listItem"
+						v-bind="useTooltip(`文件名：${file.url}\n大小：${file.size}`)"
+					>
+						<div class="progress">
+							<div :style="{
+								width: `${file.transferred / (isFinite(file.size) ? file.size : Number.MAX_SAFE_INTEGER) * 100}%`,
 							}" />
 						</div>
-						<span>{{ file.fileName }}</span>
+						<IconDownload />
+						<span>{{ file.finalFilePath || `（${file.url}）` }}</span>
 					</div>
 				</div>
 			</div>
@@ -362,6 +380,10 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 								}
 							}
 						}
+						svg {
+							width: 22px;
+							margin-right: 8px;
+						}
 						span {
 							flex: 1 1 auto;
 							font-family: Arial;
@@ -430,7 +452,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 		.progress {
 			filter: drop-shadow(0 3px 8px hwb(225 40% 20% / 0.4));
 			&>div {
-				background: linear-gradient(180deg, hwb(225 80% 0% / 0.7), hwb(225 60% 0% / 0.7));
+				background: linear-gradient(180deg, hwb(225 75% 0% / 0.7), hwb(225 60% 0% / 0.7));
 				// box-shadow: 0 3px 8px 0 hwb(225 40% 20% / 0.15),
 				// 			0 0px 1px 0.75px hwb(225 80% 0%) inset;
 			}

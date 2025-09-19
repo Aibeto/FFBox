@@ -267,12 +267,6 @@ export enum TaskStatus {
 	error = 'error',
 }
 
-export enum TransferStatus {
-	normal = 'normal',
-	uploading = 'uploading',
-	downloading = 'downloading',
-}
-
 export interface FFmpegProgress {
 	frame: number;
 	fps: number;

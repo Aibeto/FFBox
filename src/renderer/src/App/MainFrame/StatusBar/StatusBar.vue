@@ -31,13 +31,18 @@ const handleInfoCenterButtonClicked = () => {
 	appStore.setUnreadNotifationCount(true);
 }
 const handleTransferCenterButtonClicked = () => {
-	appStore.showMenuCenter = 0;
-	appStore.showTransferCenter = appStore.showMenuCenter || appStore.showInfoCenter ? true : !appStore.showTransferCenter;
-	if (appStore.showMenuCenter) {
+	if (appStore.showMenuCenter || appStore.showInfoCenter) {
 		appStore.showMenuCenter = 0;
-	}
-	if (appStore.showInfoCenter) {
 		appStore.showInfoCenter = false;
+		appStore.showTransferCenter = true;
+		appStore.showTaskInfo = undefined;
+	} else {
+		if (appStore.showTransferCenter) {
+			appStore.showTransferCenter = false;
+		} else {
+			appStore.showTransferCenter = true;
+			appStore.showTaskInfo = undefined;
+		}
 	}
 }
 // const handleThemeButtonClicked = () => {

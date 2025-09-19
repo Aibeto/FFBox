@@ -14,6 +14,7 @@ interface Props {
 	validator?: (value: string) => string;
 	inputFixer?: (value: string) => string;
 	onChange?: (value: string) => any;
+	onEnter?: () => any;
 }
 
 const props = defineProps<Props>();

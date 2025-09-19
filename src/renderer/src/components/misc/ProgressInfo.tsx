@@ -1,5 +1,5 @@
 import { computed, defineComponent, onMounted, onUnmounted, ref } from "vue";
-import { TaskStatus, TransferStatus } from "@common/types";
+import { TaskStatus } from "@common/types";
 import { UITask } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import { calcDashboard } from "@renderer/common/dashboardCalc";
@@ -8,7 +8,7 @@ import Msgbox from "../Msgbox/Msgbox";
 import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
 import css from './ProgressInfo.tsx.module.less';
 
-type ChartType = 'progress' | 'size' | 'bitrate' | 'speed' | 'transferProgress' | 'transferSpeed';
+type ChartType = 'progress' | 'size' | 'bitrate' | 'speed';
 
 /**
  * |  属性名  |    横轴    |      纵轴      |  斜率  |纵轴满时横轴值|  中文名  |
@@ -52,16 +52,12 @@ const Comp = defineComponent((props: P) => {
 	const isDark = computed(() => appStore.frontendSettings.colorTheme === 'themeDark');
 	const selectionList = computed(() => {
 		const disableNormalChart = task.progressLog.time.length <= 1;
-		const disableTransferChart = task.transferProgressLog.transferred.length <= 1;
+		// const disableTransferChart = task.transferProgressLog.transferred.length <= 1;
 		return [
 			{ value: 'progress', caption: '进度', disabled: disableNormalChart },
 			{ value: 'size', caption: '数据量', disabled: disableNormalChart },
 			{ value: 'bitrate', caption: '码率分布', disabled: disableNormalChart },
 			{ value: 'speed', caption: '速度分布', disabled: disableNormalChart },
-			...(appStore.currentServer.entity.ip !== 'localhost' ? [
-				{ value: 'transferProgress', caption: '传输进度', disabled: disableTransferChart },
-				{ value: 'transferSpeed', caption: '传输速度分布', disabled: disableTransferChart },
-			] : []),
 		] as RadioListProps['list']
 	});
 	/** [转码时间, 媒体时间, 尺寸] */
@@ -107,20 +103,6 @@ const Comp = defineComponent((props: P) => {
 			const yDiff = xDiff / (logTime[i][0] - logTime[i - 1][0]);
 			maxYDiff = yDiff > maxYDiff ? yDiff : maxYDiff;
 			const xMid = (logTime[i][1] + logTime[i - 1][1]) / 2;
-			data.push([xMid, yDiff]);
-		}
-		return { data, maxY: maxYDiff };
-	});
-	/** y 为 / transferProgressLog.transferred[][0] 两点之间的 diff（传输这么多花费了多少实际时间，倒数就是速度），x 为 progressLog.transferred[][1] 两点的中间值 */
-	const transferSpeedGraphData = computed(() => {
-		const data: [number, number][] = [];
-		const logTransferred = task.transferProgressLog.transferred;
-		let maxYDiff = 0;
-		for (let i = 1; i < logTransferred.length; i++) {
-			const xDiff = logTransferred[i][1] - logTransferred[i - 1][1];	// 两记录点之间的数据量差
-			const yDiff = xDiff / (logTransferred[i][0] - logTransferred[i - 1][0]);
-			maxYDiff = yDiff > maxYDiff ? yDiff : maxYDiff;
-			const xMid = (logTransferred[i][1] + logTransferred[i - 1][1]) / 2;
 			data.push([xMid, yDiff]);
 		}
 		return { data, maxY: maxYDiff };
@@ -218,12 +200,6 @@ const Comp = defineComponent((props: P) => {
 			bitrate: sizeK * 8,	// 尺寸变化相对媒体时间
 		}
 	};
-	const getLastTransferBitrate = () => {
-		const { K: transferredK, B: transferredB, currentValue: currentTransferred } = calcDashboard(task.transferProgressLog.transferred.slice(-5), 0);
-		return {
-			transferBitrate: transferredK,	// 传输尺寸变化相对真实时间
-		}
-	};
 	/** 最大时间/尺寸的计算方法是：现在已经累积的转码时长/输出尺寸 + 根据最新速度和剩余任务时长算出的预计增量 */
 	const getEstimatedMaxTimeSize = () => {
 		const lastSpeedBitrate = getLastSpeedBitrate();
@@ -237,15 +213,6 @@ const Comp = defineComponent((props: P) => {
 			size: currentSize + (outputDuration.value - currentTime) * lastSpeedBitrate.bitrate * 0.125,	// size 的单位是 kB，bitrate 的单位是 kbps
 		};
 	};
-	const getEstimatedMaxTransferTime = () => {
-		const lastTransferBitrate = getLastTransferBitrate();
-		const { transferProgressLog } = task;
-		const elapsedTransferTime = transferProgressLog.elapsed + (new Date().getTime() / 1000 - transferProgressLog.lastStarted);
-		const currentTransferred = transferProgressLog.transferred.length > 0 ? transferProgressLog.transferred[transferProgressLog.transferred.length - 1][1] : 0;
-		return {
-			transferTime: elapsedTransferTime + (transferProgressLog.total - currentTransferred) / lastTransferBitrate.transferBitrate,
-		};
-	}
 
 	// 获取刻度线间隔
 	const getScaleUnit = (total: number, viewWidth: number, isClockUnit = false, threshold = 100, min = 1) => {
@@ -267,25 +234,21 @@ const Comp = defineComponent((props: P) => {
 
 	const render = () => {
 		// 更新横纵轴端点
-		if (task.transferStatus === TransferStatus.normal && task.progressLog.frame.length >= 5 && task.progressLog.size.length >= 2) {
+		if (task.progressLog.frame.length >= 5 && task.progressLog.size.length >= 2) {
 			const latestMaxTimeSize = getEstimatedMaxTimeSize();
 			totalTime_smooth.value = totalTime_smooth.value * 0.92 + latestMaxTimeSize.time * 0.08;
 			totalSize_smooth.value = totalSize_smooth.value * 0.92 + latestMaxTimeSize.size * 0.08;
-		}
-		if (task.transferStatus !== TransferStatus.normal && task.transferProgressLog.transferred.length >= 5) {
-			const latestMaxTransferTime = getEstimatedMaxTransferTime();
-			totalTransferTime_smooth.value = totalTransferTime_smooth.value * 0.92 + latestMaxTransferTime.transferTime * 0.08;
 		}
 		
 		// 绘画准备
 		const canvasWidth = canvasRef.value.width / window.devicePixelRatio;
 		const canvasHeight = canvasRef.value.height / window.devicePixelRatio;
-		const horizontalMax = [totalTime_smooth.value, outputDuration.value, outputDuration.value, outputDuration.value, totalTransferTime_smooth.value, task.transferProgressLog.total][
-			['progress', 'size', 'bitrate', 'speed', 'transferProgress', 'transferSpeed'].indexOf(type.value)
+		const horizontalMax = [totalTime_smooth.value, outputDuration.value, outputDuration.value, outputDuration.value][
+			['progress', 'size', 'bitrate', 'speed'].indexOf(type.value)
 		];
-		const horizontalUnit = getScaleUnit(horizontalMax, canvasWidth, type.value !== 'transferSpeed', 80);
-		const verticalMax = [100, totalSize_smooth.value, bitrateGraphData.value.maxY, speedGraphData.value.maxY, 100, transferSpeedGraphData.value.maxY][
-			['progress', 'size', 'bitrate', 'speed', 'transferProgress', 'transferSpeed'].indexOf(type.value)
+		const horizontalUnit = getScaleUnit(horizontalMax, canvasWidth, true, 80);
+		const verticalMax = [100, totalSize_smooth.value, bitrateGraphData.value.maxY, speedGraphData.value.maxY][
+			['progress', 'size', 'bitrate', 'speed'].indexOf(type.value)
 		];
 		const verticalUnit = getScaleUnit(verticalMax, canvasHeight, false, 50, type.value === 'speed' ? 0.1 : 1);
 
@@ -305,7 +268,7 @@ const Comp = defineComponent((props: P) => {
 			context.moveTo(x, 0);
 			context.lineTo(x, canvasHeight - 30);
 			context.stroke();
-			context.fillText(type.value === 'transferSpeed' ? graphSizeFilter(value / 1000) : timeFilter(value, false), x, canvasHeight - 30 + 8);
+			context.fillText(timeFilter(value, false), x, canvasHeight - 30 + 8);
 		}
 
 		// 纵坐标
@@ -393,43 +356,6 @@ const Comp = defineComponent((props: P) => {
 			context.lineTo(lastX, canvasHeight - 30);
 			context.lineTo(firstX, canvasHeight - 30);
 			context.fill();
-		} else if (type.value === 'transferProgress') {
-			context.fillStyle = '#4499EE33';
-			context.strokeStyle = '#4499EE';
-			context.beginPath();
-			for (let i = 0; i < task.transferProgressLog.transferred.length; i++) {
-				const elem = task.transferProgressLog.transferred[i];
-				const x = (elem[0] / horizontalMax) * (canvasWidth - 100) + 100;
-				const y = (1 - elem[1] / task.transferProgressLog.total) * (canvasHeight - 30);
-				context.lineTo(x, y);
-			}
-			context.stroke();
-			const lastX = task.transferProgressLog.transferred[task.transferProgressLog.transferred.length - 1][0] / horizontalMax * (canvasWidth - 100) + 100;
-			context.lineTo(lastX, canvasHeight - 30);
-			context.lineTo(100, canvasHeight - 30);
-			context.fill();
-		} else if (type.value === 'transferSpeed') {
-			context.fillStyle = '#DD884433';
-			context.strokeStyle = '#DD8844';
-			context.beginPath();
-			const data = transferSpeedGraphData.value.data;
-			for (let i = 0; i < data.length; i++) {
-				const elem = data[i];
-				const x = (elem[0] / horizontalMax) * (canvasWidth - 100) + 100;
-				const y = (1 - elem[1] / verticalMax) * (canvasHeight - 30);
-				if (i === 0) {
-					context.moveTo(x, y);
-				} else {
-					context.lineTo(x, y);
-				}
-				context.lineTo(x, y);
-			}
-			context.stroke();
-			const lastX = data[data.length - 1][0] / horizontalMax * (canvasWidth - 100) + 100;
-			const firstX = data[0][0] / horizontalMax * (canvasWidth - 100) + 100;
-			context.lineTo(lastX, canvasHeight - 30);
-			context.lineTo(firstX, canvasHeight - 30);
-			context.fill();
 		}
 	};
 
@@ -439,10 +365,6 @@ const Comp = defineComponent((props: P) => {
 			const latestMaxTimeSize = getEstimatedMaxTimeSize();
 			totalTime_smooth.value = latestMaxTimeSize.time;
 			totalSize_smooth.value = latestMaxTimeSize.size;
-		}
-		if (task.transferProgressLog.transferred.length >= 5) {
-			const latestMaxTransferTime = getEstimatedMaxTransferTime();
-			totalTransferTime_smooth.value = latestMaxTransferTime.transferTime;
 		}
 
 		// 窗口大小变化监听

@@ -8,12 +8,14 @@ import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
 interface Props {
 	text?: string | number;
 	list: MenuItem[];
-	readonly?: boolean;
-	deletable?: boolean;
+	readonly?: boolean;	// 不允许输入，但允许下拉选择
+	disabled?: boolean;	// 不允许更改
+	// deletable?: boolean;
 	validator?: (value: string) => string;
 	inputFixer?: (value: string) => string;
 	onChange?: (value: string) => any;
-	onDelete?: (index: number) => any;
+	onEnter?: () => any;
+	// onDelete?: (index: number) => any;
 }
 
 const props = defineProps<Props>();
@@ -28,9 +30,10 @@ const menuRef = ref<ReturnType<typeof showMenu>>(null);
 
 const selectorStyle = computed(() => {
 	const ret: any = {};
+	// 校验有误的情况下背景和边框都变红
 	if (invalidMsg.value) {
 		ret.border = 'var(--errorBorder) 1px solid';
-		ret.boxShadow = '0 0 12px hsla(0, 100%, 60%, 0.3), 0px 4px 8px hwb(0, 0, 0, 0.05)';
+		ret.boxShadow = '0 0 12px hsla(0, 100%, 60%, 0.3), 0px 4px 8px hwb(0 0 0 / 0.05)';
 		if (focused.value) {
 			ret.background = 'var(--errorBgActive)';
 		} else {
@@ -41,11 +44,20 @@ const selectorStyle = computed(() => {
 			ret.background = 'var(--ff)';
 		}
 	}
+	// 禁用的情况下整体变透明，并且固定背景颜色
+	if (props.disabled) {
+		ret.opacity = 0.6;
+		ret.color = 'var(--66)'; // 默认，20% 亮度黑色，变灰 40% 亮度黑色
+		ret.background = 'var(--f7)';
+	}
 	return ret;
 });
 
-// 输入框点击打开菜单
-const handleClick = () => {
+// 输入框点击、方向键等打开菜单
+const openMenu = () => {
+	if (props.disabled) {
+		return;
+	}
 	const selectorRect = selectorRef.value.getBoundingClientRect();
 	menuRef.value = showMenu({
 		menu: props.list,
@@ -106,9 +118,14 @@ const handleKeydown = (event: KeyboardEvent) => {
 			menuRef.value.triggerKeyboardEvent(event);
 			event.preventDefault();
 		} else {
-			if (['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
-				handleClick();	// 未打开菜单情况下通过这些按键可打开菜单
-				event.preventDefault();
+			if (props.onEnter) {
+				// 若定义了 Enter 行为，则优先使用该行为
+				props.onEnter();
+			} else {
+				if (['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
+					openMenu();	// 未打开菜单情况下通过这些按键可打开菜单
+					event.preventDefault();
+				}
 			}
 		}
 	}
@@ -133,11 +150,11 @@ onMounted(() => {
 </script>
 
 <template>
-	<div class="combobox-selector" ref="selectorRef" :style="selectorStyle" @click="handleClick">
+	<div class="combobox-selector" ref="selectorRef" :style="selectorStyle" @click="openMenu">
 		<input
 			type="text"
 			v-model="inputText"
-			:readonly="readonly"
+			:readonly="readonly || disabled"
 			@blur="handleBlur"
 			@focus="handleFocus"
 			@input="handleInput"

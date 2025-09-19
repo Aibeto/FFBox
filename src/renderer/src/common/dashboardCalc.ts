@@ -1,4 +1,4 @@
-import { SingleProgressLog, TaskStatus, TransferStatus } from '@common/types';
+import { SingleProgressLog, TaskStatus } from '@common/types';
 import { getOutputDuration, parseTimeString } from '@common/utils';
 import { ServerData, UITask } from '@renderer/types';
 
@@ -79,95 +79,58 @@ export function calcDashboard(progressLog: SingleProgressLog, elapsedTime: numbe
  * 计算单个任务的 timer 函数，根据计算结果原地修改 progress 和 progress_smooth
  */
 export function dashboardTimer(task: UITask) {
-	if (task.transferStatus === TransferStatus.normal) {
-		const progressLog = task.progressLog;
-		if (progressLog.time.length <= 2) {
-			// 任务刚开始时显示的数据不准确
-			return;
-		}
+	const progressLog = task.progressLog;
+	if (progressLog.time.length <= 2) {
+		// 任务刚开始时显示的数据不准确
+		return;
+	}
 
-		const elapsedTime = new Date().getTime() / 1000 - progressLog.lastStarted + progressLog.elapsed;
-		const { K: frameK, B: frameB, currentValue: currentFrame } = calcDashboard(progressLog.frame.slice(-5), elapsedTime);
-		const { K: timeK, B: timeB, currentValue: currentTime } = calcDashboard(progressLog.time.slice(-5), elapsedTime);
-		const { K: sizeK, B: sizeB, currentValue: currentSize } = calcDashboard(progressLog.size.slice(-5), elapsedTime);
-		// console.log("frameK: " + frameK + ", timeK: " + timeK + ", sizeK: " + sizeK);
-		// console.log("currentFrame: " + currentFrame + ", currentTime: " + currentTime + ", currentSize: " + currentSize);
+	const elapsedTime = new Date().getTime() / 1000 - progressLog.lastStarted + progressLog.elapsed;
+	const { K: frameK, B: frameB, currentValue: currentFrame } = calcDashboard(progressLog.frame.slice(-5), elapsedTime);
+	const { K: timeK, B: timeB, currentValue: currentTime } = calcDashboard(progressLog.time.slice(-5), elapsedTime);
+	const { K: sizeK, B: sizeB, currentValue: currentSize } = calcDashboard(progressLog.size.slice(-5), elapsedTime);
+	// console.log("frameK: " + frameK + ", timeK: " + timeK + ", sizeK: " + sizeK);
+	// console.log("currentFrame: " + currentFrame + ", currentTime: " + currentTime + ", currentSize: " + currentSize);
 
-		// 任务进度计算
-		let progress: number;
-		if (task.before.duration !== -1) {
-			progress = currentTime / getOutputDuration(task);
-			progress = isNaN(progress) || progress === Infinity || progress < 0 ? 0 : progress;
-		} else {
-			progress = 0;
-		}
-
-		// 进度细节计算
-		const afterFramerate = task.after.outputs[0]?.video.framerate === '不改变' ? task.before.vframerate : +task.after.outputs[0]?.video.framerate;
-		if (progress < 0.995) {
-			task.dashboard = {
-				...task.dashboard,
-				progress,
-				bitrate: (sizeK / timeK) * 8,
-				speed: frameK / afterFramerate || timeK,	// 如果可以读出帧速，或者输出的是视频，用帧速算 speed 更准确；否则用时间算 speed
-				time: currentTime,
-				frame: currentFrame,
-				size: currentSize,
-			};
-
-			// 平滑处理
-			let { bitrate, speed, time, frame, size } = task.dashboard_smooth;
-			progress = progress * 0.7 + task.dashboard.progress * 0.3;
-			bitrate  = bitrate * 0.9 + task.dashboard.bitrate * 0.1;
-			speed    = speed * 0.6 + task.dashboard.speed * 0.4;
-			time     = time * 0.7 + task.dashboard.time * 0.3;
-			frame    = frame * 0.7 + task.dashboard.frame * 0.3;
-			size    = size * 0.9 + task.dashboard.size * 0.1;
-			if (isNaN(bitrate) || bitrate == Infinity) { bitrate = 0 }
-			if (isNaN(speed)) { speed = 0 }
-			if (isNaN(time)) { time = 0 }
-			if (isNaN(frame)) { frame = 0 }
-			if (isNaN(size)) { size = 0 }
-			task.dashboard_smooth = { ...task.dashboard_smooth, progress, bitrate, speed, time, frame, size };
-		} else {
-			// 进度满了就别更新了
-			task.dashboard.progress = 1;
-		}
+	// 任务进度计算
+	let progress: number;
+	if (task.before.duration !== -1) {
+		progress = currentTime / getOutputDuration(task);
+		progress = isNaN(progress) || progress === Infinity || progress < 0 ? 0 : progress;
 	} else {
-		const transferProgressLog = task.transferProgressLog;
-		if (transferProgressLog.transferred.length <= 2) {
-			// 任务刚开始时显示的数据不准确
-			return;
-		}
+		progress = 0;
+	}
 
-		const elapsedTime = new Date().getTime() / 1000 - transferProgressLog.lastStarted + transferProgressLog.elapsed;
-		const { K: transferredK, B: transferredB, currentValue: currentTransferred } = calcDashboard(transferProgressLog.transferred.slice(-5), elapsedTime);
-		// console.log(`transferredK: ${transferredK}`);
-		// console.log(`currentTransferred: ${currentTransferred}`);
+	// 进度细节计算
+	const afterFramerate = task.after.outputs[0]?.video.framerate === '不改变' ? task.before.vframerate : +task.after.outputs[0]?.video.framerate;
+	if (progress < 0.995) {
+		task.dashboard = {
+			...task.dashboard,
+			progress,
+			bitrate: (sizeK / timeK) * 8,
+			speed: frameK / afterFramerate || timeK,	// 如果可以读出帧速，或者输出的是视频，用帧速算 speed 更准确；否则用时间算 speed
+			time: currentTime,
+			frame: currentFrame,
+			size: currentSize,
+		};
 
-		// 任务进度计算
-		let progress: number;
-		const total = task.transferProgressLog.total;
-		progress = currentTransferred / total;
-		progress = progress === Infinity ? 0 : progress;
-
-		// 进度细节计算
-		if (progress < 0.995) {
-			task.dashboard = {
-				...task.dashboard,
-				transferred: currentTransferred,
-				transferSpeed: transferredK,
-			};
-
-			// 平滑处理
-			let { transferred, transferSpeed } = task.dashboard_smooth;
-			transferred = transferred * 0.7 + task.dashboard.transferred * 0.3;
-			transferSpeed = transferSpeed * 0.9 + task.dashboard.transferSpeed * 0.1;
-			task.dashboard_smooth = { ...task.dashboard_smooth, transferred, transferSpeed };
-		} else {
-			// 进度满了就别更新了
-			task.dashboard.transferred = 0.995 * total;
-		}
+		// 平滑处理
+		let { bitrate, speed, time, frame, size } = task.dashboard_smooth;
+		progress = progress * 0.7 + task.dashboard.progress * 0.3;
+		bitrate  = bitrate * 0.9 + task.dashboard.bitrate * 0.1;
+		speed    = speed * 0.6 + task.dashboard.speed * 0.4;
+		time     = time * 0.7 + task.dashboard.time * 0.3;
+		frame    = frame * 0.7 + task.dashboard.frame * 0.3;
+		size    = size * 0.9 + task.dashboard.size * 0.1;
+		if (isNaN(bitrate) || bitrate == Infinity) { bitrate = 0 }
+		if (isNaN(speed)) { speed = 0 }
+		if (isNaN(time)) { time = 0 }
+		if (isNaN(frame)) { frame = 0 }
+		if (isNaN(size)) { size = 0 }
+		task.dashboard_smooth = { ...task.dashboard_smooth, progress, bitrate, speed, time, frame, size };
+	} else {
+		// 进度满了就别更新了
+		task.dashboard.progress = 1;
 	}
 	// task.progress_smooth = Object.assign({}, task.progress_smooth); 
 }

@@ -9,6 +9,7 @@ interface Props {
 	validator?: (value: string) => string;
 	inputFixer?: (value: string) => string;
 	onChange?: (value: string) => any;
+	onEnter?: () => any;
 };
 
 const props = defineProps<Props>();
@@ -58,6 +59,11 @@ const handleInput = (event: KeyboardEvent) => {
 	}
 	(props.onChange || (() => {}))(inputText.value ?? '');	// 使用输入法时会出现 inputText 为空的现象
 };
+const handleKeydown = (event: KeyboardEvent) => {
+	if (props.onEnter && event.key === 'Enter') {
+		props.onEnter();
+	}
+};
 
 // 监听 props 中的 text，并在其更新时依此更新 data 中的 inputText（与输入框双向绑定）
 watch(() => props.value, (newValue, oldValue) => {
@@ -79,7 +85,7 @@ onMounted(() => {
 
 <template>
 	<div class="inputbox-selector" :style="selectorStyle">
-		<input :type="$props.type || 'text'" :disabled="props.disabled" v-model="inputText" @blur="handleBlur" @focus="handleFocus" @input="handleInput" :placeholder="placeholder">
+		<input :type="$props.type || 'text'" :disabled="props.disabled" v-model="inputText" @blur="handleBlur" @focus="handleFocus" @input="handleInput" @keydown="handleKeydown" :placeholder="placeholder">
 	</div>
 </template>
 

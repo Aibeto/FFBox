@@ -10,10 +10,12 @@ interface Props {
 	optionalDefault?: any;
 	list: MenuItem[];
 	readonly?: boolean;
-	deletable?: boolean;
+	disabled?: boolean;
+	// deletable?: boolean;
 	validator?: (value: string) => string;
 	inputFixer?: (value: string) => string;
 	onChange?: (value: string) => any;
+	onEnter?: () => any;
 	onDelete?: (index: number) => any;
 }
 

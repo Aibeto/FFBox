@@ -1,7 +1,6 @@
 import EventEmitter from 'events';
 import { reactive } from 'vue';
 import CryptoJS from 'crypto-js';
-import { TransferStatus } from '@common/types';
 import { Server, UploadChunk, UploadFile } from '@renderer/types';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import HashWorker from './transferHashWorker2?worker';
@@ -23,7 +22,6 @@ export class SingleTaskScheduler extends EventEmitter {
 		this._workingCount = 0;
 		this._working = false;
 		this._count = 0;
-		console.log('新增任务', params.taskName);
 	}
 
 	get workingCount() { return this._workingCount }
@@ -32,7 +30,6 @@ export class SingleTaskScheduler extends EventEmitter {
 
 	// 检查是否有资源，若有则开始任务（主动开始/上一轮运行完毕/随时添加 concurrency 等情况都可以调用）
 	public async start() {
-		console.log('任务开始', this.taskName);
 		this._working = true;
 		let currentWorkingCount = this._workingCount;
 		if (this.taskName) {
@@ -176,7 +173,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					await new Promise((resolve, reject) => {
 						worker.onmessage = (event) => {
 							file.chunks[notHashedIndex].hash = event.data.hash;
-							console.log(`【${fileName}】【${notHashedIndex}】hash 已计算：${event.data.hash}`);
+							// console.log(`【${fileName}】【${notHashedIndex}】hash 已计算：${event.data.hash}`);
 							file.chunks[notHashedIndex].buffer = event.data.buffer;	// buffer 还回来
 							workerRunningList[idleWorkerIndex] = false;	
 							hashDoneChunkIndexes.push(notHashedIndex);
@@ -239,7 +236,6 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 			file.uploadTask = undefined;
 			const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
 			if (!hasOtherUploadTask) {
-				server.data.tasks[file.taskId].transferStatus = TransferStatus.normal;
 				server.entity.setUploadStatus(taskId, false);
 			}
 		} else {
@@ -337,7 +333,6 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					file.uploadTask = undefined;
 					const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
 					if (!hasOtherUploadTask) {
-						server.data.tasks[file.taskId].transferStatus = TransferStatus.normal;
 						server.entity.setUploadStatus(taskId, false);
 					}
 				}

@@ -64,7 +64,8 @@ const uiBridge = {
 			ctx.response.set('Access-Control-Allow-Headers', 'Content-Type');
 			ctx.response.set('Access-Control-Allow-Methods', 'GET, POST, PUT');
 			if (ctx.path.startsWith('/download')) {
-				ctx.response.set('Content-Disposition', `attachment; filename="${path.basename(ctx.path)}`);
+				const fileName = ctx.query.fileName as string || path.basename(ctx.path);
+				ctx.response.set('Content-Disposition', `attachment; filename="${encodeURI(fileName)}`);
 			}
 			if (ctx.request.method === 'OPTIONS') {
 				ctx.response.status = 200;

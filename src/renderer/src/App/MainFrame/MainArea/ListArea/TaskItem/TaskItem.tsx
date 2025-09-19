@@ -1,8 +1,9 @@
 import { computed, defineComponent, onBeforeUnmount, ref, Transition, watch, onMounted, StyleValue } from 'vue';
-import { TaskStatus, TransferStatus } from '@common/types';
+import { TaskStatus } from '@common/types';
 import { UITask } from '@renderer/types'
 import { getVideoRateControlParam } from '@common/params/vcodecs';
 import { getAudioRateControlParam } from '@common/params/acodecs';
+import { getOutputFileName } from '@common/params/formats';
 import { useAppStore } from '@renderer/stores/appStore';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import showMenu from '@renderer/components/Menu/Menu';
@@ -37,6 +38,25 @@ export const TaskItem = defineComponent((props: Props) => {
 	// #region 预先计算以减少下方计算量
 
 	const outputDuration = computed(() => getOutputDuration(props.task));
+	const uploadFiles = computed(() => appStore.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === props.id));
+	const isUploading = computed(() => uploadFiles.value.length > 0 && props.task.status === TaskStatus.initializing);
+	const transferInfo = computed(() => {
+		const _uploadFiles = uploadFiles.value;
+		const totalSize = _uploadFiles.reduce((prev, curr) => prev + (curr.size || Number.MAX_SAFE_INTEGER / 1024), 0);
+		const totalRead = _uploadFiles.reduce((prevFileRead, currFile) => {
+			const fileRead = currFile.chunks.reduce((prev, curr) => prev + curr.size, 0);
+			return prevFileRead + fileRead;
+		}, 0);
+		const totalHash = _uploadFiles.reduce((prevFileHash, currFile) => {
+			const fileHash = currFile.chunks.reduce((prev, curr) => prev + (curr.hash ? curr.size : 0), 0);
+			return prevFileHash + fileHash;
+		}, 0);
+		const totalUpload = _uploadFiles.reduce((prevFileUpload, currFile) => {
+			const fileUpload = currFile.chunks.reduce((prev, curr) => prev + curr.transferred, 0);
+			return prevFileUpload + fileUpload;
+		}, 0);
+		return { totalSize, totalRead, totalHash, totalUpload };
+	});
 
 	// #endregion
 
@@ -116,20 +136,11 @@ export const TaskItem = defineComponent((props: Props) => {
 	};
 	const graphTime = computed(() => timeFilter(props.task.dashboard_smooth.time));
 	const graphLeftTime = computed(() => {
-		if (props.task.transferStatus === 'normal') {
-			const totalDuration = outputDuration.value;
-			if (props.task.dashboard_smooth.speed > 0) {
-				const needTime = totalDuration / props.task.dashboard_smooth.speed;
-				const remainTime = (totalDuration - props.task.dashboard_smooth.time) / totalDuration * needTime;	// 剩余进度比例 * 全进度耗时
-				return timeFilter(remainTime, false);
-			}
-		} else {
-			const totalSize = props.task.transferProgressLog.total;
-			if (props.task.dashboard_smooth.transferSpeed > 0) {
-				const needTime = totalSize / props.task.dashboard_smooth.transferSpeed;
-				const remainTime = (totalSize - props.task.dashboard_smooth.transferred) / totalSize * needTime;	// 剩余进度比例 * 全进度耗时
-				return timeFilter(remainTime, false);
-			}
+		const totalDuration = outputDuration.value;
+		if (props.task.dashboard_smooth.speed > 0) {
+			const needTime = totalDuration / props.task.dashboard_smooth.speed;
+			const remainTime = (totalDuration - props.task.dashboard_smooth.time) / totalDuration * needTime;	// 剩余进度比例 * 全进度耗时
+			return timeFilter(remainTime, false);
 		}
 		return '-';
 	});
@@ -162,31 +173,9 @@ export const TaskItem = defineComponent((props: Props) => {
 		}
 	};
 	const graphSize = computed(() => graphSizeFilter(props.task.dashboard_smooth.size));
-	const transferSpeedFilter = (Bps: number) => {
-		if (window.frontendSettings.useIEC) {
-			if (Bps >= 100 * 1024 ** 2) {
-				return (Bps / 1024 ** 2).toFixed(0) + ' MiB';
-			} else if (Bps >= 10 * 1024 ** 2) {
-				return (Bps / 1024 ** 2).toFixed(1) + ' MiB';
-			} else if (Bps >= 1024 ** 2) {
-				return (Bps / 1024 ** 2).toFixed(2) + ' MiB';
-			} else {
-				return (Bps / 1024).toFixed(0) + ' KiB';
-			}
-		} else {
-			if (Bps >= 100 * 1000 ** 2) {
-				return (Bps / 1000 ** 2).toFixed(0) + ' MB';
-			} else if (Bps >= 10 * 1000 ** 2) {
-				return (Bps / 1000 ** 2).toFixed(1) + ' MB';
-			} else if (Bps >= 1000 ** 2) {
-				return (Bps / 1000 ** 2).toFixed(2) + ' MB';
-			} else {
-				return (Bps / 1000).toFixed(0) + ' KB';
-			}
-		}
-	};
-	const graphTransferSpeed = computed(() => transferSpeedFilter(props.task.dashboard_smooth.transferSpeed));
-	const graphTransferred = computed(() => graphSizeFilter(props.task.dashboard_smooth.transferred / 1000));
+	const graphUploadRead = computed(() => graphSizeFilter(transferInfo.value.totalRead / 1000));
+	const graphUploadHash = computed(() => graphSizeFilter(transferInfo.value.totalHash / 1000));
+	const graphUploadUpload = computed(() => graphSizeFilter(transferInfo.value.totalUpload / 1000));
 
 	/** 圆环 style 部分
 	 *  计算方式：(log(数值) / log(底，即每增长多少倍数为一格) + 数值为 1 时偏移多少格) / 格数
@@ -202,22 +191,20 @@ export const TaskItem = defineComponent((props: Props) => {
 		value = Math.min(Math.max(value, 0), 1);
 		return `background: conic-gradient(hwb(var(--primaryColor)) 0%, hwb(var(--primaryColor)) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
 	});
-	const graphTransferSpeedStyle = computed(() => {
-		let value = Math.log(props.task.dashboard_smooth.transferSpeed / 62500) / Math.log(10) / 4;	// 62.5K, 500K, 4M, 32M, 256M, 512M, 1024M
-		value = Math.min(Math.max(value, 0), 1);
-		return `background: conic-gradient(hwb(var(--primaryColor)) 0%, hwb(var(--primaryColor)) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
-	});
 
-	const overallProgress = computed(() => props.task.transferStatus === 'normal' ? props.task.dashboard_smooth.progress : props.task.dashboard_smooth.transferred / props.task.transferProgressLog.total);
+	const overallProgress = computed(() => isUploading.value
+		? (transferInfo.value.totalRead * 0.1 + transferInfo.value.totalHash * 0.1 + transferInfo.value.totalUpload * 0.8) / transferInfo.value.totalSize
+		: props.task.dashboard_smooth.progress
+	);
 	// const overallProgress = { value: 0.99 };
-	const overallProgressDescription = computed(() => ['转码进度', '上传进度', '下载进度'][['normal', 'uploading', 'downloading'].indexOf(props.task.transferStatus)] );
+	const overallProgressDescription = computed(() => isUploading.value ? '上传进度' : '转码进度');
 
 	// #endregion
 
 	// #region 其他样式
 
-	const showDashboard = computed(() => [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(props.task.status) || props.task.transferStatus !== TransferStatus.normal);
-	const dashboardType = computed(() => showDashboard ? (props.task.transferStatus !== TransferStatus.normal ? 'transfer' : 'convert') : 'none');
+	const showDashboard = computed(() => [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(props.task.status) || isUploading.value);
+	const dashboardType = computed(() => showDashboard ? (isUploading.value ? 'transfer' : 'convert') : 'none');
 
 	const taskNameStyle = computed(() => {
 		const width = (() => {
@@ -279,13 +266,13 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	const taskBackgroundProgressStyle = computed(() => {
 		const taskProgress = (props.task.dashboard_smooth.progress) * 100 + '%';
-		const transferProgress = (props.task.dashboard_smooth.transferred / props.task.transferProgressLog.total) * 100 + '%';
+		const transferProgress = ((transferInfo.value.totalRead * 0.1 + transferInfo.value.totalHash * 0.1 + transferInfo.value.totalUpload * 0.8) / transferInfo.value.totalSize) * 100 + '%';
 		return {
 			green: { width: taskProgress, opacity: [TaskStatus.running, TaskStatus.finishing].includes(props.task.status) ? 1 : 0},
 			yellow: { width: taskProgress, opacity: [TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping].includes(props.task.status) ? 1 : 0},
 			gray: { width: taskProgress, opacity: [TaskStatus.finished, TaskStatus.idle].includes(props.task.status) ? 1 : 0},
 			red: { width: taskProgress, opacity: props.task.status === TaskStatus.error ? 1 : 0},
-			blue: { width: transferProgress, opacity: props.task.transferStatus === 'normal' ? 0 : 1 },
+			blue: { width: transferProgress, opacity: isUploading.value ? 1 : 0 },
 		} as { [key: string]: StyleValue };
 	});
 
@@ -359,41 +346,28 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	// #region 操作响应
 
-	const handleTaskMouseEnter = (event: MouseEvent) => {
-		if (props.task.status === TaskStatus.finished) {
-			Tooltip.show({
-				content: `双击以${appStore.currentServer.entity.ip === 'localhost' ? '打开' : '下载'}输出文件`,
-				style: {
-					right: `calc(100vw - ${event.pageX}px)`,
-					top: `${event.pageY}px`,
-				},
-			})
+	const openFile = (filePath: string, outputIndex?: number) => {
+		const bridge = appStore.currentServer.entity;
+		if (appStore.currentServer.entity.ip === 'localhost') {
+			nodeBridge.openFile(`"${filePath}"`);
+		} else {
+			// const serverName = appStore.currentServer.data.name;
+			const newFileName = getOutputFileName(props.task.after.outputs[outputIndex].mux, props.task.fileBaseName);
+			const url = `http://${bridge.ip}:${bridge.port}/download/${filePath}`;
+			if (nodeBridge.env === 'electron') {
+				nodeBridge.ipcRenderer?.send('downloadFile', { url, finalFileName: newFileName });
+				appStore.downloadMap.set(url, appStore.currentServer.data.id);
+			} else {
+				const elem = document.createElement('a');
+				elem.href = `${url}?fileName=${newFileName}`;	// 目前只对浏览器环境添加此参数控制响应的 header。electron 环境会涉及 encodeURI 的操作，因此较方便的做法是分开处理
+				elem.click();
+			}
 		}
 	};
 
 	const handleTaskDblClicked = (event: MouseEvent) => {
-		const serverName = appStore.currentServer.data.name;
-		const bridge = appStore.currentServer.entity;
-		if (props.task.status === TaskStatus.finished && props.task.transferStatus === TransferStatus.normal) {
-			if (appStore.currentServer.entity.ip === 'localhost') {
-				for (const file of props.task.outputFiles) {
-					nodeBridge.openFile(`"${file}"`);
-				}
-			} else {
-				for (const file of props.task.outputFiles) {
-					const url = `http://${bridge.ip}:${bridge.port}/download/${file}`;
-					if (nodeBridge.env === 'electron') {
-						nodeBridge.ipcRenderer?.send('downloadFile', { url, serverName, taskId: props.id });
-						appStore.downloadMap.set(url, { serverId: appStore.currentServer.data.id, taskId: props.id });
-					} else {
-						const elem = document.createElement('a');
-						elem.href = url;
-						elem.click();
-					}
-				}
-			}
-			Tooltip.hide();
-		}
+		appStore.showTaskInfo = props.id;
+		appStore.showTransferCenter = false;
 	};
 
 	const handleTaskContextMenu = (event: MouseEvent) => {
@@ -438,6 +412,12 @@ export const TaskItem = defineComponent((props: Props) => {
 				...(![TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
 					{ type: 'separator' as const },
 					{ type: 'normal' as const, icon: <span>📈</span>, label: '查看图表', value: '查看图表', onClick: () => showProgressInfo(props.task, props.id, 'progress') },
+				] : []),
+				...(props.task.outputFiles?.length && [TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
+					{ type: 'separator' as const },
+					{ type: 'submenu' as const, label: appStore.currentServer.entity.ip === 'localhost' ? '打开输出文件' : '下载输出文件', subMenu: props.task.outputFiles.map((file, index) => ({
+						type: 'normal' as const, label: file, value: file, onClick: () => openFile(file, index)
+					})) },
 				] : []),
 			],
 			type: 'action',
@@ -494,7 +474,7 @@ export const TaskItem = defineComponent((props: Props) => {
 					class={css.task}
 					style={{ height: `${taskHeight.value}px` }}
 					data-color_theme={appStore.frontendSettings.colorTheme}
-					onMouseenter={handleTaskMouseEnter}
+					// onMouseenter={handleTaskMouseEnter}
 					onMouseleave={() => Tooltip.hide()}
 					onDblclick={handleTaskDblClicked}
 					onContextmenu={handleTaskContextMenu}
@@ -632,25 +612,31 @@ export const TaskItem = defineComponent((props: Props) => {
 											<span class={css.data}>{ graphSize.value }</span>
 											<span class={css.description}>输出大小</span>
 										</div>
+										<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, 'progress')}>
+											<span class={css.data}>{ graphLeftTime.value }</span>
+											<span class={css.description}>预计剩余时间</span>
+										</div>
 									</>
 								) : (
 									<>
-										<div class={css.roundGraphItem} onClick={() => showProgressInfo(props.task, props.id, 'transferSpeed')}>
-											<div class={css.ring} style={graphTransferSpeedStyle.value}></div>
-											<span class={css.data}>{ graphTransferSpeed.value }</span>
-											<span class={css.description}>传输秒速</span>
+										<div class={`${css.textItem} ${css.disabled}`}>
+											<span class={css.data}>{graphUploadRead.value}</span>
+											<span class={css.description}>读取总量</span>
 										</div>
-										<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, 'transferProgress')}>
-											<span class={css.data}>{graphTransferred.value}</span>
-											<span class={css.description}>传输总量</span>
+										<div class={`${css.textItem} ${css.disabled}`}>
+											<span class={css.data}>{graphUploadHash.value}</span>
+											<span class={css.description}>校验总量</span>
+										</div>
+										<div class={`${css.textItem} ${css.disabled}`}>
+											<span class={css.data}>{graphUploadUpload.value}</span>
+											<span class={css.description}>上传总量</span>
 										</div>
 									</>
 								)}
-								<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, dashboardType.value === 'convert' ? 'progress' : 'transferProgress')}>
-									<span class={css.data}>{ graphLeftTime.value }</span>
-									<span class={css.description}>预计剩余时间</span>
-								</div>
-								<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, dashboardType.value === 'convert' ? 'progress' : 'transferProgress')}>
+								<div
+									class={`${css.textItem} ${dashboardType.value === 'transfer' ? css.disabled : ''}`}
+									onClick={() => dashboardType.value === 'convert' && showProgressInfo(props.task, props.id, 'progress')}
+								>
 									<span class={`${css.data} ${css.dataLarge}`}>{ overallProgress.value === 1 ? '🆗' : `${(overallProgress.value * 100).toFixed(1)}%` }</span>
 									<span class={css.description}>{ overallProgressDescription.value }</span>
 								</div>

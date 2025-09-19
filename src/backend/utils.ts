@@ -11,7 +11,7 @@ export function getOs() {
 		case 'darwin':
 			return 'MacOS';
 		default:
-			return 'unknown';
+			return process.platform;
 	}
 };
 

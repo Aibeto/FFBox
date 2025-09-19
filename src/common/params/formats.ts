@@ -537,3 +537,26 @@ export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes 
 	}
 	return ret;
 }
+
+/**
+ * 获取不包含目录信息的输出文件名
+ * 用于前端在下载时恢复输出文件名信息
+ */
+export function getOutputFileName(muxParams: OutputParams_mux, baseName: string) {
+	let extension = '';
+
+	if (muxParams.format?.length && muxParams.format !== '无') {
+		let formatItem = getMenuItemByValue(builtInMuxers, muxParams.format);
+		if (!formatItem) {
+			formatItem = getMenuItemByValue(allMuxers, muxParams.format);
+		}
+		extension = formatItem ? (formatItem.value as string).match(/(.+) \(.+\)/)?.[1] || formatItem.value : muxParams.format;
+	}
+
+	let outputFileName = muxParams.filename;
+	outputFileName = outputFileName.replace(/\[filedir\]/g, '');
+	outputFileName = outputFileName.replace(/\[filebasename\]/g, baseName);
+	outputFileName = outputFileName.replace(/\[fileext\]/g, extension);
+	outputFileName = outputFileName.replace(/^[/\\]+/, "");	// 去除开头斜杠
+	return outputFileName;
+}

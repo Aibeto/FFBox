@@ -94,7 +94,7 @@ export function genTaskOutputFiles(outputParams: OutputParams, remoteDownloadDir
 			// 联机任务：直接拼路径和随机名（暂时只允许不同输出文件使用不同格式，因为 basename 会被完全忽略）
 			const randomBase = `${Date.now()}${randomString(3)}`;
 			const filename = extension ? `${randomBase}.${extension}` : randomBase;
-			return `${remoteDownloadDir}/${filename}`;
+			return `${remoteDownloadDir ? remoteDownloadDir + '/' : ''}${filename}`;
 		} else {
 			let outputFileName = output.mux.filename;
 			outputFileName = outputFileName.replace(/\[filedir\]/g, localOutputDir);

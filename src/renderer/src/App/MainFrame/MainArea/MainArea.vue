@@ -1,18 +1,28 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import ListArea from './ListArea/ListArea.vue';
 import ParaBox from './ParaBox/ParaBox.vue';
 import TransferCenter from './TransferCenter/TransferCenter.vue';
+import TaskInfo from './TaskInfo/TaskInfo.vue';
 import DragFilesOverlay from './DragFilesOverlay/DragFilesOverlay.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
+import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import ImageDisconnected from './disconnect.svg?component';
 import ImageLoading from '@renderer/assets/loading.svg?component';
+import { MenuItem } from '@common/menu';
 
 const appStore = useAppStore();
+
+interface ServerInfo {
+	ip: string;
+	port: string;
+	username: string;
+	password: string;
+};
 
 /**
  * 生命周期  status    name     行为
@@ -33,6 +43,8 @@ const loginBoxVisible = computed(() => [ServiceBridgeStatus.Idle, ServiceBridgeS
 const isConnecting = computed(() => [ServiceBridgeStatus.Connecting, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status));
 const isDisconnected = computed(() => [ServiceBridgeStatus.Disconnected, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status));
 
+const serversList = ref<MenuItem<ServerInfo>[]>([]);
+
 watch(() => appStore.currentServer?.entity.ip, (newValue, oldValue) => {
 	if (newValue === 'localhost') {
 		// 切到 entity.ip === 'localhost'（本地服务器）时候，输入框固定为 'localhost'
@@ -42,6 +54,44 @@ watch(() => appStore.currentServer?.entity.ip, (newValue, oldValue) => {
 		ip.value = '127.0.0.1';
 	}
 }, { immediate: true });
+
+const refreshList = async () => {
+	try {
+		const newServersList = (await nodeBridge.localStorage.get('serversInfo') as ServerInfo[]).map((info) => ({
+			type: 'normal' as const,
+			value: `${info.ip}:${info.port}${info.username ? `@${info.username}` : ''}`,
+			label: `${info.ip}:${info.port}${info.username ? `@${info.username}` : ''}`,
+			extra: info,	// 解析时直接 parse value 也行，但为方便起见就用 extra
+		})) as MenuItem<ServerInfo>[];
+		if (newServersList.length) {
+			newServersList.push(...[
+				{ type: 'separator' as const },
+				{ type: 'submenu' as const, label: '清除记录', subMenu: [
+					...newServersList.map((menuItem: any) => (
+						{ ...menuItem, label: `删除 ${menuItem.value}`, onClick: () => {
+							console.log(menuItem);
+							const item = menuItem.extra;
+							const newServersInfo = serversList.value.map((server) => server.type === 'normal' && server.extra).filter((i) => i);
+							let sameInfoIndex = newServersInfo.findIndex((info) => info.ip === item.ip && info.port === item.port && info.username === item.username);
+							if (sameInfoIndex >= 0) {
+								newServersInfo.splice(sameInfoIndex, 1);
+								nodeBridge.localStorage.set('serversInfo', newServersInfo);
+								setTimeout(() => {
+									refreshList();
+								}, 100);
+							}
+						} }
+					)),
+				] },
+			]);
+		} else {
+			newServersList.push({ type: 'normal' as const, value: 'empty', label: '没有历史记录', disabled: true });
+		}
+		serversList.value = newServersList;
+	} catch (error) {
+		return;
+	}
+}
 
 const ipInputFixer = (value: string) => {
 	// 非本地服务器标签页不可输入 localhost
@@ -56,7 +106,28 @@ const handleConnectClicked = () => {
 	if (!ip.value.length || isNaN(Number(port.value))) {
 		return;
 	}
-	appStore.initializeServer(appStore.currentServerId, ip.value, Number(port.value), username.value, password.value);
+	appStore.initializeServer(appStore.currentServerId, ip.value, Number(port.value), username.value, password.value).then(() => {
+		// 检查是否新增或修改
+		let changed = false;
+		const newServersInfo = serversList.value.map((server) => server.type === 'normal' && server.extra).filter((i) => i);
+		let sameInfo = newServersInfo.find((info) => info.ip === ip.value && info.port === port.value && info.username === username.value);
+		if (sameInfo) {
+			if (sameInfo.password !== password.value) {
+				sameInfo.password = password.value;
+				changed = true;
+			}
+		} else {
+			newServersInfo.push({ ip: ip.value, port: port.value, username: username.value, password: password.value });
+			changed = true;
+		}
+		if (changed) {
+			// 有变化则写盘然后刷新
+			nodeBridge.localStorage.set('serversInfo', newServersInfo);
+			setTimeout(() => {
+				refreshList();
+			}, 100);
+		}
+	});
 };
 const handleReconnectClicked = async () => {
 	if (location.href.startsWith('file') && appStore.currentServer.entity.ip === 'localhost') {
@@ -64,6 +135,19 @@ const handleReconnectClicked = async () => {
 	}
 	appStore.reConnectServer(appStore.currentServerId);
 };
+
+const handleIpInputChange = (value: string) => {
+	ip.value = value;
+	const item = serversList.value.find((server) => server.type === 'normal' && server.value === value) as Extract<MenuItem<ServerInfo>, { type: 'normal' }>;
+	if (item) {
+		setTimeout(() => {
+			ip.value = item.extra.ip;
+			port.value = item.extra.port;
+			username.value = item.extra.username;
+			password.value = item.extra.password;
+		}, 0);
+	}
+}
 
 const handleDragEnter = () => {
 	draggingCount.value++;
@@ -81,6 +165,10 @@ const handleDrop = () => {
 	draggingCount.value = 0;
 	appStore.showDragFilesOverlay = false;
 };
+
+onMounted(() => {
+	refreshList();
+});
 
 </script>
 
@@ -107,12 +195,12 @@ const handleDrop = () => {
 						<h2>连接服务器</h2>
 						<div class="box">
 							<div>
-								<BoxedNormalInput title="IP" :value="ip" :disabled="ip === 'localhost'" :inputFixer="ipInputFixer" @change="ip = $event" />
-								<BoxedNormalInput title="端口" :value="port" @change="port = $event" />
+								<BoxedDropdownInput title="IP" :text="ip" :disabled="ip === 'localhost'" :inputFixer="ipInputFixer" @change="handleIpInputChange" @enter="handleConnectClicked" :list="serversList" />
+								<BoxedNormalInput title="端口" :value="port" @change="port = $event" @enter="handleConnectClicked" />
 							</div>
 							<div>
-								<BoxedNormalInput title="用户名" :value="username" @change="username = $event" />
-								<BoxedNormalInput title="密码" type="password" :value="password" @change="password = $event" />
+								<BoxedNormalInput title="用户名" :value="username" @change="username = $event" @enter="handleConnectClicked" />
+								<BoxedNormalInput title="密码" type="password" :value="password" @change="password = $event" @enter="handleConnectClicked" />
 							</div>
 						</div>
 						<div class="buttonBox">
@@ -165,10 +253,13 @@ const handleDrop = () => {
 		</div>
 		<div class="lowerArea" :style="{ height: `${(1 - appStore.draggerPos) * 100}%` }">
 			<Transition name="paraboxanim">
-				<ParaBox v-if="!appStore.showTransferCenter" />
+				<ParaBox v-if="!appStore.showTransferCenter && appStore.showTaskInfo === undefined" />
 			</Transition>
 			<Transition name="paraboxanim">
 				<TransferCenter v-if="appStore.showTransferCenter" />
+			</Transition>
+			<Transition name="paraboxanim">
+				<TaskInfo v-if="appStore.showTaskInfo !== undefined" />
 			</Transition>
 		</div>
 		<DragFilesOverlay />
