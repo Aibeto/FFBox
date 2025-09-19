@@ -703,8 +703,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				progressLog[_parameter].push([time, status[_parameter]]);
 			}
 			if (this.functionLevel < 50) {
-				if (progressLog.time[progressLog.time.length - 1][1] > 671 || progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > 671) {
-					this.trailLimit_stopTranscoding(id);
+				if (progressLog.time[progressLog.time.length - 1][1] > 671) {
+					this.trailLimit_stopTranscoding(id, 'media');
+					return;
+				}
+			}
+			if (this.functionLevel < 45) {
+				if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > 671) {
+					this.trailLimit_stopTranscoding(id, 'working');
 					return;
 				}
 			}
@@ -1034,12 +1040,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 	}
 
-	public trailLimit_stopTranscoding(id: number, byFrontend = false): void {
+	public trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend = false): void {
 		const task = this.tasklist[id];
 		this.setNotification(
 			id,
 			`任务「${task.fileBaseName}」转码达到时长上限了${byFrontend ? '（前端）' : '（后端）'}\n` +
-			'💔您的用户等级最高支持 11:11 的媒体时长和 11:11 的处理耗时\n' +
+			`💔您的用户等级最高支持 11:11 的${reason === 'media' ? '媒体时长' : '处理耗时'}\n` +
 			'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
 			'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
 			NotificationLevel.error,

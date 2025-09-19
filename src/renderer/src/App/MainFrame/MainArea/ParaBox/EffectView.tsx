@@ -7,7 +7,7 @@ import { randomString } from '@common/utils';
 import { defaultParams } from '@common/defaultParams';
 import { useTooltip } from "@renderer/common/tooltipUtil";
 import { useAppStore } from '@renderer/stores/appStore';
-import { getLimitaion } from '@renderer/stores/limitaions';
+import { getLimitaion } from '@renderer/logic/limitaions';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { getValidator, numberValidator } from '@renderer/components/validatorAndFixer';
 import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';

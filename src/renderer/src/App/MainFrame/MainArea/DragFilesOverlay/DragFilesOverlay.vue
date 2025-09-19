@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
-import { getLimitaion } from '@renderer/stores/limitaions';
+import { getLimitaion } from '@renderer/logic/limitaions';
 import { showAddTaskPrompt } from '@renderer/components/misc/AddTasks';
 // import WaveGrid from '@renderer/components/WaveGrid/WaveGrid.vue';
 

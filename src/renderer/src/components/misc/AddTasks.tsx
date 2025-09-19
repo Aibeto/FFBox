@@ -1,11 +1,11 @@
-import { computed, defineComponent, defineExpose, onMounted, ref } from "vue";
-import nodeBridge from "@renderer/bridges/nodeBridge";
-import { useAppStore } from "@renderer/stores/appStore";
+import { computed, defineComponent, defineExpose, onMounted, ref } from 'vue';
+import nodeBridge from '@renderer/bridges/nodeBridge';
+import { useAppStore } from '@renderer/stores/appStore';
 // import RadioList, { Props as RadioListProps } from '@renderer/containers/MainFrame/MainArea/ParaBox/components/RadioList.vue';
-import { getLimitaion } from "@renderer/stores/limitaions";
-import Msgbox from "../Msgbox/Msgbox";
+import { getLimitaion } from '@renderer/logic/limitaions';
+import Msgbox from '../Msgbox/Msgbox';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
-import Popup from "../Popup/Popup";
+import Popup from '../Popup/Popup';
 import css from './AddTasks.module.less';
 
 // const selectionList: RadioListProps['list'] = [

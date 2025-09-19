@@ -1,6 +1,6 @@
 import { Task, WorkingStatus, Notification, FFmpegInfo } from '@common/types';
 import { ServiceBridge } from '@renderer/bridges/serviceBridge'
-import { SingleTaskScheduler } from './stores/transferManager2';
+import { SingleTaskScheduler } from './logic/transferManager2';
 
 export interface UITask extends Task {
 	dashboard: {

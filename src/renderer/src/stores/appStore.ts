@@ -13,10 +13,10 @@ import { allAcodecs, builtInAcodecs } from '@common/params/acodecs';
 import { allMuxers, builtInMuxers } from '@common/params/formats';
 import path from '@common/path';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
-import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from './eventsHandler';
+import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from '@renderer/logic/eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
-import { addUploadTask } from './transferManager2';
-import { getLimitaion } from './limitaions';
+import { addUploadTask } from '../logic/transferManager2';
+import { getLimitaion } from '../logic/limitaions';
 import Popup from '@renderer/components/Popup/Popup';
 
 const { trimExt } = path;

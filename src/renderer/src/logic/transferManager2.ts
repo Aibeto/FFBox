@@ -4,7 +4,7 @@ import CryptoJS from 'crypto-js';
 import { Server, UploadChunk, UploadFile } from '@renderer/types';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import HashWorker from './transferHashWorker2?worker';
-import { useAppStore } from './appStore';
+import { useAppStore } from '../stores/appStore';
 
 const globalTaskWorkingCounts: {[key: string]: number} = {};
 

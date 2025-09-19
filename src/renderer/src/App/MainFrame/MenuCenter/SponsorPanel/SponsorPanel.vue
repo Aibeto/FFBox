@@ -7,7 +7,7 @@ import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
-import { getLimitaion } from '@renderer/stores/limitaions';
+import { getLimitaion } from '@renderer/logic/limitaions';
 import IconGithub from './github.svg?component';
 import IconGitee from './gitee.svg?component';
 import IconKoFi from './ko-fi.svg?component';
@@ -241,7 +241,7 @@ onMounted(() => {
 				</tr>
 				<tr>
 					<td>转码时长上限</td>
-					<td>{{ appStore.functionLevel < 50 ? '11:11' : '无限制' }}</td>
+					<td>{{ appStore.functionLevel < 45 ? '11:11' : '无限制' }}</td>
 				</tr>
 				<tr>
 					<td>视频 ABR/CBR 码率设定限制</td>

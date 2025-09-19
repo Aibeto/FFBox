@@ -3,7 +3,7 @@
 /// <reference types="vite-svg-loader" />
 import { onMounted } from 'vue'
 import { useAppStore } from '@renderer/stores/appStore';
-import { handleCloseConfirm } from '@renderer/stores/eventsHandler';
+import { handleCloseConfirm } from '@renderer/logic/eventsHandler';
 import { Server } from '@renderer/types';
 import { buildNumber, version } from '@common/constants';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';

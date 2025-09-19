@@ -363,10 +363,10 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		this.sendWs(data);
 	}
 
-	public trailLimit_stopTranscoding(id: number) {
+	public trailLimit_stopTranscoding(id: number, reason: 'media' | 'working') {
 		let data: FFBoxServiceFunctionApi = {
 			function: 'trailLimit_stopTranscoding',
-			args: [id, true],
+			args: [id, reason, true],
 		}
 		this.sendWs(data);
 	}
