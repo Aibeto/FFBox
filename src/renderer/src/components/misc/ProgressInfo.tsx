@@ -22,7 +22,7 @@ type ChartType = 'progress' | 'size' | 'bitrate' | 'speed';
 export function showProgressInfo(task: UITask, taskId: number, type: ChartType) {
 	Msgbox({
 		container: document.body,
-		title: task.fileBaseName,
+		title: task.taskName,
 		content: <Comp taskId={taskId} type={type} />,
 		buttons: [
 			{ text: '关闭', role: 'cancel' },

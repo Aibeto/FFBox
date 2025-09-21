@@ -248,11 +248,11 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		this.sendWs(data);
 	}
 
-	public taskAdd(fileBaseName: string, outputParams?: OutputParams): Promise<number> {
+	public taskAdd(taskName: string, outputParams?: OutputParams): Promise<number> {
 		return new Promise((resolve, reject) => {
 			fetch(`http://${this.ip}:${this.port}/task`, {
 				method: 'put',
-				body: JSON.stringify({ fileBaseName, outputParams }),
+				body: JSON.stringify({ taskName, outputParams }),
 				headers: new Headers({
 					'Content-Type': 'application/json'
 				}),
@@ -267,10 +267,10 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		})
 	}
 
-	public mergeUploaded(id: number, hashs: string[], fileName: string, inputName?: string) {
+	public mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string) {
 		let data: FFBoxServiceFunctionApi = {
 			function: 'mergeUploaded',
-			args: [id, hashs, fileName, inputName],
+			args: [id, hashs, fileBaseName, inputName],
 		}
 		this.sendWs(data);
 	}

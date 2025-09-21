@@ -32,7 +32,7 @@ export const defaultParams: OutputParams = {
 			mux: {
 				format: 'mp4',
 				moveflags: false,
-				filename: '[filedir]/[filebasename]_converted.[fileext]',
+				filePath: '[filedir]/[filename]_converted.[fileext]',
 				begin: '',
 				end: '',
 				detail: {},

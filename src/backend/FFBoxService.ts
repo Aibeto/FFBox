@@ -82,7 +82,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.customFFmpegPath = customFFmpegPath as any || undefined;
 
 		const preserveUnfinishedTasks = await localConfig.get('service.preserveUnfinishedTasks') === false ? false : true;
-		const lastStatusTasks = await localConfig.get('lastStatus.tasks') as { fileBaseName: string; after: OutputParams; }[];
+		const lastStatusTasks = await localConfig.get('lastStatus.tasks') as { taskName: string; after: OutputParams; }[];
 		if (preserveUnfinishedTasks) {
 			try {
 				if (lastStatusTasks.length) {
@@ -90,7 +90,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				}
 				log.info(`正在恢复上次退出时未完成的 ${lastStatusTasks.length} 个任务`);
 				for (const task of lastStatusTasks) {
-					this.taskAdd(task.fileBaseName, task.after);
+					this.taskAdd(task.taskName, task.after);
 				}
 				await localConfig.set('lastStatus.tasks', []);
 			} catch (error) {}
@@ -467,11 +467,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	/**
 	 * 对于远程文件，上传完成后调用此函数合并文件
 	 * 前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并
-	 * @param fileName 文件名参数不包含 hash，仅用于作为 input.files[].filePath 最终文件名的一部分供用户识别。相同 hash 但文件名不同的话，服务器会保留多份
+	 * @param fileBaseName 文件名参数不包含 hash，仅用于作为 input.files[].filePath 最终文件名的一部分供用户识别。相同 hash 但文件名不同的话，服务器会保留多份
 	 * @param inputName 在新建任务上传文件之前，或添加输入文件上传之前，hash 尚未得知，因此前端应发起修改输入参数的调用，生成这个上传文件的一个临时占位符。上传完毕后，往 inputName 传入生成的占位符，以便后端将其替换为真实文件名
 	 * @emits taskUpdate
 	 */
-	public async mergeUploaded(id: number, hashs: string[], fileName: string, inputName?: string): Promise<void> {
+	public async mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string): Promise<void> {
 		const task = this.tasklist[id];
 		if (!task) {
 			// 上传完成之前删除了任务
@@ -480,7 +480,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const uploadDir = os.tmpdir() + '/FFBoxUploadCache'; // 文件上传目录
 		const concatedHash = CryptoJS.enc.Utf8.parse(hashs.join(''));
 		const fileHash = CryptoJS.SHA1(concatedHash).toString();
-		const destName = `${fileName}⬝${fileHash}`;
+		const destName = `${fileBaseName}⬝${fileHash}`;
 		const destPath = `${uploadDir}/${destName}`;
 		let fileExists = false;
 		try {
@@ -491,7 +491,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			// 将分片合并为一个文件（无论分片数量均会执行此逻辑，因此即使 1 个分片，最终文件名也是按分片 hash 的 hash 命名）
 			fs.writeFile(destPath, '', (err) => {
 				if (err) {
-					this.setNotification(id, task.fileBaseName + '：合并文件写入失败', NotificationLevel.error);
+					this.setNotification(id, task.taskName + '：合并文件写入失败', NotificationLevel.error);
 					return;
 				}
 				for (const hash of hashs) {
@@ -506,7 +506,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.after.input.files[inputIndex].filePath = destName;	// 远程任务隐藏目录结构，运行时才 override 输入参数
 		}
 		task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
-		this.setNotification(id, `任务「${task.fileBaseName}」输入文件「${fileName}」上传完成`, NotificationLevel.info);
+		this.setNotification(id, `任务「${task.taskName}」输入文件「${fileBaseName}」上传完成`, NotificationLevel.info);
 		this.emitTaskUpdate(id, task);
 	}
 
@@ -587,7 +587,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					if (ratevalue > 0.75 || ratevalue < 0.25) {
 						this.setNotification(
 							id,
-							`任务「${task.fileBaseName}」设置的视频码率已被限制\n` +
+							`任务「${task.taskName}」设置的视频码率已被限制\n` +
 								'💔您的用户等级在 ABR/CBR 模式下的视频码率仅支持 500Kbps ~ 32Mbps\n' +
 								'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
 								'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
@@ -604,7 +604,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			newFFmpeg = new FFmpeg(
 				this.ffmpegPath,
 				0,
-				getFFmpegParaArray({ outputParams: task.after, inputDir: `${os.tmpdir()}/FFBoxUploadCache`, overrideFilePaths: task.outputFiles.map((fileName) => `${os.tmpdir()}/FFBoxDownloadCache/${fileName}`) })
+				getFFmpegParaArray({ outputParams: task.after, inputDir: `${os.tmpdir()}/FFBoxUploadCache`, overrideFilePaths: task.outputFiles.map((fileBaseName) => `${os.tmpdir()}/FFBoxDownloadCache/${fileBaseName}`) })
 			);
 		} else {
 			task.outputFiles = genTaskOutputFiles(task.after);	// 本地任务的 outputFiles 在任务开始时才生成，而远程任务则是在添加和修改参数时就刷新
@@ -613,15 +613,15 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		newFFmpeg.on('closed', async (errorCode, errors, runningResult) => {
 			if (errorCode) {
 				if (runningResult === 'failed') {
-					log.error(`[任务 ${id}] 出错：${task.fileBaseName}。`);
-					this.setNotification(id, '任务「' + task.fileBaseName + '」转码失败。' + [...errors].join('') + '请在命令行输出面板查看详细原因。', NotificationLevel.error);
+					log.error(`[任务 ${id}] 出错：${task.taskName}。`);
+					this.setNotification(id, '任务「' + task.taskName + '」转码失败。' + [...errors].join('') + '请在命令行输出面板查看详细原因。', NotificationLevel.error);
 				} else {
-					log.error(`[任务 ${id}] 异常终止：${task.fileBaseName}。`);
-					this.setNotification(id, '任务「' + task.fileBaseName + '」异常终止。请在命令行输出面板查看详细原因。', NotificationLevel.error);
+					log.error(`[任务 ${id}] 异常终止：${task.taskName}。`);
+					this.setNotification(id, '任务「' + task.taskName + '」异常终止。请在命令行输出面板查看详细原因。', NotificationLevel.error);
 				}
 				task.status = TaskStatus.error;
 			} else {
-				log.info(`[任务 ${id}] 完成：${task.fileBaseName}。`);
+				log.info(`[任务 ${id}] 完成：${task.taskName}。`);
 				const hasTimeError: string[] = [];
 				// 对每个输出文件进行时间修改。但暂不支持多输入，会按第一个输入进行修改
 				for (let i = 0; i < task.after.outputs.length; i++) {
@@ -681,9 +681,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				task.status = TaskStatus.finished;
 				task.progressLog.elapsed = new Date().getTime() / 1000 - task.progressLog.lastStarted;
 				if (hasTimeError.length) {
-					this.setNotification(id, '任务「' + task.fileBaseName + '」已转码完成，但修改文件时间失败。请检查文件权限。', NotificationLevel.warning);
+					this.setNotification(id, '任务「' + task.taskName + '」已转码完成，但修改文件时间失败。请检查文件权限。', NotificationLevel.warning);
 				} else {
-					this.setNotification(id, `任务「${task.fileBaseName}」已转码完成`, NotificationLevel.ok);
+					this.setNotification(id, `任务「${task.taskName}」已转码完成`, NotificationLevel.ok);
 				}
 				if (this.deleteFinishedTasks) {
 					setTimeout(() => {
@@ -727,7 +727,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		// 	task.errorInfo.push(error.description);
 		// });
 		newFFmpeg.on('warning', (warning) => {
-			this.setNotification(id, task.fileBaseName + '：' + warning.content, NotificationLevel.warning);
+			this.setNotification(id, task.taskName + '：' + warning.content, NotificationLevel.warning);
 		});
 		for (const parameter of ['time', 'frame', 'size']) {
 			const _parameter = parameter as 'time' | 'frame' | 'size';
@@ -854,14 +854,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		if (!this.preserveUnfinishedTasks) {
 			return;
 		}
-		const tasks: { fileBaseName: string; after: OutputParams; }[] = [];
+		const tasks: { taskName: string; after: OutputParams; }[] = [];
 		for (const [id, task] of Object.entries(this.tasklist)) {
 			// 未开始或者排队的任务不需要存储
 			if ([TaskStatus.initializing, TaskStatus.idle, TaskStatus.finished, TaskStatus.error].includes(task.status) || id === '-1') {
 				break;
 			}
 			tasks.push({
-				fileBaseName: task.fileBaseName,
+				taskName: task.taskName,
 				after: task.after,
 			});
 		}
@@ -1044,7 +1044,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const task = this.tasklist[id];
 		this.setNotification(
 			id,
-			`任务「${task.fileBaseName}」转码达到时长上限了${byFrontend ? '（前端）' : '（后端）'}\n` +
+			`任务「${task.taskName}」转码达到时长上限了${byFrontend ? '（前端）' : '（后端）'}\n` +
 			`💔您的用户等级最高支持 11:11 的${reason === 'media' ? '媒体时长' : '处理耗时'}\n` +
 			'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
 			'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	

@@ -6,12 +6,14 @@ import nodeBridge from '@renderer/bridges/nodeBridge';
 import HashWorker from './transferHashWorker2?worker';
 import { useAppStore } from '../stores/appStore';
 
-const globalTaskWorkingCounts: {[key: string]: number} = {};
+const globalTaskPool: { [key: string]: Set<SingleTaskScheduler> } = {};	// 当前所有正在运行的任务的实例（某一实例无论有多少个同时执行，实例都只出现一次。比如说有 3 个 readTask，这 3 个 readTask 各自的执行数加起来不超过总并发量）
+const globalTaskWorkingCount: { [key: string]: number } = {};
 
 export class SingleTaskScheduler extends EventEmitter {
 	public concurrency: number;
 	public taskName?: string;	// 指定 taskName 后，任务的 concurrency 计算将不仅限于单个 SingleTaskScheduler 实例，而是在全局共享同名的 concurrency
 	public task: (singleTaskscheduler: this) => Promise<any>;
+	public globalPool: Set<SingleTaskScheduler>;	// 外界可以通过此值查询是否有任务在运行
 	private _workingCount: number;
 	private _working: boolean;
 	private _count: number;		// 运行计数，第一次从 0 开始
@@ -22,57 +24,101 @@ export class SingleTaskScheduler extends EventEmitter {
 		this._workingCount = 0;
 		this._working = false;
 		this._count = 0;
+		if (params.taskName) {
+			// 指定了 taskName 的话统一在此处检查修复存在性，后面就不需要判断了
+			if (!globalTaskPool[this.taskName]) globalTaskPool[this.taskName] = new Set();
+			if (!globalTaskWorkingCount[this.taskName]) globalTaskWorkingCount[this.taskName] = 0;
+			this.globalPool = globalTaskPool[this.taskName];
+		}
 	}
 
 	get workingCount() { return this._workingCount }
 	get working() { return this._working }
 	get count() { return this._count }
+	get globalWorkingCount() { return globalTaskWorkingCount[this.taskName] }
 
-	// 检查是否有资源，若有则开始任务（主动开始/上一轮运行完毕/随时添加 concurrency 等情况都可以调用）
-	public async start() {
+	public start() {
 		this._working = true;
-		let currentWorkingCount = this._workingCount;
-		if (this.taskName) {
-			const globalWorkingCount = globalTaskWorkingCounts[this.taskName] || 0;
-			currentWorkingCount = Math.max(currentWorkingCount, globalWorkingCount);
-		}
-		if (currentWorkingCount < this.concurrency) {
-			if (this.taskName) globalTaskWorkingCounts[this.taskName] = (globalTaskWorkingCounts[this.taskName] || 0) + 1;
-			this._workingCount++;
+		if (this.taskName) this.globalPool.add(this);
+		this.queseTask();
+	}
+	public stop() {
+		this._working = false;
+		if (this.taskName) this.globalPool.delete(this);
+	}
 
-			setTimeout(() => {				
-				this.task(this).then(async () => {
-					this._workingCount--;
-					// await new Promise((r) => setTimeout(r, 100));
-					if (this.taskName) globalTaskWorkingCounts[this.taskName] = globalTaskWorkingCounts[this.taskName] - 1;
-	
-					if (this._working) {
-						this.start();			// 任务运行完成后，检查运行状态，然后运行下一轮
-					} else if (!this._workingCount) {
-						this.emit('allDone');	// 已停止工作，且没有其他任务，即为全部完成
-					}
-				}).catch(() => {
-					// 任务失败即不再继续后续任务，剩余所有任务均执行 workingCount-- 后，最后一个完成的检查到 workingCount === 0 即停止
-					this._workingCount--;
-					if (this.taskName) globalTaskWorkingCounts[this.taskName] = globalTaskWorkingCounts[this.taskName] - 1;
-					this._working = false;
-					if (!this._workingCount) {
-						this.emit('allDone');	// 已停止工作，且没有其他任务，即为全部完成
-					}
-				});
-	
-				this._count++;						// 任务开始后计数 +1（一定会在 finally 前进行）
-				if (this._working) this.start();	// 任务开始后马上检查并发数是否足以进行下一轮
-			}, 0);
+	private queseTask() {
+		// 每次单个任务完成后，调用此函数
+		if (this.taskName) {
+			/**
+			 * 有任务名的情况下，工作数按全局算。
+			 * 循环从池中随机选择一个任务执行 doTask，直到达到最大工作数
+			 * 当任务需要停止时，会从池中删除。当池中没有任何实例时，这一系列的任务就全部停止了
+			 */
+			if (!this.globalPool.size) {
+				return;
+			}
+			for (; this.globalWorkingCount < this.concurrency; globalTaskWorkingCount[this.taskName]++) {
+				const list = [...this.globalPool];
+				const randomIndex = Math.floor(Math.random() * list.length);
+				const selectedInstance = list[randomIndex];
+				selectedInstance.doTask();
+			}
+		} else {
+			/**
+			 * 无任务名的情况下，只按自己的工作数算
+			 * 循环 doTask，直到达到最大工作数
+			 * 当任务需要停止时，设置 this._working = false，这里就不会再分配任务
+			 */
+			if (!this.working) {
+				return;
+			}
+			for (; this._workingCount < this.concurrency;) {
+				this.doTask();
+			}
 		}
 	}
+
+	public async doTask() {
+		this._workingCount++;	// 只需管理自己的 _workingCount 即可。全局的 workingCount 由 queueTask 管理
+		setTimeout(() => {				
+			this.task(this).then(async () => {
+				this._workingCount--;
+				// await new Promise((r) => setTimeout(r, 100));
+				if (this.taskName) globalTaskWorkingCount[this.taskName]--;
+
+				if (!this.working && !this.workingCount) {
+					this.emit('allDone');	// 已停止工作，且没有其他任务，即为全部完成
+				}
+				this.queseTask();
+			}).catch(() => {
+				// 任务失败即不再继续后续任务，剩余所有任务均执行 workingCount-- 后，最后一个完成的检查到 workingCount === 0 即停止
+				this._working = false;
+				this._workingCount--;
+				if (this.taskName) {
+					globalTaskWorkingCount[this.taskName]--;
+					this.globalPool.delete(this);
+				}
+
+				if (!this._workingCount) {
+					this.emit('allDone');	// 已停止工作，且没有其他任务，即为全部完成
+				}
+				this.queseTask();
+			});
+
+			this._count++;	// 任务开始后计数 +1（一定会在 finally 前进行）
+		}, 0);
+	}
 }
+
+const hashWorkers: Worker[] = [];	// 所有任务共用
+const hashWorkerRunningList: boolean[] = [];
 
 /**
  * 添加一个上传任务。文件大小读出后将立刻返回
  * 完成上传后此函数将自动调用 mergeUploaded，需要传入在上传前生成的占位符 inputName
  */
-export async function addUploadTask(server: Server, input: string | File, taskId: number, fileName: string, inputName: string) {
+export async function addUploadTask(server: Server, input: string | File, taskId: number, fileBaseName: string, inputName: string) {
 	let fileSize = 0;
 	if (typeof input === 'string') {
 		const stats = await nodeBridge.getLocalFileStats(input);
@@ -87,7 +133,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 	}
 	const file: UploadFile = reactive({
 		taskId,
-		fileName,
+		fileBaseName,
 		chunks: [],
 		url: typeof input === 'string' ? input : undefined,
 		blob: typeof input === 'string' ? undefined : input,
@@ -137,22 +183,28 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 				chunk.buffer = buffer;
 				chunk.status = 'hashing';	// 其实是等待 hashing
 				readDoneChunkIndexes.push(taskIndex);
+				// await new Promise(r => setTimeout(r, 1000));
 			},
 		});
 		file.readTask = ts1;
-		ts1.on('allDone', () => { readDone = true; console.log('读取全部完成') });
+		ts1.on('allDone', () => { readDone = true; console.log(`【${file.fileBaseName}】读取全部完成`) });
 		ts1.start();
 
 		// 根据 CPU 数量划分成若干个 worker 任务
 		file.status = 'hashing';
 		const cpuCount = navigator.hardwareConcurrency / 2 || 4;
-		const workers = new Array(cpuCount).fill(0).map(() => new HashWorker());
-		const workerRunningList = new Array(cpuCount).fill(false);
+		if (!hashWorkers.length) {
+			for (let i = 0; i < cpuCount; i++) {
+				hashWorkers.push(new HashWorker());
+				hashWorkerRunningList.push(false);
+			}
+		}
 
 		// 通过 task 为 worker 分配任务
 		const hashDoneChunkIndexes: number[] = [];	// 供下一轮 upload 进行消费
 		// let hashDone = false;
 		const ts2 = new SingleTaskScheduler({
+			// concurrency: 1,
 			concurrency: cpuCount,
 			taskName: 'hashFile',
 			task: async (sts) => {
@@ -165,17 +217,17 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					}
 				}
 				// 检查哪个 worker 空闲，检查还没 hash 的任务，然后发送给 worker，等待其完成
-				const idleWorkerIndex = workerRunningList.findIndex((isRunning) => !isRunning);
+				const idleWorkerIndex = hashWorkerRunningList.findIndex((isRunning) => !isRunning);
 				const notHashedIndex = readDoneChunkIndexes.shift();
 				if (idleWorkerIndex >= 0 && notHashedIndex >= 0) {
-					const worker = workers[idleWorkerIndex];
-					workerRunningList[idleWorkerIndex] = true;	
+					const worker = hashWorkers[idleWorkerIndex];
+					hashWorkerRunningList[idleWorkerIndex] = true;	
 					await new Promise((resolve, reject) => {
 						worker.onmessage = (event) => {
 							file.chunks[notHashedIndex].hash = event.data.hash;
-							// console.log(`【${fileName}】【${notHashedIndex}】hash 已计算：${event.data.hash}`);
+							// console.log(`【${fileBaseName}】【${notHashedIndex}】hash 已计算：${event.data.hash}`);
 							file.chunks[notHashedIndex].buffer = event.data.buffer;	// buffer 还回来
-							workerRunningList[idleWorkerIndex] = false;	
+							hashWorkerRunningList[idleWorkerIndex] = false;	
 							hashDoneChunkIndexes.push(notHashedIndex);
 							resolve(0);
 						}
@@ -188,7 +240,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					debugger;	// 转锁应当在上面完成，出现在此处不合理
 					await new Promise((resolve) => setTimeout(resolve, 150));	// read 步骤还没读完，转锁
 				}
-
+				// await new Promise(r => setTimeout(r, 1500));
 			}
 		})
 		file.hashTask = ts2;
@@ -196,7 +248,13 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 		// 等待所有 hash 完成
 		await new Promise((resolve) => {
 			ts2.on('allDone', () => {
-				workers.forEach((worker) => worker.terminate());
+				console.log(`【${file.fileBaseName}】哈希全部完成`);
+				if (!ts2.globalPool.size) {
+					hashWorkers.forEach((worker) => worker.terminate());
+					hashWorkers.splice(0, hashWorkers.length);
+					hashWorkerRunningList.splice(0, hashWorkerRunningList.length);
+					console.log('已释放 workers');
+				}
 				// hashDone = true;
 				resolve(0);
 			});
@@ -208,7 +266,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 		const response = await fetch(`http://${server.entity.ip}:${server.entity.port}/upload/check/`, {
 			method: 'post',
 			body: JSON.stringify({
-				hashs: [`${fileName}⬝${fileHash}`],	// 与服务器 mergeUploaded 的文件名逻辑保持相同
+				hashs: [`${fileBaseName}⬝${fileHash}`],	// 与服务器 mergeUploaded 的文件名逻辑保持相同
 			}),
 			headers: new Headers({
 				'Content-Type': 'application/json'
@@ -217,8 +275,8 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 		const responseText = await response.text();
 		let content = JSON.parse(responseText) as number[];
 		if (content[0] % 2) {
-			console.log(fileName, '已缓存');
-			server.entity.mergeUploaded(taskId, file.chunks.map((chunk) => chunk.hash), fileName, inputName);
+			console.log(fileBaseName, '已缓存');
+			server.entity.mergeUploaded(taskId, file.chunks.map((chunk) => chunk.hash), fileBaseName, inputName);
 			const taskUpdateHandler = (arg: { taskId: number }) => {
 				if (arg.taskId === taskId) {
 					server.entity.off('taskUpdate', taskUpdateHandler);
@@ -239,7 +297,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 				server.entity.setUploadStatus(taskId, false);
 			}
 		} else {
-			console.log(fileName, '未缓存');
+			console.log(fileBaseName, '未缓存');
 			// 运行到此时，虽然代码逻辑上不保证本地 tasklist 一定有此任务，但正常操作下 tasklist update 一早就到达了，而且用户也不会在上传开始前删除任务
 			// 若未缓存则对各个分片进行上传。若出错则重试
 			const ts3 = new SingleTaskScheduler({
@@ -279,7 +337,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 									}
 								};
 								xhr.onload = () => {
-									console.log(`【${chunk.file.fileName}】【${chunkIndex}】【${chunk.hash}】发送完成`);
+									console.log(`【${chunk.file.fileBaseName}】【${chunkIndex}】【${chunk.hash}】发送完成`);
 									chunk.buffer = undefined; // 释放内存
 									resolve(0);
 								};
@@ -297,19 +355,19 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 							if (e.message === 'paused') {
 								chunk.status = 'paused';
 								file.status = 'paused';
-								console.log(`【${chunk.file.fileName}】【${chunkIndex}】【${chunk.hash}】上传暂停`);
-								throw `【${chunk.file.fileName}】【${chunkIndex}】【${chunk.hash}】${e.message}，上传暂停`;
+								console.log(`【${chunk.file.fileBaseName}】【${chunkIndex}】【${chunk.hash}】上传暂停`);
+								throw `【${chunk.file.fileBaseName}】【${chunkIndex}】【${chunk.hash}】${e.message}，上传暂停`;
 							} else {
 								chunk.status = 'error';
 								file.status = 'error';
-								console.log(`【${chunk.file.fileName}】【${chunkIndex}】【${chunk.hash}】上传失败`);
-								throw `【${chunk.file.fileName}】【${chunkIndex}】【${chunk.hash}】${e.message}，上传失败`;
+								console.log(`【${chunk.file.fileBaseName}】【${chunkIndex}】【${chunk.hash}】上传失败`);
+								throw `【${chunk.file.fileBaseName}】【${chunkIndex}】【${chunk.hash}】${e.message}，上传失败`;
 							}
 						}
 					}
 					if (chunk.status !== 'finished') {
 						file.status = 'error';
-						throw `【${chunk.file.fileName}】【${chunkIndex}】【${chunk.hash}】分片上传失败，放弃上传`;
+						throw `【${chunk.file.fileBaseName}】【${chunkIndex}】【${chunk.hash}】分片上传失败，放弃上传`;
 					}
 				}
 			});
@@ -317,9 +375,9 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 			ts3.on('allDone', () => {
 				if (file.chunks.every((chunk) => chunk.status === 'finished')) {
 					// 全部上传完成
-					console.log(`【${file.fileName}】文件上传完成`);
+					console.log(`【${file.fileBaseName}】文件上传完成`);
 					file.status = 'finished';
-					server.entity.mergeUploaded(file.taskId, file.chunks.map((chunk) => chunk.hash), file.fileName, inputName);
+					server.entity.mergeUploaded(file.taskId, file.chunks.map((chunk) => chunk.hash), file.fileBaseName, inputName);
 					const taskUpdateHandler = (arg: { taskId: number }) => {
 						if (arg.taskId === taskId) {
 							server.entity.off('taskUpdate', taskUpdateHandler);

@@ -64,8 +64,8 @@ const uiBridge = {
 			ctx.response.set('Access-Control-Allow-Headers', 'Content-Type');
 			ctx.response.set('Access-Control-Allow-Methods', 'GET, POST, PUT');
 			if (ctx.path.startsWith('/download')) {
-				const fileName = ctx.query.fileName as string || path.basename(ctx.path);
-				ctx.response.set('Content-Disposition', `attachment; filename="${encodeURI(fileName)}`);
+				const fileBaseName = ctx.query.fileBaseName as string || path.basename(ctx.path);
+				ctx.response.set('Content-Disposition', `attachment; filename="${encodeURI(fileBaseName)}`);
 			}
 			if (ctx.request.method === 'OPTIONS') {
 				ctx.response.status = 200;
@@ -355,7 +355,7 @@ function getRouter(): Router {
 			return;
 		}
 		const body = ctx.request.body;
-		const result = await ffboxService!.taskAdd(body.fileBaseName, body.outputParams, ctx.URL.hostname !== 'localhost');
+		const result = await ffboxService!.taskAdd(body.taskName, body.outputParams, ctx.URL.hostname !== 'localhost');
 		ctx.response.status = 200;
 		ctx.response.body = result;
 	});

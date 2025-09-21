@@ -143,8 +143,6 @@ export const useAppStore = defineStore('app', {
 							server.entity.off('taskUpdate', handler);
 							这.selectedTask = new Set(ids);
 							这.applySelectedTask();
-							这.globalParams.extra.presetName = '';
-							这.presetName = '';			
 							resolve(ids);
 						};
 						const timer = setTimeout(handler, 200);
@@ -179,7 +177,7 @@ export const useAppStore = defineStore('app', {
 								allTimerFinish();
 								return;
 							}
-							const fileName = typeof input === 'string' ? path.parse(input).name : input.name;
+							const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
 							const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
 							const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
 							// console.log('添加任务', input, fileType);
@@ -188,22 +186,21 @@ export const useAppStore = defineStore('app', {
 								const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
 								if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
 									Popup({
-										message: `${fileName} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
+										message: `${fileBaseName} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
 										level: 2,
 									});
 									return;
 								}
 							}
-							const inputName = `[uploading] ${fileName}`
+							const inputName = `[uploading] ${fileBaseName}`
 							let promise: Promise<number> = 这.addTask(
-								trimExt(fileName),
+								trimExt(fileBaseName),
 								[needUpload ? inputName : (typeof input === 'string' ? input : input.path)]
 							);	// 网页版拖入文件必定上传，electron 版拖入文件则直接以路径输入
 							if (needUpload) {
-								// 代码逻辑上来说不稳定，因为 addTask 后，后端通过发送一个 tasklistUpdate 来使前端更新任务列表，然后 resolve 掉 addTask 请求。但若 addTask 请求先完成，checkAndUploadFile 就会出错
-								// 但目前未触发此 bug
+								// addTask 后，后端通过发送一个 tasklistUpdate 来使前端更新任务列表，然后 resolve 掉 addTask 请求。由于上传过程并不会访问 task，故哪怕网络到达顺序不对，这里也不会出错
 								promise.then(async (taskId) => {
-									const file = await addUploadTask(server as any, input, taskId, fileName, inputName);
+									const file = await addUploadTask(server as any, input, taskId, fileBaseName, inputName);
 									server.data.uploadFiles.push(file);
 								});
 							}
@@ -229,43 +226,47 @@ export const useAppStore = defineStore('app', {
 						return;
 					}
 	
-					const inputPaths: string[] = [];
-					// 先添加空白任务，然后检查上传
-					const firstFilename = typeof inputList[0] === 'string' ? path.parse(inputList[0])?.name : inputList[0]?.name;
-					const taskId = await 这.addTask(firstFilename ? trimExt(firstFilename) : `新任务 ${new Date().toISOString()}`, []);
+					/**
+					 * 本地：无需上传，字符串原样传入，File 读取 .path
+					 * 远程：字符串判断是文件（非文件夹）后生成 inputName 占位符后上传，文件直接上传（丢文件夹会失败）
+					 */
+					// 先添加占位符任务，然后检查上传
+					const firstFileBaseName = typeof inputList[0] === 'string' ? path.parse(inputList[0])?.name : inputList[0]?.name;
+					const taskId = await 这.addTask(
+						firstFileBaseName ? trimExt(firstFileBaseName) : `新任务 ${new Date().toISOString()}`,
+						[]
+					);
 					newlyAddedTaskIds.push(Promise.resolve(taskId));
-	
+
+					const inputPaths: string[] = [];
 					for (const input of inputList) {
-						// const filename = typeof input === 'string' ? path.parse(input).name : input.name;
-						// const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
-						// const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
-						// // console.log('添加任务', input, fileType);
-						// let fileInfo: { size: number, file: Buffer | Blob };
-						// if (needUpload) {
-						// 	const limitedFileSizeMB = isRemoteService ? (这.functionLevel >= 60 ? 192 : 127) : Infinity;
-						// 	// 超过约 200MB 的文件在进行 CryptoJS.SHA1 时会导致页面崩溃
-						// 	fileInfo = typeof input === 'string' ? await nodeBridge.getLocalFile(input, limitedFileSizeMB * 1000 * 1000) : { file: input, size: input.size };
-						// 	if (fileInfo.size > limitedFileSizeMB * 1000 * 1000) {
-						// 		Popup({
-						// 			message: `${filename} 文件大小超过 ${limitedFileSizeMB} MB，暂不支持上传操作`,
-						// 			level: 2,
-						// 		});
-						// 		return;
-						// 	}
-						// }
-						// if (needUpload) {
-						// 	// checkAndUploadFile 是为单输入任务做的函数
-						// 	// 目前版本中，网络任务暂不支持多输入，此处代码理论上永远运行不到，只作为占位符
-						// 	checkAndUploadFile(filename, fileInfo, taskId);
-						// }
-	
-						if (typeof input === 'string') {
-							inputPaths.push(input);
-						} else if (input.path) {
-							inputPaths.push(input.path);
+						const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
+						const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
+						const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
+						// console.log('添加任务', input, fileType);
+						if (needUpload) {
+							const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
+							const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
+							if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
+								Popup({
+									message: `${fileBaseName} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
+									level: 2,
+								});
+								continue;
+							}
 						}
+						if (needUpload) {
+							const inputName = `[uploading] ${fileBaseName}`
+							const file = await addUploadTask(server as any, input, taskId, fileBaseName, inputName);
+							server.data.uploadFiles.push(file);
+							inputPaths.push(inputName);
+						} else {
+							inputPaths.push(typeof input === 'string' ? input : input.path);
+						}
+						// inputPaths.push(input);
+						// inputPaths.push(input.path);
 					}
-	
+
 					// 完成任务添加后，设置输入列表
 					const entity = 这.currentServer?.entity;
 					const params = 这.globalParams;
@@ -293,7 +294,7 @@ export const useAppStore = defineStore('app', {
 		 * path 将自动添加到 params 中去
 		 * @param path 输入文件的路径。若为远程任务则需定义一个占位符，完成上传后通过 service.mergeUploaded 修正文件名
 		 */
-		addTask(baseName: string, paths: string[]): Promise<number> {
+		addTask(fileName: string, paths: string[]): Promise<number> {
 			const 这 = useAppStore();
 			const currentBridge = 这.currentServer?.entity;
 			if (!currentBridge) {
@@ -310,7 +311,7 @@ export const useAppStore = defineStore('app', {
 				detail: params.input.files[index]?.detail ?? {},
 				custom: params.input.files[index]?.custom ?? '',
 			}));
-			const result = currentBridge.taskAdd(baseName, params);
+			const result = currentBridge.taskAdd(fileName, params);
 			return result;
 		},
 		/**
@@ -354,6 +355,8 @@ export const useAppStore = defineStore('app', {
 					这.globalParams = replaceOutputParams(这.currentServer.data.tasks[id].after, 这.globalParams, true);
 				}
 			}
+			这.globalParams.extra.presetName = '';
+			这.presetName = '';
 		},
 		startNpause () {
 			const 这 = useAppStore();
@@ -539,23 +542,25 @@ export const useAppStore = defineStore('app', {
 		/**
 		 * 按名称载入预设并更新配置（含所选任务配置）
 		 */
-		loadPreset(name: string) {
+		async loadPreset(name: string) {
 			const 这 = useAppStore();
 			if (name === '默认配置') {
-				return new Promise((resolve) => {
-					这.globalParams = JSON.parse(JSON.stringify(defaultParams));
-					这.presetName = name;
-					这.checkAndApplyCodecDefaults({ video: true, audio: true });
-					resolve(undefined);
-				})
+				这.globalParams = JSON.parse(JSON.stringify(defaultParams));
+				这.presetName = name;
+				这.checkAndApplyCodecDefaults({ video: true, audio: true });
 			} else {
-				return nodeBridge.localStorage.get(`presets.${name}`).then((params) => {
-					if (params) {
-						这.globalParams = params;
-					}
-					这.presetName = name;
-					这.applyParameters('loadPreset');
-				});
+				const params = await nodeBridge.localStorage.get(`presets.${name}`);
+				if (params) {
+					这.globalParams = params;
+				}
+				这.presetName = name;
+				这.applyParameters('loadPreset');
+			}
+			if (这.selectedTask.size > 0) {
+				// 这个操作约等于 applySelectedTask
+				// 主要目的是，当选中了任务更改预设时，全局参数中的输入文件名等信息会被替换，但任务中的不被替换。若马上就修改其他参数，会导致任务中的输入文件名等信息变成全局的
+				const fisrtSelectedTaskId = [...这.selectedTask][0];
+				这.globalParams = replaceOutputParams(这.currentServer.data.tasks[fisrtSelectedTaskId].after, 这.globalParams, true);
 			}
 		},
 		savePreset(name: string) {

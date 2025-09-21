@@ -6,8 +6,11 @@ import { hwaccels, builtInDemuxers, allDemuxers, Demuxer } from '@common/params/
 import { getMenuItemByValue } from '@common/menu';
 import { renderDetailParameters } from './utils';
 import { useAppStore } from '@renderer/stores/appStore';
+import { getLimitaion } from '@renderer/logic/limitaions';
+import { addUploadTask } from '@renderer/logic/transferManager2';
 import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrapper.vue';
 import WaveGrid from '@renderer/components/WaveGrid/WaveGrid.vue';
+import Popup from '@renderer/components/Popup/Popup';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
@@ -193,6 +196,7 @@ const InputView = defineComponent((props: Props) => {
 			inputParams.value.files[index] = nextFile;
 			if (editingIndex.value === index) editingIndex.value++;
 		}
+		appStore.applyParameters();
 	};
 	const handleDragEnter = (event: DragEvent) => {
 		// event.preventDefault();
@@ -221,18 +225,39 @@ const InputView = defineComponent((props: Props) => {
 			}
 		}
 	}
-	const handleDrop = (event: DragEvent) => {
+	const handleDrop = async (event: DragEvent) => {
 		event.preventDefault();
 		draggingStatus.value = undefined;
 		const urls = [];
 		if (event.dataTransfer?.files?.length) {
-			for (const file of event.dataTransfer?.files) {
-				file.path && urls.push(file.path);	// 网页版暂不支持此操作，等后续做资源传输列表相关功能再做
+			if (appStore.currentServer.entity.ip === 'localhost') {
+				for (const file of event.dataTransfer?.files) {
+					file.path && urls.push(file.path);
+				}
+			} else {
+				const firstTaskId = [...appStore.selectedTask][0];
+				if (!isFinite(firstTaskId)) return;
+
+				for (const file of event.dataTransfer?.files) {
+					const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
+					if (file.size > limitedFileSizeGB * 1000 * 1000 * 1000) {
+						Popup({
+							message: `${file.name} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
+							level: 2,
+						});
+						continue;
+					}
+					const inputName = `[uploading] ${file.name}`
+					const uploadFile = await addUploadTask(appStore.currentServer as any, file, firstTaskId, file.name, inputName);
+					appStore.currentServer.data.uploadFiles.push(uploadFile);
+					urls.push(inputName);
+				}
 			}
 		} else if (event.dataTransfer?.items) {
 			const textUrls = event.dataTransfer?.getData('text/plain').replaceAll('\r\n', '\n').split('\n');
 			urls.push(...textUrls.filter((url) => url.length));
 		}
+
 		for (const url of urls) {
 			if (appStore.globalParams.filter.nodes.length) {
 				const nodes = appStore.globalParams.filter.nodes;
@@ -257,6 +282,7 @@ const InputView = defineComponent((props: Props) => {
 				detail: {},
 			});
 		}
+		appStore.applyParameters();
 	};	
 
 	return () => (

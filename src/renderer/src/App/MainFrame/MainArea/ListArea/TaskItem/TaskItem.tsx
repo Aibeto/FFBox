@@ -3,7 +3,7 @@ import { TaskStatus } from '@common/types';
 import { UITask } from '@renderer/types'
 import { getVideoRateControlParam } from '@common/params/vcodecs';
 import { getAudioRateControlParam } from '@common/params/acodecs';
-import { getOutputFileName } from '@common/params/formats';
+import { getOutputFileBaseName } from '@common/params/formats';
 import { useAppStore } from '@renderer/stores/appStore';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import showMenu from '@renderer/components/Menu/Menu';
@@ -352,14 +352,14 @@ export const TaskItem = defineComponent((props: Props) => {
 			nodeBridge.openFile(`"${filePath}"`);
 		} else {
 			// const serverName = appStore.currentServer.data.name;
-			const newFileName = getOutputFileName(props.task.after.outputs[outputIndex].mux, props.task.fileBaseName);
+			const newFileBaseName = getOutputFileBaseName(props.task.after.outputs[outputIndex].mux, props.task.taskName);
 			const url = `http://${bridge.ip}:${bridge.port}/download/${filePath}`;
 			if (nodeBridge.env === 'electron') {
-				nodeBridge.ipcRenderer?.send('downloadFile', { url, finalFileName: newFileName });
+				nodeBridge.ipcRenderer?.send('downloadFile', { url, finalFileBaseName: newFileBaseName });
 				appStore.downloadMap.set(url, appStore.currentServer.data.id);
 			} else {
 				const elem = document.createElement('a');
-				elem.href = `${url}?fileName=${newFileName}`;	// 目前只对浏览器环境添加此参数控制响应的 header。electron 环境会涉及 encodeURI 的操作，因此较方便的做法是分开处理
+				elem.href = `${url}?fileBaseName=${newFileBaseName}`;	// 目前只对浏览器环境添加此参数控制响应的 header。electron 环境会涉及 encodeURI 的操作，因此较方便的做法是分开处理
 				elem.click();
 			}
 		}
@@ -373,7 +373,7 @@ export const TaskItem = defineComponent((props: Props) => {
 	const handleTaskContextMenu = (event: MouseEvent) => {
 		showMenu({
 			menu: [
-				{ type: 'normal', label: props.task.fileBaseName, value: '状态', disabled: true,
+				{ type: 'normal', label: props.task.taskName, value: '状态', disabled: true,
 					icon: [<IconInitializing />, <IconIdle />, <IconIdleQueued />, <IconRunning />, <IconPaused />, <IconPausedQueued />, <IconStopping />, <IconFinished />, <IconError />][
 						[TaskStatus.initializing, TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finished, TaskStatus.error].indexOf(props.task.status)
 					],
@@ -406,7 +406,7 @@ export const TaskItem = defineComponent((props: Props) => {
 				{ type: 'normal' as const, icon: <span>➕</span>, label: '复制任务', value: '复制任务', onClick: () => {
 					const entity = appStore.currentServer.entity;
 					if (entity?.status === ServiceBridgeStatus.Connected) {
-						entity.taskAdd(props.task.fileBaseName, props.task.after);
+						entity.taskAdd(props.task.taskName, props.task.after);
 					}
 				} },
 				...(![TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
@@ -459,7 +459,7 @@ export const TaskItem = defineComponent((props: Props) => {
 		const taskNamePos = taskNameRef.value.getBoundingClientRect();
 		const position = { left: `44px`, top: `${taskNamePos.top}px`, maxWidth: `calc(100% - 88px)` };
 		Tooltip.show({
-			content: props.task.fileBaseName ?? '读取中',
+			content: props.task.taskName ?? '读取中',
 			style: position,
 			class: css.taskNameTip,
 		});
@@ -497,7 +497,7 @@ export const TaskItem = defineComponent((props: Props) => {
 						onMouseenter={handleTaskNameMouseEnter}
 						onMouseleave={() => Tooltip.hide()}
 					>
-						{props.task.fileBaseName ?? '读取中'}
+						{props.task.taskName ?? '读取中'}
 					</div>
 					{settings.showParams && (
 						<div

@@ -40,7 +40,7 @@ export interface FFBoxServiceInterface {
 	initFFmpeg(): void;
 	emitFFmpegInfo(): void;
 	taskAdd(taskName: string, outputParams?: OutputParams): Promise<number>;
-	mergeUploaded(id: number, hashs: string[], fileName: string, inputName?: string): void;
+	mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string): void;
 	setUploadStatus(id: number, isUploading: boolean): void;
 	taskDelete(id: number): void;
 	taskStart(id: number): void;
@@ -236,7 +236,7 @@ export type OutputParams_audio = {
 export type OutputParams_mux = {
 	format: string;
 	moveflags: boolean;
-	filename: string;
+	filePath: string;
 	begin?: string;
 	end?: string;
 	detail: Record<string, any>;
@@ -289,7 +289,7 @@ export type SingleProgressLog = Array<[number, number]>;
  */
 
 export interface Task {
-	fileBaseName: string;
+	taskName: string;
 	before: {
 		format: string;
 		duration: number;
@@ -315,7 +315,7 @@ export interface Task {
 	cmdData: string;
 	errorInfo: Array<string>;
 	// notifications: Array<Notification>;
-	outputFiles: string[];		// 对于本地任务，表示生成文件的绝对路径；对于远程任务，则为 basename（自动生成的字符串） + ext，在 taskAdd 和调节参数之后生成文件名，注意不包含目录。
+	outputFiles: string[];		// 对于本地任务，表示生成文件的绝对路径；对于远程任务，则为 fileName（自动生成的字符串） + ext，在 taskAdd 和调节参数之后生成文件名，注意不包含目录。
 }
 
 export interface ServiceTask extends Task {

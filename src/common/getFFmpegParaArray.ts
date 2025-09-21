@@ -11,16 +11,16 @@ const { trimExt, dirname, basename } = path;
 
 /**
  * 获取命令行参数
- * 如果不提供 outputBaseName 或 outputDir，则自动从 outputParams.input.files[0].filePath 中提取
- * outputBaseName、outputDir 两项目前没有任何地方在使用
+ * 如果不提供 outputFileName 或 outputDir，则自动从 outputParams.input.files[0].filePath 中提取
+ * outputFileName、outputDir 两项目前没有任何地方在使用
  * 如果任务是网络任务，输出路径是 taskName + random + ext，不包含目录（具体输出位置在 taskStart 时才生成给 ffmpeg），此时指定 task.outputFiles 为 overrideFilePath
  */
-export function getFFmpegParaArray(params: { outputParams: OutputParams, withQuotes?: boolean, inputDir?: string, outputBaseName?: string, outputDir?: string, overrideFilePaths?: string[] }) {
+export function getFFmpegParaArray(params: { outputParams: OutputParams, withQuotes?: boolean, inputDir?: string, outputFileName?: string, outputDir?: string, overrideFilePaths?: string[] }) {
 	const ret: Array<string> = [];
-	let { outputParams, withQuotes, inputDir, outputBaseName, outputDir, overrideFilePaths } = params;
+	let { outputParams, withQuotes, inputDir, outputFileName, outputDir, overrideFilePaths } = params;
 
 	const inputFilePath = outputParams.input.files[0]?.filePath;	// 暂时以第一个输入文件定目录
-	outputBaseName = outputBaseName || trimExt(basename(inputFilePath || '[输出文件名]'));	// 暂时以第一个输入文件的 basename 定义输出文件名
+	outputFileName = outputFileName || trimExt(basename(inputFilePath || '[输出文件名]'));	// 暂时以第一个输入文件的 fileName 定义输出文件名
 	outputDir = outputDir || dirname(inputFilePath || '[输出目录]');
 	
 	ret.push('-hide_banner');
@@ -57,13 +57,13 @@ export function getFFmpegParaArray(params: { outputParams: OutputParams, withQuo
 				// 至少需要有连线才能输出
 				ret.push(...getVideoFFmpegParam(outputParams.outputs[outputIndex].video));
 				ret.push(...getAudioFFmpegParam(outputParams.outputs[outputIndex].audio));
-				ret.push(...getMuxFFmpegParam(outputParams.outputs[outputIndex].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[outputIndex]));
+				ret.push(...getMuxFFmpegParam(outputParams.outputs[outputIndex].mux, outputDir, outputFileName, withQuotes, overrideFilePaths?.[outputIndex]));
 			}
 		}
 	} else {
 		ret.push(...getVideoFFmpegParam(outputParams.outputs[0].video));
 		ret.push(...getAudioFFmpegParam(outputParams.outputs[0].audio));
-		ret.push(...getMuxFFmpegParam(outputParams.outputs[0].mux, outputDir, outputBaseName, withQuotes, overrideFilePaths?.[0]));
+		ret.push(...getMuxFFmpegParam(outputParams.outputs[0].mux, outputDir, outputFileName, withQuotes, overrideFilePaths?.[0]));
 	}
 	ret.push('-y');
 	return ret;
@@ -77,7 +77,7 @@ export function genTaskOutputFiles(outputParams: OutputParams, remoteDownloadDir
 	// 本地任务：取第一个输入文件路径作为输出 basename（若没有输入文件则使用占位符）
 	const inputFilePath = outputParams.input.files[0]?.filePath || '[输出文件名]';
 	let localOutputDir = dirname(inputFilePath || '[输出目录]');
-    let localOutputBaseName = trimExt(basename(inputFilePath));
+    let localOutputFileName = trimExt(basename(inputFilePath));
 
     return outputParams.outputs.map((output) => {
         let extension = '';
@@ -96,11 +96,11 @@ export function genTaskOutputFiles(outputParams: OutputParams, remoteDownloadDir
 			const filename = extension ? `${randomBase}.${extension}` : randomBase;
 			return `${remoteDownloadDir ? remoteDownloadDir + '/' : ''}${filename}`;
 		} else {
-			let outputFileName = output.mux.filename;
-			outputFileName = outputFileName.replace(/\[filedir\]/g, localOutputDir);
-			outputFileName = outputFileName.replace(/\[filebasename\]/g, localOutputBaseName);
-			outputFileName = outputFileName.replace(/\[fileext\]/g, extension);
-			return outputFileName;
+			let outputFilePath = output.mux.filePath;
+			outputFilePath = outputFilePath.replace(/\[filedir\]/g, localOutputDir);
+			outputFilePath = outputFilePath.replace(/\[filename\]/g, localOutputFileName);
+			outputFilePath = outputFilePath.replace(/\[fileext\]/g, extension);
+			return outputFilePath;
 		}
     });
 }

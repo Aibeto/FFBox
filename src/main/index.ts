@@ -19,7 +19,7 @@ class ElectronApp {
 	// electronStore: ElectronStore;
 	service: ProcessInstance | null = null;
 	blockWindowClose = true;
-	downloadMap: Map<string, { item?: Electron.DownloadItem, finalFileName?: string, createTime?: number, modifyTime?: number }> = new Map();
+	downloadMap: Map<string, { item?: Electron.DownloadItem, finalFileBaseName?: string, createTime?: number, modifyTime?: number }> = new Map();
 
 	constructor() {
 		this.mountAppEvents();
@@ -145,7 +145,7 @@ class ElectronApp {
 			if (!map || map?.item) return;
 			map.item = item;
 
-			item.setSaveDialogOptions({ defaultPath: map.finalFileName });
+			item.setSaveDialogOptions({ defaultPath: map.finalFileBaseName });
 			// item.setSavePath(folderpath + `\\${item.getFilename()}`);	// 设置文件存放位置
 			mainWindow.webContents.send('downloadStatusChange', { url: url, status: 'started' });
 			item.on('updated', (event, state) => {
@@ -419,10 +419,10 @@ class ElectronApp {
 		 * 下载过程持续向渲染进程发送 downloadProgress
 		 * 下载完成后再次发送 downloadStatusChange 信号，告知主窗口改变 UI
 		 */
-		ipcMain.on('downloadFile', (_event, params: { url: string; finalFileName?: string; createTime?: number, modifyTime?: number }) => {
+		ipcMain.on('downloadFile', (_event, params: { url: string; finalFileBaseName?: string; createTime?: number, modifyTime?: number }) => {
 			console.log('发动下载请求：', params.url);
-			const { finalFileName, createTime, modifyTime } = params;
-			this.downloadMap.set(params.url, { finalFileName, createTime, modifyTime });
+			const { finalFileBaseName, createTime, modifyTime } = params;
+			this.downloadMap.set(params.url, { finalFileBaseName, createTime, modifyTime });
 			this.mainWindow!.webContents.downloadURL(params.url);
 		});
 

@@ -268,9 +268,9 @@ export function randomString(length = 6, dictionary = 'abcdefghijklmnopqrstuvwxy
 
 // #region 任务转换区
 
-export function getInitialTask(fileBaseName: string, outputParams?: OutputParams): Task {
+export function getInitialTask(fileName: string, outputParams?: OutputParams): Task {
 	const task: Task = {
-		fileBaseName: fileBaseName,
+		taskName: fileName,
 		before: {
 			format: '读取中',
 			duration: NaN,
@@ -309,7 +309,7 @@ export function getInitialTask(fileBaseName: string, outputParams?: OutputParams
 					mux: {
 						format: '',
 						moveflags: false,
-						filename: '',
+						filePath: '',
 						detail: {},
 					},
 				}
@@ -410,7 +410,7 @@ export function getOutputDuration(task: Task): number {
  */
 export function convertAnyTaskToTask(task: ServiceTask | UITask): Task {
 	return {
-		fileBaseName: task.fileBaseName,
+		taskName: task.taskName,
 		before: task.before,
 		after: task.after,
 		paraArray: task.paraArray,

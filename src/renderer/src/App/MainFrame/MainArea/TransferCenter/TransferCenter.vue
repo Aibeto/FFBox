@@ -18,7 +18,7 @@ const uploadFileList = computed(() => {
 	// const tasks = appStore.currentServer?.data.tasks || [];
 	const serverUploadFiles = appStore.currentServer?.data.uploadFiles || [];
 	return serverUploadFiles.map((serverUploadFile) => ({
-		fileName: serverUploadFile.fileName,
+		fileBaseName: serverUploadFile.fileBaseName,
 		taskId: serverUploadFile.taskId,
 		isCurrentTask: appStore.selectedTask.has(serverUploadFile.taskId),
 		status: serverUploadFile.status,
@@ -135,7 +135,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						class="listItem" :class="selectedFileIndex === index ? 'listItemSelected' : undefined"
 						:style="file.isCurrentTask ? {} : (showAllTaskFiles ? { opacity: 0.6 } : { display: 'none' })"
 						@click="handleFileClick(file as any, index)"
-						v-bind="useTooltip(`文件名：${file.fileName}\n大小：${file.size}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`)"
+						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${file.size}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`)"
 					>
 						<div class="progress">
 							<div :style="{
@@ -148,7 +148,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 							/>
 						</div>
 						<IconUpload />
-						<span>{{ file.fileName }}</span>
+						<span>{{ file.fileBaseName }}</span>
 					</div>
 					<div
 						v-for="(file, index) in downloadFileList"

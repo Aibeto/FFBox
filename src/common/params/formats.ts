@@ -383,7 +383,7 @@ export const keepFileTimeList: NarrowedMenuItem[] = [
 /**
  * 获取输出参数的命令行（对每个输出均需调用一次）
  */
-export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, filebasename: string, withQuotes = false, overrideFilePath: string) {
+export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, fileName: string, withQuotes = false, overrideFilePath: string) {
 	let ret = [];
 	if (muxParams.format.length && muxParams.format !== '无') {
 		let formatItem = getMenuItemByValue(builtInMuxers, muxParams.format) as any;
@@ -398,7 +398,7 @@ export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, 
 			if (match?.[2] && (getMenuItemByValue(builtInMuxers, match[1]) || getMenuItemByValue(allMuxers, match[1]))) {
 				needExplicitMuxer = true;
 			}
-			if (!muxParams.filename.includes('[fileext]') || needExplicitMuxer) {
+			if (!muxParams.filePath.includes('[fileext]') || needExplicitMuxer) {
 				// 指定格式但没扩展名的情况下，或者在格式列表里具有不带括号的同名复用器（比如 image2 中的各种重名复用器），需要手动指定 muxer
 				ret.push('-f');
 				ret.push(match?.[2] ?? muxParams.format);	// -f 后需要指定的是 muxer 而不是扩展名，除非扩展名和 muxer 一致
@@ -433,7 +433,7 @@ export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, 
 		} else {
 			// 用户手动输入的格式
 			extension = muxParams.format;
-			if (!muxParams.filename.includes('[fileext]')) {
+			if (!muxParams.filePath.includes('[fileext]')) {
 				ret.push('-f');
 				ret.push(muxParams.format);
 			}
@@ -464,19 +464,19 @@ export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, 
 				ret.push('use_metadata_tags');
 			}
 		}
-		let outputFileName;
+		let outputFilePath;
 		if (overrideFilePath) {
-			outputFileName = overrideFilePath;
+			outputFilePath = overrideFilePath;
 		} else {
-			outputFileName = muxParams.filename;
-			outputFileName = outputFileName.replace(/\[filedir\]/g, filedir);
-			outputFileName = outputFileName.replace(/\[filebasename\]/g, filebasename);
-			outputFileName = outputFileName.replace(/\[fileext\]/g, extension);
+			outputFilePath = muxParams.filePath;
+			outputFilePath = outputFilePath.replace(/\[filedir\]/g, filedir);
+			outputFilePath = outputFilePath.replace(/\[filename\]/g, fileName);
+			outputFilePath = outputFilePath.replace(/\[fileext\]/g, extension);
 		}
 		if (withQuotes) {
-			outputFileName = '"' + outputFileName + '"';
+			outputFilePath = '"' + outputFilePath + '"';
 		}
-		ret.push(outputFileName);
+		ret.push(outputFilePath);
 	} else {
 		ret.push('-f')
 		ret.push('null')
@@ -542,7 +542,7 @@ export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes 
  * 获取不包含目录信息的输出文件名
  * 用于前端在下载时恢复输出文件名信息
  */
-export function getOutputFileName(muxParams: OutputParams_mux, baseName: string) {
+export function getOutputFileBaseName(muxParams: OutputParams_mux, fileName: string) {
 	let extension = '';
 
 	if (muxParams.format?.length && muxParams.format !== '无') {
@@ -553,10 +553,10 @@ export function getOutputFileName(muxParams: OutputParams_mux, baseName: string)
 		extension = formatItem ? (formatItem.value as string).match(/(.+) \(.+\)/)?.[1] || formatItem.value : muxParams.format;
 	}
 
-	let outputFileName = muxParams.filename;
-	outputFileName = outputFileName.replace(/\[filedir\]/g, '');
-	outputFileName = outputFileName.replace(/\[filebasename\]/g, baseName);
-	outputFileName = outputFileName.replace(/\[fileext\]/g, extension);
-	outputFileName = outputFileName.replace(/^[/\\]+/, "");	// 去除开头斜杠
-	return outputFileName;
+	let outputFilePath = muxParams.filePath;
+	outputFilePath = outputFilePath.replace(/\[filedir\]/g, '');
+	outputFilePath = outputFilePath.replace(/\[filename\]/g, fileName);
+	outputFilePath = outputFilePath.replace(/\[fileext\]/g, extension);
+	outputFilePath = outputFilePath.replace(/^[/\\]+/, "");	// 去除开头斜杠
+	return outputFilePath;
 }

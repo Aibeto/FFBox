@@ -1498,7 +1498,7 @@ const EffectView = defineComponent((props: Props) => {
 							视频编码器：{appStore.globalParams.outputs[outputNodeIndex].video.vcodec}<br />
 							音频编码器：{appStore.globalParams.outputs[outputNodeIndex].audio.acodec}<br />
 							封装格式：{appStore.globalParams.outputs[outputNodeIndex].mux.format}<br />
-							输出路径：{appStore.globalParams.outputs[outputNodeIndex].mux.filename}<br />
+							输出路径：{appStore.globalParams.outputs[outputNodeIndex].mux.filePath}<br />
 							请在相应面板中更改输出文件设定
 						</div>
 					)

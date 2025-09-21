@@ -83,7 +83,7 @@ const MuxView = defineComponent((props: Props) => {
 				<>
 					<BoxedDropdownInput title="元数据保留" text={muxParams.value.keepMetadata || '无'} list={keepMeatadataList} onChange={(value: any) => handleChange('keepMetadata', value)} />
 					<BoxedDropdownInput title="文件时间保留" description='FFBox 特色功能，对产出文件进行文件时间修改。对远程服务器任务暂不生效' text={muxParams.value.keepFileTime || '无'} list={keepFileTimeList} onChange={(value: any) => handleChange('keepFileTime', value)} />
-					<BoxedNormalInput title="输出文件名" value={muxParams.value.filename} onChange={(value: string) => handleChange('filename', value)} long={true} placeholder="[filedir]：文件所在目录；[filebasename]：文件基础名；[fileext]：文件扩展名" validator={notEmptyValidator} />
+					<BoxedNormalInput title="输出路径" value={muxParams.value.filePath} onChange={(value: string) => handleChange('filePath', value)} long={true} placeholder="[filedir]：文件所在目录；[filename]：文件基础名；[fileext]：文件扩展名" validator={notEmptyValidator} />
 				</>
 			)}
 			<BoxedNormalInput title="自定义参数" value={muxParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />

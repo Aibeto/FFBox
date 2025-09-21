@@ -24,7 +24,7 @@ export interface UITask extends Task {
 
 export interface UploadFile {
 	taskId: number;
-	fileName: string;
+	fileBaseName: string;
 	chunks: UploadChunk[];
 	url?: string;	// 使用字符串输入
 	blob?: File;	// 拖入文件输入
