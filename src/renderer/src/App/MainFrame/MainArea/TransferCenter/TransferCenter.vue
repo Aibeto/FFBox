@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { UploadFile } from '@renderer/types';
 import { useAppStore } from '@renderer/stores/appStore';
+import { formatSize } from '@common/utils';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import IconUpArrow from '../Parabox/uparrow.svg?component';
 import Checkbox from '@renderer/components/Checkbox/Checkbox.vue';
@@ -135,7 +136,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						class="listItem" :class="selectedFileIndex === index ? 'listItemSelected' : undefined"
 						:style="file.isCurrentTask ? {} : (showAllTaskFiles ? { opacity: 0.6 } : { display: 'none' })"
 						@click="handleFileClick(file as any, index)"
-						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${file.size}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`)"
+						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${formatSize(file.size, appStore.frontendSettings.useIEC)}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`)"
 					>
 						<div class="progress">
 							<div :style="{

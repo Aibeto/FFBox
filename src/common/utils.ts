@@ -6,27 +6,13 @@ import { UITask } from '@renderer/types';
 import { deleteNode } from './params/filter';
 
 /**
- * 传入 "xxx kbps"，返回比特率（Kbps）
- */
-export function getKbpsValue(text: string): number {
-	return parseInt(text.slice(0, -5));
-}
-
-/**
- * 传入比特率（Kbps），返回 "xxx kbps" 或 "xxx Mbps"
- */
-export function getFormattedBitrate(Kbps: number): string {
-	return Kbps < 1000 ? Kbps + ' kbps' : (Kbps / 1000).toFixed(1) + ' Mbps';
-}
-
-/**
  * 传入秒数，返回 --:--:--.--
  */
-export function stringifyTimeValue(timeValue: number): string {
-	if (!isNaN(timeValue) && timeValue !== -1) {
-		const Hour = Math.floor(timeValue / 3600);
-		const Minute = Math.floor((timeValue - Hour * 3600) / 60);
-		const Second = timeValue - Hour * 3600 - Minute * 60;
+export function formatTimeToFFmpegStyle(second: number): string {
+	if (!isNaN(second) && second !== -1) {
+		const Hour = Math.floor(second / 3600);
+		const Minute = Math.floor((second - Hour * 3600) / 60);
+		const Second = second - Hour * 3600 - Minute * 60;
 		return ('0' + Hour).slice(-2) + ':' + ('0' + Minute).slice(-2) + ':' + ('0' + Second.toFixed(2)).slice(-5);
 	} else {
 		return '时长未知';
@@ -65,6 +51,37 @@ export function parseTimeString(timeString: string): number {
 		return Number(timeString);
 	}
 	return -1;
+}
+
+/**
+ * 将字节大小转换为人类可读数字
+ */
+export function formatSize(B: number, useIEC?: boolean) {
+	if (useIEC) {
+		if (B >= 10 * 1024 ** 3) {
+			return (B / 1024 ** 3).toFixed(1) + ' GiB';
+		} else if (B >= 1024 ** 3) {
+			return (B / 1024 ** 3).toFixed(2) + ' GiB';
+		} else if (B >= 100 * 1024 ** 2) {
+			return (B / 1024 ** 2).toFixed(0) + ' MiB';
+		} else if (B >= 10 * 1024 ** 2) {
+			return (B / 1024 ** 2).toFixed(1) + ' MiB';
+		} else {
+			return (B / 1024 ** 2).toFixed(2) + ' MiB';
+		}
+	} else {
+		if (B >= 10 * 1000 ** 3) {
+			return (B / 1000 ** 3).toFixed(1) + ' GB';
+		} else if (B >= 1000 ** 3) {
+			return (B / 1000 ** 3).toFixed(2) + ' GB';
+		} else if (B >= 100 * 1000 ** 2) {
+			return (B / 1000 ** 2).toFixed(0) + ' MB';
+		} else if (B >= 10 * 1000 ** 2) {
+			return (B / 1000 ** 2).toFixed(1) + ' MB';
+		} else {
+			return (B / 1000 ** 2).toFixed(2) + ' MB';
+		}
+	}
 }
 
 // #endregion

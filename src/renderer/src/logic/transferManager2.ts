@@ -120,13 +120,18 @@ const hashWorkerRunningList: boolean[] = [];
  */
 export async function addUploadTask(server: Server, input: string | File, taskId: number, fileBaseName: string, inputName: string) {
 	let fileSize = 0;
+	let accessTime = 0, createTime = 0, modifyTime = 0;
 	if (typeof input === 'string') {
 		const stats = await nodeBridge.getLocalFileStats(input);
 		if (stats) {
 			fileSize = stats.size;
+			accessTime = stats.atime.getTime();
+			createTime = stats.birthtime.getTime();
+			modifyTime = stats.mtime.getTime();
 		}
 	} else {
 		fileSize = input.size;
+		modifyTime = input.lastModified;
 	}
 	if (fileSize === 0) {
 		throw new Error('无法获取文件大小，上传失败');
@@ -269,14 +274,15 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 				hashs: [`${fileBaseName}⬝${fileHash}`],	// 与服务器 mergeUploaded 的文件名逻辑保持相同
 			}),
 			headers: new Headers({
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${server.entity.sessionId}`,
 			}),
 		});
 		const responseText = await response.text();
 		let content = JSON.parse(responseText) as number[];
 		if (content[0] % 2) {
 			console.log(fileBaseName, '已缓存');
-			server.entity.mergeUploaded(taskId, file.chunks.map((chunk) => chunk.hash), fileBaseName, inputName);
+			server.entity.mergeUploaded(taskId, file.chunks.map((chunk) => chunk.hash), fileBaseName, inputName, { accessTime, createTime, modifyTime });
 			const taskUpdateHandler = (arg: { taskId: number }) => {
 				if (arg.taskId === taskId) {
 					server.entity.off('taskUpdate', taskUpdateHandler);
@@ -346,6 +352,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 								};
 								xhr.open('post', `http://${server.entity.ip}:${server.entity.port}/upload/file/`, true);
 								// xhr.setRequestHeader('Content-Type', 'multipart/form-data');
+								xhr.setRequestHeader('Authorization', `Bearer ${server.entity.sessionId}`);
 								xhr.send(form);
 							});
 							chunk.status = 'finished';
@@ -377,7 +384,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					// 全部上传完成
 					console.log(`【${file.fileBaseName}】文件上传完成`);
 					file.status = 'finished';
-					server.entity.mergeUploaded(file.taskId, file.chunks.map((chunk) => chunk.hash), file.fileBaseName, inputName);
+					server.entity.mergeUploaded(file.taskId, file.chunks.map((chunk) => chunk.hash), file.fileBaseName, inputName, { accessTime, createTime, modifyTime });
 					const taskUpdateHandler = (arg: { taskId: number }) => {
 						if (arg.taskId === taskId) {
 							server.entity.off('taskUpdate', taskUpdateHandler);

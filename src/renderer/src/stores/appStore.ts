@@ -319,14 +319,9 @@ export const useAppStore = defineStore('app', {
 		 */
 		updateTaskList(server: Server) {
 			const 这 = useAppStore();
-			fetch(`http://${server.entity.ip}:${server.entity.port}/task`, {
-				method: 'get',
-			}).then((response) => {
-				response.text().then((text) => {
-					let content = JSON.parse(text) as number[];
-					handleTasklistUpdate(server, content);
-					这.recalcChangedParams();
-				});
+			server.entity.getTaskList().then((content) => {
+				handleTasklistUpdate(server, content);
+				这.recalcChangedParams();
 			});
 		},
 		/**
@@ -334,14 +329,9 @@ export const useAppStore = defineStore('app', {
 		 */
 		updateTask(server: Server, taskId: number) {
 			const 这 = useAppStore();
-			fetch(`http://${server.entity.ip}:${server.entity.port}/task/${taskId}`, {
-				method: 'get',
-			}).then((response) => {
-				response.text().then((text) => {
-					let content = JSON.parse(text);
-					handleTaskUpdate(server, taskId, content);
-					这.recalcChangedParams();
-				});
+			server.entity.getTask(taskId).then((content) => {
+				handleTaskUpdate(server, taskId, content);
+				这.recalcChangedParams();
 			});
 		},
 		/**
@@ -607,19 +597,15 @@ export const useAppStore = defineStore('app', {
 			const 这 = useAppStore();
 			const entity = 这.currentServer?.entity;
 			if (entity?.status === ServiceBridgeStatus.Connected) {
-				fetch(`http://${entity.ip}:${entity.port}/AVOptions`, {
-					method: 'get',
-				}).then((response) => {
-					response.json().then((result: { codecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }, formats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[] }, filters: FFmpegFilterDetail[] }) => {
-						parseFFmpegCodecsToCodecsList(result.codecs);
-						parseFFmpegFiltersToFiltersList(result.filters);
-						parseFFmpegMuDeMuxersToList(result.formats);
-						nodeBridge.localStorage.set('ffmpegCodecs', result.codecs);
-						nodeBridge.localStorage.set('ffmpegFormats', result.formats);
-						nodeBridge.localStorage.set('ffmpegFilters', result.filters);
-						Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.formats.demuxer.length} 个解复用器、${result.formats.muxer.length} 个复用器、${result.filters.length} 个滤镜`, level: NotificationLevel.ok });
-						window?.dispatchEvent(new CustomEvent('finished-fetch-codecs'));
-					});
+				entity.getAVOptions().then((result: { codecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }, formats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[] }, filters: FFmpegFilterDetail[] }) => {
+					parseFFmpegCodecsToCodecsList(result.codecs);
+					parseFFmpegFiltersToFiltersList(result.filters);
+					parseFFmpegMuDeMuxersToList(result.formats);
+					nodeBridge.localStorage.set('ffmpegCodecs', result.codecs);
+					nodeBridge.localStorage.set('ffmpegFormats', result.formats);
+					nodeBridge.localStorage.set('ffmpegFilters', result.filters);
+					Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.formats.demuxer.length} 个解复用器、${result.formats.muxer.length} 个复用器、${result.filters.length} 个滤镜`, level: NotificationLevel.ok });
+					window?.dispatchEvent(new CustomEvent('finished-fetch-codecs'));
 				});
 			} else {
 				Popup({ message: '请先连接当前标签的服务器', level: NotificationLevel.error });
@@ -632,13 +618,9 @@ export const useAppStore = defineStore('app', {
 		 */
 		updateNotifications(server: Server) {
 			const 这 = useAppStore();
-			fetch(`http://${server.entity.ip}:${server.entity.port}/notification`, {
-				method: 'get',
-			}).then((response) => {
-				response.text().then((text) => {
-					let content = JSON.parse(text);
-					server.data.notifications = content;
-				});
+			const entity = 这.currentServer?.entity;
+			entity.getNotifications().then((result) => {
+				server.data.notifications = result;
 			});
 		},
 		pushMsg(message: string, level: NotificationLevel) {
@@ -664,36 +646,38 @@ export const useAppStore = defineStore('app', {
 			const 这 = useAppStore();
 			Promise.all([
 				fetch(`http://${server.entity.ip}:${server.entity.port}/version`, { method: 'get' }),
-				fetch(`http://${server.entity.ip}:${server.entity.port}/properties`, { method: 'get' }),
-				fetch(`http://${server.entity.ip}:${server.entity.port}/workingStatus`, { method: 'get' }),
-			]).then(([versionResponse, propertiesResponse, workingStatusResponse]) => {
+				server.entity.getProperties(),
+				server.entity.getWorkingStatus(),
+			]).then(([versionResponse, properties, workingStatus]) => {
 				versionResponse.text().then((text) => {
 					server.data.version = text;
-					if (['3.0', '4.0', '4.1', '4.2'].includes(text)) {
+					if (['3.0', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5', '5.0'].includes(text)) {
 						// 4.3 版本更新了任务管理方式
+						// 5.0 版本更新了任务参数数据结构
+						// 5.1 版本更新了任务名
 						Popup({ message: `服务器版本 ${text} 与客户端版本 ${version} 不兼容，请更换服务器或客户端`, level: NotificationLevel.warning });
 					} else if (text !== version) {
 						Popup({ message: `服务器版本 ${text} 与客户端版本不匹配，可能会导致部分操作异常，请谨慎操作`, level: NotificationLevel.warning });
 					}
 				});
-				propertiesResponse.json().then((obj) => {
-					server.data.os = obj.os;
-					server.data.isSandboxed = obj.isSandboxed;
-					server.data.machineId = obj.machineId;
 
-					// 自动激活前端
-					if (server.entity.ip === 'localhost') {
-						nodeBridge.localConfig.get('userInfo.activationCode').then((value) => {
-							const result = 这.activate(value, true);
-							console.log('激活结果', result);
-						});					
-					}
-				});
-				workingStatusResponse.text().then((text) => {
-					if (text === WorkingStatus.idle || text === WorkingStatus.running) {
-						server.data.workingStatus = text;
-					}
-				});
+				// properties
+				server.data.os = properties.os;
+				server.data.isSandboxed = properties.isSandboxed;
+				server.data.machineId = properties.machineId;
+
+				// 自动激活前端
+				if (server.entity.ip === 'localhost') {
+					nodeBridge.localConfig.get('userInfo.activationCode').then((value) => {
+						const result = 这.activate(value, true);
+						console.log('激活结果', result);
+					});					
+				}
+
+				// workingStatus
+				if (workingStatus === WorkingStatus.idle || workingStatus === WorkingStatus.running) {
+					server.data.workingStatus = workingStatus;
+				}
 			});
 		},
 		/**

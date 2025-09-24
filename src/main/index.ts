@@ -1,4 +1,4 @@
-import { app, dialog, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import { app, dialog, BrowserWindow, ipcMain, Menu, session, shell } from 'electron';
 // import ElectronStore from 'electron-store';
 import { exec, spawn, SpawnOptions } from 'child_process';
 import path from 'path';
@@ -19,7 +19,7 @@ class ElectronApp {
 	// electronStore: ElectronStore;
 	service: ProcessInstance | null = null;
 	blockWindowClose = true;
-	downloadMap: Map<string, { item?: Electron.DownloadItem, finalFileBaseName?: string, createTime?: number, modifyTime?: number }> = new Map();
+	downloadMap: Map<string, { item?: Electron.DownloadItem, finalFileBaseName?: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number } }> = new Map();
 
 	constructor() {
 		this.mountAppEvents();
@@ -173,8 +173,9 @@ class ElectronApp {
 					// 	finalPath = path.resolve(destDir, map.finalFileName);
 					// 	await fs.rename(destPath, finalPath);
 					// }
-					if (map.createTime || map.modifyTime) {
-						utimes(finalPath, { btime: map.createTime || undefined, mtime: map.modifyTime || undefined });
+					if (map.fileTime) {
+						const { accessTime, createTime, modifyTime } = map.fileTime;
+						utimes(finalPath, { atime: accessTime || undefined, btime: createTime || undefined, mtime: modifyTime || undefined });
 					}
 				}
 				this.downloadMap.delete(url);
@@ -419,10 +420,14 @@ class ElectronApp {
 		 * 下载过程持续向渲染进程发送 downloadProgress
 		 * 下载完成后再次发送 downloadStatusChange 信号，告知主窗口改变 UI
 		 */
-		ipcMain.on('downloadFile', (_event, params: { url: string; finalFileBaseName?: string; createTime?: number, modifyTime?: number }) => {
+		ipcMain.on('downloadFile', (_event, params: { url: string; sessionId: string; finalFileBaseName?: string; fileTime?: any }) => {
 			console.log('发动下载请求：', params.url);
-			const { finalFileBaseName, createTime, modifyTime } = params;
-			this.downloadMap.set(params.url, { finalFileBaseName, createTime, modifyTime });
+			const { finalFileBaseName, fileTime } = params;
+			this.downloadMap.set(params.url, { finalFileBaseName, fileTime });
+			session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+				details.requestHeaders['Authorization'] = `Bearer ${params.sessionId}`;
+				callback({ requestHeaders: details.requestHeaders });
+			});
 			this.mainWindow!.webContents.downloadURL(params.url);
 		});
 

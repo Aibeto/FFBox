@@ -24,7 +24,7 @@ const serverStyle = computed(() => {
 		const obj = {
 			colorStyle: { width: hasUndoneWork ? `${server.data.progress * 100}%` : '0%' },
 			text: server.data.name + (hasUndoneWork ? ` (${(server.data.progress * 100).toFixed(0)}%)` : ''),
-			status: hasUndoneWork ? (server.data.workingStatus === WorkingStatus.running ? 'running' : 'paused') : 'idle',
+			status: hasUndoneWork ? (server.data.workingStatus === WorkingStatus.running ? 'running' : 'paused') as any : 'idle',
 		};
 		map[server.data.id] = obj;
 	}
@@ -75,18 +75,18 @@ const handleTabContextMenu = (event: MouseEvent, server: Server) => {
 	showMenu({
 		menu: [
 			...(server.entity.status === ServiceBridgeStatus.Idle ? [
-				{ type: 'normal', label: '未连接', value: '未连接', disabled: true },
+				{ type: 'normal' as const, label: '未连接', value: '未连接', disabled: true },
 			] : []),
 			...(server.entity.status !== ServiceBridgeStatus.Idle ? [
-				{ type: 'normal', label: `${server.entity.ip}:${server.entity.port}`, value: 'ipport', disabled: true },
+				{ type: 'normal' as const, label: `${server.entity.ip}:${server.entity.port}`, value: 'ipport', disabled: true },
 			] : []),
 			...(server.entity.ip !== 'localhost' && appStore.servers.length > 1 ? [
-				{ type: 'separator' },
-				{ type: 'normal', label: server.entity.status === ServiceBridgeStatus.Idle ? '关闭' : '断开连接并关闭', value: '断开连接并关闭', onClick: () => handleTabCloseClicked(server.data.id, event) },
+				{ type: 'separator' as const },
+				{ type: 'normal' as const, label: server.entity.status === ServiceBridgeStatus.Idle ? '关闭' : '断开连接并关闭', value: '断开连接并关闭', onClick: () => handleTabCloseClicked(server, event) },
 			] : []),
 			...(server.entity.ip === 'localhost' ? [
-				{ type: 'separator' },
-				{ type: 'normal', label: '服务器配置', value: '服务器配置', disabled: server.entity.status !== ServiceBridgeStatus.Connected, onClick: () => showServerConfig(server.data.id) },
+				{ type: 'separator' as const },
+				{ type: 'normal' as const, label: '服务器配置', value: '服务器配置', disabled: server.entity.status !== ServiceBridgeStatus.Connected, onClick: () => showServerConfig(server.data.id) },
 			] : []),
 		],
 		type: 'action',
@@ -114,14 +114,14 @@ const handleTabCloseClicked = (server: Server, event: MouseEvent) => {
 					:key="server.data.id"
 					class="tabWrapper"
 					@click="handleTabClicked(server.data.id)"
-					@mouseup="handleTabMouseUp(server, $event)"
-					@contextmenu="handleTabContextMenu($event, server)"
+					@mouseup="handleTabMouseUp(server as Server, $event)"
+					@contextmenu="handleTabContextMenu($event, server as Server)"
 				>
 					<div class="tab" :class="appStore.currentServerId === server.data.id ? 'selected' : 'unselected'">
 						<div class="progress progress-green" :style="{...serverStyle[server.data.id].colorStyle, opacity: serverStyle[server.data.id].status === 'running' ? 1 : 0}" />
 						<div class="progress progress-yellow" :style="{...serverStyle[server.data.id].colorStyle, opacity: serverStyle[server.data.id].status === 'paused' ? 1 : 0}" />
 						<span>{{ serverStyle[server.data.id].text }}</span>
-						<div class="close" v-if="server.entity.ip !== 'localhost' && appStore.servers.length > 1" @click="handleTabCloseClicked(server, $event)">
+						<div class="close" v-if="server.entity.ip !== 'localhost' && appStore.servers.length > 1" @click="handleTabCloseClicked(server as Server, $event)">
 							<IconX />
 						</div>
 					</div>

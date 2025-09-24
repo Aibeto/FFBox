@@ -432,36 +432,46 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	/**
-	 * 新增任务时调用 FFmpeg 获取输入文件信息
-	 * 多输入任务不调用此函数
+	 * 新增任务时调用 FFmpeg 获取输入文件信息、文件时间（仅本地模式在此处读取时间，远程模式在 mergeUploaded 接收时间）
 	 */
-	private getFileMetadata(id: number, task: ServiceTask, filePath: string): void {
+	private getFileMetadata(id: number, task: ServiceTask, filePath: string): [Promise<any>, Promise<any>] {
 		// FFmpeg 读取媒体信息
 		log.info(`[任务 ${id}] 读取输入媒体信息。`);
-		const ffmpeg = new FFmpeg(this.ffmpegPath, 2, ['-hide_banner', '-i', task.remoteTask ? `${os.tmpdir()}/FFBoxUploadCache/${filePath}` : filePath, '-f', 'null']);
-		ffmpeg.on('data', ({ content }) => {
-			this.setCmdText(id, content);
+		const realFilePath = task.remoteTask ? `${os.tmpdir()}/FFBoxUploadCache/${filePath}` : filePath;
+		const promise1 = new Promise((resolve) => {
+			const ffmpeg = new FFmpeg(this.ffmpegPath, 2, ['-hide_banner', '-i', realFilePath, '-f', 'null']);
+			ffmpeg.on('data', ({ content }) => {
+				this.setCmdText(id, content);
+			});
+			ffmpeg.on('metadata', ({ content: input }) => {
+				task.before.format = input.format || '-';
+				task.before.duration = parseInt(input.duration || '-1');
+				task.before.vcodec = input.vcodec || '-';
+				task.before.vresolution = (input.vresolution && input.vresolution.replace('x', '<br />')) || '-';
+				task.before.vbitrate = parseInt(input.vbitrate || '-1');
+				task.before.vframerate = parseInt(input.vframerate || '-1');
+				task.before.acodec = input.acodec || '-';
+				task.before.abitrate = parseInt(input.abitrate || '-1');
+				resolve(0);
+			});
+		})
+		const promise2 = new Promise(async (resolve) => {
+			if (!task.remoteTask) {
+				try {
+					await fsPromise.access(realFilePath, fs.constants.R_OK);
+					const { atime, birthtime, mtime } = fs.statSync(realFilePath);
+					task.before.accessTime = atime.getTime();
+					task.before.createTime = birthtime.getTime();
+					task.before.modifyTime = mtime.getTime();
+				} finally {
+					resolve(0);
+				}
+			}
+			resolve(0);
+
 		});
-		ffmpeg.on('metadata', ({ content: input }) => {
-			task.before.format = input.format || '-';
-			task.before.duration = parseInt(input.duration || '-1');
-			task.before.vcodec = input.vcodec || '-';
-			task.before.vresolution = (input.vresolution && input.vresolution.replace('x', '<br />')) || '-';
-			task.before.vbitrate = parseInt(input.vbitrate || '-1');
-			task.before.vframerate = parseInt(input.vframerate || '-1');
-			task.before.acodec = input.acodec || '-';
-			task.before.abitrate = parseInt(input.abitrate || '-1');
-			this.emitTaskUpdate(id, task);
-		});
-		// 从 5.0 开始支持特殊输入，此情况下并不能直接使用自动解复用器读取媒体信息，此时会报错
-		// ffmpeg.on('closed', (errorCode, errors, runningResult) => {
-		// 	if (errors.length) {
-		// 		this.setNotification(id, filePath + '：' + [...errors].join(''), NotificationLevel.warning);
-		// 		setTimeout(() => {
-		// 			this.taskDelete(id);
-		// 		}, 100);
-		// 	}
-		// });
+		Promise.allSettled([promise1, promise2]).then(() => this.emitTaskUpdate(id, task));
+		return [promise1, promise2];
 	}
 
 	/**
@@ -471,7 +481,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @param inputName 在新建任务上传文件之前，或添加输入文件上传之前，hash 尚未得知，因此前端应发起修改输入参数的调用，生成这个上传文件的一个临时占位符。上传完毕后，往 inputName 传入生成的占位符，以便后端将其替换为真实文件名
 	 * @emits taskUpdate
 	 */
-	public async mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string): Promise<void> {
+	public async mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void> {
 		const task = this.tasklist[id];
 		if (!task) {
 			// 上传完成之前删除了任务
@@ -501,9 +511,16 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				}
 			});
 		}
+		// 将 inputName 占位符改成 destName 真实文件名
 		const inputIndex = task.after.input.files.findIndex((file) => file.filePath === inputName);
 		if (inputIndex >= 0) {
 			task.after.input.files[inputIndex].filePath = destName;	// 远程任务隐藏目录结构，运行时才 override 输入参数
+		}
+		// 记录由前端传过来的文件时间（远程文件时间不能由后端读取，而是由前端传入）
+		if (fileTime) {
+			task.before.accessTime = fileTime.accessTime;
+			task.before.createTime = fileTime.createTime;
+			task.before.modifyTime = fileTime.modifyTime;
 		}
 		task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
 		this.setNotification(id, `任务「${task.taskName}」输入文件「${fileBaseName}」上传完成`, NotificationLevel.info);
@@ -525,6 +542,45 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				this.getFileMetadata(id, task, task.after.input.files[0].filePath || '');
 			}, 150);	// 正常顺序是 mergeUploaded -> setUploadStatus，但函数并不等待而是接连调用，再考虑网络因素，稍微等待再 getFileMetadata 可避免输入文件名还没改过来就进行信息读取
 		}
+	}
+
+	/**
+	 * 获取、清除指定目录的缓存大小和文件数量（不递归）
+	 */
+	public async getCacheInfo(needDelete: boolean) {
+		const uploadDir = path.join(os.tmpdir(), 'FFBoxUploadCache');
+		const downloadDir = path.join(os.tmpdir(), 'FFBoxDownloadCache');
+		let uploadSize = 0, uploadCount = 0;
+		let downloadSize = 0, downloadCount = 0;
+		try {
+			const uploadFiles = await fs.promises.readdir(uploadDir);
+			for (const file of uploadFiles) {
+				const filePath = path.join(uploadDir, file);
+				const stat = await fs.promises.stat(filePath);
+				if (stat.isFile()) {
+					uploadSize += stat.size;
+					uploadCount++;
+					if (needDelete) await fs.promises.unlink(filePath);
+				}
+			}
+		} catch (err) {
+			log.error(err);	// ENOENT 不存在
+		}
+		try {
+			const downloadFiles = await fs.promises.readdir(downloadDir);
+			for (const file of downloadFiles) {
+				const filePath = path.join(downloadDir, file);
+				const stat = await fs.promises.stat(filePath);
+				if (stat.isFile()) {
+					downloadSize += stat.size;
+					downloadCount++;
+					if (needDelete) await fs.promises.unlink(filePath);
+				}
+			}
+		} catch (err) {
+			log.error(err);
+		}
+		return { uploadCount, uploadSize, downloadCount, downloadSize };
 	}
 
 	/**
@@ -624,7 +680,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				log.info(`[任务 ${id}] 完成：${task.taskName}。`);
 				const hasTimeError: string[] = [];
 				// 对每个输出文件进行时间修改。但暂不支持多输入，会按第一个输入进行修改
-				for (let i = 0; i < task.after.outputs.length; i++) {
+				for (let i = 0; i < (task.remoteTask ? 0 : task.after.outputs.length); i++) {
 					const output = task.after.outputs[i];
 					const mux = output.mux;
 					const outputFilePath = task.outputFiles[i];
@@ -632,11 +688,13 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						try {
 							// 如果输入文件不可读取，或者 utimes 失败，或者 FFBox 无法正确计算文件时间，都会产生 hasTimeError
 							const originalFilePath = task.after.input.files[0]?.filePath;
-							await fsPromise.access(originalFilePath, fs.constants.R_OK);
-							const { atime, birthtime, mtime } = fs.statSync(originalFilePath);
+							// await fsPromise.access(originalFilePath, fs.constants.R_OK);
+							const { accessTime, createTime, modifyTime } = task.before;
+							// const { atime, birthtime, mtime } = fs.statSync(originalFilePath);
+							log.info(`[任务 ${id}] 将按照首个输入文件的时间修改任务时间。原创建时间 ${new Date(createTime).toISOString()}；原修改时间 ${new Date(modifyTime).toISOString()}；原访问时间 ${new Date(accessTime).toISOString()}。`);
 							if (mux.keepFileTime === 'original') {
 								// 原样复制文件时间。输出文件的创建时间、修改时间、访问时间将从输入文件的时间原样复制
-								await utimes(outputFilePath, { btime: birthtime, mtime, atime });
+								await utimes(outputFilePath, { btime: createTime, mtime: modifyTime, atime: accessTime });
 							} else {
 								const startTime1 = parseTimeString(task.after.input.files[0].begin);
 								const startTime2 = parseTimeString(mux.begin);
@@ -644,14 +702,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 								const duration = (getOutputDuration(task) || 0) * 1000; // 假设 getOutputDuration 可接收 index
 								if (mux.keepFileTime === 'autoShift') {
 									// 复制修正后的文件时间（依创建时间）。输出文件的创建时间、修改时间将以创建时间为基准，按照剪裁位置自动调整后进行修改
-									const newCreateTime = birthtime.getTime() + startTime;
-									const newModifyTime = birthtime.getTime() + startTime + duration;
-									await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime });
+									const newCreateTime = createTime + startTime;
+									const newModifyTime = createTime + startTime + duration;
+									await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
 								} else if (mux.keepFileTime === 'fixCTbyMTandShift' && task.before.duration > 0) {
 									// 复制修正后的文件时间（依修改时间）。输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题
-									const newCreateTime = mtime.getTime() - task.before.duration * 1000 + startTime;
-									const newModifyTime = mtime.getTime() - task.before.duration * 1000 + startTime + duration;
-									await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime });
+									const newCreateTime = modifyTime - task.before.duration * 1000 + startTime;
+									const newModifyTime = modifyTime - task.before.duration * 1000 + startTime + duration;
+									await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
 								} else if (mux.keepFileTime === 'fixByFilenameAndShift') {
 									// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
 									const regExp1 = /(\d\d\d\d).?([01]\d).?([0123]\d).?([012]\d).?([0-5]\d).?([0-5]\d)?/;
@@ -662,7 +720,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 										if (!isNaN(oldCreateTime.getTime())) {
 											const newCreateTime = oldCreateTime.getTime() + startTime;
 											const newModifyTime = oldCreateTime.getTime() + startTime + duration;
-											await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime });
+											await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
 										} else {
 											hasTimeError.push(outputFilePath);
 										}

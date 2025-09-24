@@ -63,15 +63,39 @@ const handleDrop = (event: DragEvent) => {
 	if (event.dataTransfer?.files?.length) {
 		const addTasksPromise = appStore.addTasks(event.dataTransfer?.files, multiInputMode.value ? 'multiInput' : 'multiTask');
 		if (fastStartMode.value) {
-			addTasksPromise.then(() => {
+			addTasksPromise.then((taskIds: number[]) => {
 				const server = appStore.currentServer;
-				server.entity.queueStart();
+				if (server.data.uploadFiles.length) {
+					// 轮询检查是否所有文件都上传好了（暂时没给上传完成设监听机制，所以轮询）
+					const checkStatusHandler = () => {
+						const isOKList = server.data.uploadFiles.map((uploadFile) => !uploadFile.readTask && !uploadFile.hashTask && !uploadFile.uploadTask);
+						if (isOKList.every((value) => value)) {
+							server.entity.queueStart();
+							clearInterval(checkStatusTimer);
+						}
+					};
+					const checkStatusTimer = setInterval(checkStatusHandler, 250);
+				} else {
+					// 不需要上传，直接开始
+					server.entity.queueStart();
+				}
+				// const fullFilledTask = new Array(taskIds.length).fill(false);
+				// server.entity.on('taskUpdate', taskUpdateHandler);					
+				// // 捕获任务更新事件，直到所有任务的状态都变为 idle（结束上传），此时就可以开始
+				// const taskUpdateHandler = (arg: { taskId: number, task: Task }) => {
+				// 	if (arg.task.status === TaskStatus.idle) {
+				// 		const taskIdIndex = taskIds.findIndex((id) => id === arg.taskId);
+				// 		if (taskIdIndex >= 0) {
+				// 			fullFilledTask[taskIdIndex] = true;
+				// 			if (fullFilledTask.every((task) => task)) {
+				// 				server.entity.queueStart();
+				// 				server.entity.off('taskUpdate', taskUpdateHandler);
+				// 			}
+				// 		}
+				// 	}
+				// 	console.log(fullFilledTask);
+				// };
 			});
-			// const handler = () => {
-			// 	server.entity.off('taskUpdate', handler);
-			// 	server.entity.queueStart();
-			// };
-			// server.entity.on('taskUpdate', handler);
 		}
 	} else if (event.dataTransfer?.items) {
 		showAddTaskPrompt(event.dataTransfer?.getData('text/plain'));

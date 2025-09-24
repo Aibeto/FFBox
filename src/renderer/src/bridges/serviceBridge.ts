@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import CryptoJS from 'crypto-js';
 import { getTimeString, TypedEventEmitter } from '@common/utils';
-import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceFunctionApi, FFBoxServiceInterface, OutputParams } from '@common/types';
+import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceFunctionApi, FFBoxServiceInterface, Notification, OutputParams, Task } from '@common/types';
 
 export interface ServeiceBridgeEvent {
 	connected: () => void;
@@ -51,25 +51,17 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		}
 
 		const finalResult = await new Promise(async (connectResult, _) => {
-			/**
-			 * 先查询服务器版本
-			 * 如果服务器版本是 4.4 或更新，那么具有登录系统。连接后，等待服务器马上触发的 sessionId 事件（ws），此时即可通过 sessionId 登录（fetch）
-			 * 旧版服务器则无需登录
-			 */
-			const [requestOK1, needLogin] = await new Promise<[boolean, boolean]>((resolve, reject) => {
+			// 4.4 版本后的服务器具有登录系统。不支持以前版本的服务器
+			const requestOK1 = await new Promise<boolean>((resolve, reject) => {
 				console.log(`serviceBridge: 正在检查服务器版本 http://${this.ip}:${this.port}/`);
 				fetch(`http://${ip}:${port}/version`, { method: 'get' }).then((res) => {
 					res.text().then((text) => {
-						if (['3.0', '4.0', '4.1', '4.2', '4.3'].includes(text)) {
-							resolve([true, false]);
-						} else {
-							resolve([true, true]);
-						}
+						resolve(true);
 					}).catch(() => {
-						resolve([false, false]);
+						resolve(false);
 					});
 				}).catch((err) => {
-					resolve([false, false]);
+					resolve(false);
 				});
 			});
 			if (!requestOK1) {
@@ -84,61 +76,59 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			let 这 = this;
 			ws.onopen = async function (event) {
 				console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器连接成功`, event);
-				if (needLogin) {
-					// 转锁 1s 等待 sessionId 返回
-					for (let n = 25; n > 0; n--) {
-						if (这.sessionId) {
-							break;
-						} else {
-							await new Promise((r) => setTimeout(() => r(undefined), 40));
-						}
+				// 转锁 2s 等待 sessionId 返回（ws 不支持 once 监听 message，所以这里简便设计）
+				for (let n = 50; n > 0; n--) {
+					if (这.sessionId) {
+						break;
+					} else {
+						await new Promise((r) => setTimeout(() => r(undefined), 40));
 					}
-					if (!这.sessionId) {
-						这.emit('error', '连接失败：服务器未及时返回 sessionId');
-						ws.close();
-						connectResult(false);
-						return;
-					}
-					const [requestOK2, isUserExist, loginSuccess, functionLevel] = await new Promise<[boolean, boolean, boolean, number]>((resolve, reject) => {
-						fetch(`http://${ip}:${port}/login`, {
-							method: 'post',
-							body: JSON.stringify({ username, passkey: CryptoJS.SHA256(password).toString(), sessionId: 这.sessionId }),
-							headers: new Headers({
-								'Content-Type': 'application/json'
-							}),
-						}).then((response) => {
-							response.text().then((text) => {
-								try {
-									let result = JSON.parse(text);
-									resolve([true, result.isUserExist, result.isSuccess, result.functionLevel]);
-								} catch (e) {
-									resolve([false, false, false, NaN]);
-								}
-							}).catch((err) => {
+				}
+				if (!这.sessionId) {
+					这.emit('error', '连接失败：服务器未及时返回 sessionId');
+					ws.close();
+					connectResult(false);
+					return;
+				}
+				const [requestOK2, isUserExist, loginSuccess, functionLevel] = await new Promise<[boolean, boolean, boolean, number]>((resolve, reject) => {
+					fetch(`http://${ip}:${port}/login`, {
+						method: 'post',
+						body: JSON.stringify({ username, passkey: CryptoJS.SHA256(password).toString(), sessionId: 这.sessionId }),
+						headers: new Headers({
+							'Content-Type': 'application/json'
+						}),
+					}).then((response) => {
+						response.text().then((text) => {
+							try {
+								let result = JSON.parse(text);
+								resolve([true, result.isUserExist, result.isSuccess, result.functionLevel]);
+							} catch (e) {
 								resolve([false, false, false, NaN]);
-							});
+							}
 						}).catch((err) => {
 							resolve([false, false, false, NaN]);
-						});	
-					});
-					if (!requestOK2) {
-						这.emit('error', '连接失败：登录连接失败');
-						ws.close();
-						connectResult(false);
-						return;
-					}		
-					if (!isUserExist) {
-						这.emit('error', '登录失败：用户名错误');
-						ws.close();
-						connectResult(false);
-						return;
-					}		
-					if (!loginSuccess) {
-						这.emit('error', '登录失败：密码错误');
-						ws.close();
-						connectResult(false);
-						return;
-					}
+						});
+					}).catch((err) => {
+						resolve([false, false, false, NaN]);
+					});	
+				});
+				if (!requestOK2) {
+					这.emit('error', '连接失败：登录连接失败');
+					ws.close();
+					connectResult(false);
+					return;
+				}		
+				if (!isUserExist) {
+					这.emit('error', '登录失败：用户名错误');
+					ws.close();
+					connectResult(false);
+					return;
+				}		
+				if (!loginSuccess) {
+					这.emit('error', '登录失败：密码错误');
+					ws.close();
+					connectResult(false);
+					return;
 				}
 	
 				这.status = ServiceBridgeStatus.Connected;
@@ -205,9 +195,6 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		}
 	}
 
-	/**
-	 * UI 调用 service 网络出口
-	 */
 	private sendWs(data: FFBoxServiceFunctionApi) {
 		this.status === ServiceBridgeStatus.Connected && this.ws?.send(JSON.stringify(data));
 	}
@@ -223,6 +210,8 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		this.ws?.send(array);
 
 	}
+
+	// #region service 调用相关
 
 	public initSettings() {
 		let data: FFBoxServiceFunctionApi = {
@@ -254,23 +243,22 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 				method: 'put',
 				body: JSON.stringify({ taskName, outputParams }),
 				headers: new Headers({
-					'Content-Type': 'application/json'
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.sessionId}`,
 				}),
 			}).then((response) => {
 				response.text().then((text) => {
 					let id = parseInt(text);
 					resolve(id);
 				})
-			}).catch((err) => {
-				reject(err);
-			})
-		})
+			}).catch((err) => reject(err))
+		});
 	}
 
-	public mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string) {
+	public mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }) {
 		let data: FFBoxServiceFunctionApi = {
 			function: 'mergeUploaded',
-			args: [id, hashs, fileBaseName, inputName],
+			args: [id, hashs, fileBaseName, inputName, fileTime],
 		}
 		this.sendWs(data);
 	}
@@ -281,6 +269,22 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			args: [id, isUploading],
 		}
 		this.sendWs(data);
+	}
+
+	public getCacheInfo(needDelete: boolean): Promise<{ uploadCount: number, uploadSize: number, downloadCount: number, downloadSize: number }> {
+		return new Promise((resolve, reject) => {
+			fetch(`http://${this.ip}:${this.port}/cache`, {
+				method: needDelete ? 'delete' : 'get',
+				headers: new Headers({
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.sessionId}`,
+				}),
+			}).then((response) => {
+				response.json().then((result) => resolve(result));
+			}).catch((err) => {
+				reject(err);
+			});
+		});
 	}
 
 	public taskDelete(id: number) {
@@ -370,4 +374,94 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		}
 		this.sendWs(data);
 	}
+
+	// #endregion
+
+	// #region 直接获取信息
+
+	public getProperties(): Promise<any> {
+		return new Promise<any>((resolve, reject) => {
+			fetch(`http://${this.ip}:${this.port}/properties`, {
+				method: 'get',
+				headers: new Headers({
+					// 'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.sessionId}`,
+				}),
+			}).then((response) => {
+				response.json().then((result) => resolve(result));
+			}).catch((err) => reject(err));
+		});
+	}
+
+	public getWorkingStatus(): Promise<string> {
+		return new Promise<any>((resolve, reject) => {
+			fetch(`http://${this.ip}:${this.port}/properties`, {
+				method: 'get',
+				headers: new Headers({
+					// 'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.sessionId}`,
+				}),
+			}).then((response) => {
+				response.text().then((content) => resolve(content));
+			}).catch((err) => reject(err));
+		});
+	}
+
+	public getTaskList(): Promise<number[]> {
+		return new Promise<number[]>((resolve, reject) => {
+			fetch(`http://${this.ip}:${this.port}/task`, {
+				method: 'get',
+				headers: new Headers({
+					// 'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.sessionId}`,
+				}),
+			}).then((response) => {
+				response.json().then((result) => resolve(result));
+			}).catch((err) => reject(err));
+		});
+	}
+
+	public getTask(taskId: number): Promise<Task> {
+		return new Promise((resolve, reject) => {
+			fetch(`http://${this.ip}:${this.port}/task/${taskId}`, {
+				method: 'get',
+				headers: new Headers({
+					// 'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.sessionId}`,
+				}),
+			}).then((response) => {
+				response.json().then((result) => resolve(result));
+			}).catch((err) => reject(err));
+		});
+	}
+
+	public getNotifications(): Promise<Notification[]> {
+		return new Promise((resolve, reject) => {
+			fetch(`http://${this.ip}:${this.port}/notification`, {
+				method: 'get',
+				headers: new Headers({
+					// 'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.sessionId}`,
+				}),
+			}).then((response) => {
+				response.json().then((result) => resolve(result));
+			}).catch((err) => reject(err));
+		});
+	}
+
+	public getAVOptions(): Promise<any> {
+		return new Promise<any>((resolve, reject) => {
+			fetch(`http://${this.ip}:${this.port}/AVOptions`, {
+				method: 'get',
+				headers: new Headers({
+					// 'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.sessionId}`,
+				}),
+			}).then((response) => {
+				response.json().then((result) => resolve(result));
+			}).catch((err) => reject(err));
+		});
+	}
+
+	// #endregion
 }

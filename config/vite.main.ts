@@ -1,6 +1,7 @@
 import { builtinModules } from 'module'
 import { defineConfig } from 'vite'
 import path from 'path';
+// import commonjs from '@rollup/plugin-commonjs';
 import pkgJSON from '../package.json'
 
 export default defineConfig({
@@ -20,14 +21,33 @@ export default defineConfig({
 			external: [
 				'electron',
 				...builtinModules,
+				// 'utimes',
+				// '@mapbox/node-pre-gyp',
 				// @ts-ignore
-				// ...Object.keys(pkgJSON.dependencies || {}),
+				...Object.keys(pkgJSON.dependencies || {}),
 			],
 		},
 		commonjsOptions: {
 			ignoreTryCatch: false,
+			// dynamicRequireTargets: [
+			// 	// 精确到 node_modules 下的实际文件
+			// 	'node_modules/@mapbox/node-pre-gyp/lib/**/*.js'
+			// ],
+			// dynamicRequireRoot: 'A:/Code/FFBox/node_modules/.pnpm/utimes@5.2.1/node_modules/utimes/dist',
 		},
 	},
+	// plugins: [
+	// 	commonjs({
+	// 		include: [
+	// 			/node_modules\/\.pnpm\/utimes@[^/]+\/node_modules\/utimes\/dist\/.*/
+	// 		],
+	// 		dynamicRequireTargets: [
+	// 			'node_modules/utimes/dist/*.js',
+	// 		],
+	// 		// ignoreDynamicRequires: true,
+	// 		defaultIsModuleExports: true,
+	// 	}),
+	// ],
 	resolve: {
 		extensions: ['.ts', '.js'],
 		alias: {

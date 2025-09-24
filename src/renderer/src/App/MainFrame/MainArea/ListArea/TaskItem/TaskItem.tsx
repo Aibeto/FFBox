@@ -9,7 +9,7 @@ import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import showMenu from '@renderer/components/Menu/Menu';
 import { showProgressInfo } from '@renderer/components/misc/ProgressInfo';
 import nodeBridge from '@renderer/bridges/nodeBridge';
-import { getOutputDuration, stringifyTimeValue } from '@common/utils';
+import { getOutputDuration, formatTimeToFFmpegStyle, formatSize, parseTimeString } from '@common/utils';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import IconInitializing from './initializing.svg';
 import IconIdle from './idle.svg';
@@ -82,8 +82,8 @@ export const TaskItem = defineComponent((props: Props) => {
 			}
 		}
 	};
-	const durationBefore = computed(() => stringifyTimeValue(props.task.before.duration));
-	const durationAfter = computed(() => stringifyTimeValue(outputDuration.value));
+	const durationBefore = computed(() => formatTimeToFFmpegStyle(props.task.before.duration));
+	const durationAfter = computed(() => formatTimeToFFmpegStyle(outputDuration.value));
 	const smpteBefore = computed(() => props.task.before.vresolution && props.task.before.vframerate ? `${props.task.before.vresolution.replace('<br />', '×')}@${props.task.before.vframerate}` : '-');
 	const videoRateControlValue = computed(() => getVideoRateControlParam(props.task.after.outputs[0]?.video)?.value);
 	const audioRateControlValue = computed(() => getAudioRateControlParam(props.task.after.outputs[0]?.audio)?.value);
@@ -144,38 +144,10 @@ export const TaskItem = defineComponent((props: Props) => {
 		}
 		return '-';
 	});
-	const graphSizeFilter = (kB: number) => {
-		const B = kB * 1000;
-		if (window.frontendSettings.useIEC) {
-			if (B >= 10 * 1024 ** 3) {
-				return (B / 1024 ** 3).toFixed(1) + ' GiB';
-			} else if (B >= 1024 ** 3) {
-				return (B / 1024 ** 3).toFixed(2) + ' GiB';
-			} else if (B >= 100 * 1024 ** 2) {
-				return (B / 1024 ** 2).toFixed(0) + ' MiB';
-			} else if (B >= 10 * 1024 ** 2) {
-				return (B / 1024 ** 2).toFixed(1) + ' MiB';
-			} else {
-				return (B / 1024 ** 2).toFixed(2) + ' MiB';
-			}
-		} else {
-			if (B >= 10 * 1000 ** 3) {
-				return (B / 1000 ** 3).toFixed(1) + ' GB';
-			} else if (B >= 1000 ** 3) {
-				return (B / 1000 ** 3).toFixed(2) + ' GB';
-			} else if (B >= 100 * 1000 ** 2) {
-				return (B / 1000 ** 2).toFixed(0) + ' MB';
-			} else if (B >= 10 * 1000 ** 2) {
-				return (B / 1000 ** 2).toFixed(1) + ' MB';
-			} else {
-				return (B / 1000 ** 2).toFixed(2) + ' MB';
-			}
-		}
-	};
-	const graphSize = computed(() => graphSizeFilter(props.task.dashboard_smooth.size));
-	const graphUploadRead = computed(() => graphSizeFilter(transferInfo.value.totalRead / 1000));
-	const graphUploadHash = computed(() => graphSizeFilter(transferInfo.value.totalHash / 1000));
-	const graphUploadUpload = computed(() => graphSizeFilter(transferInfo.value.totalUpload / 1000));
+	const graphSize = computed(() => formatSize(props.task.dashboard_smooth.size * 1000, window.frontendSettings.useIEC));
+	const graphUploadRead = computed(() => formatSize(transferInfo.value.totalRead, window.frontendSettings.useIEC));
+	const graphUploadHash = computed(() => formatSize(transferInfo.value.totalHash, window.frontendSettings.useIEC));
+	const graphUploadUpload = computed(() => formatSize(transferInfo.value.totalUpload, window.frontendSettings.useIEC));
 
 	/** 圆环 style 部分
 	 *  计算方式：(log(数值) / log(底，即每增长多少倍数为一格) + 数值为 1 时偏移多少格) / 格数
@@ -347,15 +319,60 @@ export const TaskItem = defineComponent((props: Props) => {
 	// #region 操作响应
 
 	const openFile = (filePath: string, outputIndex?: number) => {
-		const bridge = appStore.currentServer.entity;
-		if (appStore.currentServer.entity.ip === 'localhost') {
+		const entity = appStore.currentServer.entity;
+		if (entity.ip === 'localhost') {
 			nodeBridge.openFile(`"${filePath}"`);
 		} else {
-			// const serverName = appStore.currentServer.data.name;
-			const newFileBaseName = getOutputFileBaseName(props.task.after.outputs[outputIndex].mux, props.task.taskName);
-			const url = `http://${bridge.ip}:${bridge.port}/download/${filePath}`;
+			const task = props.task;
+			const newFileBaseName = getOutputFileBaseName(props.task.after.outputs[outputIndex].mux, task.taskName);
+			const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 			if (nodeBridge.env === 'electron') {
-				nodeBridge.ipcRenderer?.send('downloadFile', { url, finalFileBaseName: newFileBaseName });
+				let fileTime = undefined;
+				const output = task.after.outputs[outputIndex];
+				const mux = output.mux;
+				if (mux.keepFileTime) {
+					let { accessTime, createTime, modifyTime } = task.before;
+					if (mux.keepFileTime === 'original') {
+					} else {
+						const startTime1 = parseTimeString(task.after.input.files[0].begin);
+						const startTime2 = parseTimeString(mux.begin);
+						const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
+						const duration = (getOutputDuration(task) || 0) * 1000; // 假设 getOutputDuration 可接收 index
+						if (mux.keepFileTime === 'autoShift') {
+							// 复制修正后的文件时间（依创建时间）。输出文件的创建时间、修改时间将以创建时间为基准，按照剪裁位置自动调整后进行修改
+							const newCreateTime = createTime + startTime;
+							const newModifyTime = createTime + startTime + duration;
+							[createTime, modifyTime] = [newCreateTime, newModifyTime];
+						} else if (mux.keepFileTime === 'fixCTbyMTandShift' && task.before.duration > 0) {
+							// 复制修正后的文件时间（依修改时间）。输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题
+							const newCreateTime = modifyTime - task.before.duration * 1000 + startTime;
+							const newModifyTime = modifyTime - task.before.duration * 1000 + startTime + duration;
+							[createTime, modifyTime] = [newCreateTime, newModifyTime];
+						} else if (mux.keepFileTime === 'fixByFilenameAndShift') {
+							const originalFilePath = task.after.input.files[0]?.filePath;
+							// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
+							const regExp1 = /(\d\d\d\d).?([01]\d).?([0123]\d).?([012]\d).?([0-5]\d).?([0-5]\d)?/;
+							const regExp2 = /(\d\d\d\d) ?年? ?([01]?\d) ?月? ?([0123]?\d) ?日? ?([012]?\d) ?时? ?([0-5]?\d) ?分? ?([0-5]?\d)? ?秒? ?/;
+							const r = originalFilePath.match(regExp1) || originalFilePath.match(regExp2);
+							if (r) {
+								const oldCreateTime = new Date(`${r[1]}-${r[2]}-${r[3]} ${r[4]}:${r[5]}:${r[6] || 0}`);
+								if (!isNaN(oldCreateTime.getTime())) {
+									const newCreateTime = oldCreateTime.getTime() + startTime;
+									const newModifyTime = oldCreateTime.getTime() + startTime + duration;
+									[createTime, modifyTime] = [newCreateTime, newModifyTime];
+								} else {
+									// hasTimeError.push(outputFilePath);
+								}
+							} else {
+								// hasTimeError.push(outputFilePath);
+							}
+						} else {
+							// hasTimeError.push(outputFilePath);
+						}
+					}
+					fileTime = { accessTime, createTime, modifyTime };
+				}
+				nodeBridge.ipcRenderer?.send('downloadFile', { url, sessionId: entity.sessionId, finalFileBaseName: newFileBaseName, fileTime });
 				appStore.downloadMap.set(url, appStore.currentServer.data.id);
 			} else {
 				const elem = document.createElement('a');

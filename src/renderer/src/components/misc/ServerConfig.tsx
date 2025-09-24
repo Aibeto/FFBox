@@ -4,6 +4,7 @@ import { useAppStore } from "@renderer/stores/appStore";
 import { useTooltip } from "@renderer/common/tooltipUtil";
 import nodeBridge from "@renderer/bridges/nodeBridge";
 import { showServerUserConfig } from "./ServerUserConfig";
+import { showServerCacheInfo } from "./ServerCacheInfo";
 import Button from '@renderer/components/Button/Button';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
@@ -95,6 +96,7 @@ const Comp = defineComponent((props: P) => {
 			/>
 			<div style={{ margin: '12px' }}>
 				<Button onClick={() => showServerUserConfig(props.serverId)}>用户配置</Button>
+				<Button onClick={() => showServerCacheInfo(props.serverId)}>缓存信息</Button>
 			</div>
 		</div>
 	);

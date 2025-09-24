@@ -16,10 +16,17 @@ import { getOs, log } from './utils';
 import localConfig from '@common/localConfig';
 import { FFBoxService } from './FFBoxService';
 
+interface Client {
+	ws: WebSocket;
+	sessionId: string;
+	username: string | undefined;
+	functionLevel: number;
+}
+
 let server: Http.Server | null;
 let koa: Koa | null;
 let wss: WebSocket.Server | null;
-let clients = new Map<string, { ws: WebSocket, sessionId: string, username: string | undefined, functionLevel: number }>();
+let clients = new Map<string, Client>();
 let ffboxService: FFBoxService | null;
 
 const uploadDir = os.tmpdir() + '/FFBoxUploadCache'; // 文件上传目录
@@ -61,20 +68,39 @@ const uiBridge = {
 		koa.use(async (ctx, next) => {
 			log.dev('收到请求。', ctx.request.url);
 			ctx.response.set('Access-Control-Allow-Origin', '*');
-			ctx.response.set('Access-Control-Allow-Headers', 'Content-Type');
-			ctx.response.set('Access-Control-Allow-Methods', 'GET, POST, PUT');
+			ctx.response.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+			ctx.response.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+			ctx.response.set('Access-Control-Max-Age', '999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999');
+			if (ctx.request.method === 'OPTIONS') {
+				ctx.response.status = 204;
+				// ctx.response.message = '多 9 余';
+				return;	// 直接返回，不走后续逻辑
+			}
 			if (ctx.path.startsWith('/download')) {
 				const fileBaseName = ctx.query.fileBaseName as string || path.basename(ctx.path);
 				ctx.response.set('Content-Disposition', `attachment; filename="${encodeURI(fileBaseName)}`);
-			}
-			if (ctx.request.method === 'OPTIONS') {
-				ctx.response.status = 200;
-				// ctx.response.message = '冇找到啊';
 			}
 			try {
 				await next();
 			} catch (err) {
 				console.log(err);
+			}
+		});
+
+		// session 校验中间件
+		koa.use(async (ctx, next) => {
+			if (['/login', '/version'].includes(ctx.path)) {
+				return next();	// 允许登录接口直接通过
+			}
+			const authHeader = ctx.get('Authorization');
+			if (authHeader && authHeader.startsWith('Bearer ')) {
+				// const sessionId = ctx.get('Session-Id'); // 注意 ctx.get 获取 header 不区分大小写
+				const sessionId = authHeader.slice(7); // 去掉 "Bearer "
+				if (!sessionId || (clients.get(sessionId)?.functionLevel || 0) <= 0) {
+					ctx.status = 401;
+					return;
+				}
+				await next();	// 校验通过，进入后续路由
 			}
 		});
 
@@ -137,12 +163,17 @@ const uiBridge = {
 function mountWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): void {
 	const address = request.socket.remoteAddress;
 	const sessionId = randomString(6);
-	clients.set(sessionId, { ws, sessionId, username: undefined, functionLevel: 0 });
+	const client: Client = { ws, sessionId, username: undefined, functionLevel: 0 };
+	clients.set(sessionId, client);
 	log.info(`新客户端接入：${address}。sessionId：${sessionId}。当前客户端数量：${clients.size}.`);
 
 	ws.on('message', function (message: Buffer, isBinary: boolean): void {
 		// console.log('uiBridge: 收到来自客户端的消息', message);
 		if (!isBinary) {
+			if (client.functionLevel <= 0) {
+				log.dev(`客户端 ${sessionId} 未登录，调用已拒绝`, message.toString());
+				return;
+			}
 			handleMessageFromClient(message.toString());
 		}
 	});
@@ -370,6 +401,20 @@ function getRouter(): Router {
 	// 获取单个任务信息
 	router.get('/task/:id', async function (ctx) {
 		const result = ffboxService.tasklist[+ctx.params.id];
+		ctx.response.status = 200;
+		ctx.response.body = result;
+	});
+
+	// 获取缓存
+	router.get('/cache', async function (ctx) {
+		const result = await ffboxService!.getCacheInfo(false);
+		ctx.response.status = 200;
+		ctx.response.body = result;
+	});
+
+	// 清除缓存
+	router.delete('/cache', async function (ctx) {
+		const result = await ffboxService!.getCacheInfo(true);
 		ctx.response.status = 200;
 		ctx.response.body = result;
 	});
