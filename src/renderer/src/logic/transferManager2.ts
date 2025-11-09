@@ -155,7 +155,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 		// 对每个分片进行文件读取，若读取错误则直接退出
 		file.status = 'reading';
 		const readDoneChunkIndexes: number[] = [];	// 供下一轮 hash 进行消费
-		let readDone = false;
+		let readDone = 'false';
 		const ts1 = new SingleTaskScheduler({
 			concurrency: 1,
 			taskName: 'readFile',
@@ -192,7 +192,15 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 			},
 		});
 		file.readTask = ts1;
-		ts1.on('allDone', () => { readDone = true; console.log(`【${file.fileBaseName}】读取全部完成`) });
+		ts1.on('allDone', () => {
+			if (file.chunks.length === Math.ceil(fileSize / segment) && file.chunks.every((chunk) => chunk.status === 'hashing')) {
+				readDone = 'done';
+				console.log(`【${file.fileBaseName}】读取全部完成`)
+			} else {
+				readDone = 'cancelled';
+				console.log(`【${file.fileBaseName}】读取中止或失败`);
+			}
+		});
 		ts1.start();
 
 		// 根据 CPU 数量划分成若干个 worker 任务
@@ -213,8 +221,11 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 			concurrency: cpuCount,
 			taskName: 'hashFile',
 			task: async (sts) => {
+				if (readDone === 'cancelled') {
+					throw '哈希计算即将中止'
+				}
 				if (!readDoneChunkIndexes.length) {
-					if (readDone) {
+					if (readDone === 'done') {
 						throw '哈希计算即将结束'
 					} else {
 						await new Promise((resolve) => setTimeout(resolve, 150));	// read 步骤还没读完，转锁
@@ -251,17 +262,23 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 		file.hashTask = ts2;
 		ts2.start();
 		// 等待所有 hash 完成
-		await new Promise((resolve) => {
+		await new Promise((resolve, reject) => {
 			ts2.on('allDone', () => {
-				console.log(`【${file.fileBaseName}】哈希全部完成`);
-				if (!ts2.globalPool.size) {
-					hashWorkers.forEach((worker) => worker.terminate());
-					hashWorkers.splice(0, hashWorkers.length);
-					hashWorkerRunningList.splice(0, hashWorkerRunningList.length);
-					console.log('已释放 workers');
+				if (readDone !== 'cancelled') {
+					console.log(`【${file.fileBaseName}】哈希全部完成`);
+					if (!ts2.globalPool.size) {
+						hashWorkers.forEach((worker) => worker.terminate());
+						hashWorkers.splice(0, hashWorkers.length);
+						hashWorkerRunningList.splice(0, hashWorkerRunningList.length);
+						console.log('已释放 workers');
+					}
+					// hashDone = true;
+					resolve(0);
+				} else {
+					console.log(`【${file.fileBaseName}】上传中止`);
+					file.status = 'error';
+					reject(0);
 				}
-				// hashDone = true;
-				resolve(0);
 			});
 		});
 
@@ -284,9 +301,10 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 			console.log(fileBaseName, '已缓存');
 			server.entity.mergeUploaded(taskId, file.chunks.map((chunk) => chunk.hash), fileBaseName, inputName, { accessTime, createTime, modifyTime });
 			const taskUpdateHandler = (arg: { taskId: number }) => {
+				// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
 				if (arg.taskId === taskId) {
 					server.entity.off('taskUpdate', taskUpdateHandler);
-					if (appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
+					if (appStore.currentServer === server && appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
 				}
 			};
 			server.entity.on('taskUpdate', taskUpdateHandler);
@@ -320,13 +338,15 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 						chunk.status = 'uploading';
 						chunk.transferred = 0;
 						try {
-							await new Promise((resolve) => {
+							await new Promise((resolve, reject) => {
 								const form = new FormData();
 								form.append('name', chunk.hash);
 								// form.append('file', file);
 								const file_blob = new Blob([chunk.buffer]);
 								form.append('file', file_blob, chunk.hash);
-								const xhr = new XMLHttpRequest;
+								const xhr = new XMLHttpRequest();
+								const abortFunc = () => xhr.abort();
+								chunk.abortController.signal.addEventListener('abort', abortFunc);
 								xhr.upload.addEventListener('progress', (event) => {
 									// let progress = event.loaded / event.total;
 									// const transferred = task.transferProgressLog.transferred;
@@ -336,19 +356,21 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 								xhr.onreadystatechange = () =>{
 									if (xhr.readyState !== 0) {
 										if (xhr.status >= 400 && xhr.status < 500) {
-											throw new Error('网络请求故障');
+											reject('网络请求故障');
 										} else if (xhr.status >= 500 && xhr.status < 600) {
-											throw new Error('服务器故障');
+											reject('服务器故障');
 										}
 									}
 								};
 								xhr.onload = () => {
 									console.log(`【${chunk.file.fileBaseName}】【${chunkIndex}】【${chunk.hash}】发送完成`);
 									chunk.buffer = undefined; // 释放内存
+									chunk.abortController.signal.removeEventListener('abort', abortFunc);
 									resolve(0);
 								};
 								xhr.onabort = () => {
-									throw new Error('paused');
+									chunk.abortController.signal.removeEventListener('abort', abortFunc);
+									reject('paused');
 								};
 								xhr.open('post', `http://${server.entity.ip}:${server.entity.port}/upload/file/`, true);
 								// xhr.setRequestHeader('Content-Type', 'multipart/form-data');
@@ -386,9 +408,10 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					file.status = 'finished';
 					server.entity.mergeUploaded(file.taskId, file.chunks.map((chunk) => chunk.hash), file.fileBaseName, inputName, { accessTime, createTime, modifyTime });
 					const taskUpdateHandler = (arg: { taskId: number }) => {
+						// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
 						if (arg.taskId === taskId) {
 							server.entity.off('taskUpdate', taskUpdateHandler);
-							if (appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
+							if (appStore.currentServer === server && appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
 						}
 					};
 					server.entity.on('taskUpdate', taskUpdateHandler);
@@ -400,6 +423,12 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					if (!hasOtherUploadTask) {
 						server.entity.setUploadStatus(taskId, false);
 					}
+				} else {
+					console.log(`【${file.fileBaseName}】文件上传中止或失败`);
+					file.status = 'error';
+					file.readTask = undefined;
+					file.hashTask = undefined;
+					file.uploadTask = undefined;
 				}
 			});
 			ts3.start();

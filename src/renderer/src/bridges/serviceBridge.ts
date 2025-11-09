@@ -303,6 +303,14 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		this.sendWs(data);
 	}
 
+	public taskReady(id: number) {
+		let data: FFBoxServiceFunctionApi = {
+			function: 'taskReady',
+			args: [id],
+		}
+		this.sendWs(data);
+	}
+
 	public taskPause(id: number) {
 		let data: FFBoxServiceFunctionApi = {
 			function: 'taskPause',
@@ -325,6 +333,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			args: [id],
 		}
 		this.sendWs(data);
+		return Promise.resolve();	// 并不会遵循后端的 Promise 返回，而是在前端直接返回
 	}
 
 	public queueStart() {
@@ -395,7 +404,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 
 	public getWorkingStatus(): Promise<string> {
 		return new Promise<any>((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/properties`, {
+			fetch(`http://${this.ip}:${this.port}/workingStatus`, {
 				method: 'get',
 				headers: new Headers({
 					// 'Content-Type': 'application/json',

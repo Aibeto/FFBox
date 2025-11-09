@@ -70,7 +70,7 @@ const Comp = defineComponent((props: P) => {
 			const serviceSettings = await nodeBridge.localConfig.get('service') || {};
 			
 			maxThreadsValue.value = (serviceSettings.maxThreads || 1) + '';
-			customFFmpegPathValue.value = serviceSettings.currentCustomFFmpegPath || '';
+			customFFmpegPathValue.value = serviceSettings.customFFmpegPath || '';
 			preserveUnfinishedTasksValue.value = serviceSettings.preserveUnfinishedTasks === false ? false : true;
 			deleteFinishedTasksValue.value = serviceSettings.deleteFinishedTasks === true ? true : false;
 		})();

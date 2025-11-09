@@ -50,7 +50,11 @@ onMounted(async () => {
 				url: params.url,
 				transferred: 0,
 				size: NaN,
+				status: 'downloading',
 			});
+		} else if (params.status === 'cancelled') {
+			const downloadFile = server.data.downloadFiles.find((downloadFile) => downloadFile.url === params.url);
+			downloadFile.status = 'error';
 		}
 		if (params.finalFilePath && downloadFile) {
 			downloadFile.finalFilePath = params.finalFilePath;

@@ -49,6 +49,7 @@ export interface DownloadFile {
 	finalFilePath?: string;
 	transferred: number;	// B
 	size: number;			// B
+	status: 'downloading' | 'paused' | 'finished' | 'error';
 }
 
 export interface ServerData {

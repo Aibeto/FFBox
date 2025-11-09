@@ -44,9 +44,10 @@ export interface FFBoxServiceInterface {
 	setUploadStatus(id: number, isUploading: boolean): void;
 	taskDelete(id: number): void;
 	taskStart(id: number): void;
+	taskReady(id: number): void;
 	taskPause(id: number): void;
 	taskResume(id: number): void;
-	taskReset(id: number): void;
+	taskReset(id: number): Promise<void>;
 	queueStart(): void;
 	queuePause(): void;
 	deleteNotification(taskId: number, index: number): void;

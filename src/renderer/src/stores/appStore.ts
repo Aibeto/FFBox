@@ -335,6 +335,24 @@ export const useAppStore = defineStore('app', {
 			});
 		},
 		/**
+		 * 检查每个任务的上传状态，调用 entity.deleteTask
+		 * @param taskIds 
+		 */
+		deleteTasks(taskIds: number[]) {
+			const 这 = useAppStore();
+			for (const taskId of taskIds) {
+				const uploadFiles = 这.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === taskId)
+				for (const uploadFile of uploadFiles) {
+					// 对于正在读取校验的任务
+					uploadFile.readTask?.stop();	// 不一定有，比如上传完成
+					// 对于正在上传的任务
+					const uploadingChunks = uploadFile.chunks.filter((chunk) => chunk.status === 'uploading'); 
+					uploadingChunks.forEach((chunk) => chunk.abortController.abort());
+				}
+				这.currentServer.entity.taskDelete(taskId);
+			}
+		},
+		/**
 		 * 修改已选任务项后调用
 		 * 函数将使用已选择的任务项替换 globalParameters
 		 */

@@ -39,7 +39,15 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	const outputDuration = computed(() => getOutputDuration(props.task));
 	const uploadFiles = computed(() => appStore.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === props.id));
-	const isUploading = computed(() => uploadFiles.value.length > 0 && props.task.status === TaskStatus.initializing);
+	const uploadStatus = computed(() => {
+		if (uploadFiles.value.length > 0 && props.task.status === TaskStatus.initializing) {
+			if (uploadFiles.value.every((file) => file.status !== 'error')) {
+				return 'uploading';
+			}
+			return 'error';
+		}
+		return 'fine';
+	});
 	const transferInfo = computed(() => {
 		const _uploadFiles = uploadFiles.value;
 		const totalSize = _uploadFiles.reduce((prev, curr) => prev + (curr.size || Number.MAX_SAFE_INTEGER / 1024), 0);
@@ -164,19 +172,19 @@ export const TaskItem = defineComponent((props: Props) => {
 		return `background: conic-gradient(hwb(var(--primaryColor)) 0%, hwb(var(--primaryColor)) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
 	});
 
-	const overallProgress = computed(() => isUploading.value
+	const overallProgress = computed(() => uploadStatus.value !== 'fine'
 		? (transferInfo.value.totalRead * 0.1 + transferInfo.value.totalHash * 0.1 + transferInfo.value.totalUpload * 0.8) / transferInfo.value.totalSize
 		: props.task.dashboard_smooth.progress
 	);
 	// const overallProgress = { value: 0.99 };
-	const overallProgressDescription = computed(() => isUploading.value ? '上传进度' : '转码进度');
+	const overallProgressDescription = computed(() => uploadStatus.value !== 'fine' ? '上传进度' : '转码进度');
 
 	// #endregion
 
 	// #region 其他样式
 
-	const showDashboard = computed(() => [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(props.task.status) || isUploading.value);
-	const dashboardType = computed(() => showDashboard ? (isUploading.value ? 'transfer' : 'convert') : 'none');
+	const showDashboard = computed(() => [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(props.task.status) || uploadStatus.value !== 'fine');
+	const dashboardType = computed(() => showDashboard ? (uploadStatus.value !== 'fine' ? 'transfer' : 'convert') : 'none');
 
 	const taskNameStyle = computed(() => {
 		const width = (() => {
@@ -243,8 +251,8 @@ export const TaskItem = defineComponent((props: Props) => {
 			green: { width: taskProgress, opacity: [TaskStatus.running, TaskStatus.finishing].includes(props.task.status) ? 1 : 0},
 			yellow: { width: taskProgress, opacity: [TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping].includes(props.task.status) ? 1 : 0},
 			gray: { width: taskProgress, opacity: [TaskStatus.finished, TaskStatus.idle].includes(props.task.status) ? 1 : 0},
-			red: { width: taskProgress, opacity: props.task.status === TaskStatus.error ? 1 : 0},
-			blue: { width: transferProgress, opacity: isUploading.value ? 1 : 0 },
+			red: { width: uploadStatus.value === 'error' ? transferProgress : taskProgress, opacity: uploadStatus.value === 'error' || props.task.status === TaskStatus.error ? 1 : 0},
+			blue: { width: transferProgress, opacity: uploadStatus.value === 'uploading' ? 1 : 0 },
 		} as { [key: string]: StyleValue };
 	});
 
@@ -388,6 +396,8 @@ export const TaskItem = defineComponent((props: Props) => {
 	};
 
 	const handleTaskContextMenu = (event: MouseEvent) => {
+		event.preventDefault();
+		const hasQueuedTask = appStore.currentServer.data.tasks.some((task) => [TaskStatus.idle_queued, TaskStatus.paused_queued].includes(task.status));	// 暂停或停止某个任务可能会导致另一任务启动，此时给予侧面提示
 		showMenu({
 			menu: [
 				{ type: 'normal', label: props.task.taskName, value: '状态', disabled: true,
@@ -402,23 +412,26 @@ export const TaskItem = defineComponent((props: Props) => {
 				...([TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
 					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.idle ? '开始转码' : '立即开始转码', value: '开始', onClick: () => { appStore.currentServer.entity.taskStart(props.id) } },
 				] : []),
-				...([TaskStatus.running, TaskStatus.paused_queued].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>⏸️</span>, label: props.task.status === TaskStatus.running ? '暂停转码' : '保持暂停', value: '暂停', onClick: () => { appStore.currentServer.entity.taskPause(props.id) } },
-				] : []),
 				...([TaskStatus.paused, TaskStatus.paused_queued].includes(props.task.status) ? [
 					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.paused ? '继续转码' : '立即继续转码', value: '继续', onClick: () => { appStore.currentServer.entity.taskResume(props.id) } },
 				] : []),
+				...([TaskStatus.idle, TaskStatus.paused].includes(props.task.status) ? [
+					{ type: 'normal' as const, icon: <span>⏳</span>, label: props.task.status === TaskStatus.idle ? '准备转码（排队）' : '准备继续转码（排队）', value: '准备', onClick: () => { appStore.currentServer.entity.taskReady(props.id) } },
+				] : []),
+				...([TaskStatus.running, TaskStatus.paused_queued].includes(props.task.status) ? [
+					{ type: 'normal' as const, icon: <span>⏸️</span>, label: props.task.status === TaskStatus.running ? '暂停转码' : '保持暂停（取消排队）', value: '暂停', onClick: () => { appStore.currentServer.entity.taskPause(props.id) }, tooltip: hasQueuedTask ? '暂停当前任务\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : undefined },
+				] : []),
 				...([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>⏹️</span>, label: '软停止转码', value: '停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
+					{ type: 'normal' as const, icon: <span>⏹️</span>, label: '软停止转码', value: '停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) }, tooltip: `中止解码，完成收尾工作并停止${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
 				] : []),
 				...([TaskStatus.stopping].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>🛑</span>, label: '硬停止转码', value: '硬停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
+					{ type: 'normal' as const, icon: <span>🛑</span>, label: '硬停止转码', value: '硬停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) }, tooltip: `调用系统级 kill 立即结束 ffmpeg，可能会导致输出文件无法播放${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
 				] : []),
 				...([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>🔙</span>, label: '重置任务', value: '重置', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
+					{ type: 'normal' as const, icon: <span>🔙</span>, label: props.task.status === TaskStatus.idle_queued ? '重置任务（取消排队）' : '重置任务', value: '重置', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
 				] : []),
 				...([TaskStatus.initializing, TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>🗑️</span>, label: '删除任务', value: '停止', onClick: () => { appStore.currentServer.entity.taskDelete(props.id) } },
+					{ type: 'normal' as const, icon: <span>🗑️</span>, label: '删除任务', value: '停止', onClick: () => { appStore.deleteTasks([props.id]) } },
 				] : []),
 				{ type: 'normal' as const, icon: <span>➕</span>, label: '复制任务', value: '复制任务', onClick: () => {
 					const entity = appStore.currentServer.entity;
@@ -451,7 +464,7 @@ export const TaskItem = defineComponent((props: Props) => {
 		} else if ([TaskStatus.idle_queued, TaskStatus.paused, TaskStatus.stopping, TaskStatus.finished, TaskStatus.error].includes(task.status)) {
 			entity.taskReset(props.id);
 		} else if (task.status === TaskStatus.idle || task.status === TaskStatus.initializing) {
-			entity.taskDelete(props.id);
+			appStore.deleteTasks([props.id]);
 		}
 	};
 
@@ -689,7 +702,7 @@ export const TaskItem = defineComponent((props: Props) => {
 						</div>
 					)}
 					<div class={css.vline} style={{ bottom: settings.showCmd ? '66px' : undefined}}><div></div></div>
-					<button aria-label='重置或删除任务' class={css.button} style={{ bottom: settings.showCmd ? '64px' : undefined}} onClick={handlePauseNremove}>
+					<button aria-label='重置或删除任务' class={css.button} style={{ bottom: settings.showCmd ? '64px' : undefined}} onClick={handlePauseNremove} onDblclick={(e) => e.stopPropagation()}>
 						<div style={{ backgroundPositionX: deleteButtonBackgroundPositionX.value }}></div>
 					</button>
 				</div>

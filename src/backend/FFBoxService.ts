@@ -102,7 +102,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			} catch (error) {}
 		}
 
-		this.deleteFinishedTasks = await localConfig.get('service.deleteFinishedTasks') === false ? false : true;
+		this.deleteFinishedTasks = await localConfig.get('service.deleteFinishedTasks') === true ? true : false;
 	}
 
 	/**
@@ -671,82 +671,88 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				if (runningResult === 'failed') {
 					log.error(`[任务 ${id}] 出错：${task.taskName}。`);
 					this.setNotification(id, '任务「' + task.taskName + '」转码失败。' + [...errors].join('') + '请在命令行输出面板查看详细原因。', NotificationLevel.error);
+				} else if (task.status == TaskStatus.stopping) {
+					this.setNotification(id, '任务「' + task.taskName + '」已强制结束。', NotificationLevel.warning);
 				} else {
 					log.error(`[任务 ${id}] 异常终止：${task.taskName}。`);
 					this.setNotification(id, '任务「' + task.taskName + '」异常终止。请在命令行输出面板查看详细原因。', NotificationLevel.error);
 				}
 				task.status = TaskStatus.error;
 			} else {
-				log.info(`[任务 ${id}] 完成：${task.taskName}。`);
-				const hasTimeError: string[] = [];
-				// 对每个输出文件进行时间修改。但暂不支持多输入，会按第一个输入进行修改
-				for (let i = 0; i < (task.remoteTask ? 0 : task.after.outputs.length); i++) {
-					const output = task.after.outputs[i];
-					const mux = output.mux;
-					const outputFilePath = task.outputFiles[i];
-					if (mux.keepFileTime) {
-						try {
-							// 如果输入文件不可读取，或者 utimes 失败，或者 FFBox 无法正确计算文件时间，都会产生 hasTimeError
-							const originalFilePath = task.after.input.files[0]?.filePath;
-							// await fsPromise.access(originalFilePath, fs.constants.R_OK);
-							const { accessTime, createTime, modifyTime } = task.before;
-							// const { atime, birthtime, mtime } = fs.statSync(originalFilePath);
-							log.info(`[任务 ${id}] 将按照首个输入文件的时间修改任务时间。原创建时间 ${new Date(createTime).toISOString()}；原修改时间 ${new Date(modifyTime).toISOString()}；原访问时间 ${new Date(accessTime).toISOString()}。`);
-							if (mux.keepFileTime === 'original') {
-								// 原样复制文件时间。输出文件的创建时间、修改时间、访问时间将从输入文件的时间原样复制
-								await utimes(outputFilePath, { btime: createTime, mtime: modifyTime, atime: accessTime });
-							} else {
-								const startTime1 = parseTimeString(task.after.input.files[0].begin);
-								const startTime2 = parseTimeString(mux.begin);
-								const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
-								const duration = (getOutputDuration(task) || 0) * 1000; // 假设 getOutputDuration 可接收 index
-								if (mux.keepFileTime === 'autoShift') {
-									// 复制修正后的文件时间（依创建时间）。输出文件的创建时间、修改时间将以创建时间为基准，按照剪裁位置自动调整后进行修改
-									const newCreateTime = createTime + startTime;
-									const newModifyTime = createTime + startTime + duration;
-									await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
-								} else if (mux.keepFileTime === 'fixCTbyMTandShift' && task.before.duration > 0) {
-									// 复制修正后的文件时间（依修改时间）。输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题
-									const newCreateTime = modifyTime - task.before.duration * 1000 + startTime;
-									const newModifyTime = modifyTime - task.before.duration * 1000 + startTime + duration;
-									await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
-								} else if (mux.keepFileTime === 'fixByFilenameAndShift') {
-									// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
-									const regExp1 = /(\d\d\d\d).?([01]\d).?([0123]\d).?([012]\d).?([0-5]\d).?([0-5]\d)?/;
-									const regExp2 = /(\d\d\d\d) ?年? ?([01]?\d) ?月? ?([0123]?\d) ?日? ?([012]?\d) ?时? ?([0-5]?\d) ?分? ?([0-5]?\d)? ?秒? ?/;
-									const r = originalFilePath.match(regExp1) || originalFilePath.match(regExp2);
-									if (r) {
-										const oldCreateTime = new Date(`${r[1]}-${r[2]}-${r[3]} ${r[4]}:${r[5]}:${r[6] || 0}`);
-										if (!isNaN(oldCreateTime.getTime())) {
-											const newCreateTime = oldCreateTime.getTime() + startTime;
-											const newModifyTime = oldCreateTime.getTime() + startTime + duration;
-											await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
+				if (task.status !== TaskStatus.stopping) {
+					log.info(`[任务 ${id}] 完成：${task.taskName}。`);
+					const hasTimeError: string[] = [];
+					// 对每个输出文件进行时间修改。但暂不支持多输入，会按第一个输入进行修改
+					for (let i = 0; i < (task.remoteTask ? 0 : task.after.outputs.length); i++) {
+						const output = task.after.outputs[i];
+						const mux = output.mux;
+						const outputFilePath = task.outputFiles[i];
+						if (mux.keepFileTime) {
+							try {
+								// 如果输入文件不可读取，或者 utimes 失败，或者 FFBox 无法正确计算文件时间，都会产生 hasTimeError
+								const originalFilePath = task.after.input.files[0]?.filePath;
+								// await fsPromise.access(originalFilePath, fs.constants.R_OK);
+								const { accessTime, createTime, modifyTime } = task.before;
+								// const { atime, birthtime, mtime } = fs.statSync(originalFilePath);
+								log.info(`[任务 ${id}] 将按照首个输入文件的时间修改任务时间。原创建时间 ${new Date(createTime).toISOString()}；原修改时间 ${new Date(modifyTime).toISOString()}；原访问时间 ${new Date(accessTime).toISOString()}。`);
+								if (mux.keepFileTime === 'original') {
+									// 原样复制文件时间。输出文件的创建时间、修改时间、访问时间将从输入文件的时间原样复制
+									await utimes(outputFilePath, { btime: createTime, mtime: modifyTime, atime: accessTime });
+								} else {
+									const startTime1 = parseTimeString(task.after.input.files[0].begin);
+									const startTime2 = parseTimeString(mux.begin);
+									const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
+									const duration = (getOutputDuration(task) || 0) * 1000; // 假设 getOutputDuration 可接收 index
+									if (mux.keepFileTime === 'autoShift') {
+										// 复制修正后的文件时间（依创建时间）。输出文件的创建时间、修改时间将以创建时间为基准，按照剪裁位置自动调整后进行修改
+										const newCreateTime = createTime + startTime;
+										const newModifyTime = createTime + startTime + duration;
+										await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
+									} else if (mux.keepFileTime === 'fixCTbyMTandShift' && task.before.duration > 0) {
+										// 复制修正后的文件时间（依修改时间）。输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题
+										const newCreateTime = modifyTime - task.before.duration * 1000 + startTime;
+										const newModifyTime = modifyTime - task.before.duration * 1000 + startTime + duration;
+										await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
+									} else if (mux.keepFileTime === 'fixByFilenameAndShift') {
+										// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
+										const regExp1 = /(\d\d\d\d).?([01]\d).?([0123]\d).?([012]\d).?([0-5]\d).?([0-5]\d)?/;
+										const regExp2 = /(\d\d\d\d) ?年? ?([01]?\d) ?月? ?([0123]?\d) ?日? ?([012]?\d) ?时? ?([0-5]?\d) ?分? ?([0-5]?\d)? ?秒? ?/;
+										const r = originalFilePath.match(regExp1) || originalFilePath.match(regExp2);
+										if (r) {
+											const oldCreateTime = new Date(`${r[1]}-${r[2]}-${r[3]} ${r[4]}:${r[5]}:${r[6] || 0}`);
+											if (!isNaN(oldCreateTime.getTime())) {
+												const newCreateTime = oldCreateTime.getTime() + startTime;
+												const newModifyTime = oldCreateTime.getTime() + startTime + duration;
+												await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
+											} else {
+												hasTimeError.push(outputFilePath);
+											}
 										} else {
 											hasTimeError.push(outputFilePath);
 										}
 									} else {
 										hasTimeError.push(outputFilePath);
 									}
-								} else {
-									hasTimeError.push(outputFilePath);
 								}
+							} catch (error) {
+								hasTimeError.push(task.outputFiles[i]);
 							}
-						} catch (error) {
-							hasTimeError.push(task.outputFiles[i]);
 						}
 					}
-				}
-				task.status = TaskStatus.finished;
-				task.progressLog.elapsed = new Date().getTime() / 1000 - task.progressLog.lastStarted;
-				if (hasTimeError.length) {
-					this.setNotification(id, '任务「' + task.taskName + '」已转码完成，但修改文件时间失败。请检查文件权限。', NotificationLevel.warning);
+					task.status = TaskStatus.finished;
+					task.progressLog.elapsed = new Date().getTime() / 1000 - task.progressLog.lastStarted;
+					if (hasTimeError.length) {
+						this.setNotification(id, '任务「' + task.taskName + '」已转码完成，但修改文件时间失败。请检查文件权限。', NotificationLevel.warning);
+					} else {
+						this.setNotification(id, `任务「${task.taskName}」已转码完成`, NotificationLevel.ok);
+					}
+					if (this.deleteFinishedTasks) {
+						setTimeout(() => {
+							this.taskDelete(id);
+						}, 0);
+					}
 				} else {
-					this.setNotification(id, `任务「${task.taskName}」已转码完成`, NotificationLevel.ok);
-				}
-				if (this.deleteFinishedTasks) {
-					setTimeout(() => {
-						this.taskDelete(id);
-					}, 0);
+					this.setNotification(id, '任务「' + task.taskName + '」已正常中止。', NotificationLevel.warning);
 				}
 			}
 			this.emitTaskUpdate(id, task);
@@ -798,6 +804,30 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.emit('workingStatusUpdate', { value: 'start' });
 		}
 		this.storeUnfinishedTask();
+	}
+
+	/**
+	 * 将单个任务进入排队状态（不会启动调度系统改变当前的执行/暂停状态）
+	 * 【idle / paused】 => 【idle_queued / paused_queued】 => 【running】
+	 * @param id 
+	 */
+	public taskReady(id: number): void {
+		const task = this.tasklist[id];
+		if (!task) {
+			log.error(`[任务 ${id}] 准备启动：任务不存在！`);
+			return;
+		}
+		if (!([TaskStatus.idle, TaskStatus.paused].includes(task.status))) {
+			log.error(`[任务 ${id}] 准备启动：任务当前状态为 ${task.status}，操作不合法但允许执行！`);
+		} else {
+			log.info(`[任务 ${id}] 准备启动。`);
+		}
+		if (task.status === TaskStatus.idle) {
+			task.status = TaskStatus.idle_queued;
+		} else if (task.status === TaskStatus.paused) {
+			task.status = TaskStatus.paused_queued;
+		}
+		this.emitTaskUpdate(id, task);
 	}
 
 	/**
@@ -864,48 +894,56 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @param id 任务 id
 	 * @emits taskUpdate
 	 */
-	public taskReset(id: number): void {
-		const task = this.tasklist[id];
-		if (!task) {
-			log.error(`[任务 ${id}] 重置：任务不存在！`);
-			return;
-		}
-		if ([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(task.status)) {
-			// 暂停状态下重置或运行状态下达到限制停止工作
-			log.info(`[任务 ${id}] 重置——软停止。`);
-			task.status = TaskStatus.stopping;
-			task.ffmpeg!.exit(() => {
+	public taskReset(id: number): Promise<void> {
+		return new Promise((resolve, reject) => {
+			const task = this.tasklist[id];
+			if (!task) {
+				log.error(`[任务 ${id}] 重置：任务不存在！`);
+				reject('任务不存在');
+				return;
+			}
+			if ([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(task.status)) {
+				// 暂停状态下重置或运行状态下达到限制停止工作
+				log.info(`[任务 ${id}] 重置——软停止。`);
+				task.status = TaskStatus.stopping;
+				task.ffmpeg!.exit(() => {
+					task.status = TaskStatus.idle;
+					task.ffmpeg = null;
+					this.emit('taskUpdate', {
+						taskId: id,
+						task: convertAnyTaskToTask(task),
+					});
+					resolve();
+					this.queueAssign();
+					this.storeUnfinishedTask();
+				});
+			} else if (task.status === TaskStatus.stopping) {
+				// 正在停止状态下强制重置
+				log.info(`[任务 ${id}] 重置——硬停止。`);
+				task.status = TaskStatus.stopping;
+				task.ffmpeg!.forceKill(() => {
+					task.status = TaskStatus.idle;
+					task.ffmpeg = null;
+					this.emit('taskUpdate', {
+						taskId: id,
+						task: convertAnyTaskToTask(task),
+					});
+					resolve();
+					this.queueAssign();
+					this.storeUnfinishedTask();
+				});
+			} else if ([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(task.status)) {
+				// 完成状态下或队列中仍未开始状态下重置
+				log.info(`[任务 ${id}] 重置到初始状态。`);
 				task.status = TaskStatus.idle;
-				task.ffmpeg = null;
-				this.emit('taskUpdate', {
-					taskId: id,
-					task: convertAnyTaskToTask(task),
-				});
+				resolve();
 				this.queueAssign();
-				this.storeUnfinishedTask();
-			});
-		} else if (task.status === TaskStatus.stopping) {
-			// 正在停止状态下强制重置
-			log.info(`[任务 ${id}] 重置——硬停止。`);
-			task.status = TaskStatus.idle;
-			task.ffmpeg!.forceKill(() => {
-				task.ffmpeg = null;
-				this.emit('taskUpdate', {
-					taskId: id,
-					task: convertAnyTaskToTask(task),
-				});
-				this.queueAssign();
-				this.storeUnfinishedTask();
-			});
-		} else if ([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(task.status)) {
-			// 完成状态下或队列中仍未开始状态下重置
-			log.info(`[任务 ${id}] 重置到初始状态。`);
-			task.status = TaskStatus.idle;
-			this.queueAssign();
-		} else {
-			log.error(`[任务 ${id}] 重置：任务当前状态为 ${task.status}，操作不合法！`);
-		}
-		this.emitTaskUpdate(id, task);
+			} else {
+				log.error(`[任务 ${id}] 重置：任务当前状态为 ${task.status}，操作不合法！`);
+				reject('操作不合法');
+			}
+			this.emitTaskUpdate(id, task);
+		});
 	}
 
 	private storeUnfinishedTask(): void {
@@ -936,7 +974,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * 如果安排完成后【正在运行】的任务数量依然为 0，说明所有任务均已处理完毕，workingStatus 进入 idle 状态
 	 * @returns 当前正在运行的任务数
 	 */
-	private queueAssign(): number {
+	private queueAssign(dontStop?: boolean): number {
 		if (this.workingStatus === WorkingStatus.running) {
 			let runningCount = Object.values(this.tasklist).reduce((prev, curr) => curr.status === TaskStatus.running ? prev + 1 : prev, 0);
 			const maxThreads = Math.min(this.maxThreads, this.functionLevel < 40 ? 6 : this.functionLevel < 60 ? 9 : Number.MAX_SAFE_INTEGER);
@@ -953,7 +991,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					runningCount++;
 				}
 			}
-			if (runningCount === 0) {
+			if (!dontStop && runningCount === 0) {
 				this.workingStatus = WorkingStatus.idle;
 				this.emit('workingStatusUpdate', { value: 'stop' });
 			}
@@ -963,10 +1001,13 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	/**
-	 * 开始处理队列，将所有【空闲】【已暂停】的任务进入【空闲_已排队】【已暂停_已排队】状态，并调用 queueAssign 进行任务安排
+	 * 开始处理队列
+	 * 首先通过 queueAssign 将【空闲_已排队】【已暂停_已排队】的任务启动，然后将所有【空闲】【已暂停】的任务进入【空闲_已排队】【已暂停_已排队】状态，再次调用 queueAssign 进行任务安排
+	 * 也就是优先启动已排队的任务，再将空闲任务加入排队
 	 */
 	public queueStart(): void {
 		this.workingStatus = WorkingStatus.running;
+		this.queueAssign(true);
 		for (const [id, task] of Object.entries(this.tasklist)) {
 			if (id === '-1') {
 				continue;
@@ -1100,23 +1141,22 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 	public trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend = false): void {
 		const task = this.tasklist[id];
-		this.setNotification(
-			id,
-			`任务「${task.taskName}」转码达到时长上限了${byFrontend ? '（前端）' : '（后端）'}\n` +
-			`💔您的用户等级最高支持 11:11 的${reason === 'media' ? '媒体时长' : '处理耗时'}\n` +
-			'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
-			'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
-			NotificationLevel.error,
-		);
-		task.status = TaskStatus.stopping;
-		task.ffmpeg!.exit(() => {
-			task.status = TaskStatus.error;
-			task.ffmpeg = null;
-			this.emit('taskUpdate', {
-				taskId: id,
-				task: convertAnyTaskToTask(task),
+		if (task.status === TaskStatus.running) {
+			this.setNotification(
+				id,
+				`任务「${task.taskName}」转码达到时长上限了${byFrontend ? '（前端）' : '（后端）'}\n` +
+				`💔您的用户等级最高支持 11:11 的${reason === 'media' ? '媒体时长' : '处理耗时'}\n` +
+				'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
+				'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
+				NotificationLevel.error,
+			);
+			this.taskReset(id).then(() => {
+				task.status = TaskStatus.error;
+				this.emit('taskUpdate', {
+					taskId: id,
+					task: convertAnyTaskToTask(task),
+				});
 			});
-			this.queueAssign();
-		});
+		}
 	}
 }

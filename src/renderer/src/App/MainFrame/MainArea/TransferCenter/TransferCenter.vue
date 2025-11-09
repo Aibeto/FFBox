@@ -138,7 +138,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						@click="handleFileClick(file as any, index)"
 						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${formatSize(file.size, appStore.frontendSettings.useIEC)}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`)"
 					>
-						<div class="progress">
+						<div :class="`progress ${file.status === 'error' ? 'progressError' : ''}`">
 							<div :style="{
 								width: '100%',
 								clipPath: `polygon(
@@ -171,7 +171,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 				<div class="title">分片列表</div>
 				<div class="listContainer" :style="chunkListStyle">
 					<div v-for="chunk in chunkList" class="listItem">
-						<div class="progress">
+						<div :class="`progress ${chunk.status === 'error' ? 'progressError' : ''}`">
 							<div :style="{
 								width: `${chunk.progress * 100}%`,
 							}" />
@@ -458,6 +458,12 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 				// 			0 0px 1px 0.75px hwb(225 80% 0%) inset;
 			}
 		}
+		.progressError {
+			filter: drop-shadow(0 3px 8px hwb(0 40% 20% / 0.4));
+			&>div {
+				background: linear-gradient(180deg, hwb(0 75% 0% / 0.7), hwb(0 60% 0% / 0.7));
+			}
+		}
 	}
 	.transferCenter[data-color_theme="themeDark"] {
 		.progress {
@@ -466,6 +472,12 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 				background: linear-gradient(180deg, hwb(225 25% 15% / 0.7), hwb(225 20% 30% / 0.7));
 				// box-shadow: 0 3px 8px 0 hwb(225 40% 20% / 0.1),
 				// 			0 0px 1px 0.75px hwb(225 80% 0% / 0.25) inset;
+			}
+		}
+		.progressError {
+			filter: drop-shadow(0 3px 8px hwb(0 40% 20% / 0.1));
+			&>div {
+				background: linear-gradient(180deg, hwb(0 25% 15% / 0.7), hwb(0 20% 30% / 0.7));
 			}
 		}
 	}

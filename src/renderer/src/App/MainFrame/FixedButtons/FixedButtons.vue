@@ -13,6 +13,8 @@ const appStore = useAppStore();
 
 const bigIconRef = ref<VNodeRef>(null);
 
+const isDev = computed(() => buildInfo.isDev);
+
 const bigIconStyle = computed(() => {
 	if (appStore.showInfoCenter) {
 		return {
@@ -67,6 +69,9 @@ const handleBigIconMousedown = (e: MouseEvent) => {
 	}
 }
 
+// 开发模式刷新按钮
+const handleRefreshButtonClicked = () => location.reload();
+
 // 第四金刚键
 const handleFourthButtonClicked = () => {
 	if (fourthButtonType.value === 'addServer') {
@@ -105,6 +110,7 @@ const handleCloseClicked = () => {
 
 <template>
 	<div class="buttonArea">
+		<button v-if="isDev" class="normalButton" @click="handleRefreshButtonClicked">🔃</button>
 		<button v-if="fourthButtonType" class="normalButton" aria-label="添加服务器" @click="handleFourthButtonClicked">
 			<IconAdd v-if="fourthButtonType === 'addServer'" />
 			<IconBack v-else-if="fourthButtonType === 'back'" />
@@ -132,16 +138,19 @@ const handleCloseClicked = () => {
 		position: fixed;
 		right: 0;
 		top: 0;
-		width: 176px;
+		min-width: 176px;
 		height: 30px;
 		padding-bottom: 8px;
-		text-align: right;
+		display: flex;
+		align-items: center;
+		// text-align: right;
 		z-index: 100;
 		-webkit-app-region: none;
 		button {
 			position: relative;
 			width: 44px;
 			height: 30px;
+			line-height: 30px;
 			display: inline-flex;
 			justify-content: center;
 			align-items: center;
