@@ -909,10 +909,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				task.ffmpeg!.exit(() => {
 					task.status = TaskStatus.idle;
 					task.ffmpeg = null;
-					this.emit('taskUpdate', {
-						taskId: id,
-						task: convertAnyTaskToTask(task),
-					});
+					this.emitTaskUpdate(id, task);
 					resolve();
 					this.queueAssign();
 					this.storeUnfinishedTask();
@@ -924,10 +921,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				task.ffmpeg!.forceKill(() => {
 					task.status = TaskStatus.idle;
 					task.ffmpeg = null;
-					this.emit('taskUpdate', {
-						taskId: id,
-						task: convertAnyTaskToTask(task),
-					});
+					this.emitTaskUpdate(id, task);
 					resolve();
 					this.queueAssign();
 					this.storeUnfinishedTask();
@@ -1022,9 +1016,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		if (runningCount) {
 			this.emit('workingStatusUpdate', { value: 'start' });
 		}
-		for (const [id, task]of Object.entries(this.tasklist)) {
+		for (const [id, task] of Object.entries(this.tasklist)) {
 			if (id !== '-1' && [TaskStatus.idle_queued, TaskStatus.paused_queued].includes(task.status)) {
-				this.emitTaskUpdate(+id);
+				this.emitTaskUpdate(+id, task);
 			}
 		}
 	}
@@ -1076,7 +1070,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			} else {
 				task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true });
 			}
-			this.emitTaskUpdate(id);
+			this.emitTaskUpdate(id, task);
 		}
 	}
 
@@ -1152,10 +1146,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			);
 			this.taskReset(id).then(() => {
 				task.status = TaskStatus.error;
-				this.emit('taskUpdate', {
-					taskId: id,
-					task: convertAnyTaskToTask(task),
-				});
+				this.emitTaskUpdate(id, task);
 			});
 		}
 	}

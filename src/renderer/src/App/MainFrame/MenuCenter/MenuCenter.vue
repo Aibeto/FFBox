@@ -206,6 +206,14 @@ const finalMenu = computed(() => {
 						appStore.showMenuCenter = 0;
 					}
 				} },
+				{ type: 'checkbox', label: '传输中心', value: '传输中心', checked: appStore.showTransferCenter, onClick: () => {
+					if (appStore.showTransferCenter) {
+						appStore.showTransferCenter = false;
+					} else {
+						appStore.showTransferCenter = true;
+						appStore.showMenuCenter = 0;
+					}
+				} },
 				{ type: 'checkbox', label: '菜单中心', value: '菜单中心', checked: appStore.showMenuCenter === 2, onClick: () => {
 					if (appStore.showMenuCenter === 2) {
 						appStore.showMenuCenter = 0;

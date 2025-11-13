@@ -89,8 +89,10 @@ const uiBridge = {
 
 		// session 校验中间件
 		koa.use(async (ctx, next) => {
-			if (['/login', '/version'].includes(ctx.path)) {
-				return next();	// 允许登录接口直接通过
+			if (['/login', '/version'].includes(ctx.path) || ctx.path.includes('/download')) {
+				// 登录和获取版本接口可不鉴权
+				// 下载接口若需使用自定义 header 鉴权，必须使用 js 进行请求，不能用浏览器的下载管理器。工程上的做法是新建一个接口，由 sessionId 和下载地址生成一个带签名的直链，再进行下载。FFBox 暂不将此作为工作重心，所以不管了
+				return next();
 			}
 			const authHeader = ctx.get('Authorization');
 			if (authHeader && authHeader.startsWith('Bearer ')) {

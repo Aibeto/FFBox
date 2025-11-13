@@ -5,15 +5,26 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { formatSize } from '@common/utils';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import IconUpArrow from '../Parabox/uparrow.svg?component';
-import Checkbox from '@renderer/components/Checkbox/Checkbox.vue';
 import IconDownload from './Download.svg';
 import IconUpload from './Upload.svg';
+import IconDownloadAllTab from './DownloadAllTab.svg';
+import IconDownloadTab from './DownloadTab.svg';
+import IconUploadAllTab from './UploadAllTab.svg';
+import IconUploadTab from './UploadTab.svg';
 
 const appStore = useAppStore();
+const sidebarIcons = [IconUploadAllTab, IconUploadTab, IconDownloadAllTab];
+const sidebarTexts = ['上传', '已选任务上传', '下载', '音频', '封装'];
+const sidebarColors = computed(() => 
+	appStore.frontendSettings.colorTheme === 'themeLight'
+		? ['hwb(25 5% 5%)', 'hwb(25 5% 5%)', 'hwb(210 15% 5%)']
+		: ['hwb(25 5% 10%)', 'hwb(25 5% 10%)', 'hwb(210 25% 0%)']
+);
+const paraSelected = ref(0);
+
 const deviderRef = ref<Element>(null);
 const centerDraggerPos = ref(50);
 const selectedFileIndex = ref(undefined);
-const showAllTaskFiles = ref(true);
 
 const uploadFileList = computed(() => {
 	// const tasks = appStore.currentServer?.data.tasks || [];
@@ -42,7 +53,17 @@ const chunkList = computed(() => {
 
 const downloadFileList = computed(() => appStore.currentServer?.data.downloadFiles || []);
 
-const fileListStyle = computed(() => uploadFileList.value.filter((file) => showAllTaskFiles.value && file.isCurrentTask).length + downloadFileList.value.length >= 11 ? "--itemHeight: 26px" : "--itemHeight: 34px");
+const selectedTaskName = computed(() => 
+	appStore.selectedTask.size === 0 ? '您未选择任务' : 
+	appStore.selectedTask.size === 1 ? `任务「${appStore.currentServer.data.tasks[[...appStore.selectedTask][0]].taskName}」上传文件` : 
+	`${appStore.selectedTask.size} 个任务的上传文件`
+);
+
+const fileListStyle = computed(() => (
+	(paraSelected.value === 0 ? uploadFileList.value.length : 0) +
+	(paraSelected.value === 1 ? uploadFileList.value.filter((file) => file.isCurrentTask).length : 0) + 
+	(paraSelected.value === 2 ? downloadFileList.value.length : 0)
+) >= 11 ? "--itemHeight: 26px" : "--itemHeight: 34px");
 const chunkListStyle = computed(() => chunkList.value ? "--itemHeight: 26px" : "--itemHeight: 34px");
 
 const handleDragStart = (event: MouseEvent | TouchEvent) => {
@@ -96,10 +117,12 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 
 const handleFileClick = (file: UploadFile, index: number) => {
 	selectedFileIndex.value = index;
-	appStore.selectedTask = new Set([file.taskId]);
+	appStore.selectedTask = appStore.currentServer.data.tasks[file.taskId] ? new Set([file.taskId]) : new Set();
 	appStore.taskSelectionModified = false;
 	appStore.applySelectedTask();
 };
+
+const getButtonColorStyle = (index: number) => ({ color: paraSelected.value === index ? sidebarColors.value[index] : 'hwb(0 50% 50%)' });
 
 watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 	if (selectedFileIndex.value >= (appStore.currentServer?.data.uploadFiles || []).length - 1) {
@@ -113,30 +136,31 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 	<div class="transferCenter" :data-color_theme="appStore.frontendSettings.colorTheme">
 		<div class="upper">
 			<div class="devider" :ref="(el) => deviderRef = el as Element">
-				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
-					<h2>传输中心</h2>
-				</div>
-				<button class="showGlobalButton" @click="appStore.showTransferCenter = false" aria-label="传输中心面板开关">
-					<span>返回参数</span>
+				<button class="leftButton" @click="appStore.showTransferCenter = false" aria-label="传输中心面板开关">
 					<IconUpArrow :style="{ transform: 'rotate(-90deg)' }" />
+					<span>返回参数</span>
 				</button>
+				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
+					<button v-for="index in [0, 1, 2]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="paraSelected = index">
+						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
+						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>
+					</button>
+				</div>
 			</div>
 		</div>
 		<div class="lower">
-			<div class="left" :style="{ width: `${centerDraggerPos}%`}">
+			<div class="left" :style="{ width: paraSelected === 2 ? '100%' : `${centerDraggerPos}%` }">
 				<div class="title">
-					文件列表
-					<div class="right">
-						<Checkbox style="margin-right: 8px;" :checked="showAllTaskFiles" @change="(value) => showAllTaskFiles = value"/>显示所有任务的文件
-					</div>
+					{{ paraSelected === 0 ? '全部上传文件' : paraSelected === 1 ? selectedTaskName : '全部下载文件' }}
 				</div>
 				<div class="listContainer" :style="fileListStyle">
 					<div
-						v-for="(file, index) in uploadFileList"
+						v-if="paraSelected !== 2"
+						v-for="(file, index) in (paraSelected == 0 ? uploadFileList : uploadFileList.filter((item) => item.isCurrentTask))"
 						class="listItem" :class="selectedFileIndex === index ? 'listItemSelected' : undefined"
-						:style="file.isCurrentTask ? {} : (showAllTaskFiles ? { opacity: 0.6 } : { display: 'none' })"
+						:style="file.isCurrentTask ? {} : (paraSelected == 0 ? { opacity: 0.6 } : { display: 'none' })"
 						@click="handleFileClick(file as any, index)"
-						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${formatSize(file.size, appStore.frontendSettings.useIEC)}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`)"
+						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${formatSize(file.size, appStore.frontendSettings.useIEC)}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`, 'mtl')"
 					>
 						<div :class="`progress ${file.status === 'error' ? 'progressError' : ''}`">
 							<div :style="{
@@ -152,9 +176,10 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						<span>{{ file.fileBaseName }}</span>
 					</div>
 					<div
+						v-if="paraSelected === 2"
 						v-for="(file, index) in downloadFileList"
 						class="listItem"
-						v-bind="useTooltip(`文件名：${file.url}\n大小：${file.size}`)"
+						v-bind="useTooltip(`网址：${file.url}\n存址：${file.finalFilePath ?? ''}\n大小：${formatSize(file.size, appStore.frontendSettings.useIEC)}`, 'mtl')"
 					>
 						<div class="progress">
 							<div :style="{
@@ -166,11 +191,11 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 					</div>
 				</div>
 			</div>
-			<div class="dragger" :style="{ left: `${centerDraggerPos}%` }" @mousedown="handleCenterDraggerDragStart($event)" @touchstart="handleCenterDraggerDragStart($event)" />
-			<div class="right" :style="{ width: `${100 - centerDraggerPos}%`}">
+			<div class="dragger" v-if="paraSelected !== 2" :style="{ left: `${centerDraggerPos}%` }" @mousedown="handleCenterDraggerDragStart($event)" @touchstart="handleCenterDraggerDragStart($event)" />
+			<div class="right" v-if="paraSelected !== 2" :style="{ width: `${100 - centerDraggerPos}%`}">
 				<div class="title">分片列表</div>
 				<div class="listContainer" :style="chunkListStyle">
-					<div v-for="chunk in chunkList" class="listItem">
+					<div v-for="(chunk, index) in chunkList" class="listItem" :key="`${index} ${chunk.hash}`">
 						<div :class="`progress ${chunk.status === 'error' ? 'progressError' : ''}`">
 							<div :style="{
 								width: `${chunk.progress * 100}%`,
@@ -209,18 +234,48 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 					display: flex;
 					justify-content: center;
 					align-items: center;
-					h2 {
-						font-size: 16px;
-						font-weight: 500;
+					button {
+						// display: inline-block;
 						text-align: center;
-						color: var(--titleText);
-
+						// width: 80px;
+						height: 28px;
+						padding: 0 8px;
+						background-color: transparent;
+						border: none;
+						transition: width 0.3s ease;
+						&:hover {
+							background-color: hwb(var(--hoverLightBg) / 0.5);
+							box-shadow: 0 0 4px 2px hwb(var(--hoverShadow) / 0.05);
+						}
+						&:active {
+							background-color: transparent;
+							box-shadow: 0 0 2px 1px hwb(var(--hoverShadow) / 0.05), // 外部阴影
+										0 6px 12px hwb(var(--hoverShadow) / 0.1) inset; // 内部凹陷阴影
+							transform: translateY(0.25px);
+						}
+						svg {
+							width: 24px;
+							height: 24px;
+							vertical-align: middle;
+							filter: var(--paraBoxButtonDropFilterSvg);
+						}
+						span {
+							display: inline-block;
+							// width: 32px;
+							vertical-align: -4.5px;
+							padding-left: 4px;
+							letter-spacing: 2px;
+							white-space: nowrap;
+							overflow: hidden;
+							transition: width 0.3s ease, padding 0.3s ease;
+							filter: var(--paraBoxButtonDropFilterText);
+						}
 					}
 				}
-				.showGlobalButton {
+				.leftButton {
 					position: absolute;
 					top: 0;
-					right: 0;
+					left: 0;
 					width: 40px;
 					height: 28px;
 					display: flex;
@@ -244,7 +299,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						position: relative;
 						display: inline-block;
 						width: 0px;
-						margin-right: 0px;
+						margin-left: 0px;
 						letter-spacing: 1px;
 						top: -0.5px;
 						white-space: nowrap;
@@ -259,11 +314,11 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						color: #777;
 						transition: transform 0.4s cubic-bezier(0.2, 1.4, 0.65, 1);
 					}
-					@media only screen and (min-width: 960px) {
+					@media only screen and (min-width: 600px) {
 						width: 120px;
 						span {
 							width: 62px;
-							margin-right: 8px;
+							margin-left: 8px;
 						}
 					}
 				}

@@ -26,7 +26,7 @@ interface StoreState {
 	showMenuCenter: 0 | 1 | 2; // 0：关闭　1：开启菜单栏　2：全开
 	showInfoCenter: boolean;
 	showTransferCenter: boolean;
-	showTaskInfo: number | undefined;
+	showTaskInfo: [number, 0 | 1 | 2, params?: any] | undefined;
 	showDragFilesOverlay: boolean;
 	paraSelected: number,
 	draggerPos: number,

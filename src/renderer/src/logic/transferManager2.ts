@@ -301,9 +301,13 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 			console.log(fileBaseName, '已缓存');
 			server.entity.mergeUploaded(taskId, file.chunks.map((chunk) => chunk.hash), fileBaseName, inputName, { accessTime, createTime, modifyTime });
 			const taskUpdateHandler = (arg: { taskId: number }) => {
-				// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
 				if (arg.taskId === taskId) {
 					server.entity.off('taskUpdate', taskUpdateHandler);
+					const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
+					if (!hasOtherUploadTask) {
+						server.entity.setUploadStatus(taskId, false);
+					}
+					// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
 					if (appStore.currentServer === server && appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
 				}
 			};
@@ -316,10 +320,6 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 			file.readTask = undefined;
 			file.hashTask = undefined;
 			file.uploadTask = undefined;
-			const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
-			if (!hasOtherUploadTask) {
-				server.entity.setUploadStatus(taskId, false);
-			}
 		} else {
 			console.log(fileBaseName, '未缓存');
 			// 运行到此时，虽然代码逻辑上不保证本地 tasklist 一定有此任务，但正常操作下 tasklist update 一早就到达了，而且用户也不会在上传开始前删除任务
@@ -408,9 +408,13 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					file.status = 'finished';
 					server.entity.mergeUploaded(file.taskId, file.chunks.map((chunk) => chunk.hash), file.fileBaseName, inputName, { accessTime, createTime, modifyTime });
 					const taskUpdateHandler = (arg: { taskId: number }) => {
-						// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
 						if (arg.taskId === taskId) {
 							server.entity.off('taskUpdate', taskUpdateHandler);
+							const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
+							if (!hasOtherUploadTask) {
+								server.entity.setUploadStatus(taskId, false);
+							}
+							// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
 							if (appStore.currentServer === server && appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
 						}
 					};
@@ -419,10 +423,6 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					file.readTask = undefined;
 					file.hashTask = undefined;
 					file.uploadTask = undefined;
-					const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
-					if (!hasOtherUploadTask) {
-						server.entity.setUploadStatus(taskId, false);
-					}
 				} else {
 					console.log(`【${file.fileBaseName}】文件上传中止或失败`);
 					file.status = 'error';

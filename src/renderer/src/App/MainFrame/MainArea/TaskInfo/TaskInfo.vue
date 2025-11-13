@@ -1,15 +1,25 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { UploadFile } from '@renderer/types';
+import { computed, ref } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
-import { useTooltip } from '@renderer/common/tooltipUtil';
+import MediaInfo from './MediaInfo.vue';
+import FFmpegLog from './FFmpegLog.vue';
+import ProgressLog from './ProgressLog.vue';
+import IconMedia from './parabox_media3.svg';
+import IconCmd from './parabox_cmd.svg';
+import IconChart from './parabox_chart.svg';
 import IconUpArrow from '../Parabox/uparrow.svg?component';
-import Checkbox from '@renderer/components/Checkbox/Checkbox.vue';
 
 const appStore = useAppStore();
-const deviderRef = ref<Element>(null);
+const sidebarIcons = [IconMedia, IconCmd, IconChart];
+const sidebarTexts = ['媒体信息', '输出日志', '进展图表', '任务信息'];
+const sidebarColors = computed(() => 
+	appStore.frontendSettings.colorTheme === 'themeLight'
+		? ['hwb(200 0% 10%)', 'hwb(225 40% 10%)', 'hwb(135 20% 20%)', 'hwb(25 5% 5%)']
+		: ['hwb(200 5% 5%)', 'hwb(225 50% 20%)', 'hwb(135 15% 25%)', 'hwb(25 5% 10%)']
+);
 
-const task = computed(() => appStore.currentServer?.data.tasks[appStore.showTaskInfo]);
+const deviderRef = ref<Element>(null);
+const animationName = ref('animationLeft');
 
 const handleDragStart = (event: MouseEvent | TouchEvent) => {
 	// event.preventDefault();
@@ -37,34 +47,95 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 	window.addEventListener('touchend', handleMouseUp);
 };
 
+const handleParaButtonClicked = (index: any) => {
+	animationName.value = index < appStore.showTaskInfo[1] ? 'animationLeft' : 'animationRight';
+	appStore.showTaskInfo[1] = index;
+}
+
+const getButtonColorStyle = (index: number) => ({ color: appStore.showTaskInfo?.[1] === index ? sidebarColors.value[index] : 'hwb(0 50% 50%)' });
+
 </script>
 
 <template>
-	<div class="transferCenter" :data-color_theme="appStore.frontendSettings.colorTheme">
+	<div class="taskInfo" :data-color_theme="appStore.frontendSettings.colorTheme">
 		<div class="upper">
 			<div class="devider" :ref="(el) => deviderRef = el as Element">
-				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
-					<h2>任务信息</h2>
-				</div>
-				<button class="showGlobalButton" @click="appStore.showTaskInfo = undefined" aria-label="任务信息面板开关">
-					<span>返回参数</span>
+				<button class="leftButton" @click="appStore.showTaskInfo = undefined" aria-label="任务信息面板开关">
 					<IconUpArrow :style="{ transform: 'rotate(-90deg)' }" />
+					<span>任务参数</span>
 				</button>
+				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
+					<button v-for="index in [0, 1, 2]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="() => handleParaButtonClicked(index)">
+						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
+						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>
+					</button>
+				</div>
 			</div>
 		</div>
 		<div class="lower">
+			<transition :name="animationName">
+				<MediaInfo v-if="appStore.showTaskInfo?.[1] == 0" />
+			</transition>
+			<transition :name="animationName">
+				<FFmpegLog v-if="appStore.showTaskInfo?.[1] == 1" />
+			</transition>
+			<transition :name="animationName">
+				<ProgressLog v-if="appStore.showTaskInfo?.[1] == 2" />
+			</transition>
 		</div>
 	</div>
 </template>
 
 <style lang="less" scoped>
-	.transferCenter {
+	.taskInfo {
 		width: 100%;
 		height: 100%;
 		display: flex;
 		flex-direction: column;
 		background-color: hwb(var(--bg94));
 		overflow: hidden;
+		// 切换动画（向左）
+		.animationLeft-enter-from {
+			/* z-index: 0; */
+			opacity: 0;
+			transform: translateX(-30px);
+		}
+		.animationLeft-enter-active {
+			transition: opacity 0.3s, transform 0.5s cubic-bezier(0.2, 1.25, 0.3, 1);
+		}
+		.animationLeft-enter-to, .animationLeft-leave-from {
+			/* z-index: 1; */
+			opacity: 1;
+			transform: translateX(0);
+		}
+		.animationLeft-leave-active {
+			transition: opacity 0.3s, transform 0.3s cubic-bezier(0.5, 0, 1, 1);
+		}
+		.animationLeft-leave-to {
+			opacity: 0;
+			transform: translateX(30px);
+		}
+		// 切换动画（向右）
+		.animationRight-enter-from {
+			/* z-index: 0; */
+			opacity: 0;
+			transform: translateX(30px);
+		}
+		.animationRight-enter-active {
+			transition: opacity 0.3s, transform 0.5s cubic-bezier(0.2, 1.25, 0.3, 1);
+		}
+		.animationRight-enter-to, .animationRight-leave-from {
+			/* z-index: 1; */
+			opacity: 1;
+			transform: translateX(0);
+		}
+		.animationRight-leave-active {
+			transition: opacity 0.3s, transform 0.3s cubic-bezier(0.5, 0, 1, 1);
+		}
+		.animationRight-leave-to {
+			opacity: 0;
+			transform: translateX(-30px);
+		}
 		.upper {
 			position: relative;
 			height: 30px;
@@ -82,17 +153,47 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 					display: flex;
 					justify-content: center;
 					align-items: center;
-					h2 {
-						font-size: 16px;
-						font-weight: 500;
+					button {
+						// display: inline-block;
 						text-align: center;
-						color: var(--titleText);
-
+						// width: 80px;
+						height: 28px;
+						padding: 0 8px;
+						background-color: transparent;
+						border: none;
+						transition: width 0.3s ease;
+						&:hover {
+							background-color: hwb(var(--hoverLightBg) / 0.5);
+							box-shadow: 0 0 4px 2px hwb(var(--hoverShadow) / 0.05);
+						}
+						&:active {
+							background-color: transparent;
+							box-shadow: 0 0 2px 1px hwb(var(--hoverShadow) / 0.05), // 外部阴影
+										0 6px 12px hwb(var(--hoverShadow) / 0.1) inset; // 内部凹陷阴影
+							transform: translateY(0.25px);
+						}
+						svg {
+							width: 24px;
+							height: 24px;
+							vertical-align: middle;
+							filter: var(--paraBoxButtonDropFilterSvg);
+						}
+						span {
+							display: inline-block;
+							// width: 32px;
+							vertical-align: -4.5px;
+							padding-left: 4px;
+							letter-spacing: 2px;
+							white-space: nowrap;
+							overflow: hidden;
+							transition: width 0.3s ease, padding 0.3s ease;
+							filter: var(--paraBoxButtonDropFilterText);
+						}
 					}
 				}
-				.showGlobalButton {
+				.leftButton {
 					position: absolute;
-					top: 0;
+					left: 0;
 					right: 0;
 					width: 40px;
 					height: 28px;
@@ -117,7 +218,7 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 						position: relative;
 						display: inline-block;
 						width: 0px;
-						margin-right: 0px;
+						margin-left: 0px;
 						letter-spacing: 1px;
 						top: -0.5px;
 						white-space: nowrap;
@@ -132,17 +233,24 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 						color: #777;
 						transition: transform 0.4s cubic-bezier(0.2, 1.4, 0.65, 1);
 					}
-					@media only screen and (min-width: 960px) {
+					@media only screen and (min-width: 640px) {
 						width: 120px;
 						span {
 							width: 62px;
-							margin-right: 8px;
+							margin-left: 8px;
 						}
 					}
 				}
 			}
 		}
 		.lower {
+			position: relative;
+			height: 100%;
+			isolation: isolate;
+			&>div {
+				position: absolute;
+				top: 0;
+			}
 		}
 	}
 

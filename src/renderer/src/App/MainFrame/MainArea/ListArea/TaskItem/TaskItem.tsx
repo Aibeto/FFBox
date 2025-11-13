@@ -7,7 +7,6 @@ import { getOutputFileBaseName } from '@common/params/formats';
 import { useAppStore } from '@renderer/stores/appStore';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import showMenu from '@renderer/components/Menu/Menu';
-import { showProgressInfo } from '@renderer/components/misc/ProgressInfo';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { getOutputDuration, formatTimeToFFmpegStyle, formatSize, parseTimeString } from '@common/utils';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
@@ -286,7 +285,22 @@ export const TaskItem = defineComponent((props: Props) => {
 	// #region 体验优化
 
 	const cmdRef = ref<HTMLTextAreaElement>(null);
-	const cmdText = computed(() => settings.cmdDisplay === 'input' ? ['ffmpeg', ...props.task.paraArray].join(' ') : props.task.cmdData);
+	function lastNLines(str: string, n: number) {
+		let count = 0;
+		let i = str.length - 1;
+		while (i >= 0) {
+			if (str[i] === '\n') {
+				count++;
+				if (count === n + 1) break;
+			}
+			i--;
+		}
+		return str.slice(i + 1);
+	}	
+	const cmdText = computed(() => settings.cmdDisplay === 'input'
+		? ['ffmpeg', ...props.task.paraArray].join(' ')
+		: props.task.cmdData.length >= 12000 ? '（此处只显示最后 120 行。请双击此处打开“输出日志”面板查看全文）\n' + lastNLines(props.task.cmdData, 120) : props.task.cmdData
+	);
 	watch(() => props.task.cmdData, () => {
 		const elem = cmdRef.value;
 		if (elem) {
@@ -390,9 +404,16 @@ export const TaskItem = defineComponent((props: Props) => {
 		}
 	};
 
-	const handleTaskDblClicked = (event: MouseEvent) => {
-		appStore.showTaskInfo = props.id;
+	const handleCmdDblClicked = (event: MouseEvent) => {
+		appStore.showTaskInfo = [props.id, 1];
 		appStore.showTransferCenter = false;
+		event.stopPropagation();
+	};
+
+	const handleTaskDblClicked = (event: MouseEvent) => {
+		appStore.showTaskInfo = [props.id, 0];
+		appStore.showTransferCenter = false;
+		event.stopPropagation();
 	};
 
 	const handleTaskContextMenu = (event: MouseEvent) => {
@@ -441,7 +462,7 @@ export const TaskItem = defineComponent((props: Props) => {
 				} },
 				...(![TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
 					{ type: 'separator' as const },
-					{ type: 'normal' as const, icon: <span>📈</span>, label: '查看图表', value: '查看图表', onClick: () => showProgressInfo(props.task, props.id, 'progress') },
+					{ type: 'normal' as const, icon: <span>📈</span>, label: '查看任务信息', value: '查看任务信息', onClick: () => appStore.showTaskInfo = [props.id, 0] },
 				] : []),
 				...(props.task.outputFiles?.length && [TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
 					{ type: 'separator' as const },
@@ -618,7 +639,7 @@ export const TaskItem = defineComponent((props: Props) => {
 							<div class={css.dashboardArea} style={{ pointerEvents: props.shouldHandleHover ? 'all' : undefined }}>
 								{dashboardType.value === 'convert' ? (
 									<>
-										<div class={css.linearGraphItems} onClick={() => showProgressInfo(props.task, props.id, 'progress')}>
+										<div class={css.linearGraphItems} onClick={() => appStore.showTaskInfo = [props.id, 2, 'progress']}>
 											<div class={css.linearGraphItem}>
 												<span class={css.data}>{ graphTime.value }</span>
 												<span class={css.description}>时间</span>
@@ -628,21 +649,21 @@ export const TaskItem = defineComponent((props: Props) => {
 												<span class={css.description}>帧</span>
 											</div>
 										</div>
-										<div class={css.roundGraphItem} onClick={() => showProgressInfo(props.task, props.id, 'bitrate')}>
+										<div class={css.roundGraphItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'bitrate']}>
 											<div class={css.ring} style={graphBitrateStyle.value}></div>
 											<span class={css.data}>{ graphBitrate.value }</span>
 											<span class={css.description}>码率</span>
 										</div>
-										<div class={css.roundGraphItem} onClick={() => showProgressInfo(props.task, props.id, 'speed')}>
+										<div class={css.roundGraphItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'speed']}>
 											<div class={css.ring} style={graphSpeedStyle.value}></div>
 											<span class={css.data}>{ graphSpeed.value }</span>
 											<span class={css.description}>速度</span>
 										</div>
-										<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, 'size')}>
+										<div class={css.textItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'size']}>
 											<span class={css.data}>{ graphSize.value }</span>
 											<span class={css.description}>输出大小</span>
 										</div>
-										<div class={css.textItem} onClick={() => showProgressInfo(props.task, props.id, 'progress')}>
+										<div class={css.textItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'progress']}>
 											<span class={css.data}>{ graphLeftTime.value }</span>
 											<span class={css.description}>预计剩余时间</span>
 										</div>
@@ -665,7 +686,7 @@ export const TaskItem = defineComponent((props: Props) => {
 								)}
 								<div
 									class={`${css.textItem} ${dashboardType.value === 'transfer' ? css.disabled : ''}`}
-									onClick={() => dashboardType.value === 'convert' && showProgressInfo(props.task, props.id, 'progress')}
+									onClick={() => dashboardType.value === 'convert' && (appStore.showTaskInfo = [props.id, 2, 'progress'])}
 								>
 									<span class={`${css.data} ${css.dataLarge}`}>{ overallProgress.value === 1 ? '🆗' : `${(overallProgress.value * 100).toFixed(1)}%` }</span>
 									<span class={css.description}>{ overallProgressDescription.value }</span>
@@ -674,7 +695,7 @@ export const TaskItem = defineComponent((props: Props) => {
 						)}
 					</Transition>
 					{settings.showCmd && (
-						<div class={css.cmdArea} style={{ top: `${(settings.showParams ? 1 : 0) * 24 + (showDashboard.value ? 1 : 0) * 72 + 2}px` }}>
+						<div class={css.cmdArea} style={{ top: `${(settings.showParams ? 1 : 0) * 24 + (showDashboard.value ? 1 : 0) * 72 + 2}px` }} onDblclick={handleCmdDblClicked}>
 							<div class={css.margin}>
 								<div class={css.switch}>
 									<button
