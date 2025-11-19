@@ -277,6 +277,10 @@ const nodeBridge = {
 		return window.jsb?.ipcRenderer?.invoke('readLicense');
 	},
 
+	getMachineId(): Promise<string> {
+		return window.jsb?.ipcRenderer?.invoke('getMachineId');
+	},
+
 	request(url: string, options?: { method?: string; body?: any; headers?: Record<string, string> }) {
 		return window.jsb?.ipcRenderer?.invoke('request', url, options);
 	},

@@ -4,7 +4,8 @@ import { UploadFile } from '@renderer/types';
 import { useAppStore } from '@renderer/stores/appStore';
 import { formatSize } from '@common/utils';
 import { useTooltip } from '@renderer/common/tooltipUtil';
-import IconUpArrow from '../Parabox/uparrow.svg?component';
+import nodeBridge from '@renderer/bridges/nodeBridge';
+import IconUpArrow from '../ParaBox/uparrow.svg?component';
 import IconDownload from './Download.svg';
 import IconUpload from './Upload.svg';
 import IconDownloadAllTab from './DownloadAllTab.svg';
@@ -141,7 +142,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 					<span>返回参数</span>
 				</button>
 				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
-					<button v-for="index in [0, 1, 2]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="paraSelected = index">
+					<button v-for="index in [0, 1, ...(nodeBridge.env === 'electron' ? [2] : [])]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="paraSelected = index">
 						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
 						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>
 					</button>

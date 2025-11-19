@@ -108,6 +108,12 @@ onMounted(async () => {
 		appStore.applyFrontendSettings(false);
 	})();
 
+	// 激活
+	nodeBridge.localStorage.get('frontendSettings.activationCode').then(async (value) => {
+		const result = await appStore.activateFrontend(value);
+		console.log('前端激活结果', result);
+	});					
+
 	// 检查版本更新
 	fetch('https://ffbox.ttqf.tech/api/v1/FFBoxVersion/latest').then(async (response) => {
 		const latestVersion = await response.text();

@@ -25,6 +25,7 @@ const qr_alipayredenvelop = ref<HTMLCanvasElement>();
 const qr_alipay = ref<HTMLCanvasElement>();
 const qr_wechatpay = ref<HTMLCanvasElement>();
 const qr_qqpay = ref<HTMLCanvasElement>();
+const frontendMachineId = ref();
 const activateCode = ref('');
 const envelopPressed = ref(false);
 const envelopNum = ref(-2);
@@ -94,7 +95,7 @@ const paintQRcode2canvas = (canvas: HTMLCanvasElement, QRcode: string[][]) => {
 	}
 };
 
-const handleEnvelopMouseDown = (event: MouseEvent) => {
+const handleEnvelopMouseDown = async (event: MouseEvent) => {
 	envelopPressed.value = true;
 	if (event.button === 2 && envelopNum.value < 0) {
 		// 右键两次启动计数
@@ -110,8 +111,9 @@ const handleEnvelopMouseDown = (event: MouseEvent) => {
 		const key = machineId + fixedCode;
 		const min = CryptoJS.enc.Utf8.parse(envelopNum.value + '');
 		const userInput = CryptoJS.AES.encrypt(min, key).toString();
-		const result = appStore.activate(userInput);
-		console.log('激活结果：' + result);
+		const frontendResult = await appStore.activateFrontend(userInput);
+		const backendResult = await appStore.activateBackend(userInput);
+		console.log('激活结果', frontendResult, backendResult, envelopNum.value, userInput);
 		Popup({ message: '激活结果请到开发人员控制台查看', level: NotificationLevel.ok });
 		envelopNum.value = -2;
 	} else {
@@ -120,32 +122,39 @@ const handleEnvelopMouseDown = (event: MouseEvent) => {
 	}
 };
 
-const handleActivateButtonClick = () => {
+const handleActivateButtonClick = async (end: 'frontend' | 'backend' | 'both') => {
 	if (activateCode.value.length) {
-		const result = appStore.activate(activateCode.value);
-		console.log('激活结果：' + result);
-		if (result) {
-			Popup({ message: '🎉成功了！你人真好👍', level: NotificationLevel.ok });
+		let frontendResult = '-', backendResult = '-';
+		if (end === 'frontend' || end === 'both') {
+			frontendResult = await appStore.activateFrontend(activateCode.value) + '';
+		}
+		if (end === 'backend' || end === 'both') {
+			backendResult = await appStore.activateBackend(activateCode.value) + '';
+		}
+		console.log('激活结果', frontendResult, backendResult);
+		if (frontendResult && backendResult) {
+			Popup({ message: '🎉Have a nice day!👍', level: NotificationLevel.ok });
 		} else {
-			Popup({ message: '没成呢🤷', level: NotificationLevel.warning });
+			Popup({ message: '🤔不对劲！', level: NotificationLevel.warning });
 		}
 	} else {
 		Popup({ message: '这不还没写激活码嘛~🤷', level: NotificationLevel.info });
 	}
 };
 
-const handleMachineCodeClick = () => {
-	if (appStore.localServer?.entity.status === ServiceBridgeStatus.Connected && appStore.localServer.data.machineId) {
-		navigator.clipboard.writeText(appStore.localServer.data.machineId);
-		Popup({ message: '已复制机器码🫡', level: NotificationLevel.info });
+const handleMachineIdClick = (machineId: string) => {
+	if (machineId) {
+		navigator.clipboard.writeText(machineId);
+		Popup({ message: '已复制机器码到剪贴板🫡', level: NotificationLevel.info });
 	}
 };
 
-onMounted(() => {
+onMounted(async () => {
 	paintQRcode2canvas(qr_alipayredenvelop.value, alipayRedEnvelopQR());
 	paintQRcode2canvas(qr_alipay.value, alipayQR());
 	paintQRcode2canvas(qr_wechatpay.value, wechatpayQR());
 	paintQRcode2canvas(qr_qqpay.value, qqpayQR());
+	frontendMachineId.value = await nodeBridge.getMachineId();
 });
 
 </script>
@@ -227,11 +236,31 @@ onMounted(() => {
 			</div>
 		</div>
 		<h2>功能解限</h2>
-		<div class="yourLevel">
-			<div class="yourLevel-text">您的用户等级</div>
-			<div class="yourLevel-bar">
-				<div :style="{ width: `${appStore.functionLevel}%` }"></div>
+		<div class="yourLevel-item">
+			<div class="yourLevel-middleNoOverflow">
+				<div class="yourLevel-bar" :style="{ width: `${appStore.functionLevel}%` }">
+				</div>
 			</div>
+			<div class="yourLevel-middle">
+				<div class="yourLevel-bar" :style="{ width: `${appStore.functionLevel}%` }">
+					<div class="yourLevel-bar-highlight" />
+					<span>前端：{{ appStore.functionLevel }}</span>
+				</div>
+			</div>
+			<div class="yourLevel-middle-highlight" :style="{ width: `${appStore.functionLevel}%` }" />
+		</div>
+		<div class="yourLevel-item" v-if="appStore.localServer?.entity.status === ServiceBridgeStatus.Connected && appStore.localServer?.data.functionLevel">
+			<div class="yourLevel-middleNoOverflow">
+				<div class="yourLevel-bar" :style="{ width: `${appStore.localServer.data.functionLevel}%` }">
+				</div>
+			</div>
+			<div class="yourLevel-middle">
+				<div class="yourLevel-bar" :style="{ width: `${appStore.localServer.data.functionLevel}%` }">
+					<div class="yourLevel-bar-highlight" />
+					<span>本地服务器：{{ appStore.localServer.data.functionLevel }}</span>
+				</div>
+			</div>
+			<div class="yourLevel-middle-highlight" :style="{ width: `${appStore.localServer.data.functionLevel}%` }" />
 		</div>
 		<table>
 			<tbody>
@@ -268,8 +297,12 @@ onMounted(() => {
 		<p>FFBox 是一款试用、有源、捐赠混合的软件。出厂状况下，本软件存在部分功能的使用限制</p>
 		<p>您可以通过激活码去除这些限制，详情请到官网或官方信息发布平台查询～</p>
 		<BoxedNormalInput :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" style="margin: 0" title="激活码" :long="true" placeholder="一份激活码对应唯一的机器码，请您输入与本机机器码对应的激活码进行激活🫡" @change="(value) => activateCode = value" />
-		<Button :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" @click="handleActivateButtonClick">激活</Button>
-		<p>机器码：<span style="user-select: all;" @click="handleMachineCodeClick">
+		<Button :disabled="nodeBridge.env === 'browser'" @click="handleActivateButtonClick('frontend')">激活前端</Button>
+		<Button :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" @click="handleActivateButtonClick('both')">激活本地服务器</Button>
+		<p>机器码（前端）：<span style="user-select: all;" @click="handleMachineIdClick(frontendMachineId)">
+			{{ frontendMachineId }}
+		</span></p>
+		<p>机器码（本地服务器）：<span style="user-select: all;" @click="handleMachineIdClick(appStore.localServer.data.machineId)">
 			{{ appStore.localServer?.entity.status === ServiceBridgeStatus.Connected ? (appStore.localServer.data.machineId ?? '（服务器版本不匹配，无法读取）') : '（未连接，请连接本地服务器后获取）' }}
 		</span></p>
 	</div>
@@ -377,31 +410,109 @@ onMounted(() => {
 		margin: 2em 0 1em;
 		color: var(--titleText);
 	}
-	.yourLevel {
+	.yourLevel-item {
 		position: relative;
-		display: flex;
-		justify-content: stretch;
-		align-items: center;
-		gap: 8px;
-		padding: 8px calc(-100px + 30%);
-		font-size: 14px;
-		.yourLevel-text {
-			width: 120px;
+		width: 80%;
+		height: 48px;
+		margin-left: 10%;
+		margin: 24px auto;
+		border-radius: 24px;
+		box-shadow: -4px -8px 8px 0 hwb(var(--hoverLightBg) / 0.3),	// 上发光
+					4px 8px 4px -2px hwb(var(--hoverLightBg) / 0.3),	// 下折射光线
+					5px 10px 4px 0 hwb(var(--hoverShadow) / 0.08),	// 下投影
+					3px 6px 3px 0 hwb(var(--hoverShadow) / 0.08) inset,	// 内部上折射遮挡
+					-2px -4px 3px 0 hwb(var(--hoverLightBg) / 0.8) inset,	// 内部下反射
+		;
+		background-color: hwb(var(--hoverShadow) / 0.02);
+		// overflow: hidden;
+		.yourLevel-middleNoOverflow {
+			position: absolute;
+			left: 12px;
+			top: 12px;
+			right: 12px;
+			bottom: 12px;
+			display: flex;
+			justify-content: center;
+			border-radius: 12px;
+			background-color: hwb(var(--bg95) / 0.5);
+			overflow: hidden;
+			.yourLevel-bar {
+				position: relative;
+				height: 24px;
+				border-radius: 12px;
+				outline: red solid dashed;
+				box-shadow: 0 0 64px 12px hwb(50 15% 0% / 0.6);
+				mix-blend-mode: hard-light;
+			}
 		}
-		.yourLevel-bar {
-			width: 100%;
-			height: 8px;
-			flex: auto 1 1;
-			border-radius: 6px;
-			padding: 1.5px;
-			box-shadow: 0 0 8px 0px hwb(var(--hoverShadow) / 0.15) inset; 	// 内阴影
-			// outline: red 1px solid;
-			div {
-				height: 8px;
-				border-radius: 4px;
-				background: linear-gradient(180deg, hwb(50 15% 0%), hwb(50 5% 5%));
-				box-shadow: 0 0 6px 0 hwb(50 5% 5% / 0.9),	// 外发光
-							0 0.75px 0.75px 0 hwb(50 80% 0% / 0.6) inset;	// 上高光
+		.yourLevel-middle {
+			position: absolute;
+			left: 12px;
+			top: 12px;
+			right: 12px;
+			bottom: 12px;
+			display: flex;
+			justify-content: center;
+			border-radius: 12px;
+			box-shadow: 0 4px 3px 0px hwb(var(--hoverShadow) / 0.08) inset, 	// 内部上阴影
+						0 -1.5px 2px 0px hwb(var(--hoverLightBg) / 0.8) inset; 	// 内部下反射
+			.yourLevel-bar {
+				position: relative;
+				height: 24px;
+				border-radius: 12px;
+				background: linear-gradient(180deg, hwb(50 0% 0% / 0.9), hwb(50 5% 0% / 0.9));
+				box-shadow: 0 0 10px 0 hwb(50 5% 0% / 0.5),	// 外发光
+							4px 8px 12px -2px hwb(50 5% 0% / 0.15),	// 下折射光线
+							5px 10px 6px 0 hwb(50 0% 100% / 0.08),	// 下投影
+							3px 6px 2px 0 hwb(50 0% 30% / 0.16) inset,	// 内部上折射遮挡
+							-2px -4px 3px 0 hwb(50 65% 0% / 0.8) inset,	// 内部下反射
+							// 0 0.75px 0.75px 0 hwb(50 80% 0% / 0.6) inset;	// 上高光
+				;
+				.yourLevel-bar-highlight {
+					position: absolute;
+					left: 2px;
+					top: 2px;
+					right: 2px;
+					height: 12px;
+					border-radius: 10px 10px 2px 2px;
+					background: linear-gradient(to bottom, hwb(50 100% 0% / 0.4), hwb(50 100% 0% / 0.3), hwb(50 100% 0% / 0.0));
+				}
+				span {
+					position: relative;
+					font-size: 14px;
+					line-height: 24px;
+					color: #333;
+					text-shadow: 1px 2px 1px hwb(0 0% 100% / 0.1);
+				}
+			}
+		}
+		.yourLevel-middle-highlight {
+			position: absolute;
+			top: 0;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			margin: auto;
+			padding: 48px 24px;		// 上下：24px 是撑满组件自身高度，再增加 24px 撑开溢出空间放阴影；左右：24px 溢出空间放阴影
+			-webkit-mask-image: linear-gradient(to right, transparent, black, transparent);
+			outline: blue 2px dashed;
+			
+			mix-blend-mode: soft-light;
+			&::before {
+				content: "";
+				position: absolute;
+				top: 24px;
+				height: 48px;
+				left: -12px;	// 左右两边的大小只要能超过父组件就行，因为目的是为了让父组件割掉左右不要的阴影
+				right: -12px;
+				// inset: 0px;
+				box-shadow: 0 0 20px rgba(0,0,0,0.5);
+				pointer-events: none;
+				// outline: red 1px solid;
+				box-shadow: 0 -2px 6px 0px hwb(50 0% 0% / 0.6) inset,	// 内侧上下反射中间部分的光线
+							0 2px 16px 0 hwb(50 0% 0% / 0.4);		// 外侧溢出光线
+
+				// -webkit-mask-image: linear-gradient(to right, transparent, black, transparent);
 			}
 		}
 	}

@@ -683,14 +683,7 @@ export const useAppStore = defineStore('app', {
 				server.data.os = properties.os;
 				server.data.isSandboxed = properties.isSandboxed;
 				server.data.machineId = properties.machineId;
-
-				// 自动激活前端
-				if (server.entity.ip === 'localhost') {
-					nodeBridge.localConfig.get('userInfo.activationCode').then((value) => {
-						const result = 这.activate(value, true);
-						console.log('激活结果', result);
-					});					
-				}
+				server.data.functionLevel = properties.functionLevel;
 
 				// workingStatus
 				if (workingStatus === WorkingStatus.idle || workingStatus === WorkingStatus.running) {
@@ -826,7 +819,16 @@ export const useAppStore = defineStore('app', {
 		},
 		// #endregion 服务器处理
 		// #region 其他
-		activate(userInput: string, frontendOnly = false): number | false {
+		async activateBackend(userInput: string): Promise<number | false> {
+			const 这 = useAppStore();
+			const result = await 这.currentServer?.entity.activate(userInput);
+			if (Number.isFinite(+result)) {
+				这.currentServer!.data.functionLevel = +result;
+				return +result;
+			}
+			return false;
+		},
+		async activateFrontend(userInput: string): Promise<number | false> {
 			const 这 = useAppStore();
 			if (nodeBridge.env === 'electron') {
 				/**
@@ -834,17 +836,14 @@ export const useAppStore = defineStore('app', {
 				 * 管理端使用这个 key 对 functionLevel 加密，得到的加密字符串由用户输入到 userInput 中去
 				 * 客户端将 userInput 使用 key 解密，如果 userInput 不是瞎编的，那么就能解出正确的 functionLevel
 				 */
-				const machineId = 这.localServer?.data.machineId ?? '';
+				const machineId = await nodeBridge.getMachineId();
 				const fixedCode = 'd324c697ebfc42b7';
 				const key = machineId + fixedCode;
 				const decrypted = CryptoJS.AES.decrypt(userInput, key)
 				const decryptedString = CryptoJS.enc.Utf8.stringify(decrypted);
 				if (parseInt(decryptedString).toString() === decryptedString) {
 					这.functionLevel = parseInt(decryptedString);
-					if (!frontendOnly) {
-						这.currentServer.entity.activate(userInput);
-					}
-					nodeBridge.localConfig.set('userInfo.activationCode', userInput);
+					nodeBridge.localStorage.set('frontendSettings.activationCode', userInput);
 					return parseInt(decryptedString);
 				} else {
 					return false;

@@ -271,6 +271,37 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		this.sendWs(data);
 	}
 
+	public activate(activationCode: string) {
+		return new Promise<string | false>((resolve, reject) => {
+			fetch(`http://${this.ip}:${this.port}/activation`, {
+				method: 'post',
+				headers: new Headers({
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.sessionId}`,
+				}),
+				body: JSON.stringify({ userInput: activationCode }),
+			}).then((response) => {
+				response.text().then((result) => {
+					if (result) {
+						const fixedCode = 'd324c697ebfc42b7';
+						const decrypted = CryptoJS.AES.decrypt(result, fixedCode);
+						const activationResult = CryptoJS.enc.Utf8.stringify(decrypted);
+						resolve(activationResult);
+					} else {
+						console.error('后端解密失败');
+						resolve(false);
+					}
+				}).catch((err) => {
+					console.error('前端解密失败');
+					resolve(false);
+				});
+			}).catch((err) => {
+				console.error(err);
+				resolve(false);
+			});
+		});
+	}
+
 	public getCacheInfo(needDelete: boolean): Promise<{ uploadCount: number, uploadSize: number, downloadCount: number, downloadSize: number }> {
 		return new Promise((resolve, reject) => {
 			fetch(`http://${this.ip}:${this.port}/cache`, {
@@ -364,14 +395,6 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		let data: FFBoxServiceFunctionApi = {
 			function: 'setParameters',
 			args: [ids, params],
-		}
-		this.sendWs(data);
-	}
-
-	public activate(activationCode: string) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'activate',
-			args: [activationCode],
 		}
 		this.sendWs(data);
 	}

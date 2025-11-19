@@ -65,6 +65,7 @@ export interface ServerData {
 	os?: 'Windows' | 'Linux' | 'MacOS' | 'unknown';
 	isSandboxed?: boolean;
 	machineId?: string;
+	functionLevel?: number;
 	workingStatus: WorkingStatus;
 	progress: number;	// 由每个任务更新时计算出来
 	overallProgressTimerID: any;

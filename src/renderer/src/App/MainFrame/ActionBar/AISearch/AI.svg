@@ -5,6 +5,9 @@
     <filter id="haloSmall" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="2"/>
     </filter>
+    <filter id="haloMedium" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
     <filter id="haloBig" x="-60%" y="-60%" width="220%" height="220%">
       <feGaussianBlur stdDeviation="6"/>
     </filter>
@@ -26,8 +29,9 @@
   <!-- 字母周边旋转的光晕 -->
   <g style="mix-blend-mode: hard-light">
     <g transform="translate(24,24)">
-      <circle cx="0" cy="0" r="4" fill="#55eeff" opacity="0.3" filter="url(#haloSmall)"/>
-      <circle cx="0" cy="0" r="12" fill="#55eeff" opacity="0.12" filter="url(#haloBig)"/>
+      <!-- <circle cx="0" cy="0" r="4" fill="#55eeff" opacity="0.3" filter="url(#haloSmall)"/> -->
+      <circle cx="0" cy="0" r="6" fill="#55eeff" opacity="0.3" filter="url(#haloMedium)"/>
+      <!-- <circle cx="0" cy="0" r="12" fill="#55eeff" opacity="0.12" filter="url(#haloBig)"/> -->
     </g>
     <animateTransform
       attributeName="transform" type="rotate"
@@ -36,8 +40,9 @@
   </g>
   <g style="mix-blend-mode: hard-light">
     <g transform="translate(24,24)">
-      <circle cx="0" cy="0" r="4" fill="#ff3322" opacity="0.3" filter="url(#haloSmall)"/>
-      <circle cx="0" cy="0" r="12" fill="#ff3322" opacity="0.12" filter="url(#haloBig)"/>
+      <!-- <circle cx="0" cy="0" r="4" fill="#ff3322" opacity="0.3" filter="url(#haloSmall)"/> -->
+      <circle cx="0" cy="0" r="6" fill="#ff3322" opacity="0.3" filter="url(#haloMedium)"/>
+      <!-- <circle cx="0" cy="0" r="12" fill="#ff3322" opacity="0.12" filter="url(#haloBig)"/> -->
     </g>
     <animateTransform
       attributeName="transform" type="rotate" begin="-2s"
@@ -46,8 +51,9 @@
   </g>
   <g style="mix-blend-mode: hard-light">
     <g transform="translate(24,24)">
-      <circle cx="0" cy="0" r="4" fill="#99ee77" opacity="0.3" filter="url(#haloSmall)"/>
-      <circle cx="0" cy="0" r="12" fill="#99ee77" opacity="0.12" filter="url(#haloBig)"/>
+      <!-- <circle cx="0" cy="0" r="4" fill="#99ee77" opacity="0.3" filter="url(#haloSmall)"/> -->
+      <circle cx="0" cy="0" r="6" fill="#99ee77" opacity="0.3" filter="url(#haloMedium)"/>
+      <!-- <circle cx="0" cy="0" r="12" fill="#99ee77" opacity="0.12" filter="url(#haloBig)"/> -->
     </g>
     <animateTransform
       attributeName="transform" type="rotate" begin="-3s"
@@ -56,8 +62,9 @@
   </g>
   <g style="mix-blend-mode: hard-light">
     <g transform="translate(24,24)">
-      <circle cx="0" cy="0" r="4" fill="#9944ff" opacity="0.3" filter="url(#haloSmall)"/>
-      <circle cx="0" cy="0" r="12" fill="#9944ff" opacity="0.12" filter="url(#haloBig)"/>
+      <!-- <circle cx="0" cy="0" r="4" fill="#9944ff" opacity="0.3" filter="url(#haloSmall)"/> -->
+      <circle cx="0" cy="0" r="6" fill="#9944ff" opacity="0.3" filter="url(#haloMedium)"/>
+      <!-- <circle cx="0" cy="0" r="12" fill="#9944ff" opacity="0.12" filter="url(#haloBig)"/> -->
     </g>
     <animateTransform
       attributeName="transform" type="rotate" begin="-4s"
@@ -66,8 +73,9 @@
   </g>
   <g style="mix-blend-mode: hard-light">
     <g transform="translate(24,24)">
-      <circle cx="0" cy="0" r="4" fill="#4433ff" opacity="0.3" filter="url(#haloSmall)"/>
-      <circle cx="0" cy="0" r="12" fill="#4433ff" opacity="0.12" filter="url(#haloBig)"/>
+      <!-- <circle cx="0" cy="0" r="4" fill="#4433ff" opacity="0.3" filter="url(#haloSmall)"/> -->
+      <circle cx="0" cy="0" r="6" fill="#4433ff" opacity="0.3" filter="url(#haloMedium)"/>
+      <!-- <circle cx="0" cy="0" r="12" fill="#4433ff" opacity="0.12" filter="url(#haloBig)"/> -->
     </g>
     <animateTransform
       attributeName="transform" type="rotate" begin="-4s"
@@ -83,7 +91,7 @@
     <circle cx="24" cy="24" r="18" fill="none" stroke="#7b65ff" stroke-width="1">
       <animate
         attributeName="opacity"
-        values="0;1;0" dur="2.8s" repeatCount="indefinite"/>
+        values="0;1;0" dur="2.8s" repeatCount="indefinite" />
     </circle>
   </g>
   <!-- 圆环本体：细一些的描边，使用渐变颜色 -->

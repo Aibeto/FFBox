@@ -7,7 +7,7 @@ import ProgressLog from './ProgressLog.vue';
 import IconMedia from './parabox_media3.svg';
 import IconCmd from './parabox_cmd.svg';
 import IconChart from './parabox_chart.svg';
-import IconUpArrow from '../Parabox/uparrow.svg?component';
+import IconUpArrow from '../ParaBox/uparrow.svg?component';
 
 const appStore = useAppStore();
 const sidebarIcons = [IconMedia, IconCmd, IconChart];

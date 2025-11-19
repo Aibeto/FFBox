@@ -1,9 +1,9 @@
 /* eslint-disable no-fallthrough */
-// #region 格式转换区
-
 import { OutputParams, ServiceTask, Task, TaskStatus } from '@common/types';
 import { UITask } from '@renderer/types';
 import { deleteNode } from './params/filter';
+
+// #region 格式转换区
 
 /**
  * 传入秒数，返回 --:--:--.--
@@ -420,6 +420,56 @@ export function getOutputDuration(task: Task): number {
 		duration = end - begin;
 	}
 	return duration;
+}
+
+/**
+ * 根据任务配置返回新文件时间（仅计算，不进行文件操作）
+ */
+export function getOutputFileTime(task: Task, index: number) {
+	let ok = true;	// 仅代表计算是否成功，不代表是否已修改时间
+	const output = task.after.outputs[index];
+	const mux = output.mux;
+	let { accessTime, createTime, modifyTime } = task.before;
+
+	if (mux.keepFileTime === 'original') {
+	} else {
+		const startTime1 = parseTimeString(task.after.input.files[0].begin);
+		const startTime2 = parseTimeString(mux.begin);
+		const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
+		const duration = (getOutputDuration(task) || 0) * 1000; // 假设 getOutputDuration 可接收 index
+		if (mux.keepFileTime === 'autoShift') {
+			// 复制修正后的文件时间（依创建时间）。输出文件的创建时间、修改时间将以创建时间为基准，按照剪裁位置自动调整后进行修改
+			const newCreateTime = createTime + startTime;
+			const newModifyTime = createTime + startTime + duration;
+			[createTime, modifyTime] = [newCreateTime, newModifyTime];
+		} else if (mux.keepFileTime === 'fixCTbyMTandShift' && task.before.duration > 0) {
+			// 复制修正后的文件时间（依修改时间）。输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题
+			const newCreateTime = modifyTime - task.before.duration * 1000 + startTime;
+			const newModifyTime = modifyTime - task.before.duration * 1000 + startTime + duration;
+			[createTime, modifyTime] = [newCreateTime, newModifyTime];
+		} else if (mux.keepFileTime === 'fixByFilenameAndShift') {
+			const originalFilePath = task.after.input.files[0]?.filePath;
+			// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
+			const regExp1 = /(\d\d\d\d).?([01]\d).?([0123]\d).?([012]\d).?([0-5]\d).?([0-5]\d)?/;
+			const regExp2 = /(\d\d\d\d) ?年? ?([01]?\d) ?月? ?([0123]?\d) ?日? ?([012]?\d) ?时? ?([0-5]?\d) ?分? ?([0-5]?\d)? ?秒? ?/;
+			const r = originalFilePath.match(regExp1) || originalFilePath.match(regExp2);
+			if (r) {
+				const oldCreateTime = new Date(`${r[1]}-${r[2]}-${r[3]} ${r[4]}:${r[5]}:${r[6] || 0}`);
+				if (!isNaN(oldCreateTime.getTime())) {
+					const newCreateTime = oldCreateTime.getTime() + startTime;
+					const newModifyTime = oldCreateTime.getTime() + startTime + duration;
+					[createTime, modifyTime] = [newCreateTime, newModifyTime];
+				} else {
+					ok = false;
+				}
+			} else {
+				ok = false;
+			}
+		} else {
+			ok = false;
+		}
+	}
+	return { accessTime, createTime, modifyTime, ok };
 }
 
 /**

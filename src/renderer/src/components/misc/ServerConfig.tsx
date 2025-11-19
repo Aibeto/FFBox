@@ -27,7 +27,8 @@ export function showServerConfig(serverId: string) {
 				{ text: '保存', role: 'confirm', type: ButtonType.Primary, callback: async () => {
 					const result = await compFuncs.exportData();
 					const { maxThreads, customFFmpegPath, preserveUnfinishedTasks, deleteFinishedTasks } = result;
-					nodeBridge.localConfig.set('service', { maxThreads, customFFmpegPath, preserveUnfinishedTasks, deleteFinishedTasks });
+					const originalConfig = await nodeBridge.localConfig.get('service');
+					nodeBridge.localConfig.set('service', { ...originalConfig, maxThreads, customFFmpegPath, preserveUnfinishedTasks, deleteFinishedTasks });
 					const server = appStore.servers.find((server) => server.data.id === serverId) as Server;
 					setTimeout(() => {
 						// 留时间写盘完成后再通知服务器刷新

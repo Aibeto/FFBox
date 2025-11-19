@@ -6,6 +6,7 @@ import parsePath from 'parse-path';
 import CryptoJS from 'crypto-js';
 import { utimes } from 'utimes';
 import fs from 'fs/promises';
+import { getMachineId } from './utils';
 import ProcessInstance from '@common/processInstance';
 import localConfig from '@common/localConfig';
 import { convertFFBoxMenuToElectronMenuTemplate, getOs } from './utils';
@@ -475,7 +476,7 @@ class ElectronApp {
 				}		
 				fs.readFile(licensePath, { encoding: 'utf-8' }).then((data) => {
 					const cipherText = CryptoJS.SHA1(data);
-					if (['a4252c34196e5b0c934402cb7a94bb7588625e22', 'a8a902aca93241689c6df8b6e7f92bdb2ae05c66'].includes(cipherText.toString())) {
+					if (['03a87d14cad233d7f57d7e3642bc8f9665df48ed', 'ae08d78587d0e2e1584981291938abdf936ca3a6'].includes(cipherText.toString())) {
 						// 两个校验码，适配 LF 换行符和 CRLF 换行符
 						resolve(data);
 					} else {
@@ -485,6 +486,11 @@ class ElectronApp {
 					resolve(undefined);
 				});
 			});
+		});
+
+		// 获取机器码
+		ipcMain.handle('getMachineId', async (event) => {
+			return getMachineId();
 		});
 
 		// 代为请求

@@ -8,12 +8,13 @@ import IconBack from './back.svg?component';
 import IconMinimize from './minimize.svg?component';
 import IconMaximize from './maximize.svg?component';
 import IconClose from './close.svg?component';
+import { version } from '@common/constants';
 
 const appStore = useAppStore();
 
 const bigIconRef = ref<VNodeRef>(null);
 
-const isDev = computed(() => buildInfo.isDev);
+const isDev = computed(() => version.includes(' '));	// 本来想在这里用 buildInfo.isDev，但据 ChatGPT 所说，这里的脚本会先走 Vue 的 SFC 编译而不是 ESBuild，导致 buildInfo 找不到，所以临时这样写
 
 const bigIconStyle = computed(() => {
 	if (appStore.showInfoCenter) {

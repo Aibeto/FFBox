@@ -10,7 +10,7 @@ import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArr
 import { defaultParams } from '@common/defaultParams';
 import localConfig from '@common/localConfig';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
-import { getInitialServiceTask, convertAnyTaskToTask, TypedEventEmitter, replaceOutputParams, randomString, getOutputDuration, parseTimeString } from '@common/utils';
+import { getInitialServiceTask, convertAnyTaskToTask, TypedEventEmitter, replaceOutputParams, randomString, getOutputDuration, parseTimeString, getOutputFileTime } from '@common/utils';
 import { getMachineId, log } from './utils';
 import { FFmpeg } from './FFmpegInvoke';
 import UIBridge from './uiBridge';
@@ -33,7 +33,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private globalTask: ServiceTask;
 	public notifications: Notification[] = [];
 	private latestNotificationId = 0;
-	private functionLevel = 20;
+	public functionLevel = 20;
 	public machineId: string;
 	// 设置部分
 	private maxThreads = 1;
@@ -690,59 +690,22 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						if (mux.keepFileTime) {
 							try {
 								// 如果输入文件不可读取，或者 utimes 失败，或者 FFBox 无法正确计算文件时间，都会产生 hasTimeError
-								const originalFilePath = task.after.input.files[0]?.filePath;
-								// await fsPromise.access(originalFilePath, fs.constants.R_OK);
-								const { accessTime, createTime, modifyTime } = task.before;
-								// const { atime, birthtime, mtime } = fs.statSync(originalFilePath);
-								log.info(`[任务 ${id}] 将按照首个输入文件的时间修改任务时间。原创建时间 ${new Date(createTime).toISOString()}；原修改时间 ${new Date(modifyTime).toISOString()}；原访问时间 ${new Date(accessTime).toISOString()}。`);
-								if (mux.keepFileTime === 'original') {
-									// 原样复制文件时间。输出文件的创建时间、修改时间、访问时间将从输入文件的时间原样复制
+								const { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, i);
+								if (ok) {
+									log.info(`[任务 ${id}] 将按照首个输入文件的时间修改任务时间。新创建时间 ${new Date(createTime).toISOString()}；新修改时间 ${new Date(modifyTime).toISOString()}；新访问时间 ${new Date(accessTime).toISOString()}。`);
 									await utimes(outputFilePath, { btime: createTime, mtime: modifyTime, atime: accessTime });
 								} else {
-									const startTime1 = parseTimeString(task.after.input.files[0].begin);
-									const startTime2 = parseTimeString(mux.begin);
-									const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
-									const duration = (getOutputDuration(task) || 0) * 1000; // 假设 getOutputDuration 可接收 index
-									if (mux.keepFileTime === 'autoShift') {
-										// 复制修正后的文件时间（依创建时间）。输出文件的创建时间、修改时间将以创建时间为基准，按照剪裁位置自动调整后进行修改
-										const newCreateTime = createTime + startTime;
-										const newModifyTime = createTime + startTime + duration;
-										await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
-									} else if (mux.keepFileTime === 'fixCTbyMTandShift' && task.before.duration > 0) {
-										// 复制修正后的文件时间（依修改时间）。输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题
-										const newCreateTime = modifyTime - task.before.duration * 1000 + startTime;
-										const newModifyTime = modifyTime - task.before.duration * 1000 + startTime + duration;
-										await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
-									} else if (mux.keepFileTime === 'fixByFilenameAndShift') {
-										// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
-										const regExp1 = /(\d\d\d\d).?([01]\d).?([0123]\d).?([012]\d).?([0-5]\d).?([0-5]\d)?/;
-										const regExp2 = /(\d\d\d\d) ?年? ?([01]?\d) ?月? ?([0123]?\d) ?日? ?([012]?\d) ?时? ?([0-5]?\d) ?分? ?([0-5]?\d)? ?秒? ?/;
-										const r = originalFilePath.match(regExp1) || originalFilePath.match(regExp2);
-										if (r) {
-											const oldCreateTime = new Date(`${r[1]}-${r[2]}-${r[3]} ${r[4]}:${r[5]}:${r[6] || 0}`);
-											if (!isNaN(oldCreateTime.getTime())) {
-												const newCreateTime = oldCreateTime.getTime() + startTime;
-												const newModifyTime = oldCreateTime.getTime() + startTime + duration;
-												await utimes(outputFilePath, { btime: newCreateTime, mtime: newModifyTime, atime: accessTime });
-											} else {
-												hasTimeError.push(outputFilePath);
-											}
-										} else {
-											hasTimeError.push(outputFilePath);
-										}
-									} else {
-										hasTimeError.push(outputFilePath);
-									}
+									hasTimeError.push(i + 1 + '');
 								}
 							} catch (error) {
-								hasTimeError.push(task.outputFiles[i]);
+								hasTimeError.push(i + 1 + '');
 							}
 						}
 					}
 					task.status = TaskStatus.finished;
 					task.progressLog.elapsed = new Date().getTime() / 1000 - task.progressLog.lastStarted;
 					if (hasTimeError.length) {
-						this.setNotification(id, '任务「' + task.taskName + '」已转码完成，但修改文件时间失败。请检查文件权限。', NotificationLevel.warning);
+						this.setNotification(id, `任务「${task.taskName}」已转码完成，但修改第 ${hasTimeError.join(' ')} 个文件时间失败。`, NotificationLevel.warning);
 					} else {
 						this.setNotification(id, `任务「${task.taskName}」已转码完成`, NotificationLevel.ok);
 					}
@@ -1120,7 +1083,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.notifications[notificationId] = notification;
 	}
 
-	public activate(activationCode: string): boolean {
+	private activate(activationCode: string): boolean {
 		const fixedCode = 'd324c697ebfc42b7';
 		const key = this.machineId + fixedCode;
 		const decrypted = CryptoJS.AES.decrypt(activationCode, key);

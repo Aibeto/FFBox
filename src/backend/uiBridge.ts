@@ -1,5 +1,6 @@
 import Http from 'http';
 import WebSocket, { WebSocketServer } from 'ws';
+import CryptoJS from 'crypto-js';
 import Koa from 'koa';
 import Router from 'koa-router';
 import { koaBody } from 'koa-body';
@@ -273,7 +274,8 @@ function getRouter(): Router {
 		const result = {
 			os: getOs(),
 			isSandboxed: process.cwd() === '/', // macOS 中，直接双击运行服务（无论是否在 app 内）会得到用户目录，在终端运行会得到终端当前目录，通过 FFBox 调用会得到 '/'
-			machineId: ffboxService.machineId,			
+			machineId: ffboxService.machineId,
+			functionLevel: ffboxService.functionLevel,
 		};
 		ctx.response.status = 200;
 		ctx.response.body = result;
@@ -290,7 +292,7 @@ function getRouter(): Router {
 		const body = ctx.request.body;
 		if (body.sessionId) {
 			const users: { username: string; passkey: string; maxFunctionLevel: number }[]
-				= (await localConfig.get('service.users') as any) || [{ username : "", passkey: "", maxFunctionLevel: 100 }];
+				= (await localConfig.get('userInfo.users') as any) || [{ username : "", passkey: "", maxFunctionLevel: 100 }];
 			const client = clients.get(body.sessionId);
 			const user = users.find((user) => user.username === body.username);
 			if (client && user) {
@@ -405,6 +407,29 @@ function getRouter(): Router {
 		const result = ffboxService.tasklist[+ctx.params.id];
 		ctx.response.status = 200;
 		ctx.response.body = result;
+	});
+
+	// 激活
+	router.post('/activation', async function (ctx) {
+		if (!ctx.request.body?.userInput) {
+			// 非法请求
+			ctx.response.status = 400;
+			return;
+		}
+		const userInput = ctx.request.body.userInput;
+		const fixedCode = 'd324c697ebfc42b7';
+		const key = ffboxService.machineId + fixedCode;
+		const decrypted = CryptoJS.AES.decrypt(userInput, key);
+		const activationResult = CryptoJS.enc.Utf8.stringify(decrypted);
+		if (parseInt(activationResult).toString() === activationResult) {
+			ffboxService.functionLevel = parseInt(activationResult);
+			localConfig.set('userInfo.activationCode', userInput);
+			const returnEncrypted = CryptoJS.AES.encrypt(activationResult, fixedCode).toString();
+			ctx.response.status = 200;
+			ctx.response.body = returnEncrypted;
+		} else {
+			ctx.response.status = 200;
+		}
 	});
 
 	// 获取缓存

@@ -1,7 +1,8 @@
 import { defineComponent, onMounted, ref } from 'vue';
 import CryptoJS from 'crypto-js';
-import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import { useAppStore } from '@renderer/stores/appStore';
+import nodeBridge from '@renderer/bridges/nodeBridge';
+import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import Popup from '@renderer/components/Popup/Popup';
 import { NotificationLevel } from '@common/types';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
@@ -43,6 +44,11 @@ const Comp = defineComponent((props: { functionLevel: number }) => {
 	onMounted(() => {
 		if (store.localServer?.data.machineId) {
 			machineCode.value = store.localServer?.data.machineId;
+		} else {
+			// 后端未连接时使用前端读取的机器码，如无意外两者是一样的
+			nodeBridge.getMachineId().then((id) => {
+				machineCode.value = id;
+			});
 		}
 	});	
 	

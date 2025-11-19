@@ -52,7 +52,6 @@ export interface FFBoxServiceInterface {
 	queuePause(): void;
 	deleteNotification(taskId: number, index: number): void;
 	setParameters(ids: number[], params: OutputParams[]): void;
-	activate(activationCode: string): boolean | void;
 	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): void;
 }
 
