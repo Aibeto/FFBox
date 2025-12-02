@@ -12,11 +12,11 @@ export function overallProgressTimer(currentServer: ServerData) {
 	let totalProcessedTime = 0;
 	for (const task of Object.values(tasks)) {
 		// 排除未在队列的
-		if (!task.before.duration || [TaskStatus.idle].includes(task.status)) {
+		if (!task.before[0]?.duration || [TaskStatus.idle].includes(task.status)) {
 			continue;
 		}
-		totalTime += task.before.duration;
-		totalProcessedTime += task.dashboard_smooth.progress * task.before.duration;
+		totalTime += task.before[0].duration;
+		totalProcessedTime += task.dashboard_smooth.progress * task.before[0].duration;
 	}
 	let progress = totalProcessedTime / totalTime;
 	currentServer.progress = progress;
@@ -94,7 +94,7 @@ export function dashboardTimer(task: UITask) {
 
 	// 任务进度计算
 	let progress: number;
-	if (task.before.duration !== -1) {
+	if (task.before[0].duration !== -1) {
 		progress = currentTime / getOutputDuration(task);
 		progress = isNaN(progress) || progress === Infinity || progress < 0 ? 0 : progress;
 	} else {
@@ -102,13 +102,14 @@ export function dashboardTimer(task: UITask) {
 	}
 
 	// 进度细节计算
-	const afterFramerate = task.after.outputs[0]?.video.framerate === '不改变' ? task.before.vframerate : +task.after.outputs[0]?.video.framerate;
+	// const afterFramerate = task.after.outputs[0]?.video.framerate === '不改变' ? task.before[0].vframerate : +task.after.outputs[0]?.video.framerate;
 	if (progress < 0.995) {
 		task.dashboard = {
 			...task.dashboard,
 			progress,
 			bitrate: (sizeK / timeK) * 8,
-			speed: frameK / afterFramerate || timeK,	// 如果可以读出帧速，或者输出的是视频，用帧速算 speed 更准确；否则用时间算 speed
+			// speed: frameK / afterFramerate || timeK,	// 如果可以读出帧速，或者输出的是视频，用帧速算 speed 更准确；否则用时间算 speed
+			speed: timeK,
 			time: currentTime,
 			frame: currentFrame,
 			size: currentSize,

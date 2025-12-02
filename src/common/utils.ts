@@ -288,16 +288,7 @@ export function randomString(length = 6, dictionary = 'abcdefghijklmnopqrstuvwxy
 export function getInitialTask(fileName: string, outputParams?: OutputParams): Task {
 	const task: Task = {
 		taskName: fileName,
-		before: {
-			format: '读取中',
-			duration: NaN,
-			vcodec: '读取中',
-			acodec: '读取中',
-			vresolution: '读取中',
-			vframerate: NaN,
-			vbitrate: NaN,
-			abitrate: NaN,
-		},
+		before: [],
 		after: {
 			input: {
 				files: [],
@@ -392,7 +383,7 @@ export function getInitialUITask(fileName: string, outputParams?: OutputParams):
 }
 
 export function getOutputDuration(task: Task): number {
-	let duration = task.before.duration;
+	let duration = task.before[0]?.duration || NaN;
 	if (isNaN(duration)) {
 		return NaN;
 	}
@@ -422,6 +413,13 @@ export function getOutputDuration(task: Task): number {
 	return duration;
 }
 
+export function getDefaultInputVideo(task: Task) {
+	return task.before[0]?.streams?.find((stream) => stream.type === 'Video' && stream.isDefault);
+}
+export function getDefaultInputAudio(task: Task) {
+	return task.before[0]?.streams?.find((stream) => stream.type === 'Audio' && stream.isDefault);
+}
+
 /**
  * 根据任务配置返回新文件时间（仅计算，不进行文件操作）
  */
@@ -429,7 +427,7 @@ export function getOutputFileTime(task: Task, index: number) {
 	let ok = true;	// 仅代表计算是否成功，不代表是否已修改时间
 	const output = task.after.outputs[index];
 	const mux = output.mux;
-	let { accessTime, createTime, modifyTime } = task.before;
+	let { accessTime, createTime, modifyTime, duration: originalDuration } = task.before[0] || { accessTime: 0, createTime: 0, modifyTime: 0, duration: 0 };
 
 	if (mux.keepFileTime === 'original') {
 	} else {
@@ -442,10 +440,10 @@ export function getOutputFileTime(task: Task, index: number) {
 			const newCreateTime = createTime + startTime;
 			const newModifyTime = createTime + startTime + duration;
 			[createTime, modifyTime] = [newCreateTime, newModifyTime];
-		} else if (mux.keepFileTime === 'fixCTbyMTandShift' && task.before.duration > 0) {
+		} else if (mux.keepFileTime === 'fixCTbyMTandShift' && originalDuration > 0) {
 			// 复制修正后的文件时间（依修改时间）。输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题
-			const newCreateTime = modifyTime - task.before.duration * 1000 + startTime;
-			const newModifyTime = modifyTime - task.before.duration * 1000 + startTime + duration;
+			const newCreateTime = modifyTime - originalDuration * 1000 + startTime;
+			const newModifyTime = modifyTime - originalDuration * 1000 + startTime + duration;
 			[createTime, modifyTime] = [newCreateTime, newModifyTime];
 		} else if (mux.keepFileTime === 'fixByFilenameAndShift') {
 			const originalFilePath = task.after.input.files[0]?.filePath;

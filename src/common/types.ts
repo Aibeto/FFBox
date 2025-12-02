@@ -149,6 +149,45 @@ export interface FFmpegFilterDetail {
 
 // #endregion
 
+// #region 输入参数
+
+export interface StreamInfo {
+	infoText?: string;	// 原文
+	type: string;	// video, audio, subtitle, data, attachment
+	metadata: { [key: string]: string };
+	sidedata: { [key: string]: string };
+	isDefault?: boolean;
+	language?: string;
+	codec?: string;
+	pixelFormat?: string;
+	resolution?: string;
+	bitrate?: number;
+	fps?: number;
+	sampleRate?: number;
+	channel?: string;
+}
+export interface ChapterInfo {
+	infoText?: string;	// 原文
+	start: number;
+	end: number;
+	metadata: { [key: string]: string };
+}
+export interface InputInfo {
+	demuxer: string;
+	path: string;
+	duration?: number;
+	bitrate?: number;
+	start?: number;
+	metadata: { [key: string]: string };
+	streams: StreamInfo[];
+	chapters: ChapterInfo[];
+	accessTime?: number,
+	createTime?: number,
+	modifyTime?: number,
+}
+
+// #endregion
+
 // #region 输出参数
 
 export interface InputFile {
@@ -290,19 +329,7 @@ export type SingleProgressLog = Array<[number, number]>;
 
 export interface Task {
 	taskName: string;
-	before: {
-		format: string;
-		duration: number;
-		vcodec: string;
-		acodec: string;
-		vresolution: string;
-		vframerate: number;
-		vbitrate: number;
-		abitrate: number;
-		accessTime?: number,
-		createTime?: number,
-		modifyTime?: number,
-	};
+	before: InputInfo[];
 	after: OutputParams;
 	paraArray: Array<string>;
 	status: TaskStatus;

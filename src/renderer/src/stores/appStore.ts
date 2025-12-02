@@ -513,7 +513,7 @@ export const useAppStore = defineStore('app', {
 				} else {
 					paramsVisibility.duration = Math.max(paramsVisibility.duration, 1);
 				}
-				if (after.outputs[0].mux.format === '无' || after.outputs[0].mux.format === task.before.format) {
+				if (after.outputs[0].mux.format === '无' || after.outputs[0].mux.format === task.before[0]?.demuxer) {
 					paramsVisibility.format = Math.max(paramsVisibility.format, 1);
 				} else {
 					paramsVisibility.format = Math.max(paramsVisibility.format, 2);

@@ -8,7 +8,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import showMenu from '@renderer/components/Menu/Menu';
 import nodeBridge from '@renderer/bridges/nodeBridge';
-import { getOutputDuration, formatTimeToFFmpegStyle, formatSize, parseTimeString, getOutputFileTime } from '@common/utils';
+import { getOutputDuration, formatTimeToFFmpegStyle, formatSize, parseTimeString, getOutputFileTime, getDefaultInputVideo, getDefaultInputAudio } from '@common/utils';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import IconInitializing from './initializing.svg';
 import IconIdle from './idle.svg';
@@ -64,6 +64,8 @@ export const TaskItem = defineComponent((props: Props) => {
 		}, 0);
 		return { totalSize, totalRead, totalHash, totalUpload };
 	});
+	const defaultVideo = computed(() => getDefaultInputVideo(props.task));
+	const defaultAudio = computed(() => getDefaultInputAudio(props.task));
 
 	// #endregion
 
@@ -89,15 +91,15 @@ export const TaskItem = defineComponent((props: Props) => {
 			}
 		}
 	};
-	const durationBefore = computed(() => formatTimeToFFmpegStyle(props.task.before.duration));
+	const durationBefore = computed(() => formatTimeToFFmpegStyle(props.task.before[0]?.duration ?? NaN));
 	const durationAfter = computed(() => formatTimeToFFmpegStyle(outputDuration.value));
-	const smpteBefore = computed(() => props.task.before.vresolution && props.task.before.vframerate ? `${props.task.before.vresolution.replace('<br />', '×')}@${props.task.before.vframerate}` : '-');
+	const smpteBefore = computed(() => defaultVideo.value?.resolution && defaultVideo.value?.fps ? `${defaultVideo.value?.resolution}@${defaultVideo.value?.fps}` : '-');
 	const videoRateControlValue = computed(() => getVideoRateControlParam(props.task.after.outputs[0]?.video)?.value);
 	const audioRateControlValue = computed(() => getAudioRateControlParam(props.task.after.outputs[0]?.audio)?.value);
 	const videoRateControl = computed(() => (videoRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.video.ratecontrol} ${videoRateControlValue.value}`));
 	const audioRateControl = computed(() => (audioRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.audio.ratecontrol} ${audioRateControlValue.value}`));
-	const videoInputBitrate = computed(() => props.task.before.vbitrate > 0 ? `@${beforeBitrateFilter(props.task.before.vbitrate)}` : '');
-	const audioInputBitrate = computed(() => props.task.before.abitrate > 0 ? `@${beforeBitrateFilter(props.task.before.abitrate)}` : '');
+	const videoInputBitrate = computed(() => defaultVideo.value?.bitrate > 0 ? `@${beforeBitrateFilter(defaultVideo.value?.bitrate)}` : '');
+	const audioInputBitrate = computed(() => defaultAudio.value?.bitrate > 0 ? `@${beforeBitrateFilter(defaultAudio.value?.bitrate)}` : '');
 
 	// #endregion
 
@@ -452,14 +454,15 @@ export const TaskItem = defineComponent((props: Props) => {
 	const handleParaAreaMouseEnter = (event: MouseEvent) => {
 		const paramAreaPos = paramAreaRef.value.getBoundingClientRect();
 		const position = window.innerWidth >= 920 ? { right: `${Math.min(window.innerWidth - event.pageX, window.innerWidth - 400)}px`, top: `${paramAreaPos.top}px` } : { right: '48px', top: `${paramAreaPos.top}px` };
-		const firstOutput = props.task.after.outputs[0]
+		const firstOutput = props.task.after.outputs[0];
 		Tooltip.show({
 			content: <span>
 				时长：{durationBefore.value} → {durationAfter.value}<br />
-				容器：{props.task.before.format} → {firstOutput.mux.format}<br />
+				容器：{props.task.before[0]?.demuxer} → {firstOutput.mux.format}<br />
 				规格：{smpteBefore.value} → {firstOutput.video.resolution}@{firstOutput.video.framerate}<br />
-				视频：{props.task.before.vcodec}{videoInputBitrate.value} → {firstOutput.video.vcodec}{videoRateControl.value}<br />
-				音频：{props.task.before.acodec}{audioInputBitrate.value} → {firstOutput.audio.acodec}{audioRateControl.value}<br />
+				视频：{defaultVideo.value.codec}{videoInputBitrate.value} → {firstOutput.video.vcodec}{videoRateControl.value}<br />
+				音频：{defaultAudio.value.codec}{audioInputBitrate.value} → {firstOutput.audio.acodec}{audioRateControl.value}<br />
+				{props.task.before.length > 1 || props.task.after.outputs.length > 1 ? '以上信息仅显示首个输入和首个输出，并不代表真实情况' : null}
 			</span>,
 			style: position,
 			class: css.paraAreaTip,
@@ -532,7 +535,7 @@ export const TaskItem = defineComponent((props: Props) => {
 										)}
 										{/* 容器 */}
 										<div class={css.divider}><div></div></div>
-										<div class={css.formatBefore}>{props.task.before.format}</div>
+										<div class={css.formatBefore}>{props.task.before[0]?.demuxer}</div>
 										{settings.paramsVisibility.format === 'all' && (
 											<>
 												<div class={css.formatTo}><IconRightArrow /></div>
@@ -556,7 +559,7 @@ export const TaskItem = defineComponent((props: Props) => {
 										{settings.paramsVisibility.video !== 'none' && (
 											<>
 												<div class={css.divider}><div></div></div>
-												<div class={css.videoBefore}>{props.task.before.vcodec}{videoInputBitrate.value}</div>
+												<div class={css.videoBefore}>{defaultVideo.value ? `${defaultVideo.value.codec}${videoInputBitrate.value}` : '-'}</div>
 												{settings.paramsVisibility.video === 'all' && (
 													<>
 														<div class={css.videoTo}><IconRightArrow /></div>
@@ -569,7 +572,7 @@ export const TaskItem = defineComponent((props: Props) => {
 										{settings.paramsVisibility.audio !== 'none' && (
 											<>
 												<div class={css.divider}><div></div></div>
-												<div class={css.audioBefore}>{props.task.before.acodec}{audioInputBitrate.value}</div>
+												<div class={css.audioBefore}>{defaultAudio.value ? `${defaultAudio.value.codec}${audioInputBitrate.value}` : '-'}</div>
 												{settings.paramsVisibility.audio === 'all' && (
 													<>
 														<div class={css.audioTo}><IconRightArrow /></div>

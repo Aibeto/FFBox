@@ -30,6 +30,7 @@ interface ProviderConfig {
 interface ResponseKeywordMessage {
 	keywords: string[];
 	message: string;
+	warning?: boolean;	// 是否显示黄色字体，默认 false
 	once?: boolean;	// 是否只显示一次，默认 false
 }
 type RequestKeywordMessage = ResponseKeywordMessage & { forbid: boolean };

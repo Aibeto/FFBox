@@ -408,7 +408,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 
 		const id = this.latestTaskId++;
-		// 目前只处理单输入的情况
 		const firstFilePath = outputParams.input.files?.[0]?.filePath;
 		log.info(`[任务 ${id}] 新增任务：${taskName}（${firstFilePath ? '单输入普通任务' : '多输入/网络任务'}）。`);
 		const task = getInitialServiceTask(taskName, outputParams);
@@ -423,7 +422,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		} else {
 			task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true });
 			if (firstFilePath?.length) {
-				this.getFileMetadata(id, task, firstFilePath);
+				this.getFileMetadata(id, task);
 			}
 		}
 
@@ -434,44 +433,47 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	/**
 	 * 新增任务时调用 FFmpeg 获取输入文件信息、文件时间（仅本地模式在此处读取时间，远程模式在 mergeUploaded 接收时间）
 	 */
-	private getFileMetadata(id: number, task: ServiceTask, filePath: string): [Promise<any>, Promise<any>] {
+	private getFileMetadata(id: number, task: ServiceTask): Promise<any>[] {
 		// FFmpeg 读取媒体信息
 		log.info(`[任务 ${id}] 读取输入媒体信息。`);
-		const realFilePath = task.remoteTask ? `${os.tmpdir()}/FFBoxUploadCache/${filePath}` : filePath;
-		const promise1 = new Promise((resolve) => {
-			const ffmpeg = new FFmpeg(this.ffmpegPath, 2, ['-hide_banner', '-i', realFilePath, '-f', 'null']);
-			ffmpeg.on('data', ({ content }) => {
-				this.setCmdText(id, content);
-			});
-			ffmpeg.on('metadata', ({ content: input }) => {
-				task.before.format = input.format || '-';
-				task.before.duration = parseInt(input.duration || '-1');
-				task.before.vcodec = input.vcodec || '-';
-				task.before.vresolution = (input.vresolution && input.vresolution.replace('x', '<br />')) || '-';
-				task.before.vbitrate = parseInt(input.vbitrate || '-1');
-				task.before.vframerate = parseInt(input.vframerate || '-1');
-				task.before.acodec = input.acodec || '-';
-				task.before.abitrate = parseInt(input.abitrate || '-1');
-				resolve(0);
-			});
-		})
-		const promise2 = new Promise(async (resolve) => {
-			if (!task.remoteTask) {
-				try {
-					await fsPromise.access(realFilePath, fs.constants.R_OK);
-					const { atime, birthtime, mtime } = fs.statSync(realFilePath);
-					task.before.accessTime = atime.getTime();
-					task.before.createTime = birthtime.getTime();
-					task.before.modifyTime = mtime.getTime();
-				} finally {
+		const filePromises = (task.after.input.files || []).map((file, inputIndex) => {
+			const filePath = file.filePath;
+			const realFilePath = task.remoteTask ? `${os.tmpdir()}/FFBoxUploadCache/${filePath}` : filePath;
+			const promise1 = new Promise((resolve) => {
+				const ffmpeg = new FFmpeg(this.ffmpegPath, 2, ['-hide_banner', '-i', realFilePath, '-f', 'null']);
+				ffmpeg.on('data', ({ content }) => {
+					this.setCmdText(id, content);
+				});
+				ffmpeg.on('metadata', ({ content }) => {
+					task.before[inputIndex] = { ...task.before[inputIndex], ...content[0] };	// 目前的逻辑是即使是多输入也是逐个输入跑 metadata
 					resolve(0);
+				});
+			})
+			const promise2 = new Promise(async (resolve) => {
+				if (!task.remoteTask) {
+					try {
+						await fsPromise.access(realFilePath, fs.constants.R_OK);
+						const { atime, birthtime, mtime } = fs.statSync(realFilePath);
+						task.before[inputIndex] = {
+							...task.before[inputIndex],
+							accessTime: atime.getTime(),
+							createTime: birthtime.getTime(),
+							modifyTime: mtime.getTime(),
+						};
+					} finally {
+						resolve(0);
+					}
 				}
-			}
-			resolve(0);
-
+				resolve(0);
+	
+			});
+			return new Promise((resolve) => {
+				Promise.allSettled([promise1, promise2]).then(() => resolve([promise1, promise2]));
+			})
 		});
-		Promise.allSettled([promise1, promise2]).then(() => this.emitTaskUpdate(id, task));
-		return [promise1, promise2];
+
+		Promise.allSettled(filePromises).then(() => this.emitTaskUpdate(id, task));
+		return filePromises;
 	}
 
 	/**
@@ -515,12 +517,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const inputIndex = task.after.input.files.findIndex((file) => file.filePath === inputName);
 		if (inputIndex >= 0) {
 			task.after.input.files[inputIndex].filePath = destName;	// 远程任务隐藏目录结构，运行时才 override 输入参数
-		}
-		// 记录由前端传过来的文件时间（远程文件时间不能由后端读取，而是由前端传入）
-		if (fileTime) {
-			task.before.accessTime = fileTime.accessTime;
-			task.before.createTime = fileTime.createTime;
-			task.before.modifyTime = fileTime.modifyTime;
+			// 记录由前端传过来的文件时间（远程文件时间不能由后端读取，而是由前端传入）
+			if (fileTime) {
+				task.before[inputIndex] = {
+					accessTime: fileTime.accessTime,
+					createTime: fileTime.createTime,
+					modifyTime: fileTime.modifyTime,
+				} as any;	// 看看这样会不会出 bug
+			}
 		}
 		task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
 		this.setNotification(id, `任务「${task.taskName}」输入文件「${fileBaseName}」上传完成`, NotificationLevel.info);
@@ -539,7 +543,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.status = TaskStatus.idle;
 			this.emitTaskUpdate(id, task);
 			setTimeout(() => {
-				this.getFileMetadata(id, task, task.after.input.files[0].filePath || '');
+				this.getFileMetadata(id, task);
 			}, 150);	// 正常顺序是 mergeUploaded -> setUploadStatus，但函数并不等待而是接连调用，再考虑网络因素，稍微等待再 getFileMetadata 可避免输入文件名还没改过来就进行信息读取
 		}
 	}

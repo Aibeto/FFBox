@@ -85,59 +85,121 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 		<div class="container" :data-color_theme="appStore.frontendSettings.colorTheme">
             <div class="left" :style="{ width: `${centerDraggerPos}%` }">
 				<div class="title">
-					输入文件信息<span style="opacity: 0.5; font-size: 0.7em;">当前 FFBox 版本仅支持单输入任务的文件信息显示</span>
+					输入文件信息
 				</div>
 				<div class="listContainer">
-					<button class="node inputNode" v-if="selectedTasks.task">
+					<button
+						class="node inputNode"
+						v-if="selectedTasks.task?.before"
+						v-for="(inputFile, index) in selectedTasks.task.before"
+					>
+						<div class="fileName">{{ inputFile.path ?? '-' }}</div>
 						<div class="groups">
-							<div class="group">
-								<div class="infoBlock">
-									<h4>格式</h4>
-									<p>{{ selectedTasks.task.before.format }}</p>
-								</div>
-								<div class="infoBlock">
-									<h4>时长</h4>
-									<p>{{ formatTimeToFFmpegStyle(selectedTasks.task.before.duration) }}</p>
-								</div>
+							<div class="group" v-if="inputFile.demuxer">
+								<table><tbody>
+									<tr>
+										<td>解复用器</td>
+										<td>{{ inputFile.demuxer }}</td>
+									</tr>
+									<tr>
+										<td>时长</td>
+										<td>{{ formatTimeToFFmpegStyle(inputFile.duration) }}</td>
+									</tr>
+								</tbody></table>
+							</div>
+							<div class="group" v-if="inputFile.metadata">
+								<table><tbody>
+									<tr v-for="[key, value] in Object.entries(inputFile.metadata || {})">
+										<td>{{ key }}</td>
+										<td>{{ value }}</td>
+									</tr>
+								</tbody></table>
 							</div>
 							<div class="group">
-								<div class="infoBlock">
-									<h4>视频编码</h4>
-									<p>{{ selectedTasks.task.before.vcodec }}</p>
-								</div>
-								<div class="infoBlock">
-									<h4>视频尺寸</h4>
-									<p>{{ selectedTasks.task.before.vresolution }}</p>
-								</div>
-								<div class="infoBlock">
-									<h4>视频帧率</h4>
-									<p>{{ selectedTasks.task.before.vframerate }}</p>
-								</div>
-								<div class="infoBlock">
-									<h4>视频码率</h4>
-									<p>{{ selectedTasks.task.before.vbitrate }} kbps</p>
-								</div>
+								<table><tbody>
+									<tr>
+										<td>创建时间</td>
+										<td>{{ inputFile.createTime ? getTimeString(new Date(inputFile.createTime), false) : '-' }}</td>
+									</tr>
+									<tr>
+										<td>修改时间</td>
+										<td>{{ inputFile.modifyTime ? getTimeString(new Date(inputFile.modifyTime), false) : '-' }}</td>
+									</tr>
+								</tbody></table>
 							</div>
-							<div class="group">
-								<div class="infoBlock">
-									<h4>音频编码</h4>
-									<p>{{ selectedTasks.task.before.acodec }}</p>
-								</div>
-								<div class="infoBlock">
-									<h4>音频码率</h4>
-									<p>{{ selectedTasks.task.before.abitrate }} kbps</p>
-								</div>
+						</div>
+						<div class="streamGroups" v-if="inputFile.streams">
+							<i></i>
+							<div
+								class="group"
+								v-for="stream in inputFile.streams" v-bind="useTooltip(`${stream.infoText}\n元信息: ${JSON.stringify(stream.metadata, undefined, ' ')}\n旁数据：${JSON.stringify(stream.sidedata, undefined, ' ')}`, 'tl')"
+							>
+								<div class="defaultLabel" v-if="stream.isDefault">默认</div>
+								<div class="streamType">{{ ['视频', '音频', '字幕', '数据', '附件', stream.type][['Video', 'Audio', 'Subtitle', 'Data', 'Attachment', stream.type].indexOf(stream.type)] }}</div>
+								<table><tbody>
+									<tr>
+										<td>编码</td>
+										<td>{{ stream.codec }}</td>
+									</tr>
+									<tr v-if="stream.bitrate">
+										<td>码率</td>
+										<td>{{ stream.bitrate }} kbps</td>
+									</tr>
+									<tr v-if="stream.language">
+										<td>语言</td>
+										<td>{{ stream.language }}</td>
+									</tr>
+									<tr v-if="stream.resolution">
+										<td>尺寸</td>
+										<td>{{ stream.resolution }}</td>
+									</tr>
+									<tr v-if="stream.fps">
+										<td>帧率</td>
+										<td>{{ stream.fps }}</td>
+									</tr>
+									<tr v-if="stream.sampleRate">
+										<td>采样率</td>
+										<td>{{ stream.sampleRate }} Hz</td>
+									</tr>
+									<tr v-if="stream.channel">
+										<td>声道</td>
+										<td>{{ stream.channel }}</td>
+									</tr>
+									<tr v-for="[key, value] in Object.entries(stream.metadata)">
+										<td>{{ key }}</td>
+										<td>{{ value }}</td>
+									</tr>
+									<tr v-for="[key, value] in Object.entries(stream.sidedata)">
+										<td>{{ key }}</td>
+										<td>{{ value }}</td>
+									</tr>
+								</tbody></table>
 							</div>
-							<div class="group">
-								<div class="infoBlock">
-									<h4>创建时间</h4>
-									<p>{{ getTimeString(new Date(selectedTasks.task.before.createTime)) }}</p>
-								</div>
-								<div class="infoBlock">
-									<h4>修改时间</h4>
-									<p>{{ getTimeString(new Date(selectedTasks.task.before.modifyTime)) }}</p>
-								</div>
+							<i></i>
+						</div>
+						<div class="streamGroups" v-if="inputFile.chapters?.length">
+							<i></i>
+							<div
+								class="group"
+								v-for="chapter in inputFile.chapters" v-bind="useTooltip(`${chapter.infoText}\n元信息: ${JSON.stringify(chapter.metadata, undefined, ' ')}`, 'tl')"
+							>
+								<div class="streamType">章节</div>
+								<table><tbody>
+									<tr>
+										<td>起时</td>
+										<td>{{ chapter.start }}</td>
+									</tr>
+									<tr>
+										<td>止时</td>
+										<td>{{ chapter.end }}</td>
+									</tr>
+									<tr v-for="[key, value] in Object.entries(chapter.metadata)">
+										<td>{{ key }}</td>
+										<td>{{ value }}</td>
+									</tr>
+								</tbody></table>
 							</div>
+							<i></i>
 						</div>
 					</button>
 				</div>
@@ -182,13 +244,15 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 		display: flex;
 		flex-direction: column;
 		&>.title {
+			height: 18px;
+			box-sizing: border-box;
 			font-size: 14px;
 			padding: 4px;
-			margin-bottom: -8px;
+			// margin-bottom: -8px;
 		}
 		.container {
 			width: 100%;
-			height: 100%;
+			height: calc(100% - 18px);
 			display: flex;
 			justify-content: center;
 			font-size: 14px;
@@ -214,6 +278,11 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 					}
 				}
 				.listContainer {
+					height: calc(100% - 24px);
+					box-sizing: border-box;
+					margin: 0 -4px;
+					padding: 4px;
+					overflow: auto;
 					.node {
 						width: 100%;
 						border: none;
@@ -222,6 +291,9 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 						border-radius: 8px;
 						padding: 12px;
 						font-family: inherit;
+						&:active {
+							transform: translateY(0.5px);
+						}
 					}
 					.inputNode, .outputNode {
 						.fileName {
@@ -239,22 +311,100 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 							.group {
 								flex: 1 1 auto;
 								padding: 0 8px;
+								overflow: hidden;
 								&:not(.group:last-child) {
 									border-right: hwb(0 50% 50% / 0.2) 1px solid;
 								}
-								.infoBlock {
-									h4 {
+								table, tbody {
+									width: 100%;
+								}
+								tr {
+									height: 18px;
+									td:first-child {
+										padding-right: 0.5em;
 										font-size: 10px;
 										font-weight: 500;
+										line-height: 20px;
+										text-align: right;
+										white-space: nowrap;
+										overflow: hidden;
+										text-overflow: ellipsis;
 										opacity: 0.7;
-										margin: 0;
 									}
-									&:last-child p {
-										margin-bottom: 0;
+									td:last-child {
+										text-align: left;
+										white-space: nowrap;
+										max-width: 144px;
+										overflow: hidden;
+										text-overflow: ellipsis;
 									}
-									p {
-										font-size: 13px;
-										margin: 4px 0 8px 0;
+								}
+							}
+						}
+						.streamGroups {
+							display: flex;
+							justify-content: space-between;
+							gap: 12px;
+							padding: 8px 0 12px;
+							margin-bottom: -8px;
+							overflow: auto hidden;
+							i:first-child {
+								margin-right: -8px;
+							}
+							i:last-child {
+								margin-left: -8px;
+							}
+							.group {
+								position: relative;
+								box-sizing: border-box;
+								// border: hwb(0 50% 50% / 0.4) dashed 1.5px;
+								// outline: red 1px solid;
+								padding: 12px 12px 8px;
+								border-radius: 24px;
+								box-shadow: -4px -8px 8px 0 hwb(var(--hoverLightBg) / 0.3),	// 上发光
+											4px 8px 4px -2px hwb(var(--hoverLightBg) / 0.3),	// 下折射光线
+											5px 10px 4px 0 hwb(var(--hoverShadow) / 0.08),	// 下投影
+											3px 6px 3px 0 hwb(var(--hoverShadow) / 0.08) inset,	// 内部上折射遮挡
+											-2px -4px 3px 0 hwb(var(--hoverLightBg) / 0.8) inset,	// 内部下反射
+								;
+								background-color: hwb(var(--bg100) / 0.1);
+								.defaultLabel {
+									position: absolute;
+									top: 12px;
+									left: 16px;
+									padding: 3px 5px;
+									// background-color: hwb(var(--opposite80) / 0.5);
+									// color: var(--f7);
+									background-color: hwb(120 0% 10% / 0.3);
+									box-shadow: 2px 4px 2px 0 hwb(120 0% 60% / 0.1);	// 下投影
+									border-radius: 12px;
+									font-size: 10px;
+								}
+								.streamType {
+									font-size: 16px;
+									font-weight: 500;
+									margin-bottom: 4px;
+								}
+								tr {
+									height: 18px;
+									td:first-child {
+										padding-right: 0.5em;
+										font-size: 10px;
+										font-weight: 500;
+										line-height: 20px;
+										text-align: right;
+										white-space: nowrap;
+										max-width: 114px;
+										overflow: hidden;
+										text-overflow: ellipsis;
+										opacity: 0.7;
+									}
+									td:last-child {
+										text-align: left;
+										white-space: nowrap;
+										max-width: 114px;
+										overflow: hidden;
+										text-overflow: ellipsis;
 									}
 								}
 							}

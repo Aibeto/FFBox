@@ -5,23 +5,12 @@
 // const scanf = utils.scanf;
 import { spawn, ChildProcess } from 'child_process';
 import EventEmitter from 'events';
-import { EncoderDetail } from '@common/types';
+import { ChapterInfo, EncoderDetail, InputInfo, StreamInfo } from '@common/types';
 import { spawnInvoker } from '@common/spawnInvoker';
 import { selectString, replaceString, scanf, TypedEventEmitter } from '@common/utils';
 import { log } from './utils';
 import osBridge from './osBridge';
 
-interface InputInfoString {
-	format?: string;
-	duration?: string;
-	vcodec?: string;
-	acodec?: string;
-	vresolution?: string;
-	vframerate?: string;
-	vbitrate?: string;
-	abitrate?: string;
-	bitrate?: string;
-}
 interface CodecsResult {
 	videoCodecs: {
 		name: string;
@@ -57,7 +46,7 @@ interface FFmpegInvokerEvent {
 	data: (arg: { content: string }) => void;
 	status: (arg: { frame: number; fps: number; q: number; size: number; time: number; bitrate: number; speed: number }) => void;
 	version: (arg: { content?: string }) => void;
-	metadata: (arg: { content: InputInfoString }) => void;
+	metadata: (arg: { content: InputInfo[] }) => void;
 	codecs: (codecsResult?: CodecsResult, detail?: EncoderDetail) => void;
 	formats: (formatsResult?: FormatsResult, detail?: EncoderDetail) => void;
 	filters: (filtersResult?: FilterResult[], detail?: EncoderDetail) => void;
@@ -82,18 +71,12 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 	private formatsResult: FormatsResult = { muxers: [], demuxers: [] };
 	private filtersResult: FilterResult[] = [];
 	private readingAVOption: EncoderDetail['options'][number];
+	private readingInputsInfoBuffer: string[] = [];
+	// private readingInputIndex: number;
+	private inputsInfo: InputInfo[] = [];
+	// private readingInputInfo: InputInfo;
+	// private readingStreamInfo: StreamInfo;
 
-	private input: InputInfoString = {
-		format: undefined,
-		duration: undefined,
-		bitrate: undefined,
-		vcodec: undefined,
-		vbitrate: undefined,
-		vresolution: undefined,
-		vframerate: undefined,
-		acodec: undefined,
-		abitrate: undefined,
-	};
 	private stdoutBuffer: string = '';
 
 	/**
@@ -150,6 +133,150 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 	 * FFmpeg 传回的数据处理总成
 	 */
 	dataProcessing(): void {
+		// 按逗号分割字符串，但忽略括号中的逗号
+		function splitIgnoringParentheses(text: string) {
+			const result = [];
+			let current = '';
+			let depth = 0;
+			for (const char of text) {
+				if (char === '(') depth++;
+				if (char === ')') depth--;
+				if (char === ',' && depth === 0) {
+					result.push(current.trim());
+					current = '';
+				} else {
+					current += char;
+				}
+			}
+			if (current.trim()) result.push(current.trim());
+			return result;
+		}
+
+		// 暂存所有 InputInfo 相关的行到 readingInputsInfoBuffer，放到这个函数里处理
+		const parseInputInfo = () => {
+			const inputInfoLine = this.readingInputsInfoBuffer[0];
+			const match = inputInfoLine.match(/Input #(\d+), ([\w,]+), from '(.+)':/);
+			if (match) {
+				// this.readingInputIndex = +match[1];
+				const readingInputInfo: InputInfo = {
+					demuxer: match[2],
+					path: match[3],
+					metadata: {},
+					streams: [],
+					chapters: [],
+				}
+				for (let i = 1; i < this.readingInputsInfoBuffer.length; i++) {
+					const thisLine = this.readingInputsInfoBuffer[i];
+					if (thisLine.includes('Duration:')) {
+						const f = scanf(thisLine, 'Duration: %d:%d:%d, start: %d, bitrate: %d kb/s');
+						readingInputInfo.duration = f[0] * 3600 + f[1] * 60 + f[2];
+						readingInputInfo.start = f[3];
+						readingInputInfo.bitrate = f[4];
+					} else if (thisLine.startsWith('  Metadata:')) {
+						let thisLine;
+						i++;
+						while ((thisLine = this.readingInputsInfoBuffer[i] || '').startsWith('    ')) {
+							const match = thisLine.match(/([\w_]+) *: (.+)?/);	// value 有可能为空
+							readingInputInfo.metadata[match[1]] = match[2];
+							i++;
+						}
+						i--;
+					} else if (thisLine.includes('Stream #')) {
+						const readingStreamInfo: StreamInfo = {
+							type: undefined,
+							metadata: {},
+							sidedata: {},
+						}
+						const parts = thisLine.split(': ');
+						const [basicInfo, type, detail] = parts;
+						const basicMatch = basicInfo.match(/Stream #(\d+:\d+).*\((\w+)\)$/);
+						if (basicMatch) {
+							readingStreamInfo.language = basicMatch[2];
+						}
+						readingStreamInfo.type = type;
+						const detailItems = splitIgnoringParentheses(detail);
+						readingStreamInfo.codec = detailItems[0].match(/\w+/)?.[0];
+						if (type === 'Video') {
+							readingStreamInfo.pixelFormat = detailItems[1].match(/\w+/)?.[0];
+							readingStreamInfo.resolution = detailItems[2].match(/\w+/)?.[0];
+							readingStreamInfo.bitrate = +detailItems[3].match(/(\d+) kb\/s/)?.[1];
+							readingStreamInfo.fps = +detailItems[4].match(/(\d+(\.)?\d*) fps/)?.[1];
+						} else if (type === 'Audio') {
+							readingStreamInfo.sampleRate = +detailItems[1].match(/\d+/)?.[0];
+							readingStreamInfo.channel = detailItems[2];
+							readingStreamInfo.bitrate = +detailItems.find((item) => item.includes('kb/s'))?.match(/\d+/)?.[0] || undefined;
+						} else if (type === 'Data') {
+							readingStreamInfo.codec = detailItems[0];
+							readingStreamInfo.bitrate = +detailItems.find((item) => item.includes('kb/s'))?.match(/\d+/)?.[0] || undefined;
+						} else {
+							readingStreamInfo.bitrate = +detailItems.find((item) => item.includes('kb/s'))?.match(/\d+/)?.[0] || undefined;
+						}
+						readingStreamInfo.isDefault = detailItems[detailItems.length - 1].includes('default');
+						readingStreamInfo.infoText = thisLine;
+						// 理论上上面这些需要做一下错误处理，比如说 debugger，或者直接跳过这行
+						while (true) {
+							const nextLine = this.readingInputsInfoBuffer[i + 1];
+							if (nextLine && (nextLine.includes('Metadata:') || nextLine.includes('Side data:'))) {
+								let thisLine;
+								i += 2;
+								while ((thisLine = this.readingInputsInfoBuffer[i] || '').startsWith('      ')) {
+									const match = thisLine.match(/([\w_]+) *: (.+)/);
+									if (nextLine.includes('Metadata:')) {
+										readingStreamInfo.metadata[match[1]] = match[2];
+									} else {
+										readingStreamInfo.sidedata[match[1]] = match[2];
+									}
+									i++;
+								}
+								i--;
+							} else {
+								break;
+							}
+						}
+						readingInputInfo.streams.push(readingStreamInfo);
+					} else if (thisLine.includes('Chapters')) {
+						i++;
+						let thisLine;
+						while ((thisLine = (this.readingInputsInfoBuffer[i] || '')).includes('Chapter #')) {
+							const readingChapterInfo: ChapterInfo = {
+								start: NaN,
+								end: NaN,
+								metadata: {},
+							}
+							const parts = thisLine.split(': ');
+							const [basicInfo, detail] = parts;
+							const detailItems = splitIgnoringParentheses(detail);
+							readingChapterInfo.start = +detailItems[0].match(/\d+(\.\d+)?/)?.[0];
+							readingChapterInfo.end = +detailItems[1].match(/\d+(\.\d+)?/)?.[0];
+							readingChapterInfo.infoText = thisLine;
+							const nextLine = this.readingInputsInfoBuffer[i + 1];
+							if (nextLine && (nextLine.includes('Metadata:'))) {
+								let thisLine;
+								i += 2;
+								while ((thisLine = this.readingInputsInfoBuffer[i] || '').startsWith('      ')) {
+									const match = thisLine.match(/([\w_]+) *: (.+)/);
+									if (nextLine.includes('Metadata:')) {
+										readingChapterInfo.metadata[match[1]] = match[2];
+									}
+									i++;
+								}
+								i--;
+							}
+							readingInputInfo.chapters.push(readingChapterInfo);
+							i++;
+						}
+						i--;
+					} else {
+						debugger;	// 读取 Input 时遇到不认识的字符串
+					}
+				}
+				this.inputsInfo.push(readingInputInfo);
+			} else {
+				debugger;	// 不应出现
+			}
+			this.readingInputsInfoBuffer.splice(0, Number.MAX_SAFE_INTEGER);
+		}
+
 		const newLinePos = this.stdoutBuffer.indexOf('\n') >= 0 ? this.stdoutBuffer.indexOf('\n') : this.stdoutBuffer.indexOf(`\r`);
 		if (newLinePos < 0) {
 			// 一行没接收完
@@ -158,13 +285,45 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 		const thisLine = this.stdoutBuffer[newLinePos - 1] === '\r' ? this.stdoutBuffer.slice(0, newLinePos - 1) : this.stdoutBuffer.slice(0, newLinePos);
 		this.stdoutBuffer = this.stdoutBuffer.slice(newLinePos + 1);
 
-		this.emit('data', { content: thisLine });
-
 		/**
-		 * sm 说明：
-		 * 0：复位状态　1：正在读取容器格式　2：正在读取视频流　3：正在读取音频流　4：正在读取流映射
-		 * 5：正在读取 codecs 帮助信息　6：正在读取 AVOptions 以及 AVOptions 中的项
-		 * 7：正在读取 filters 帮助信息　8：正在读取 AVOptions
+		 * ffmpeg 日志流程：
+		 * 1. 解码。ffmpeg 会读取文件以找到合适的解码器（不受扩展名影响）。
+		 *    此过程中可能产生这样的信息：[mov,mp4,m4a,3gp,3g2,mj2 @ 000002764239aa80] st: 0 edit list: moov atom not found
+		 *    也有可能产生错误，如：[in#0 @ 0000014c6d6ba700] Error opening input: Invalid data found when processing input
+		 *    如果文件不存在，会触发：[in#0 @ 00000185b1c1ba80] Error opening input: Invalid argument
+		 *      旧版 ffmpeg 是：文件: Invalid argument
+		 *    硬件解码器错误会是这样：[vist#0:0/h264 @ 0000020e9ceb76c0] Unrecognized hwaccel: 111.
+		 *      旧版 ffmpeg 不会有前面中括号的内容
+		 *    如果产生错误，会分别触发 Error opening input file 文件路径. 和 Error opening input files: Invalid data found when processing input
+		 *      旧版 ffmpeg 直接输出一行：文件: Invalid data found when processing input，不区分它究竟是 in#0 还是 file 还是 files
+		 *    如果没有错误，会进入到输入文件 metadata 环节
+		 * 2. 输出每个输入文件的 metadata（metadata 环节有可能会没有，比如某些音频编码）。
+		 *    Input #0, 解复用器, from '路径':
+		 *      Metadata:
+		 *        key             : value
+		 *      Duration: 00:00:00.00, start: 0.000000, bitrate: 0 kb/s
+		 *      Stream #0:0[0x1](eng): Video: hevc (Main) (hvc1 / 0x31637668), yuv420p(tv, bt709), 3840x2160 [SAR 1:1 DAR 16:9], 49708 kb/s, 30.19 fps, 30 tbr, 90k tbn (default)
+		 *          Metadata:（只有 7.1 版本会多空两格，新版旧版都无此问题）
+         *            key             : value
+		 *      Stream #0:0: Audio: flac, 48000 Hz, stereo, (可能会有 fltp, )s16
+		 * 3. 复用器准备。如果没有错误，此处应该没有消息。如果有错误，可能会是如下输出：
+		 *    Could not write header for output file #0 (incorrect codec parameters ?): Invalid data found when processing input
+		 *    旧版：Error initializing output stream 0:1 -- 
+		 *    新版：Conversion failed!
+		 * 3. Stream mapping。这一部跟复用器准备似乎是并行的，因为新旧 ffmpeg 的行为并不相同。但如果复用器出错，在 Stream mapping 或者复用器准备后就会退出。
+		 *    如果没有指定输出文件，会返回 At least one output file must be specified。
+		 *    如果已指定，则返回 Stream mapping: 后面每行显示 map 信息
+		 *    然后显示一行 Press [q] to stop, [?] for help
+		 * 4. 编码器准备。部分编码器会在此时进行 log。比如：x265 [info]: HEVC encoder version 3.5+115-3cf6c1e53
+		 * 5. 输出每个输出文件的 metadata。此部分略过
+		 * 6. 编码。
+		 *      对于视频：frame=    0 fps=0.0 q=0.0 size=       0KiB time=N/A bitrate=N/A speed=N/A  
+		 *      对于音频：size=    4471kB time=00:04:46.07 bitrate= 128.0kbits/s speed=  90x  
+		 * 7. 编码完成。
+		 *    复用器报告数据（6.1.1 及更新会显示复用器，旧版则直接是 video: 开头），如 [out#0/mp4 @ 0x133e08af0] video:179058KiB audio:5700KiB subtitle:0KiB other streams:0KiB global headers:2KiB muxing overhead: 0.088721%
+		 *    编码器报告数据，如 x265 [info]: Weighted P-Frames: Y:15.9% UV:12.7%
+		 *    如果是视频或者图片，会在上面编码那里再输出一条，但是 size 变成 Lsize。顺序不定（新旧版 ffmpeg 行为不同）
+		 * 8. 如果有视频并且涉及到重新编码，会返回：encoded 4406 frames in 3029.31s (1.45 fps), 9976.67 kb/s, Avg QP:28.08
 		 */
 		switch (this.sm) {
 			case 0:
@@ -196,29 +355,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 						speed: parseFloat(l_status[3]),
 					});
 				} else if (thisLine.includes('Input #')) {	// metadata：获得媒体信息
-					const format = selectString(thisLine, ', ', ', from', 0).text;
-					switch (format) {
-						case 'avi':
-							this.input.format = 'AVI';
-							break;
-						case 'flv':
-							this.input.format = 'FLV';
-							break;
-						case 'mov,mp4,m4a,3gp,3g2,mj2':
-							this.input.format = 'MP4';
-							break;
-						case 'asf':
-							this.input.format = 'WMV';
-							break;
-						case 'matroska,webm':
-							// 有可能是 MKV 或 webm，具体判断放在下面
-							this.input.format = 'MKV';
-							break;
-						default:
-							this.input.format = format;
-							break;
-					}
-					this.sm = 'inputInfo'; // 转入其他状态进行处理
+					this.readingInputsInfoBuffer.push(thisLine);
+					this.sm = 'inputInfoPrinting';	// 暂存当前行，转入 inputInfoPrinting，等待下一个 Input 或 StreamMapping 到达之后将所有暂存用于输入信息识别
 				} else if (thisLine.includes('video:')) {	// finish
 					setTimeout(() => {
 						// 存储空间已满时、产生错误但仍编码到末尾时也会产生 finished，但这算是编码失败
@@ -306,113 +444,25 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					this.sm = 'avOptions';
 				}
 				break;
-			case 'inputInfo':	// 读取输入信息
-				if (false) {
-				} else if (thisLine.includes('Stream mapping:')) {
-					this.sm = 'streamMapping';
-				} else if (thisLine.includes('At least one output file must be specified')) {
-					this.stdoutBuffer += '\n'; // 为了进行下一次状态机，需要加一行
-					this.sm = 'streamMapping';
-				} else if (thisLine.includes('Duration:')) {
-					const f = scanf(thisLine, 'Duration: %d:%d:%d, start: %d, bitrate: %d kb/s');
-					this.input.duration = f[0] * 3600 + f[1] * 60 + f[2] + '';
-					this.input.bitrate = f[4];
-				} else if (thisLine.includes('Stream ') && thisLine.includes('Video')) {
-					// 先把括号里的逗号去掉
-					let front = 0,
-						rear = 0;
-					let _thisLine = thisLine;
-					while ((front = _thisLine.indexOf('(', front)) != -1) {
-						rear = thisLine.indexOf(')', front);
-						_thisLine = replaceString(_thisLine, ',', '/', front, rear);
-						front = rear;
-					}
-					// 读取视频行
-					let video_paraline = '',
-						currentPos = 0;
-					({ text: video_paraline, pos: currentPos } = selectString(_thisLine, 'Video: '));
-					const video_paraItems = video_paraline.split(', ');
-					this.input.vcodec = video_paraItems[0];
-					if (this.input.vcodec.indexOf('(') != -1) {
-						this.input.vcodec = this.input.vcodec.slice(0, this.input.vcodec.indexOf('(') - 1);
-					}
-					// video_pixelfmt = video_paraItems[1];
-					this.input.vresolution = video_paraItems[2];
-					if (this.input.vresolution.indexOf('[') != -1) {
-						this.input.vresolution = this.input.vresolution.slice(0, this.input.vresolution.indexOf(' ['));
-					}
-					this.input.vbitrate = video_paraItems.find((element) => element.includes('kb/s'));
-					this.input.vbitrate = this.input.vbitrate == undefined ? undefined : this.input.vbitrate.slice(0, -5);
-					this.input.vframerate = video_paraItems.find((element) => element.includes('fps'));
-					this.input.vframerate = this.input.vframerate == undefined ? undefined : this.input.vframerate.slice(0, -4);
-					// if (this.input.format == "matroska,webm") {
-					// 	if (this.input.vcodec == "h264" || this.input.vcodec == "hevc") {
-					// 		// webm 容器不能容纳这两种，所以假定为 MKV
-					// 		format_display = "MKV";
-					// 	} else if (this.input.vcodec == "vp9" || this.input.vcodec == "vp8") {
-					// 		// 但如果视频编码是 VP 系列，容器更有可能是 webm
-					// 		format_display = "webm";
-					// 	} else {
-					// 		format_display = "(MKV)";
-					// 		pushMsg(filename + "：FFmpeg 暂无法判断该文件格式为 MKV 或为 webm。")
-					// 	}
+			case 'inputInfoPrinting':
+				// 只要当前还在输出 Input 信息，那就不断暂存当前行，直到遇到下一个 Input 或 streamMapping 时开始解析
+				if (thisLine.startsWith('  ')) {
+					this.readingInputsInfoBuffer.push(thisLine);
+				} else if (thisLine.startsWith('Input #')) {
+					parseInputInfo();
+					this.readingInputsInfoBuffer = [thisLine];
+				} else if (thisLine.includes('Stream mapping:') || thisLine.includes('At least one output file must be specified')) {
+					parseInputInfo();
+					// if (this.input.vcodec == undefined && this.input.abitrate) {
+					// 	this.input.abitrate = this.input.bitrate;
 					// }
-				} else if (thisLine.includes('Stream ') && thisLine.includes('Audio')) {
-					// 先把括号里的逗号去掉
-					let front = 0,
-						rear = 0;
-					let _thisLine = thisLine;
-					while ((front = thisLine.indexOf('(', front)) != -1) {
-						rear = thisLine.indexOf(')', front);
-						_thisLine = replaceString(_thisLine, ',', '/', front, rear);
-						front = rear;
-					}
-					// 读取音频行
-					let audio_paraline = '',
-						currentPos = 0;
-					({ text: audio_paraline, pos: currentPos } = selectString(_thisLine, 'Audio: '));
-					const audio_paraItems = audio_paraline.split(', ');
-					this.input.acodec = audio_paraItems[0];
-					if (this.input.acodec.indexOf('(') != -1) {
-						this.input.acodec = this.input.acodec.slice(0, this.input.acodec.indexOf('(') - 1);
-					}
-					// audio_samplerate = audio_paraItems.find((element) => {return element.indexOf('Hz') != -1;});
-					// audio_samplerate = audio_samplerate == undefined ? undefined : audio_samplerate.slice(0, -3);
-					this.input.abitrate = audio_paraItems.find((element) => {
-						return element.includes('kb/s');
-					});
-					if (this.input.abitrate != undefined) {
-						if (this.input.abitrate.includes('(')) {
-							this.input.abitrate = this.input.abitrate.slice(0, this.input.abitrate.indexOf('(') - 1);
-						}
-						this.input.abitrate = this.input.abitrate.slice(0, -5);
-					}
-				} else if (thisLine.includes('[') && thisLine.includes('@')) {	// demuxer/decoder/encoder/muxer 等发来的信息
-					// const sender = scanf(thisLine, '[%s @ %s]', ']')[1];
-					const msg = thisLine.slice(thisLine.indexOf(']') + 2);
-					// 已识别的消息判断为 critical 放入 critical 列表，其余的 emit error 信息
-					if (false) {
-					} else if (msg.includes('Unable to find a suitable output format')) {
-						// 例：[NULL @ 00000250d7ab1040] Unable to find a suitable output format for '童可可 - 小光芒_converted.MP0'
-						this.errors.add('容器设置有误。');
-					}
-				} else if (thisLine.includes('Unknown encoder')) {
-					this.errors.add(`无法识别的输出编码“${selectString(thisLine, "'", "'", 0).text}”。`);
-					this.runningResult = 'failed';
-				} else if (thisLine.includes('Invalid argument')) {
-					this.errors.add('参数有误。');
-					this.runningResult = 'failed';
+					// if (this.input.acodec == undefined && this.input.vbitrate) {
+					// 	this.input.vbitrate = this.input.bitrate;
+					// }
+					// this.emit('metadata', { content: this.input });
+					this.emit('metadata', { content: this.inputsInfo });
+					this.sm = 0;
 				}
-				break;
-			case 'streamMapping': // 是时候返回编码信息啦
-				if (this.input.vcodec == undefined && this.input.abitrate) {
-					this.input.abitrate = this.input.bitrate;
-				}
-				if (this.input.acodec == undefined && this.input.vbitrate) {
-					this.input.vbitrate = this.input.bitrate;
-				}
-				this.emit('metadata', { content: this.input });
-				this.sm = 0;
 				break;
 			case 'codecs':
 				if (thisLine.startsWith(' ')) {
@@ -528,6 +578,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				}
 				break;
 			}
+
+		this.emit('data', { content: thisLine });	// 状态机运行过后再 emit，因为状态机内部可能会递归调用 dataProcessing()
 		this.dataProcessing(); // 可以把整个函数都 while (true)，为了节省空间，就改用递归了
 	}
 	kill(callback: () => void): void {

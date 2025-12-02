@@ -225,7 +225,7 @@ const init = async () => {
 
 	// 获取配置，失败则退出
 	try {
-		const encryptedConfig = await axios.get('https://ffbox.ttqf.tech/api/v1/FFBoxAIConfig/5.0')
+		const encryptedConfig = await axios.get('https://ffbox.ttqf.tech/api/v1/FFBoxAIConfig/5.2')
 		const fixedCode = 'c934a34fc7823c4e';
 		const decrypted = CryptoJS.AES.decrypt(encryptedConfig.data, fixedCode).toString(CryptoJS.enc.Utf8);
 		fetchedConfig.value = JSON.parse(decrypted);
