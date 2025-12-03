@@ -296,7 +296,6 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 					resolve(false);
 				});
 			}).catch((err) => {
-				console.error(err);
 				resolve(false);
 			});
 		});

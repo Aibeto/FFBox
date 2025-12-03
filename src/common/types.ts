@@ -105,7 +105,7 @@ export interface EncoderDetail {
 	defaultAudioCodec?: string;	// 混流
 	options: {
 		name: string;
-		type: 'int' | 'int64' | 'float' | 'double' | 'boolean' | 'string' | 'dictionary' | 'flags' | 'color' | 'duration' | 'image_size' | 'rational';
+		type: 'int' | 'int64' | 'float' | 'double' | 'boolean' | 'string' | 'dictionary' | 'flags' | 'color' | 'duration' | 'image_size' | 'rational' | 'sample_fmt[]' | 'int[]' | 'channel_layout[]';
 		description: string;
 		options?: { name?: string, value: string | number, description?: string }[];
 		min?: number;

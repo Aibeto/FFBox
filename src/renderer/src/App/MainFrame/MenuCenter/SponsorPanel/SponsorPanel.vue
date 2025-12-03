@@ -106,7 +106,7 @@ const handleEnvelopMouseDown = async (event: MouseEvent) => {
 		event.preventDefault();
 	} else if (event.button === 0 && envelopNum.value > -1) {
 		// 左键结束计数并激活
-		const machineId = appStore.localServer?.data.machineId || '';
+		const machineId = frontendMachineId.value || '';
 		const fixedCode = 'd324c697ebfc42b7';
 		const key = machineId + fixedCode;
 		const min = CryptoJS.enc.Utf8.parse(envelopNum.value + '');
@@ -124,12 +124,18 @@ const handleEnvelopMouseDown = async (event: MouseEvent) => {
 
 const handleActivateButtonClick = async (end: 'frontend' | 'backend' | 'both') => {
 	if (activateCode.value.length) {
-		let frontendResult = '-', backendResult = '-';
-		if (end === 'frontend' || end === 'both') {
-			frontendResult = await appStore.activateFrontend(activateCode.value) + '';
+		let frontendResult, backendResult;
+		if (end === 'frontend') {
+			frontendResult = await appStore.activateFrontend(activateCode.value);
+			backendResult = '-';
 		}
-		if (end === 'backend' || end === 'both') {
-			backendResult = await appStore.activateBackend(activateCode.value) + '';
+		if (end === 'backend') {
+			frontendResult = '-';
+			backendResult = await appStore.activateBackend(activateCode.value);
+		}
+		if (end === 'both') {
+			frontendResult = await appStore.activateFrontend(activateCode.value);
+			backendResult = await appStore.activateBackend(activateCode.value);
 		}
 		console.log('激活结果', frontendResult, backendResult);
 		if (frontendResult && backendResult) {
@@ -154,7 +160,12 @@ onMounted(async () => {
 	paintQRcode2canvas(qr_alipay.value, alipayQR());
 	paintQRcode2canvas(qr_wechatpay.value, wechatpayQR());
 	paintQRcode2canvas(qr_qqpay.value, qqpayQR());
-	frontendMachineId.value = await nodeBridge.getMachineId();
+	nodeBridge.getMachineId().then((value) => {
+		frontendMachineId.value = value;
+	});
+	nodeBridge.localStorage.get('frontendSettings.activationCode').then((value) => {
+		if (value) activateCode.value = value;
+	});
 });
 
 </script>
@@ -296,7 +307,7 @@ onMounted(async () => {
 		</table>
 		<p>FFBox 是一款试用、有源、捐赠混合的软件。出厂状况下，本软件存在部分功能的使用限制</p>
 		<p>您可以通过激活码去除这些限制，详情请到官网或官方信息发布平台查询～</p>
-		<BoxedNormalInput style="margin: 0" title="激活码" :long="true" placeholder="一份激活码对应唯一的机器码，请您输入与本机机器码对应的激活码进行激活🫡" @change="(value) => activateCode = value" />
+		<BoxedNormalInput :value="activateCode" style="margin: 0" title="激活码" :long="true" placeholder="一份激活码对应唯一的机器码，请您输入与本机机器码对应的激活码进行激活🫡" @change="(value) => activateCode = value" />
 		<Button :disabled="nodeBridge.env === 'browser'" @click="handleActivateButtonClick('frontend')">激活前端</Button>
 		<Button :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" @click="handleActivateButtonClick('both')">激活本地服务器</Button>
 		<p>机器码（前端）：<span style="user-select: all;" @click="handleMachineIdClick(frontendMachineId)">

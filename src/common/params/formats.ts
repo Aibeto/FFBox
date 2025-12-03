@@ -14,7 +14,7 @@ export interface Muxer {
 	parameters?: Parameter[];
 }
 
-export interface Hwaccel extends NarrowedMenuItem {
+export interface Hwaccel {
 	hwaccel: string;
 }
 
@@ -271,55 +271,187 @@ export const builtInMuxers: MenuItem<Muxer>[] = [
 
 export const allMuxers: MenuItem<Muxer>[] = [];
 
-export const hwaccels: Hwaccel[] = [
+export const hwaccels: MenuItem<Hwaccel>[] = [
 	{
 		type: 'normal',
 		value: '不使用',
 		label: '不使用',
 		tooltip: '不使用硬件解码。',
-		hwaccel: '-',
 	},
 	{
 		type: 'normal',
 		value: '自动',
 		label: '自动',
-		tooltip: '自动选择硬件解码器。',
-		hwaccel: 'auto',
+		tooltip: '自动选择最合适的硬件解码方式。',
+		extra: {
+			hwaccel: 'auto',
+		},
+	},
+	{ type: 'separator' },
+	{
+		type: 'submenu',
+		label: '显卡专用加速',
+		subMenu: [
+			{
+				type: 'normal',
+				value: 'cuda',
+				label: 'cuda',
+				tooltip: '使用 NVIDIA CUDA 驱动进行硬件加速，通常用于预处理、解码协助等（非主要解码器）。',
+				extra: {
+					hwaccel: 'cuda',
+				},
+			},
+			{
+				type: 'normal',
+				value: 'cuvid',
+				label: 'cuvid',
+				tooltip: 'NVIDIA CUVID 视频解码器接口（旧版 API，已废弃但仍被部分 FFmpeg 编译保留）。',
+				extra: {
+					hwaccel: 'cuvid',
+				},
+			},
+			{
+				type: 'normal',
+				value: 'nvdec',
+				label: 'nvdec',
+				tooltip: 'NVDEC 硬件加速解码（属于 CUDA 家族；FFmpeg 会自动映射）。',
+				extra: {
+					hwaccel: 'nvdec',
+				},
+			},
+			{
+				type: 'normal',
+				value: 'qsv',
+				label: 'qsv',
+				tooltip: 'Intel Quick Sync Video 硬件解码（通过 Intel Media SDK 或 oneVPL）。',
+				extra: {
+					hwaccel: 'qsv',
+				},
+			},		
+			{
+				type: 'normal',
+				value: 'amf',
+				label: 'amf',
+				tooltip: 'AMD AMF（Advanced Media Framework）视频硬件解码与编码（依赖 AMD 驱动支持）。',
+				extra: {
+					hwaccel: 'amf',
+				},
+			},		
+		],
 	},
 	{
-		type: 'normal',
-		value: 'dxva2',
-		label: 'dxva2',
-		tooltip: 'Direct-X Video Acceleration API 2 - Windows 和 Xbox360 上的通用硬件解码器，支持包括 H.264, MPEG-2, VC-1, WMV 3 在内的视频解码。（解码所用的设备与您的主显示器连接的 GPU 有关）',
-		hwaccel: 'dxva2',
+		type: 'submenu',
+		label: 'Windows',
+		subMenu: [
+			{
+				type: 'normal',
+				value: 'dxva2',
+				label: 'dxva2',
+				tooltip: '通过 DirectX Video Acceleration 2（DXVA2）进行硬件解码（Win7+）（解码所用的设备与您的主显示器连接的 GPU 有关）。',
+				extra: {
+					hwaccel: 'dxva2',
+				},
+			},
+			{
+				type: 'normal',
+				value: 'd3d11va',
+				label: 'd3d11va',
+				tooltip: '使用 Direct3D 11 Video Acceleration 进行硬解码（更现代，Win10 推荐）。',
+				extra: {
+					hwaccel: 'd3d11va',
+				},
+			},		
+		],
 	},
 	{
-		type: 'normal',
-		value: 'd3d11va',
-		label: 'd3d11va',
-		tooltip: 'd3d11va',
-		hwaccel: 'd3d11va',
+		type: 'submenu',
+		label: 'Linux',
+		subMenu: [
+			{
+				type: 'normal',
+				value: 'vaapi',
+				label: 'vaapi',
+				tooltip: 'VA-API（Video Acceleration API）硬件解码，Intel/AMD GPU 通用接口，也是 Linux 最常用。',
+				extra: {
+					hwaccel: 'vaapi',
+				},
+			},
+			{
+				type: 'normal',
+				value: 'vdpau',
+				label: 'vdpau',
+				tooltip: 'VDPAU（Video Decode and Presentation API for Unix），主要用于老 NVIDIA/AMD GPU。',
+				extra: {
+					hwaccel: 'vdpau',
+				},
+			},
+			{
+				type: 'normal',
+				value: 'drm',
+				label: 'drm',
+				tooltip: '通过 DRM（Direct Rendering Manager）方式导出硬件帧（常与 VAAPI 配合）。',
+				extra: {
+					hwaccel: 'drm',
+				},
+			},
+			{
+				type: 'normal',
+				value: 'vulkan',
+				label: 'vulkan',
+				tooltip: 'Vulkan 后端的硬件加速接口——通常用于加速处理，不是主要解码器。',
+				extra: {
+					hwaccel: 'vulkan',
+				},
+			},		
+		],
 	},
 	{
-		type: 'normal',
-		value: 'cuda',
-		label: 'cuda',
-		tooltip: 'NVIDIA 显卡的 cuda 解码器。',
-		hwaccel: 'cuda',
+		type: 'submenu',
+		label: 'macOS',
+		subMenu: [
+			{
+				type: 'normal',
+				value: 'videotoolbox',
+				label: 'videotoolbox',
+				tooltip: 'Apple VideoToolbox 硬件解码（H.264 / HEVC / ProRes）—macOS/iOS 原生接口。',
+				extra: {
+					hwaccel: 'videotoolbox',
+				},
+			},
+		],
 	},
 	{
-		type: 'normal',
-		value: 'cuvid',
-		label: 'cuvid/nvenc',
-		tooltip: 'NVIDIA 显卡的专用视频解码器。',
-		hwaccel: 'cuvid',
-	},
-	{
-		type: 'normal',
-		value: 'qsv',
-		label: 'qsv',
-		tooltip: 'Intel 显卡的 Quick Sync Video 解码。',
-		hwaccel: 'qsv',
+		type: 'submenu',
+		label: 'Android',
+		subMenu: [
+			{
+				type: 'normal',
+				value: 'mediacodec',
+				label: 'mediacodec',
+				tooltip: 'Android MediaCodec 硬件解码（移动设备上的默认硬件 API）。',
+				extra: {
+					hwaccel: 'mediacodec',
+				},
+			},
+			{
+				type: 'normal',
+				value: 'omx',
+				label: 'omx',
+				tooltip: 'OpenMAX IL（旧 Android、树莓派旧系统使用）。',
+				extra: {
+					hwaccel: 'omx',
+				},
+			},
+			{
+				type: 'normal',
+				value: 'mmal',
+				label: 'mmal',
+				tooltip: 'Raspberry Pi 的 Mult-Media Abstraction Layer 硬解接口（已废弃，但旧版 FFmpeg 可能仍支持）。',
+				extra: {
+					hwaccel: 'mmal',
+				},
+			},
+		],
 	},
 ]
 
@@ -515,7 +647,8 @@ export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes 
 		// hwaccel 参数
 		if (file.hwaccel && file.hwaccel !== '不使用') {
 			ret.push('-hwaccel');
-			let hwaccel = hwaccels.find((item) => item.value === file.hwaccel)?.hwaccel;
+			let hwaccelItem = getMenuItemByValue(hwaccels, file.hwaccel) as any;
+			let hwaccel = hwaccelItem ? (hwaccelItem.extra as Hwaccel).hwaccel : file.hwaccel;
 			ret.push(hwaccel);
 		}
 		// realtime 参数

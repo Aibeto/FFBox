@@ -6,10 +6,19 @@
 import { spawn, ChildProcess } from 'child_process';
 import EventEmitter from 'events';
 import { ChapterInfo, EncoderDetail, InputInfo, StreamInfo } from '@common/types';
+import i11n from '@common/i11n/i11n';
 import { spawnInvoker } from '@common/spawnInvoker';
 import { selectString, replaceString, scanf, TypedEventEmitter } from '@common/utils';
 import { log } from './utils';
 import osBridge from './osBridge';
+
+interface FFmpegMessage {
+	stage: 'preparingDemuxer' | 'preparingMuxer' | 'transcoding';
+	sender?: string;
+	message: string;
+	translatedMessage?: string;
+	type: 'normal' | 'error';
+}
 
 interface CodecsResult {
 	videoCodecs: {
@@ -50,32 +59,25 @@ interface FFmpegInvokerEvent {
 	codecs: (codecsResult?: CodecsResult, detail?: EncoderDetail) => void;
 	formats: (formatsResult?: FormatsResult, detail?: EncoderDetail) => void;
 	filters: (filtersResult?: FilterResult[], detail?: EncoderDetail) => void;
-	// finished: () => void; 	// 正常完成任务退出时触发
-	// escaped: () => void; 	// 非正常退出时触发
-	closed: (errorCode: number, errors: string[], runningResult: 'success' | 'failed' | undefined) => void;
-	pending: (arg: { content: string }) => void;
-	// critical: (arg: { content: Set<string> }) => void;
+	closed: (errorCode: number, runningResult: 'success' | 'failed' | undefined) => void;
 	warning: (arg: { content: string }) => void;
 }
 
 export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegInvokerEvent>) {
-	private process: ChildProcess | null = null;
+	public process: ChildProcess | null = null;
 	private mode: 'direct' | 'version' | 'metadata' | 'getCodecs' | 'getFormats' | 'getFilters';
 	private runningResult: 'success' | 'failed' | undefined;	// 受状态机识别的错误都应设定此值。如果未设值而退出，则为异常退出
 	private paused: boolean = false;
 	private sm: any = 0; // 状态机状态码，详见下方说明
 	private requireStop = false; // 如果请求提前停止，那就不触发 finished 事件
-	private errors = new Set<string>(); // 发生 critical 则不触发 finished 事件，因某些错误（如外存不足）会由多个部件同时报告，所以这里用 Set
+	public messages: FFmpegMessage[] = [];
 	private encoderDetail: EncoderDetail = { options: [] };	// 同时被 codecs 和 filters 使用
 	private codecsResult: CodecsResult = { videoCodecs: [], audioCodecs: [] };
 	private formatsResult: FormatsResult = { muxers: [], demuxers: [] };
 	private filtersResult: FilterResult[] = [];
 	private readingAVOption: EncoderDetail['options'][number];
 	private readingInputsInfoBuffer: string[] = [];
-	// private readingInputIndex: number;
 	private inputsInfo: InputInfo[] = [];
-	// private readingInputInfo: InputInfo;
-	// private readingStreamInfo: StreamInfo;
 
 	private stdoutBuffer: string = '';
 
@@ -114,7 +116,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 		});
 		this.process!.on('close', (code, signal) => {
 			setTimeout(() => {
-				this.emit('closed', code, [...this.errors], this.runningResult);
+				this.emit('closed', code, this.runningResult);
 				if (this.mode === 'getCodecs') {
 					this.emit('codecs', this.codecsResult, this.encoderDetail);
 				} else if (this.mode === 'getFormats') {
@@ -277,6 +279,66 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 			this.readingInputsInfoBuffer.splice(0, Number.MAX_SAFE_INTEGER);
 		}
 
+		// 解析其他信息（主要是错误信息）
+		const parseOtherMessage = (thisLine: string, stage: FFmpegMessage["stage"] = 'transcoding') => {
+			const match = thisLine.match(/\[(.+) @ .+\] (.+)/);
+			let _, sender, message;
+			if (match) {
+				[_, sender, message] = match;
+			} else {
+				message = thisLine;
+			}
+
+			const beforeMessagesLength = this.messages.length;
+			if (false) {
+			} else if (message.includes('OpenEncodeSessionEx failed: out of memory (10)')) {
+				this.messages.push({ stage, sender, message, translatedMessage: i11n.ffmpeg.内存或显存不足, type: 'error' });
+			} else if (message.includes('No NVENC capable devices found')) {
+				this.messages.push({ stage, sender, message, translatedMessage: i11n.ffmpeg.无硬件解码设备_nvenc, type: 'error' });
+			} else if (message.includes('Failed setup for format cuda: hwaccel initialisation returned error')) {
+				this.messages.push({ stage, sender, message, translatedMessage: i11n.ffmpeg.硬件解码错误回退软件_nvenc, type: 'normal' });
+				this.emit('warning', { content: i11n.ffmpeg.硬件解码错误回退软件_nvenc });
+			} else if (message.includes('Unrecognized hwaccel')) {
+				// 例：[vist#0:0/hevc @ 00000251f4c68e00] Unrecognized hwaccel: asa.
+				this.messages.push({ stage, sender, message, translatedMessage: i11n.ffmpeg.硬件编码器不存在, type: 'error' });
+			} else if (message.includes('DLL amfrt64.dll failed to open')) {
+				this.messages.push({ stage, sender, message, translatedMessage: i11n.ffmpeg.硬件编码器初始化失败_amd, type: 'error' });
+			} else if (message.includes('CreateComponent(AMFVideoEncoderVCE_AVC) failed')) {
+				this.messages.push({ stage, sender, message, translatedMessage: i11n.ffmpeg.硬件编码器初始化失败_amd, type: 'error' });
+			} else if (message.includes('codec not currently supported in container')) {
+				// 例：[mp4 @ 000001d2146edf00] Could not find tag for codec ansi in stream #0, codec not currently supported in container
+				const codecName = selectString(message, 'for codec ', ' in stream', 0).text;
+				this.messages.push({ stage, sender, message, translatedMessage: i11n.ffmpeg.复用器不支持某编码(codecName), type: 'error' });
+			} else if (message.includes('unknown codec')) {
+				// 例：[mov,mp4,m4a,3gp,3g2,mj2 @ 000002613bc8c540] Could not find codec parameters for stream 0 (Video: none (HEVC / 0x43564548), none, 2560x1440, 24211 kb/s): unknown codec
+				this.messages.push({ stage, sender, message, translatedMessage: i11n.ffmpeg.编码无法识别, type: 'error' });
+			} else if (message.includes('Starting second pass: moving the moov atom to the beginning of the file')) {
+				this.messages.push({ stage, sender, message, translatedMessage: i11n.ffmpeg.移动文件信息到文件头, type: 'normal' });
+				// this.emit('pending', { content: '正在移动文件信息到文件头' });
+			} else if (thisLine.includes('No such file or directory')) {
+				this.messages.push({ stage: 'preparingDemuxer', sender, message: thisLine, translatedMessage: i11n.ffmpeg.文件不存在, type: 'error' });
+				this.runningResult = 'failed';
+			} else if (thisLine.includes('Conversion failed')) {	// 错误终止并结束
+				this.runningResult = 'failed';
+			} else if (thisLine.includes('Error while opening encoder for output stream')) {	// 例：Error initializing output stream 0:0 -- Error while opening encoder for output stream #0:0 - maybe incorrect parameters such as bit_rate, rate, width or height
+				this.messages.push({ stage: 'preparingDemuxer', sender, message: thisLine, translatedMessage: i11n.ffmpeg.编码器输出参数设置有误, type: 'error' });
+				this.runningResult = 'failed';
+			} else if (thisLine.includes('Invalid data found when processing input')) {
+				this.messages.push({ stage: 'preparingDemuxer', sender, message: thisLine, translatedMessage: i11n.ffmpeg.输入文件无法识别, type: 'error' });
+				this.runningResult = 'failed';
+			} else if (thisLine.includes('Permission denied')) {	// critical：Permission denied
+				this.messages.push({ stage, sender, message: thisLine, translatedMessage: i11n.ffmpeg.权限不足, type: 'error' });
+				this.runningResult = 'failed';
+			} else if (thisLine.includes('No space left on device')) {	// 多种部件发来的 No space left on device
+				this.messages.push({ stage, sender, message: thisLine, translatedMessage: i11n.ffmpeg.外存已满, type: 'error' });
+				this.runningResult = 'failed';
+			}
+
+			if (match && this.messages.length === beforeMessagesLength) {
+				this.messages.push({ stage, sender, message: thisLine, type: 'normal' });
+			}
+		}
+
 		const newLinePos = this.stdoutBuffer.indexOf('\n') >= 0 ? this.stdoutBuffer.indexOf('\n') : this.stdoutBuffer.indexOf(`\r`);
 		if (newLinePos < 0) {
 			// 一行没接收完
@@ -360,60 +422,19 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				} else if (thisLine.includes('video:')) {	// finish
 					setTimeout(() => {
 						// 存储空间已满时、产生错误但仍编码到末尾时也会产生 finished，但这算是编码失败
-						if (!this.requireStop && this.errors.size == 0 && this.runningResult !== 'failed') {
+						if (!this.requireStop && !this.messages.find((message) => message.type === 'error') && this.runningResult !== 'failed') {
 							this.runningResult = 'success';
 						}
 					}, 100);
-				} else if (thisLine.includes('Conversion failed')) {	// 错误终止并结束
-					this.runningResult = 'failed';
 				} else if (thisLine.includes(`'ffmpeg'`)) {	// version（Windows）：'ffmpeg' 不是内部或外部命令，也不是可运行的程序
 					this.emit('version', {});
 				} else if (thisLine.includes('not found')) {	// version（Linux）：/bin/sh: 1: ffmpeg: not found
 					this.emit('version', {});
-				} else if (thisLine.includes('No such file or directory')) {	// No such file or directory
-					this.errors.add('不是一个文件。');
-					this.runningResult = 'failed';
-				} else if (thisLine.includes('[') && thisLine.includes('@')) {	// demuxer/decoder/encoder/muxer 等发来的信息
-					// const sender = scanf(thisLine, '[%s @ %s]', ']')[1];
-					const msg = thisLine.slice(thisLine.indexOf(']') + 2);
-					// 已识别的消息判断为 critical 放入 critical 列表，其余的 emit error 信息
-					if (false) {
-					} else if (msg.includes('OpenEncodeSessionEx failed: out of memory (10)')) {
-						this.errors.add('内存或显存不足。');
-					} else if (msg.includes('No NVENC capable devices found')) {
-						this.errors.add('没有可用的 NVIDIA 硬件编码设备。');
-					} else if (msg.includes('Failed setup for format cuda: hwaccel initialisation returned error')) {
-						this.emit('warning', { content: '硬件解码器发生错误，将使用软件解码。' });
-					} else if (msg.includes('DLL amfrt64.dll failed to open')) {
-						this.errors.add('AMD 编码器初始化失败。');
-					} else if (msg.includes('CreateComponent(AMFVideoEncoderVCE_AVC) failed')) {
-						this.errors.add('AMD 编码器初始化失败。');
-					} else if (msg.includes('codec not currently supported in container')) {
-						// 例：[mp4 @ 000001d2146edf00] Could not find tag for codec ansi in stream #0, codec not currently supported in container
-						this.errors.add(`容器不支持编码“${selectString(msg, 'for codec ', ' in stream', 0).text}”，请尝试更换容器（格式）或编码。`);
-					} else if (msg.includes('unknown codec')) {
-						// 例：[mov,mp4,m4a,3gp,3g2,mj2 @ 000002613bc8c540] Could not find codec parameters for stream 0 (Video: none (HEVC / 0x43564548), none, 2560x1440, 24211 kb/s): unknown codec
-						this.errors.add('文件中的某些编码无法识别。');
-					} else if (msg.includes('Starting second pass: moving the moov atom to the beginning of the file')) {
-						this.emit('pending', { content: '正在移动文件信息到文件头' });
-					}
 				} else if (thisLine.includes('ffmpeg version')) {	// version：找到 ffmpeg，并读出版本，需要放在读取文件信息后，也要放在“Conversion”后。注意有时候 version 后会附带网址，所以以空格作为结束
 					if (this.mode === 'version') {
 						this.emit('version', { content: selectString(thisLine, 'version ', ' ', 0).text });
 						this.runningResult = 'success';
 					}
-				} else if (thisLine.includes('Error while opening encoder for output stream')) {	// 例：Error initializing output stream 0:0 -- Error while opening encoder for output stream #0:0 - maybe incorrect parameters such as bit_rate, rate, width or height
-					this.errors.add('输出参数设置有误。');
-					this.runningResult = 'failed';
-				} else if (thisLine.includes('Invalid data found when processing input')) {
-					this.errors.add('输入文件无法识别。');
-					this.runningResult = 'failed';
-				} else if (thisLine.includes('Permission denied')) {	// critical：Permission denied
-					this.errors.add('权限不足，无法操作。');
-					this.runningResult = 'failed';
-				} else if (thisLine.includes('No space left on device')) {	// 多种部件发来的 No space left on device
-					this.errors.add('外存不足。');
-					this.runningResult = 'failed';
 				} else if (thisLine.startsWith(' -------')) {	// ffmpeg -codecs 情况下，其下面就是列表
 					this.sm = 'codecs';
 				} else if (thisLine.startsWith(' ---')) {	// ffmpeg -formats 情况下，其下面就是列表（旧版本不支持显示硬件解复用器，这时候就是“--”，暂时不支持列入）
@@ -442,6 +463,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					this.encoderDetail.defaultAudioCodec = thisLine.slice(thisLine.indexOf('Default audio codec:') + 21, -1);
 				} else if (thisLine.includes(' AVOptions')) {
 					this.sm = 'avOptions';
+				} else {
+					parseOtherMessage(thisLine, 'transcoding');
 				}
 				break;
 			case 'inputInfoPrinting':
@@ -506,7 +529,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				break;
 			case 'filters':
 				if (thisLine.startsWith(' ')) {
-					const basicInfoRegx = thisLine.match(/([\.T])([\.S])([\.C]) (\w+) +(\w{1,3})->(\w{1,3}) +(.+)/);
+					const basicInfoRegx = thisLine.match(/([\.T])([\.S])([\.C]?) (\w+) +(\w{1,3})->(\w{1,3}) +(.+)/);
+					// C = Command support，这个字段从 ffmpeg 8.0 开始出现
 					if (!basicInfoRegx) {
 						break;
 					}
@@ -548,7 +572,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 						//      veryfast        7            E..V.......
 					//    duration          <int>        ..F.A...... How to determine the end-of-stream. (from 0 to 2) (default longest)
 						//      longest         0            ..F.A...... Duration of longest input.
-					const basicInfoRegx = thisLine.match(/-?([\w-]+) +<(\w+)> +([\w\.]+) ?(.+)?/);
+					const basicInfoRegx = thisLine.match(/-?([\w-]+) +(\[?<.+> *\]?) *([\w\.]+) ?(.+)?/);
 					// 0：全文　1. 参数名称　2. 参数类型　3. 不知道是啥　4. 描述（含取值范围）
 					const minmaxRegx = thisLine.match(/\(from ([\w+-\.]+) to ([\w+-\.]+)\)/);
 					const defaultRegx = thisLine.match(/\(default "?([\w+-\.]+)\)"?/);
@@ -567,7 +591,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					const defaultValue = defaultRegx ? parseValue(defaultRegx[1]) : undefined;
 					const option: typeof this.readingAVOption = {
 						name: basicInfoRegx[1],
-						type: basicInfoRegx[2] as any,
+						type: basicInfoRegx[2].includes('[') ? basicInfoRegx[2].match(/[\w_]+/)[0] + '[]' : basicInfoRegx[2].match(/[\w+]+/)[0] as any,
 						description: basicInfoRegx[4],
 						min,
 						max,
@@ -624,7 +648,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 		this.process.stdin!.write('q');
 	}
 	pause(): void {
-		if (!this.process) {
+		if (!this.process || this.paused) {
 			return;
 		}
 		switch (process.platform) {

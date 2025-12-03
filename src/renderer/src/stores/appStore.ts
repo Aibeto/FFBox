@@ -822,7 +822,7 @@ export const useAppStore = defineStore('app', {
 		async activateBackend(userInput: string): Promise<number | false> {
 			const 这 = useAppStore();
 			const result = await 这.currentServer?.entity.activate(userInput);
-			if (Number.isFinite(+result)) {
+			if (result && Number.isFinite(+result)) {
 				这.currentServer!.data.functionLevel = +result;
 				return +result;
 			}

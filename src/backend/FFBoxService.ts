@@ -6,6 +6,7 @@ import fsPromise from 'fs/promises';
 import { utimes } from 'utimes';
 import path from 'path';
 import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail, FFmpegDemuxerDetail } from '@common/types';
+import i11n from '@common/i11n/i11n';
 import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import { defaultParams } from '@common/defaultParams';
 import localConfig from '@common/localConfig';
@@ -670,16 +671,23 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.outputFiles = genTaskOutputFiles(task.after);	// 本地任务的 outputFiles 在任务开始时才生成，而远程任务则是在添加和修改参数时就刷新
 			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray({ outputParams: task.after }));
 		}
-		newFFmpeg.on('closed', async (errorCode, errors, runningResult) => {
+		newFFmpeg.on('closed', async (errorCode, runningResult) => {
 			if (errorCode) {
+				const errorMessages = newFFmpeg.messages.filter((message) => message.type === 'error').map((message) =>
+					`\n${message.sender ? `【${message.sender}】` : ''}${message.translatedMessage ?? message.message}`
+				);
 				if (runningResult === 'failed') {
 					log.error(`[任务 ${id}] 出错：${task.taskName}。`);
-					this.setNotification(id, '任务「' + task.taskName + '」转码失败。' + [...errors].join('') + '请在命令行输出面板查看详细原因。', NotificationLevel.error);
+					this.setNotification(
+						id,
+						'任务「' + task.taskName + '」转码失败。' + errorMessages,
+						NotificationLevel.error,
+					);
 				} else if (task.status == TaskStatus.stopping) {
 					this.setNotification(id, '任务「' + task.taskName + '」已强制结束。', NotificationLevel.warning);
 				} else {
 					log.error(`[任务 ${id}] 异常终止：${task.taskName}。`);
-					this.setNotification(id, '任务「' + task.taskName + '」异常终止。请在命令行输出面板查看详细原因。', NotificationLevel.error);
+					this.setNotification(id, '任务「' + task.taskName + '」异常终止。' + errorMessages, NotificationLevel.error);
 				}
 				task.status = TaskStatus.error;
 			} else {
@@ -733,18 +741,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				const _parameter = parameter as 'time' | 'frame' | 'size';
 				progressLog[_parameter].push([time, status[_parameter]]);
 			}
-			if (this.functionLevel < 50) {
-				if (progressLog.time[progressLog.time.length - 1][1] > 671) {
-					this.trailLimit_stopTranscoding(id, 'media');
-					return;
-				}
-			}
-			if (this.functionLevel < 45) {
-				if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > 671) {
-					this.trailLimit_stopTranscoding(id, 'working');
-					return;
-				}
-			}
+			this.trailLimit_checkIsMediaWorkingTimeExceeded(id, task);
 			this.emit('progressUpdate', {
 				taskId: id,
 				time,
@@ -844,6 +841,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		} else {
 			log.info(`[任务 ${id}] 继续。`);
 		}
+		if (this.trailLimit_checkIsMediaWorkingTimeExceeded(id, task)) {
+			task.status = TaskStatus.paused;
+			this.emitTaskUpdate(id, task);
+			return;
+		}
+
 		task.status = TaskStatus.running;
 		const nowRealTime = new Date().getTime() / 1000;
 		task.progressLog.lastStarted = nowRealTime;
@@ -949,7 +952,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				}
 				if (task.status === TaskStatus.paused_queued) {
 					this.taskResume(+id);
-					runningCount++;
+					// @ts-ignore
+					if (task.status === TaskStatus.running) runningCount++;
 				}
 			}
 			if (!dontStop && runningCount === 0) {
@@ -1100,21 +1104,37 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 	}
 
+	private trailLimit_checkIsMediaWorkingTimeExceeded(id: number, task: ServiceTask): boolean {
+		const progressLog = task.progressLog;
+		if (this.functionLevel < 500) {
+			if (progressLog.time[progressLog.time.length - 1][1] > 6.71) {
+				this.trailLimit_stopTranscoding(id, 'media');
+				return true;
+			}
+		}
+		if (this.functionLevel < 450) {
+			if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > 6.71) {
+				this.trailLimit_stopTranscoding(id, 'working');
+				return true;
+			}
+		}
+	}
+
 	public trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend = false): void {
 		const task = this.tasklist[id];
 		if (task.status === TaskStatus.running) {
 			this.setNotification(
 				id,
-				`任务「${task.taskName}」转码达到时长上限了${byFrontend ? '（前端）' : '（后端）'}\n` +
-				`💔您的用户等级最高支持 11:11 的${reason === 'media' ? '媒体时长' : '处理耗时'}\n` +
-				'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
-				'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
-				NotificationLevel.error,
+				i11n.service.功能限制_暂停转码(task.taskName, byFrontend, reason),
+				NotificationLevel.warning,
 			);
-			this.taskReset(id).then(() => {
-				task.status = TaskStatus.error;
-				this.emitTaskUpdate(id, task);
-			});
+			this.taskPause(id);
+		} else if ([TaskStatus.paused, TaskStatus.paused_queued].includes(task.status)) {
+			this.setNotification(
+				id,
+				i11n.service.功能限制_不能继续(task.taskName, byFrontend, reason, task.ffmpeg.process.pid),
+				NotificationLevel.warning,
+			);
 		}
 	}
 }
