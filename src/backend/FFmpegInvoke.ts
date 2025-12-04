@@ -332,6 +332,11 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 			} else if (thisLine.includes('No space left on device')) {	// 多种部件发来的 No space left on device
 				this.messages.push({ stage, sender, message: thisLine, translatedMessage: i11n.ffmpeg.外存已满, type: 'error' });
 				this.runningResult = 'failed';
+			} else if (thisLine.includes('FFmpeg cannot edit existing files in-place')) {
+				// Output I:/Users/ttqf/Desktop/主序列.mp4 same as Input #0 - exiting
+				// FFmpeg cannot edit existing files in-place.
+				this.messages.push({ stage, sender, message: thisLine, translatedMessage: i11n.ffmpeg.无法原地编辑, type: 'error' });
+				this.runningResult = 'failed';
 			}
 
 			if (match && this.messages.length === beforeMessagesLength) {

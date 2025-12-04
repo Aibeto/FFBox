@@ -20,6 +20,8 @@ export enum ServiceBridgeStatus {
 
 export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & ServeiceBridgeEvent>) implements FFBoxServiceInterface {
 	private ws: WebSocket | null = null;
+	private seq = 0;
+	private waitingForResponse: Map<number, [((okResult: any) => any)?, ((errResult: any) => any)?]> = new Map();
 	public ip: string;
 	public port: number;
 	public username: string;
@@ -133,7 +135,6 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	
 				这.status = ServiceBridgeStatus.Connected;
 				这.emit('connected');
-				这.emitFFmpegInfo();
 				connectResult(true);
 
 				setTimeout(() => {
@@ -190,6 +191,16 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			// 连接后，服务器将马上触发 sessionId 事件，此时即可使登录操作继续
 			console.log(`本次登录 sessionId：${data.payload}`);
 			this.sessionId = data.payload;
+		} else if (data.event === 'ack') {
+			const funcs = this.waitingForResponse.get(data.payload.seq);
+			if (funcs) {
+				if (data.payload.ok) {
+					(funcs[0] || (() => {}))(data.payload.result);
+				} else {
+					(funcs[1] || (() => {}))(data.payload.result);
+				}
+				this.waitingForResponse.delete(data.payload.seq);
+			}
 		} else {
 			this.emit(data.event, data.payload as any);
 		}
@@ -229,29 +240,15 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		this.sendWs(data);
 	}
 
-	public emitFFmpegInfo() {
+	public taskAdd(taskName: string, outputParams?: OutputParams): Promise<number> {
 		let data: FFBoxServiceFunctionApi = {
-			function: 'emitFFmpegInfo',
-			args: [],
+			function: 'taskAdd',
+			args: [taskName, outputParams],
+			seq: ++this.seq,
 		}
 		this.sendWs(data);
-	}
-
-	public taskAdd(taskName: string, outputParams?: OutputParams): Promise<number> {
-		return new Promise((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/task`, {
-				method: 'put',
-				body: JSON.stringify({ taskName, outputParams }),
-				headers: new Headers({
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-			}).then((response) => {
-				response.text().then((text) => {
-					let id = parseInt(text);
-					resolve(id);
-				})
-			}).catch((err) => reject(err))
+		return new Promise<number>((resolve, reject) => {
+			this.waitingForResponse.set(this.seq, [(result) => resolve(result), () => reject()]);
 		});
 	}
 
@@ -361,9 +358,12 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		let data: FFBoxServiceFunctionApi = {
 			function: 'taskReset',
 			args: [id],
+			seq: ++this.seq,
 		}
 		this.sendWs(data);
-		return Promise.resolve();	// 并不会遵循后端的 Promise 返回，而是在前端直接返回
+		return new Promise<void>((resolve, reject) => {
+			this.waitingForResponse.set(this.seq, [() => resolve(), () => reject()]);
+		});
 	}
 
 	public queueStart() {

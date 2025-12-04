@@ -483,7 +483,6 @@ export function convertAnyTaskToTask(task: ServiceTask | UITask): Task {
 		progressLog: task.progressLog,
 		cmdData: task.cmdData,
 		errorInfo: task.errorInfo,
-		// notifications: task.notifications,
 		outputFiles: task.outputFiles,
 	};
 }

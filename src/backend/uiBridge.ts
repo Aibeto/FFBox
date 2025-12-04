@@ -177,7 +177,7 @@ function mountWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): voi
 				log.dev(`客户端 ${sessionId} 未登录，调用已拒绝`, message.toString());
 				return;
 			}
-			handleMessageFromClient(message.toString());
+			handleMessageFromClient(message.toString(), ws);
 		}
 	});
 	ws.on('close', function (code: number, reason: string) {
@@ -201,7 +201,7 @@ function mountWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): voi
 /**
  * 接受 UI 事件入口（来自 ws.onmessage）
  */
-function handleMessageFromClient(message: string): void {
+function handleMessageFromClient(message: string, wsClient: WebSocket): void {
 	if (!ffboxService) {
 		throw new Error('uiBridge 使用前应 init()');
 	}
@@ -209,7 +209,30 @@ function handleMessageFromClient(message: string): void {
 	const args = data.args;
 	log.dev('收到调用：', data);
 	// @ts-ignore
-	ffboxService[data.function](...args.map((value) => (value === null ? undefined : value)));
+	const result = ffboxService[data.function](...args.map((value) => (value === null ? undefined : value)));
+	if (result instanceof Promise && typeof data.seq === 'number') {
+		result.then((result) => {
+			const response: FFBoxServiceEventApi = {
+				event: 'ack',
+				payload: {
+					seq: data.seq,
+					ok: true,
+					result,
+				},
+			};
+			wsClient.send(JSON.stringify(response));
+		}).catch((reason) => {
+			const response: FFBoxServiceEventApi = {
+				event: 'ack',
+				payload: {
+					seq: data.seq,
+					ok: false,
+					result: reason,
+				},
+			};
+			wsClient.send(JSON.stringify(response));
+		});
+	}
 }
 
 /**
@@ -276,6 +299,7 @@ function getRouter(): Router {
 			isSandboxed: process.cwd() === '/', // macOS 中，直接双击运行服务（无论是否在 app 内）会得到用户目录，在终端运行会得到终端当前目录，通过 FFBox 调用会得到 '/'
 			machineId: ffboxService.machineId,
 			functionLevel: ffboxService.functionLevel,
+			ffmpegInfo: ffboxService.ffmpegInfo,
 		};
 		ctx.response.status = 200;
 		ctx.response.body = result;
@@ -380,19 +404,6 @@ function getRouter(): Router {
 			log.error('文件重命名失败', error);
 			ctx.response.status = 500;
 		}
-	});
-
-	// 因为需要返回 id 所以特意改用 http request 实现的 taskAdd
-	router.put('/task', async function (ctx) {
-		if (!ctx.request.body) {
-			// 非法请求
-			ctx.response.status = 400;
-			return;
-		}
-		const body = ctx.request.body;
-		const result = await ffboxService!.taskAdd(body.taskName, body.outputParams, ctx.URL.hostname !== 'localhost');
-		ctx.response.status = 200;
-		ctx.response.body = result;
 	});
 
 	// 获取任务 ID 列表

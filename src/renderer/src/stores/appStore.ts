@@ -330,7 +330,7 @@ export const useAppStore = defineStore('app', {
 		updateTask(server: Server, taskId: number) {
 			const 这 = useAppStore();
 			server.entity.getTask(taskId).then((content) => {
-				handleTaskUpdate(server, taskId, content);
+				handleTaskUpdate(server, taskId, content, true);
 				这.recalcChangedParams();
 			});
 		},
@@ -684,6 +684,7 @@ export const useAppStore = defineStore('app', {
 				server.data.isSandboxed = properties.isSandboxed;
 				server.data.machineId = properties.machineId;
 				server.data.functionLevel = properties.functionLevel;
+				server.data.ffmpegInfo = properties.ffmpegInfo;
 
 				// workingStatus
 				if (workingStatus === WorkingStatus.idle || workingStatus === WorkingStatus.running) {
@@ -794,11 +795,11 @@ export const useAppStore = defineStore('app', {
 					这.recalcChangedParams();
 				});
 				entity.on('taskUpdate', (data) => {
-					handleTaskUpdate(server, data.taskId, data.task);
+					handleTaskUpdate(server, data.taskId, data.task, false);
 					这.recalcChangedParams();
 				});
 				entity.on('cmdUpdate', (data) => {
-					handleCmdUpdate(server, data.taskId, data.content);
+					handleCmdUpdate(server, data.taskId, data.content, data.append);
 				});
 				entity.on('progressUpdate', (data) => {
 					handleProgressUpdate(server, data.taskId, data.time, data.status, 这.functionLevel);

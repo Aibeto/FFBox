@@ -19,6 +19,7 @@ export interface I11n {
 		输入文件无法识别: string;
 		权限不足: string;
 		外存已满: string;
+		无法原地编辑: string;
 	}
 }
 

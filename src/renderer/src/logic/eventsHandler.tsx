@@ -78,8 +78,9 @@ export function handleTasklistUpdate(server: Server, content: Array<number>) {
 };
 /**
  * 更新整个 task
+ * 通过广播事件收到的 task 有可能是不完整的，不包含 cmdData，mergeTaskFromService 只会进行 Object.assign，不会清空
  */
-export function handleTaskUpdate(server: Server, id: number, content: Task) {
+export function handleTaskUpdate(server: Server, id: number, content: Task, isFull: boolean) {
 	const serverData = server.data;
 	const localTask = serverData.tasks[id];
 	if (!localTask) {
@@ -118,12 +119,13 @@ export function handleTaskUpdate(server: Server, id: number, content: Task) {
 /**
  * 增量更新 cmdData
  */
-export function handleCmdUpdate(server: Server, id: number, content: string) {
+export function handleCmdUpdate(server: Server, id: number, content: string, append: boolean) {
 	let task = server.data.tasks[id];
-	if (task.cmdData.slice(-1) !== '\n' && task.cmdData.length) {
-		task.cmdData += '\n';
+	if (append) {
+		task.cmdData += content;
+	} else {
+		task.cmdData = content;
 	}
-	task.cmdData += content;
 };
 /**
  * 增量更新 progressLog

@@ -38,7 +38,6 @@ export interface FFmpegInfo {
 export interface FFBoxServiceInterface {
 	initSettings(): void;
 	initFFmpeg(): void;
-	emitFFmpegInfo(): void;
 	taskAdd(taskName: string, outputParams?: OutputParams): Promise<number>;
 	mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): void;
 	setUploadStatus(id: number, isUploading: boolean): void;
@@ -75,11 +74,19 @@ export type FFBoxServiceEventApi = {
 } | {
 	event: 'sessionId';
 	payload: string;
+} | {
+	event: 'ack';
+	payload: {
+		seq: number;
+		ok: boolean;
+		result: Awaited<ReturnType<FFBoxServiceInterface[keyof FFBoxServiceInterface]>>;
+	};
 };
 
 export interface FFBoxServiceFunctionApi {
 	function: keyof FFBoxServiceInterface;
 	args: Parameters<FFBoxServiceInterface[keyof FFBoxServiceInterface]>;	// 数组形式，按顺序传入参数
+	seq?: number;
 }
 
 export interface NormalApiWrapper<T> {

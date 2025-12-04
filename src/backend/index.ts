@@ -1,5 +1,6 @@
 import { getSingleArgvValue } from '@common/utils';
 import { FFBoxService } from './FFBoxService';
+import UIBridge from './uiBridge';
 import { version } from '@common/constants';
 import { log } from './utils';
 import { NotificationLevel } from '@common/types';
@@ -35,6 +36,9 @@ if (['-h', '-?', '--help'].some((t) => getSingleArgvValue(t))) {
 	service.on('serverClose', () => {
 		process.exit();
 	});
+
+	UIBridge.init(service);
+	UIBridge.listen();
 
 	const webuiPort = getSingleArgvValue('--webuiPort');
 	if (webuiPort) {

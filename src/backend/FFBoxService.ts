@@ -14,7 +14,6 @@ import { parseFFmpegCodecsToCodecsList, parseFFmpegMuDeMuxersToList } from '@com
 import { getInitialServiceTask, convertAnyTaskToTask, TypedEventEmitter, replaceOutputParams, randomString, getOutputDuration, parseTimeString, getOutputFileTime } from '@common/utils';
 import { getMachineId, log } from './utils';
 import { FFmpeg } from './FFmpegInvoke';
-import UIBridge from './uiBridge';
 
 export interface FFBoxServerEvent {
 	serverReady: () => void;
@@ -27,7 +26,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private latestTaskId = 0;
 	public workingStatus: WorkingStatus = WorkingStatus.idle;
 	private ffmpegPath = '';
-	private ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0, muxersCount: 0, demuxersCount: 0 };
+	public ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0, muxersCount: 0, demuxersCount: 0 };
 	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; };
 	public ffmpegFormats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[]; };
 	public ffmpegFilters: FFmpegFilterDetail[] = [];
@@ -49,7 +48,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.tasklist[-1] = this.globalTask;
 		setTimeout(async () => {
 			this.initActivationInfo();
-			this.initUIBridge();
 			await this.initSettings();
 			// this.initFFmpeg();	// 在 initSetting 中已调用
 		}, 0);
@@ -104,14 +102,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 
 		this.deleteFinishedTasks = await localConfig.get('service.deleteFinishedTasks') === true ? true : false;
-	}
-
-	/**
-	 * 初始化服务器
-	 */
-	private initUIBridge(): void {
-		UIBridge.init(this);
-		UIBridge.listen();
 	}
 
 	/**
@@ -369,7 +359,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * 向所有客户端更新当前 ffmpeg 版本
 	 * @emits ffmpegInfo
 	 */
-	public emitFFmpegInfo(): void {
+	private emitFFmpegInfo(): void {
 		this.emit('ffmpegInfo', this.ffmpegInfo);
 	}
 
@@ -383,7 +373,17 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		if (_task) {
 			this.emit('taskUpdate', {
 				taskId: id,
-				task: convertAnyTaskToTask(_task),
+				task: {
+					taskName: _task.taskName,
+					before: _task.before,
+					after: _task.after,
+					paraArray: _task.paraArray,
+					status: _task.status,
+					progressLog: _task.progressLog,
+					// cmdData: _task.cmdData,
+					errorInfo: _task.errorInfo,
+					outputFiles: _task.outputFiles,
+				} as any,
 			});
 		}
 	}
@@ -1045,6 +1045,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 	}
 
+	private cmdUpdateThrottleTimers: Map<number, { start: number, timer: number }> = new Map();
 	/**
 	 * 收到 cmd 内容通用回调
 	 * @param id 任务 id
@@ -1057,17 +1058,45 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			task.cmdData = content;
 		} else {
 			if (content.length) {
+				// 若前面没结尾换行符，则先插入一个 \n，再插入内容
 				if (task.cmdData.slice(-1) !== '\n' && task.cmdData.length) {
-					task.cmdData += '\n';
+					content = '\n' + content;
 				}
+				task.cmdData += content;
+			} else {
+				// 空行
+				content = '\n';
 				task.cmdData += content;
 			}
 		}
-		this.emit('cmdUpdate', {
-			taskId: id,
-			content,
-			append,
-		});
+		if (!append) {
+			// 清空事件不走 throttle
+			this.emit('cmdUpdate', { taskId: id, content, append });
+			clearTimeout(this.cmdUpdateThrottleTimers.get(id)?.timer);
+			this.cmdUpdateThrottleTimers.delete(id);
+			return;
+		}
+		const throttleTimer = this.cmdUpdateThrottleTimers.get(id);
+		// 第一次直接发送，记录发送后的起点，并添加计时器
+		// 后续发送时，计时器未消失，则无需动作，等待计时器结束
+		// 计时器结束时，如果有新消息，则发送从起点开始的消息，否则不动作
+		if (!throttleTimer) {
+			this.emit('cmdUpdate', { taskId: id, content, append });
+
+			const start = task.cmdData.length;
+			const timerFunc = () => {
+				const newContent = task.cmdData.slice(start);
+				if (newContent.length) {
+					this.emit('cmdUpdate', {
+						taskId: id,
+						content: task.cmdData.slice(start),
+						append,
+					});
+				}
+				this.cmdUpdateThrottleTimers.delete(id);
+			};
+			this.cmdUpdateThrottleTimers.set(id, { start, timer: setTimeout(timerFunc, 120) as any })
+		}
 	}
 
 	/**
@@ -1107,13 +1136,13 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private trailLimit_checkIsMediaWorkingTimeExceeded(id: number, task: ServiceTask): boolean {
 		const progressLog = task.progressLog;
 		if (this.functionLevel < 500) {
-			if (progressLog.time[progressLog.time.length - 1][1] > 6.71) {
+			if (progressLog.time[progressLog.time.length - 1][1] > 671) {
 				this.trailLimit_stopTranscoding(id, 'media');
 				return true;
 			}
 		}
 		if (this.functionLevel < 450) {
-			if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > 6.71) {
+			if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > 671) {
 				this.trailLimit_stopTranscoding(id, 'working');
 				return true;
 			}
