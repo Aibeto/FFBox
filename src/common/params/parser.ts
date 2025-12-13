@@ -149,7 +149,7 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 			});
 		}
 	} else {
-		console.warn(`解析 ${option.name} 过程中发现未知类型 ${option.type}`);
+		// console.warn(`解析 ${option.name} 过程中发现未知类型 ${option.type}`);
 		return ({
 			parameter: option.name,
 			display: option.name,

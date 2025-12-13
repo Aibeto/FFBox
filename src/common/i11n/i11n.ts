@@ -20,7 +20,12 @@ export interface I11n {
 		权限不足: string;
 		外存已满: string;
 		无法原地编辑: string;
-	}
+	},
+	frontend: {
+		settings: {
+			useVirtualTaskListDesc: string;
+		}
+	},
 }
 
 let currentLanguage = 'zh-CN';

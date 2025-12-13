@@ -1127,13 +1127,13 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 	private trailLimit_checkIsMediaWorkingTimeExceeded(id: number, task: ServiceTask): boolean {
 		const progressLog = task.progressLog;
-		if (this.functionLevel < 500) {
+		if (this.functionLevel < 50) {
 			if (progressLog.time[progressLog.time.length - 1][1] > 671) {
 				this.trailLimit_stopTranscoding(id, 'media');
 				return true;
 			}
 		}
-		if (this.functionLevel < 450) {
+		if (this.functionLevel < 45) {
 			if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > 671) {
 				this.trailLimit_stopTranscoding(id, 'working');
 				return true;

@@ -104,7 +104,7 @@ onMounted(async () => {
 			const globalParams = await nodeBridge.localStorage.get('globalParams');
 			appStore.globalParams = globalParams;;
 		}
-		appStore.frontendSettings = await nodeBridge.localStorage.get('frontendSettings') || appStore.frontendSettings;
+		appStore.frontendSettings = Object.assign(appStore.frontendSettings, await nodeBridge.localStorage.get('frontendSettings'));
 		appStore.applyFrontendSettings(false);
 	})();
 

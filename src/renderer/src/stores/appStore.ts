@@ -44,9 +44,11 @@ interface StoreState {
 		},
 	},
 	frontendSettings: {
+		// 所有值都是必需预置默认值的，这样在初始化时会把没有保存过的设置存一遍
 		colorTheme: string,
 		useIEC: boolean,
 		aiDisabled: boolean,
+		useVirtualTaskList: boolean,
 	},
 	unreadNotificationCount: number,
 	componentRefs: { [key: string]: VNodeRef | Element },
@@ -97,6 +99,7 @@ export const useAppStore = defineStore('app', {
 				colorTheme: 'themeLight',
 				useIEC: false,
 				aiDisabled: false,
+				useVirtualTaskList: true,
 			},
 			unreadNotificationCount: 0,
 			componentRefs: {},

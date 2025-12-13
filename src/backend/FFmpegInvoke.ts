@@ -269,7 +269,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 						}
 						i--;
 					} else {
-						debugger;	// 读取 Input 时遇到不认识的字符串
+						parseOtherMessage(thisLine, 'preparingDemuxer');	// 读取 Input 时遇到不认识的字符串
 					}
 				}
 				this.inputsInfo.push(readingInputInfo);

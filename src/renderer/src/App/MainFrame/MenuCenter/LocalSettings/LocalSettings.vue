@@ -5,6 +5,8 @@ import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import { showServerConfig } from '@renderer/components/misc/ServerConfig';
 import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
 import Button from '@renderer/components/Button/Button';
+import { useTooltip } from '@renderer/common/tooltipUtil';
+import i11n from '@common/i11n/i11n';
 
 const appStore = useAppStore();
 
@@ -23,6 +25,10 @@ const progressModeList: RadioListProps['list'] = [
 const aiDisabledList: RadioListProps['list'] = [
 	{ value: false, caption: '可用时启用' },
 	{ value: true, caption: '不用' },
+];
+const useVirtualTaskListList: RadioListProps['list'] = [
+	{ value: true, caption: '启用仿虚拟列表' },
+	{ value: false, caption: '完全渲染（不优化）' },
 ];
 
 const localServiceStatus = computed(() => {
@@ -53,6 +59,8 @@ const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value:
 			<RadioList :list="progressModeList" value="预测实时值" /> -->
 			<span>AI 帮助功能</span>
 			<RadioList :list="aiDisabledList" :value="appStore.frontendSettings.aiDisabled" @change="(value) => handleSettingChange('aiDisabled', value)" />
+			<span v-bind="useTooltip(i11n.frontend.settings.useVirtualTaskListDesc, 't')">任务列表性能优化</span>
+			<RadioList v-bind="useTooltip(i11n.frontend.settings.useVirtualTaskListDesc, 't')" :list="useVirtualTaskListList" :value="appStore.frontendSettings.useVirtualTaskList" @change="(value) => handleSettingChange('useVirtualTaskList', value)" />
 		</div>
 		<div class="configArea">
 			<p>转码服务相关设置请到“服务器配置”页面配置</p>

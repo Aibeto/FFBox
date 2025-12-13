@@ -25,23 +25,30 @@ import css from './TaskItem.module.less';
 interface Props {
 	task: UITask;
 	id: number;
+	index: number;
+	show: boolean;
 	selected?: boolean;
 	shouldHandleHover?: boolean;	// 如果正在多选，或者单选但选的不是自己，那么不响应悬浮
-	onClick?: (event: MouseEvent) => any;
+	onClick?: (event: MouseEvent, id: number, index: number) => any;
 }
 
 export const TaskItem = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 	const settings = appStore.taskViewSettings;
 
+	// const usedKeys = new Set();
 	// onRenderTracked(e => {
-	// 	console.log('[TRACKED]', props.task.taskName, e)
+	// 	console.log('[TRACKED]', props.task.taskName, e);
+	// 	usedKeys.add(String(e.key));
 	// })
 	// onRenderTriggered(e => {
-	// 	console.log('[TRIGGERED]', props.task.taskName, e)
+	// 	console.log('[TRIGGERED]', props.task.taskName, usedKeys.has(String(e.key)), e);
+	// 	// if (usedKeys.has(String(e.key))) {
+	// 	// 	console.log(`组件 ${props.id} 因 key=${String(e.key)} 变化而更新`);
+	// 	// }
 	// })
 	// onUpdated(() => {
-	// 	console.log('[UPDATED] child rendered', props.task.taskName)
+	// 	console.log('[UPDATED] rendered', props.task.taskName)
 	// })
 
 	// #region 预先计算以减少下方计算量
@@ -493,8 +500,9 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	return () => {
 		// console.log('render', props.task.taskName);
+		if (!props.show) return (<div style={{ height: `${taskHeight.value - 2}px` }} data-index={props.index} data-id={props.id} />)
 		return (
-		<div class={css.taskWrapper1} onClick={props.onClick}>
+		<div class={css.taskWrapper1} data-index={props.index} data-id={props.id} onClick={(event) => props.onClick(event, props.id, props.index)}>
 			<div class={css.taskWrapper2}>
 				<div
 					class={css.task}
@@ -706,5 +714,5 @@ export const TaskItem = defineComponent((props: Props) => {
 		</div>)
 	};
 }, {
-	props: ['task', 'id', 'selected', 'shouldHandleHover', 'onClick'],
+	props: ['task', 'id', 'index', 'show', 'selected', 'shouldHandleHover', 'onClick'],
 });

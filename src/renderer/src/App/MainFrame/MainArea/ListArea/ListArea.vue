@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
+// import VirtualList from 'vue-virtual-scroll-list';
+// import VirtualList from './VirtualList.vue';
+// import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import { useAppStore } from '@renderer/stores/appStore';
-import { NotificationLevel } from '@common/types';
+import { NotificationLevel, TaskStatus } from '@common/types';
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
 import Popup from '@renderer/components/Popup/Popup';
 import { TaskItem } from './TaskItem/TaskItem';
@@ -11,17 +14,10 @@ import ImageNoffmpeg from './noffmpeg.svg?component';
 const appStore = useAppStore();
 
 const selectedTask_last = ref(-1);
-
-// const tasks2 = shallowRef([]);
-
-// watch(() => appStore.currentServer?.data.tasks, (newTasks) => {
-//     const arr = tasks2.value;  // 复用同一数组
-//     arr.length = 0;
-//     for (const [id_s, task] of Object.entries(newTasks)) {
-//         if (id_s !== '-1') arr.push(Object.assign(task, { id: +id_s }));
-//     }
-// 	console.log(tasks2.value);
-// }, { deep: true });
+const taskListRef = ref<HTMLDivElement>();
+const itemRefs = ref(new Map());	// index -> TaskItem
+const isVisible = ref(new Map<number, boolean>());	// index -> boolean
+let observer: IntersectionObserver;
 
 const tasks = computed(() => {
 	// console.log('服务器', appStore.currentServer, '任务', appStore.currentServer?.data.tasks);
@@ -45,6 +41,28 @@ const tasks = computed(() => {
 	// this.lastTaskListLength = ret.length;
 	return ret;
 });
+
+// const taskList = computed(() => Object.keys(appStore.currentServer.data.tasks).map((s_id, index) => ({
+// 	task: appStore.currentServer.data.tasks[+s_id],
+// 	id: +s_id,
+// 	index,
+// 	selected: appStore.selectedTask.has(+s_id),
+// 	shouldHandleHover: true,
+// 	onClick: handleTaskClicked,
+// })).concat({ task: undefined, id: -1, index: -1 } as any));
+
+// const heightList = computed(() => Object.entries(appStore.currentServer.data.tasks).map(([s_id, task]) => {
+// 	const settings = appStore.taskViewSettings;
+// 	const uploadFiles = appStore.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === +s_id);
+// 	const isUploading = uploadFiles.length > 0 && task.status === TaskStatus.initializing;
+// 	const showDashboard = [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(task.status) || isUploading;
+// 	let height = 4;
+// 	height += settings.showParams ? 24 : 0;
+// 	height += showDashboard ? 72 : 0;
+// 	height += settings.showCmd ? 64 : 0;
+// 	height = Math.max(24, height);
+// 	return height;
+// }));
 
 const debugLauncher = (() => {
 	let clickSpeedCounter = 0;
@@ -78,6 +96,16 @@ const debugLauncher = (() => {
 		}
 	}
 })();
+
+
+const bindItemRef = (el: any) => {
+	// 卸载时 el 不存在
+	const index = +el?.$el.dataset.index;
+	if (el?.$el && itemRefs.value.get(index) !== el.$el) {
+		itemRefs.value.set(index, el.$el);
+		// console.log('bindItemRef', el.$el.dataset);
+	}
+};
 
 const handleTaskClicked = (event: MouseEvent, id: number, index: number) => {
 	let currentSelection = new Set(appStore.selectedTask);
@@ -115,28 +143,124 @@ const handleDownloadFFmpegClicked = () => {
 	nodeBridge.jumpToUrl('https://ffmpeg.org/download.html');
 };
 
+// const handleIntersect = (entries: IntersectionObserverEntry[]) => {
+// 	for (const entry of entries) {
+// 		const index = +(entry.target as any).dataset.index;
+// 		if (entry.isIntersecting) {
+// 			console.log('出现视口：index=', index)
+// 			isVisible.value.set(index, true);
+// 		} else {
+// 			console.log('离开视口：index=', index)
+// 			isVisible.value.set(index, false);
+// 		}
+// 	}
+// }
+
+// watch(() => itemRefs.value.size, () => {
+// 	console.log('开始观察', itemRefs.value.size, appStore.currentServer.data.tasks.length);
+// 	if (observer) observer.disconnect();
+// 	observer = new IntersectionObserver(handleIntersect, {
+// 		root: taskListRef.value,          // 视口
+// 		rootMargin: '0px',
+// 		threshold: 0,        // 只要出现 1 像素就算可见
+// 	})
+
+// 	// 观察所有元素
+// 	itemRefs.value.forEach((el) => observer.observe(el))
+// }, { immediate: false });
+
+const handleEntry = (entry: IntersectionObserverEntry, dataset: any) => {
+	// console.log('handleEntry', entry.isIntersecting, dataset);
+	isVisible.value.set(+dataset.index, entry.isIntersecting);
+}
+
+// const intercectOptions = { root: taskListRef?.value };
+const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } }));
+// const intersectProps = shallowRef({ onChange: handleEntry });
+
 </script>
 
 <template>
 	<div class="listarea">
-		<div class="tasklist">
-			<!-- <TaskItem
-				v-for="(task, index) in tasks"
-				:key="task.id"
-				:task="task"
-				:id="task.id"
-				:selected="appStore.selectedTask.has(task.id)"
-				:should-handle-hover="true"
-				@click="handleTaskClicked($event, task.id, index)"
+		<div class="tasklist" ref="taskListRef">
+			<!-- <VirtualList
+				:data-sources="taskList"
+				:data-key="'id'"
+				:data-component="TaskItem"
 			/> -->
+			<!-- <VirtualList
+				:items="taskList"
+				:item-key="'id'"
+				:estimated-item-height="80"
+			>
+				<template #default="{ item, index }">
+					<TaskItem
+						v-if="item.id !== -1"
+						:task="appStore.currentServer.data.tasks[item.id]"
+						:id="item.id"
+						:index="index"
+						:selected="appStore.selectedTask.has(item.id)"
+						:should-handle-hover="true"
+						@click="handleTaskClicked"
+					/>
+					<div
+						v-if="appStore.currentServer?.data.ffmpegInfo.version && item.id === -1"
+						class="dropfilesdiv"
+						@click="appStore.selectedTask = new Set(); appStore.taskSelectionModified = false;"
+						@mousedown="debugLauncher($event)"
+						@dblclick="nodeBridge.env === 'electron' ? showAddTaskPrompt() : showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList))"
+					>
+						<div class="dropfilesimage" :class="false ? 'imgDragging' : 'imgNormal'" />
+					</div>
+				</template>
+			</VirtualList> -->
+			<!-- <DynamicScroller :items="taskList" :min-item-size="16">
+				<template v-slot="{ item, index, active }">
+					<DynamicScrollerItem :item="item" :active="active" :data-index="index">
+						<TaskItem
+							v-if="item.id !== -1"
+							:task="appStore.currentServer.data.tasks[item.id]"
+							:id="item.id"
+							:index="index"
+							:selected="appStore.selectedTask.has(item.id)"
+							:should-handle-hover="true"
+							@click="handleTaskClicked"
+						/>
+						<div
+							v-if="appStore.currentServer?.data.ffmpegInfo.version && item.id === -1"
+							class="dropfilesdiv"
+							@click="appStore.selectedTask = new Set(); appStore.taskSelectionModified = false;"
+							@mousedown="debugLauncher($event)"
+							@dblclick="nodeBridge.env === 'electron' ? showAddTaskPrompt() : showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList))"
+						>
+							<div class="dropfilesimage" :class="false ? 'imgDragging' : 'imgNormal'" />
+						</div>
+					</DynamicScrollerItem>
+				</template>
+			</DynamicScroller> -->
 			<TaskItem
-				v-for="(id, index) in Object.keys(appStore.currentServer.data.tasks).map(Number)"
+				v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? appStore.currentServer.data.tasks : []).map(Number)"
+				v-intersect="intersectProps"
 				:key="id"
 				:task="appStore.currentServer.data.tasks[id]"
 				:id="id"
+				:index="index"
+				:show="isVisible.get(index - 2) || isVisible.get(index + 2) || isVisible.get(index)"
+				:ref="bindItemRef"
 				:selected="appStore.selectedTask.has(id)"
 				:should-handle-hover="true"
-				@click="handleTaskClicked($event, id, index)"
+				@click="handleTaskClicked"
+			/>
+			<TaskItem
+				v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? [] : appStore.currentServer.data.tasks).map(Number)"
+				:key="id"
+				:task="appStore.currentServer.data.tasks[id]"
+				:id="id"
+				:index="index"
+				:show="true"
+				:selected="appStore.selectedTask.has(id)"
+				:should-handle-hover="true"
+				@click="handleTaskClicked"
 			/>
 		</div>
 		<div
@@ -148,7 +272,7 @@ const handleDownloadFFmpegClicked = () => {
 		>
 			<div class="dropfilesimage" :class="false ? 'imgDragging' : 'imgNormal'" />
 		</div>
-		<div v-else class="noffmpeg">
+		<div v-if="!appStore.currentServer?.data.ffmpegInfo.version" class="noffmpeg">
 			<div class="box">
 				<ImageNoffmpeg />
 				<div class="right">
