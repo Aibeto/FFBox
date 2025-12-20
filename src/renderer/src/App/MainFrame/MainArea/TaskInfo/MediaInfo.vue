@@ -169,9 +169,8 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 										<td>{{ key }}</td>
 										<td>{{ value }}</td>
 									</tr>
-									<tr v-for="[key, value] in Object.entries(stream.sidedata)">
-										<td>{{ key }}</td>
-										<td>{{ value }}</td>
+									<tr v-for="line in stream.sidedata">
+										<td colspan="2" class="sideData">{{ line }}</td>
 									</tr>
 								</tbody></table>
 							</div>
@@ -387,7 +386,7 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 								}
 								tr {
 									height: 18px;
-									td:first-child {
+									td:first-child:not(td:only-child) {
 										padding-right: 0.5em;
 										font-size: 10px;
 										font-weight: 500;
@@ -405,6 +404,13 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 										max-width: 114px;
 										overflow: hidden;
 										text-overflow: ellipsis;
+									}
+									.sideData {
+										text-align: middle;
+										white-space: nowrap;
+										overflow: hidden;
+										text-overflow: ellipsis;
+										font-size: 10px;
 									}
 								}
 							}

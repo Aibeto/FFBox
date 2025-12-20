@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
-// import VirtualList from 'vue-virtual-scroll-list';
-// import VirtualList from './VirtualList.vue';
-// import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import { useAppStore } from '@renderer/stores/appStore';
-import { NotificationLevel, TaskStatus } from '@common/types';
+import { NotificationLevel } from '@common/types';
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
 import Popup from '@renderer/components/Popup/Popup';
 import { TaskItem } from './TaskItem/TaskItem';
@@ -33,12 +30,6 @@ const tasks = computed(() => {
 			ret.push({ ...task, id });
 		}
 	}
-	// 新任务加入，滚动到底
-	// if (ret.length > this.lastTaskListLength) {
-	// 	let tasklistWrapper = this.$refs.tasklist_wrapper as Element;
-	// 	tasklistWrapper.scrollTop = tasklistWrapper.scrollHeight - tasklistWrapper.getBoundingClientRect().height;
-	// }
-	// this.lastTaskListLength = ret.length;
 	return ret;
 });
 
@@ -143,125 +134,53 @@ const handleDownloadFFmpegClicked = () => {
 	nodeBridge.jumpToUrl('https://ffmpeg.org/download.html');
 };
 
-// const handleIntersect = (entries: IntersectionObserverEntry[]) => {
-// 	for (const entry of entries) {
-// 		const index = +(entry.target as any).dataset.index;
-// 		if (entry.isIntersecting) {
-// 			console.log('出现视口：index=', index)
-// 			isVisible.value.set(index, true);
-// 		} else {
-// 			console.log('离开视口：index=', index)
-// 			isVisible.value.set(index, false);
-// 		}
-// 	}
-// }
-
-// watch(() => itemRefs.value.size, () => {
-// 	console.log('开始观察', itemRefs.value.size, appStore.currentServer.data.tasks.length);
-// 	if (observer) observer.disconnect();
-// 	observer = new IntersectionObserver(handleIntersect, {
-// 		root: taskListRef.value,          // 视口
-// 		rootMargin: '0px',
-// 		threshold: 0,        // 只要出现 1 像素就算可见
-// 	})
-
-// 	// 观察所有元素
-// 	itemRefs.value.forEach((el) => observer.observe(el))
-// }, { immediate: false });
+// 新任务加入，滚动到底
+watch(() => tasks.value.length, (newValue, oldValue) => {
+	if (newValue > oldValue) {
+		const elem = taskListRef.value.parentElement;
+		const elemHeight = elem.getBoundingClientRect().height;
+		if (elem.scrollTop + elemHeight > elem.scrollHeight - elemHeight * 1) {
+			elem.scrollTop = elem.scrollHeight - elem.getBoundingClientRect().height;
+		}
+	}
+});
 
 const handleEntry = (entry: IntersectionObserverEntry, dataset: any) => {
-	// console.log('handleEntry', entry.isIntersecting, dataset);
 	isVisible.value.set(+dataset.index, entry.isIntersecting);
 }
-
-// const intercectOptions = { root: taskListRef?.value };
 const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } }));
-// const intersectProps = shallowRef({ onChange: handleEntry });
 
 </script>
 
 <template>
 	<div class="listarea">
 		<div class="tasklist" ref="taskListRef">
-			<!-- <VirtualList
-				:data-sources="taskList"
-				:data-key="'id'"
-				:data-component="TaskItem"
-			/> -->
-			<!-- <VirtualList
-				:items="taskList"
-				:item-key="'id'"
-				:estimated-item-height="80"
-			>
-				<template #default="{ item, index }">
-					<TaskItem
-						v-if="item.id !== -1"
-						:task="appStore.currentServer.data.tasks[item.id]"
-						:id="item.id"
-						:index="index"
-						:selected="appStore.selectedTask.has(item.id)"
-						:should-handle-hover="true"
-						@click="handleTaskClicked"
-					/>
-					<div
-						v-if="appStore.currentServer?.data.ffmpegInfo.version && item.id === -1"
-						class="dropfilesdiv"
-						@click="appStore.selectedTask = new Set(); appStore.taskSelectionModified = false;"
-						@mousedown="debugLauncher($event)"
-						@dblclick="nodeBridge.env === 'electron' ? showAddTaskPrompt() : showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList))"
-					>
-						<div class="dropfilesimage" :class="false ? 'imgDragging' : 'imgNormal'" />
-					</div>
-				</template>
-			</VirtualList> -->
-			<!-- <DynamicScroller :items="taskList" :min-item-size="16">
-				<template v-slot="{ item, index, active }">
-					<DynamicScrollerItem :item="item" :active="active" :data-index="index">
-						<TaskItem
-							v-if="item.id !== -1"
-							:task="appStore.currentServer.data.tasks[item.id]"
-							:id="item.id"
-							:index="index"
-							:selected="appStore.selectedTask.has(item.id)"
-							:should-handle-hover="true"
-							@click="handleTaskClicked"
-						/>
-						<div
-							v-if="appStore.currentServer?.data.ffmpegInfo.version && item.id === -1"
-							class="dropfilesdiv"
-							@click="appStore.selectedTask = new Set(); appStore.taskSelectionModified = false;"
-							@mousedown="debugLauncher($event)"
-							@dblclick="nodeBridge.env === 'electron' ? showAddTaskPrompt() : showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList))"
-						>
-							<div class="dropfilesimage" :class="false ? 'imgDragging' : 'imgNormal'" />
-						</div>
-					</DynamicScrollerItem>
-				</template>
-			</DynamicScroller> -->
-			<TaskItem
-				v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? appStore.currentServer.data.tasks : []).map(Number)"
-				v-intersect="intersectProps"
-				:key="id"
-				:task="appStore.currentServer.data.tasks[id]"
-				:id="id"
-				:index="index"
-				:show="isVisible.get(index - 2) || isVisible.get(index + 2) || isVisible.get(index)"
-				:ref="bindItemRef"
-				:selected="appStore.selectedTask.has(id)"
-				:should-handle-hover="true"
-				@click="handleTaskClicked"
-			/>
-			<TaskItem
-				v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? [] : appStore.currentServer.data.tasks).map(Number)"
-				:key="id"
-				:task="appStore.currentServer.data.tasks[id]"
-				:id="id"
-				:index="index"
-				:show="true"
-				:selected="appStore.selectedTask.has(id)"
-				:should-handle-hover="true"
-				@click="handleTaskClicked"
-			/>
+			<TransitionGroup name="tasklistTrans">
+				<TaskItem
+					v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? appStore.currentServer.data.tasks : []).map(Number)"
+					v-intersect="intersectProps"
+					:key="id"
+					:task="appStore.currentServer.data.tasks[id]"
+					:id="id"
+					:index="index"
+					:show="isVisible.get(index - 2) || isVisible.get(index + 2) || isVisible.get(index)"
+					:ref="bindItemRef"
+					:selected="appStore.selectedTask.has(id)"
+					:should-handle-hover="true"
+					@click="handleTaskClicked"
+				/>
+				<TaskItem
+					v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? [] : appStore.currentServer.data.tasks).map(Number)"
+					:key="id"
+					:task="appStore.currentServer.data.tasks[id]"
+					:id="id"
+					:index="index"
+					:show="true"
+					:selected="appStore.selectedTask.has(id)"
+					:should-handle-hover="true"
+					@click="handleTaskClicked"
+				/>
+			</TransitionGroup>
 		</div>
 		<div
 			v-if="appStore.currentServer?.data.ffmpegInfo.version"
@@ -304,6 +223,22 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 		overflow-y: auto;
 		.tasklist {
 			margin-bottom: 14px;
+			.tasklistTrans-enter-from {
+				--height: 0px !important;
+				margin-bottom: 0;
+				opacity: 0;
+				// transition: all 3s ease, opacity 0.3s linear;	// 进场动画在这里控制 var 无效，需要在子节点直接控制变换的属性
+			}
+			.tasklistTrans-leave-to {
+				--height: 0px !important;
+				margin-bottom: 0;
+				opacity: 0;
+				filter: blur(4px) contrast(150%);
+				transform: scale(0.6, 0.8);
+				transition: all 0.3s cubic-bezier(0.0, 0.9, 0.1, 1), opacity 0.3s linear, filter 0.3s ease-in, transform 0.3s cubic-bezier(0.5, 0, 1, 1);	// 但是离场动画是有效的
+			}
+			.tasklistTrans-enter-to, .tasklistTrans-leave-from {
+			}
 		}
 		.dropfilesdiv {
 			display: flex;

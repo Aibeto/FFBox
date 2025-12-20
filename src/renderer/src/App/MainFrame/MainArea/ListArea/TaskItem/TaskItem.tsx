@@ -206,7 +206,7 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	const taskNameStyle = computed(() => {
 		const width = (() => {
-			if (windowWidth.value >= 920) {
+			if (windowWidth.value >= 930) {
 				let shrinkSpace = 80;
 				shrinkSpace += [0, 13 + 96, 13 + 96 + 14 + 120 ][['none', 'input', 'all'].indexOf(settings.paramsVisibility.audio)];
 				shrinkSpace += [0, 13 + 96, 13 + 96 + 14 + 120 ][['none', 'input', 'all'].indexOf(settings.paramsVisibility.video)];
@@ -222,8 +222,8 @@ export const TaskItem = defineComponent((props: Props) => {
 			}
 		})();
 		return {
-			...(showDashboard.value && windowWidth.value >= 920 ? {} : { maxHeight: '26px', '-webkit-line-clamp': 1 }),
-			width,
+			...(showDashboard.value && windowWidth.value >= 930 ? {} : { maxHeight: '26px', '-webkit-line-clamp': 1 }),
+			width: isFirstRender.value ? 'calc(0% + 0px)' : width,
 			...(!showDashboard.value ? { fontSize: '16px', lineHeight: '23px' } : {}),	// 不显示 dashboard 时不允许文字放大
 			...(props.shouldHandleHover ? { pointerEvents: 'all' } : undefined),
 		};
@@ -342,6 +342,7 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	const taskNameRef = ref<HTMLDivElement>(null);
 	const paramAreaRef = ref<HTMLDivElement>(null);
+	const isFirstRender = ref(true);
 	// 监听窗口宽度变化
 	const windowWidth = ref(0);
 	const windowWidthListener = ref<() => void>(() => {
@@ -350,6 +351,9 @@ export const TaskItem = defineComponent((props: Props) => {
 	onMounted(() => {
 		window.addEventListener('resize', windowWidthListener.value);
 		windowWidthListener.value();
+		setTimeout(() => {
+			isFirstRender.value = false;
+		}, 33.33);	// 这个延迟小了的话一些进场效果会不生效
 	});
 	onBeforeUnmount(() => {
 		window.removeEventListener('resize', windowWidthListener.value);
@@ -500,216 +504,215 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	return () => {
 		// console.log('render', props.task.taskName);
-		if (!props.show) return (<div style={{ height: `${taskHeight.value - 2}px` }} data-index={props.index} data-id={props.id} />)
+		if (!props.show) return (<div style={{ height: `${taskHeight.value}px`, marginBottom: '2px' }} data-index={props.index} data-id={props.id} />)
 		return (
-		<div class={css.taskWrapper1} data-index={props.index} data-id={props.id} onClick={(event) => props.onClick(event, props.id, props.index)}>
-			<div class={css.taskWrapper2}>
+		<div class={`${css.taskWrapper} ${isFirstRender.value ? css.firstRender : ''}`} style={{ '--height': `${taskHeight.value}px` }} data-color_theme={appStore.frontendSettings.colorTheme} data-index={props.index} data-id={props.id} onClick={(event) => props.onClick(event, props.id, props.index)}>
+			<div class={`${css.taskBackground} ${isFirstRender.value ? css.firstRender : ''}`}>
+				<div class={css.backgroundWhite} style={taskBackgroundStyle.value} />
+				<div class={css.backgroundProgress}>
+					<div class={css.progressGreen} style={taskBackgroundProgressStyle.value.green} />
+					<div class={css.progressYellow} style={taskBackgroundProgressStyle.value.yellow} />
+					<div class={css.progressGray} style={taskBackgroundProgressStyle.value.gray} />
+					<div class={css.progressRed} style={taskBackgroundProgressStyle.value.red} />
+					<div class={css.progressBlue} style={taskBackgroundProgressStyle.value.blue} />
+				</div>
+			</div>
+			<div
+				class={css.task}
+				// style={{ height: `${taskHeight.value}px` }}
+				// onMouseenter={handleTaskMouseEnter}
+				onMouseleave={() => Tooltip.hide()}
+				onDblclick={handleTaskDblClicked}
+				onContextmenu={handleTaskContextMenu}
+			>
+				<div class={css.previewIcon} style={{ height: showDashboard.value ? '96px' : '24px'}}>
+					{taskStatusIcon.value}
+				</div>
 				<div
-					class={css.task}
-					style={{ height: `${taskHeight.value}px` }}
-					data-color_theme={appStore.frontendSettings.colorTheme}
-					// onMouseenter={handleTaskMouseEnter}
+					class={css.taskName}
+					style={taskNameStyle.value}
+					ref={taskNameRef}
+					onMouseenter={handleTaskNameMouseEnter}
 					onMouseleave={() => Tooltip.hide()}
-					onDblclick={handleTaskDblClicked}
-					onContextmenu={handleTaskContextMenu}
 				>
-					<div class={css.backgroundWhite} style={taskBackgroundStyle.value} />
-					<div>
-						<div class={`${css.backgroundProgress} ${css.progressGreen}`} style={taskBackgroundProgressStyle.value.green} />
-						<div class={`${css.backgroundProgress} ${css.progressYellow}`} style={taskBackgroundProgressStyle.value.yellow} />
-						<div class={`${css.backgroundProgress} ${css.progressGray}`} style={taskBackgroundProgressStyle.value.gray} />
-						<div class={`${css.backgroundProgress} ${css.progressRed}`} style={taskBackgroundProgressStyle.value.red} />
-						<div class={`${css.backgroundProgress} ${css.progressBlue}`} style={taskBackgroundProgressStyle.value.blue} />
-					</div>
-					<div class={css.previewIcon} style={{ bottom: settings.showCmd ? '66px' : undefined}}>
-						{taskStatusIcon.value}
-					</div>
+					{props.task.taskName ?? '读取中'}
+				</div>
+				{settings.showParams && (
 					<div
-						class={css.taskName}
-						style={taskNameStyle.value}
-						ref={taskNameRef}
-						onMouseenter={handleTaskNameMouseEnter}
+						class={`${css.paraArea} ${isFirstRender.value ? css.firstRender : ''}`}
+						style={{ maxWidth: windowWidth.value >= 930 ? 'min(calc(100% - 128px), 764px)' : 'calc(0% + 120px)', pointerEvents: props.shouldHandleHover ? 'all' : undefined }}
+						ref={paramAreaRef}
+						onMouseenter={handleParaAreaMouseEnter}
 						onMouseleave={() => Tooltip.hide()}
 					>
-						{props.task.taskName ?? '读取中'}
-					</div>
-					{settings.showParams && (
-						<div
-							class={css.paraArea}
-							style={{ maxWidth: windowWidth.value >= 920 ? 'calc(100% - 128px)' : 'calc(0% + 120px)', pointerEvents: props.shouldHandleHover ? 'all' : undefined }}
-							ref={paramAreaRef}
-							onMouseenter={handleParaAreaMouseEnter}
-							onMouseleave={() => Tooltip.hide()}
-						>
-							{props.task.after.input.files.length === 1 && props.task.after.outputs.length === 1 ? (
-								windowWidth.value >= 920 ? (
-									<>
-										{/* 时间 */}
-										<div class={css.divider}><div></div></div>
-										<div class={css.durationBefore}>{durationBefore.value}</div>
-										{settings.paramsVisibility.duration === 'all' && (
-											<>
-												<div class={css.durationTo}><IconRightArrow /></div>
-												<div class={css.durationAfter}>{durationAfter.value}</div>
-											</>
-										)}
-										{/* 容器 */}
-										<div class={css.divider}><div></div></div>
-										<div class={css.formatBefore}>{props.task.before[0]?.demuxer}</div>
-										{settings.paramsVisibility.format === 'all' && (
-											<>
-												<div class={css.formatTo}><IconRightArrow /></div>
-												<div class={css.formatAfter}>{props.task.after.outputs[0].mux.format}</div>
-											</>
-										)}
-										{/* 分辨率码率 */}
-										{settings.paramsVisibility.smpte !== 'none' && (
-											<>
-												<div class={css.divider}><div></div></div>
-												<div class={css.smpteBefore}>{smpteBefore.value}</div>
-												{settings.paramsVisibility.smpte === 'all' && (
-													<>
-														<div class={css.smpteTo}><IconRightArrow /></div>
-														<div class={css.smpteAfter}>{props.task.after.outputs[0].video.resolution}@{props.task.after.outputs[0].video.framerate}</div>
-													</>
-												)}
-											</>
-										)}
-										{/* 视频 */}
-										{settings.paramsVisibility.video !== 'none' && (
-											<>
-												<div class={css.divider}><div></div></div>
-												<div class={css.videoBefore}>{defaultVideo.value ? `${defaultVideo.value.codec}${videoInputBitrate.value}` : '-'}</div>
-												{settings.paramsVisibility.video === 'all' && (
-													<>
-														<div class={css.videoTo}><IconRightArrow /></div>
-														<div class={css.videoAfter}>{props.task.after.outputs[0].video.vcodec}{videoRateControl.value}</div>
-													</>
-												)}
-											</>
-										)}
-										{/* 音频 */}
-										{settings.paramsVisibility.audio !== 'none' && (
-											<>
-												<div class={css.divider}><div></div></div>
-												<div class={css.audioBefore}>{defaultAudio.value ? `${defaultAudio.value.codec}${audioInputBitrate.value}` : '-'}</div>
-												{settings.paramsVisibility.audio === 'all' && (
-													<>
-														<div class={css.audioTo}><IconRightArrow /></div>
-														<div class={css.audioAfter}>{props.task.after.outputs[0].audio.acodec}{audioRateControl.value}</div>
-													</>
-												)}
-											</>
-										)}
-									</>
-								) : (
-									<>
-										{/* 预设 */}
-										<div class={css.divider}><div></div></div>
-										<div class={css.videoBefore}>{props.task.after.extra?.presetName === undefined ? '查看配置' : props.task.after.extra.presetName || '自定义配置'}</div>
-									</>
-								)
+						{props.task.after.input.files.length === 1 && props.task.after.outputs.length === 1 ? (
+							windowWidth.value >= 930 ? (
+								<>
+									{/* 时间 */}
+									<div class={css.divider}><div></div></div>
+									<div class={css.durationBefore}>{durationBefore.value}</div>
+									{settings.paramsVisibility.duration === 'all' && (
+										<>
+											<div class={css.durationTo}><IconRightArrow /></div>
+											<div class={css.durationAfter}>{durationAfter.value}</div>
+										</>
+									)}
+									{/* 容器 */}
+									<div class={css.divider}><div></div></div>
+									<div class={css.formatBefore}>{props.task.before[0]?.demuxer}</div>
+									{settings.paramsVisibility.format === 'all' && (
+										<>
+											<div class={css.formatTo}><IconRightArrow /></div>
+											<div class={css.formatAfter}>{props.task.after.outputs[0].mux.format}</div>
+										</>
+									)}
+									{/* 分辨率码率 */}
+									{settings.paramsVisibility.smpte !== 'none' && (
+										<>
+											<div class={css.divider}><div></div></div>
+											<div class={css.smpteBefore}>{smpteBefore.value}</div>
+											{settings.paramsVisibility.smpte === 'all' && (
+												<>
+													<div class={css.smpteTo}><IconRightArrow /></div>
+													<div class={css.smpteAfter}>{props.task.after.outputs[0].video.resolution}@{props.task.after.outputs[0].video.framerate}</div>
+												</>
+											)}
+										</>
+									)}
+									{/* 视频 */}
+									{settings.paramsVisibility.video !== 'none' && (
+										<>
+											<div class={css.divider}><div></div></div>
+											<div class={css.videoBefore}>{defaultVideo.value ? `${defaultVideo.value.codec}${videoInputBitrate.value}` : '-'}</div>
+											{settings.paramsVisibility.video === 'all' && (
+												<>
+													<div class={css.videoTo}><IconRightArrow /></div>
+													<div class={css.videoAfter}>{props.task.after.outputs[0].video.vcodec}{videoRateControl.value}</div>
+												</>
+											)}
+										</>
+									)}
+									{/* 音频 */}
+									{settings.paramsVisibility.audio !== 'none' && (
+										<>
+											<div class={css.divider}><div></div></div>
+											<div class={css.audioBefore}>{defaultAudio.value ? `${defaultAudio.value.codec}${audioInputBitrate.value}` : '-'}</div>
+											{settings.paramsVisibility.audio === 'all' && (
+												<>
+													<div class={css.audioTo}><IconRightArrow /></div>
+													<div class={css.audioAfter}>{props.task.after.outputs[0].audio.acodec}{audioRateControl.value}</div>
+												</>
+											)}
+										</>
+									)}
+								</>
 							) : (
 								<>
+									{/* 预设 */}
 									<div class={css.divider}><div></div></div>
-									<div class={css.videoBefore}>{`${props.task.after.input.files.length} 个输入，${props.task.after.outputs.length} 个输出`}</div>
+									<div class={css.videoBefore}>{props.task.after.extra?.presetName === undefined ? '查看配置' : props.task.after.extra.presetName || '自定义配置'}</div>
+								</>
+							)
+						) : (
+							<>
+								<div class={css.divider}><div></div></div>
+								<div class={css.videoBefore}>{`${props.task.after.input.files.length} 个输入，${props.task.after.outputs.length} 个输出`}</div>
+							</>
+						)}
+					</div>
+				)}
+				<Transition enterActiveClass={css['dashboardTrans-enter-active']} leaveActiveClass={css['dashboardTrans-leave-active']}>
+					{showDashboard.value && (
+						<div class={css.dashboardArea} style={{ pointerEvents: props.shouldHandleHover ? 'all' : undefined }}>
+							{dashboardType.value === 'convert' ? (
+								<>
+									<div class={css.linearGraphItems} onClick={() => appStore.showTaskInfo = [props.id, 2, 'progress']}>
+										<div class={css.linearGraphItem}>
+											<span class={css.data}>{ graphTime.value }</span>
+											<span class={css.description}>时间</span>
+										</div>
+										<div class={css.linearGraphItem}>
+											<span class={css.data}>{ props.task.dashboard_smooth.frame.toFixed(0) }</span>
+											<span class={css.description}>帧</span>
+										</div>
+									</div>
+									<div class={css.roundGraphItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'bitrate']}>
+										<div class={css.ring} style={graphBitrateStyle.value}></div>
+										<span class={css.data}>{ graphBitrate.value }</span>
+										<span class={css.description}>码率</span>
+									</div>
+									<div class={css.roundGraphItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'speed']}>
+										<div class={css.ring} style={graphSpeedStyle.value}></div>
+										<span class={css.data}>{ graphSpeed.value }</span>
+										<span class={css.description}>速度</span>
+									</div>
+									<div class={css.textItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'size']}>
+										<span class={css.data}>{ graphSize.value }</span>
+										<span class={css.description}>输出大小</span>
+									</div>
+									<div class={css.textItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'progress']}>
+										<span class={css.data}>{ graphLeftTime.value }</span>
+										<span class={css.description}>预计剩余时间</span>
+									</div>
+								</>
+							) : (
+								<>
+									<div class={`${css.textItem} ${css.disabled}`}>
+										<span class={css.data}>{graphUploadRead.value}</span>
+										<span class={css.description}>读取总量</span>
+									</div>
+									<div class={`${css.textItem} ${css.disabled}`}>
+										<span class={css.data}>{graphUploadHash.value}</span>
+										<span class={css.description}>校验总量</span>
+									</div>
+									<div class={`${css.textItem} ${css.disabled}`}>
+										<span class={css.data}>{graphUploadUpload.value}</span>
+										<span class={css.description}>上传总量</span>
+									</div>
 								</>
 							)}
+							<div
+								class={`${css.textItem} ${dashboardType.value === 'transfer' ? css.disabled : ''}`}
+								onClick={() => dashboardType.value === 'convert' && (appStore.showTaskInfo = [props.id, 2, 'progress'])}
+							>
+								<span class={`${css.data} ${css.dataLarge}`}>{ overallProgress.value === 1 ? '🆗' : `${(overallProgress.value * 100).toFixed(1)}%` }</span>
+								<span class={css.description}>{ overallProgressDescription.value }</span>
+							</div>
 						</div>
 					)}
-					<Transition enterActiveClass={css['dashboardTrans-enter-active']} leaveActiveClass={css['dashboardTrans-leave-active']}>
-						{showDashboard.value && (
-							<div class={css.dashboardArea} style={{ pointerEvents: props.shouldHandleHover ? 'all' : undefined }}>
-								{dashboardType.value === 'convert' ? (
-									<>
-										<div class={css.linearGraphItems} onClick={() => appStore.showTaskInfo = [props.id, 2, 'progress']}>
-											<div class={css.linearGraphItem}>
-												<span class={css.data}>{ graphTime.value }</span>
-												<span class={css.description}>时间</span>
-											</div>
-											<div class={css.linearGraphItem}>
-												<span class={css.data}>{ props.task.dashboard_smooth.frame.toFixed(0) }</span>
-												<span class={css.description}>帧</span>
-											</div>
-										</div>
-										<div class={css.roundGraphItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'bitrate']}>
-											<div class={css.ring} style={graphBitrateStyle.value}></div>
-											<span class={css.data}>{ graphBitrate.value }</span>
-											<span class={css.description}>码率</span>
-										</div>
-										<div class={css.roundGraphItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'speed']}>
-											<div class={css.ring} style={graphSpeedStyle.value}></div>
-											<span class={css.data}>{ graphSpeed.value }</span>
-											<span class={css.description}>速度</span>
-										</div>
-										<div class={css.textItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'size']}>
-											<span class={css.data}>{ graphSize.value }</span>
-											<span class={css.description}>输出大小</span>
-										</div>
-										<div class={css.textItem} onClick={() => appStore.showTaskInfo = [props.id, 2, 'progress']}>
-											<span class={css.data}>{ graphLeftTime.value }</span>
-											<span class={css.description}>预计剩余时间</span>
-										</div>
-									</>
-								) : (
-									<>
-										<div class={`${css.textItem} ${css.disabled}`}>
-											<span class={css.data}>{graphUploadRead.value}</span>
-											<span class={css.description}>读取总量</span>
-										</div>
-										<div class={`${css.textItem} ${css.disabled}`}>
-											<span class={css.data}>{graphUploadHash.value}</span>
-											<span class={css.description}>校验总量</span>
-										</div>
-										<div class={`${css.textItem} ${css.disabled}`}>
-											<span class={css.data}>{graphUploadUpload.value}</span>
-											<span class={css.description}>上传总量</span>
-										</div>
-									</>
-								)}
-								<div
-									class={`${css.textItem} ${dashboardType.value === 'transfer' ? css.disabled : ''}`}
-									onClick={() => dashboardType.value === 'convert' && (appStore.showTaskInfo = [props.id, 2, 'progress'])}
+				</Transition>
+				{settings.showCmd && (
+					<div class={css.cmdArea} style={{ top: `${(settings.showParams ? 1 : 0) * 24 + (showDashboard.value ? 1 : 0) * 72 + 2}px` }} onDblclick={handleCmdDblClicked}>
+						<div class={css.margin}>
+							<div class={css.switch}>
+								<button
+									class={`${css.item} ${settings.cmdDisplay === 'input' ? css.itemSelected : ''}`}
+									onMousedown={() => settings.cmdDisplay = 'input'}
 								>
-									<span class={`${css.data} ${css.dataLarge}`}>{ overallProgress.value === 1 ? '🆗' : `${(overallProgress.value * 100).toFixed(1)}%` }</span>
-									<span class={css.description}>{ overallProgressDescription.value }</span>
-								</div>
+									输入
+								</button>
+								<button
+									class={`${css.item} ${settings.cmdDisplay === 'output' ? css.itemSelected : ''}`}
+									onMousedown={() => settings.cmdDisplay = 'output'}
+								>
+									输出
+								</button>
 							</div>
-						)}
-					</Transition>
-					{settings.showCmd && (
-						<div class={css.cmdArea} style={{ top: `${(settings.showParams ? 1 : 0) * 24 + (showDashboard.value ? 1 : 0) * 72 + 2}px` }} onDblclick={handleCmdDblClicked}>
-							<div class={css.margin}>
-								<div class={css.switch}>
-									<button
-										class={`${css.item} ${settings.cmdDisplay === 'input' ? css.itemSelected : ''}`}
-										onMousedown={() => settings.cmdDisplay = 'input'}
-									>
-										输入
-									</button>
-									<button
-										class={`${css.item} ${settings.cmdDisplay === 'output' ? css.itemSelected : ''}`}
-										onMousedown={() => settings.cmdDisplay = 'output'}
-									>
-										输出
-									</button>
-								</div>
-								<div class={css.code}>
-									<textarea
-										aria-label="任务命令行"
-										readonly
-										value={cmdText.value}
-										ref={cmdRef}
-									/>
-								</div>
+							<div class={css.code}>
+								<textarea
+									aria-label="任务命令行"
+									readonly
+									value={cmdText.value}
+									ref={cmdRef}
+								/>
 							</div>
 						</div>
-					)}
-					<div class={css.vline} style={{ bottom: settings.showCmd ? '66px' : undefined}}><div></div></div>
-					<button aria-label='重置或删除任务' class={css.button} style={{ bottom: settings.showCmd ? '64px' : undefined}} onClick={handlePauseNremove} onDblclick={(e) => e.stopPropagation()}>
-						<div style={{ backgroundPositionX: deleteButtonBackgroundPositionX.value }}></div>
-					</button>
-				</div>
+					</div>
+				)}
+				<div class={css.vline} style={{ bottom: settings.showCmd ? '66px' : undefined}}><div></div></div>
+				<button aria-label='重置或删除任务' class={css.button} style={{ height: showDashboard.value ? '100px' : '28px'}} onClick={handlePauseNremove} onDblclick={(e) => e.stopPropagation()}>
+					<div style={{ backgroundPositionX: deleteButtonBackgroundPositionX.value }}></div>
+				</button>
 			</div>
 		</div>)
 	};

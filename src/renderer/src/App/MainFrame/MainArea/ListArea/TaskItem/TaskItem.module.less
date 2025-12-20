@@ -1,57 +1,81 @@
-.taskWrapper1 {
-	// 第 1 层 wrapper 用于取消第 2 层 wrapper 阴影带来的多余边距↓，但是空 2px 间隙出来
-	margin-bottom: -14px;
-	.taskWrapper2 {
-		// 第 2 层 wrapper 用于产生左右边距
-		// 				  产生 16px 的阴影区域↑，其中 12 px 向下，4px 向上
-		margin-top: 4px;
-		padding: 0px 16px 12px;
-		// width: 100%;
-		// box-sizing: border-box;
+.taskWrapper {
+	// 第一层在 js 层面给定高度，另外多给 2px 空隙（因为 box-shadow 会让外围显得略微变胖）
+	height: var(--height);
+	margin-bottom: 2px;
+	// transform: translateZ(0);	// 也有 position: relative 的效果
+	position: relative;
+	transition: height 0.4s ease,	// 任务切换启动/停止
+				filter 0.3s ease-out;	// 进场动画。外部控制不生效，需要在此另行延时控制
+	&.firstRender {
+		filter: blur(4px) contrast(150%);
+		transition: all 0.3s ease;	// 进场动画。通过 var 的渐变在父组件控制 var 是无效的，需要在此处控制 height
+	}
+	.taskBackground {
+		// 第 2 层 wrapper 用于产生 16px 的左右边距，并产生 12px 的下阴影区域
+		height: calc(var(--height) + 12px);
 		overflow: hidden;
 		transform: translateZ(0);
-		// .task
+		transition: height 0.4s ease;
+		.backgroundWhite {
+			position: absolute;
+			top: 0;
+			bottom: 12px;
+			left: 16px;
+			right: 16px;
+			border-radius: 3px;
+			background-color: hwb(var(--bg98));
+			box-shadow: 0 0 1px 2px hwb(var(--bg98)),	// 柔边
+						0 2px 6px 0 hwb(0deg 0% 100% / 0.2);	// 阴影
+			transition: background-color 0.3s;
+			pointer-events: all;
+		}
+		.backgroundProgress {
+			position: absolute;
+			top: 0;
+			bottom: 12px;
+			left: 16px;
+			right: 16px;
+			&>div {
+				transition: width 0.3s ease-out, opacity 0.2s ease-out;
+				position: absolute;
+				top: 0;
+				height: 100%;
+				border-radius: 2px;
+				// will-change: width, opacity;
+			}
+		}
 	}
-}
-.task {
-	position: relative;
-	pointer-events: none;
-	box-sizing: border-box;
-	transition: height 0.4s ease;
-	.backgroundWhite {
-		height: 100%;
-		box-sizing: border-box;
-		border-radius: 3px;
-		background-color: hwb(var(--bg98));
-		box-shadow: 0 0 1px 2px hwb(var(--bg98)),	// 柔边
-					0 2px 6px 0 hwb(0deg 0% 100% / 0.2);	// 阴影
-		transition: height 0.5s, background-color 0.3s;
-		pointer-events: all;
-		&:hover, &:has(~ .taskName:hover, ~ .paraArea:hover, ~ .cmdArea:hover, ~ .dashboardArea:hover) {
+	&:hover {
+		.backgroundWhite {
 			transition: background-color 0.2s cubic-bezier(0, 2, 0.3, 1);
 			background: hwb(var(--menuItemHovered));
 		}
-		&:active {
+	}
+	&:active {
+		.backgroundWhite {
 			border: hwb(var(--menuItemActive)) 1px solid;
 		}
 	}
-	.backgroundProgress {
-		transition: width 0.3s ease-out, opacity 0.2s ease-out;
-		position: absolute;
-		top: 0;
-		height: 100%;
-		border-radius: 2px;
-		// will-change: width, opacity;
-	}
+}
+.task {
+	position: absolute;
+	top: 0;
+	left: 16px;
+	right: 16px;
+	height: var(--height);
+	pointer-events: none;
+	overflow: hidden;
+	transition: height 0.4s ease;
+	content-visibility: auto;	// 不在视口时不渲染元素，提升性能
 	.previewIcon {
 		position: absolute;
 		left: 2px;
 		top: 2px;
-		bottom: 2px;
 		width: 32px;
 		display: flex;
 		justify-content: center;
 		align-items: center;
+		transition: height 0.4s ease;
 		svg {
 			position: absolute;
 			width: 20px;
@@ -75,7 +99,7 @@
 		word-break: break-all;
 		// text-overflow: ellipsis;
 		overflow: hidden;
-		transition: font-size 0.4s ease, max-height 0.4s ease;
+		transition: font-size 0.4s ease, max-height 0.4s ease, width 0.4s cubic-bezier(0, 0.0, 0.0, 1);
 		-webkit-line-clamp: 4;
 		-webkit-box-orient: vertical;
 		@media only screen and (min-width: 1280px) {
@@ -89,10 +113,15 @@
 		top: 2px;
 		height: 24px;
 		right: 48px;
-		max-width: calc(100% - 128px);
+		// max-width: calc(100% - 128px);
 		margin-right: -9px;
 		overflow: hidden;
+		white-space: nowrap;
 		text-align: right;
+		transition: max-width 0.4s cubic-bezier(0, 0.0, 0.0, 1);
+		&.firstRender {
+			max-width: calc(0% + 0px) !important;
+		}
 		&>* {
 			text-align: center;
 		}
@@ -400,7 +429,6 @@
 		position: absolute;
 		top: 1px;
 		right: 1px;
-		bottom: 1px;
 		width: 31px;
 		display: flex;
 		justify-content: center;
@@ -410,9 +438,9 @@
 		padding: 0;
 		background: none;
 		pointer-events: all;
-		transition: background-color 0.3s;
+		transition: background-color 0.3s, height 0.4s ease;
 		&:hover {
-			transition: none;
+			transition: height 0.4s ease;
 			background: hwb(var(--menuItemLight));
 			border-radius: 2px;
 			box-shadow: 0 0 12px 6px hwb(var(--menuItemLight)) inset,
@@ -466,7 +494,7 @@
 }
 
 // 主题
-.task[data-color_theme="themeLight"] {
+.taskWrapper[data-color_theme="themeLight"] {
 	.progressBlue {
 		background: linear-gradient(180deg, hwb(225 80% 0% / 0.7), hwb(225 60% 0% / 0.7));
 		box-shadow: 0 4px 12px 0 hwb(225 40% 20% / 0.4),
@@ -494,7 +522,7 @@
 	}
 }
 
-.task[data-color_theme="themeDark"] {
+.taskWrapper[data-color_theme="themeDark"] {
 	text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
 	.progressBlue {
 		background: linear-gradient(180deg, hwb(225 20% 30% / 0.7), hwb(225 25% 15% / 0.7));

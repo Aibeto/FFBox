@@ -12,6 +12,7 @@ import { allVcodecs, builtInVcodecs } from '@common/params/vcodecs';
 import { allAcodecs, builtInAcodecs } from '@common/params/acodecs';
 import { allMuxers, builtInMuxers } from '@common/params/formats';
 import path from '@common/path';
+import i11n from '@common/i11n/i11n';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from '@renderer/logic/eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
@@ -170,11 +171,7 @@ export const useAppStore = defineStore('app', {
 							if (Object.keys(server.data.tasks).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
 								needStopCuzLimit = true;
 								这.pushMsg(
-									`😞任务数量达到上限了（前端）\n` +
-									`💔您的用户等级最高支持在任务列表中放入 ${maxTaskCount} 个任务，您可以先删除一些任务再添加\n` +
-									'🤫开发者设计该项限制的意图是避免超出合理范围的操作导致前端卡顿（实测 100 个任务同时运行一遍或能导致前端卡顿半小时），\n' +
-									'　并给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
-									'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
+									i11n.service.功能限制_任务数上限(maxTaskCount, true),
 									NotificationLevel.warning
 								);
 								allTimerFinish();
@@ -213,16 +210,12 @@ export const useAppStore = defineStore('app', {
 							}
 						}, dropDelayCount);
 						// console.log(dropDelayCount)
-						dropDelayCount += 33.33;
+						dropDelayCount += 66.67;
 					}
 				} else if (type === 'multiInput') {
 					if (Object.keys(server.data.tasks).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
 						这.pushMsg(
-							`😞任务数量达到上限了（前端）\n` +
-							`💔您的用户等级最高支持在任务列表中放入 ${maxTaskCount} 个任务，您可以先删除一些任务再添加\n` +
-							'🤫开发者设计该项限制的意图是避免超出合理范围的操作导致前端卡顿（实测 100 个任务同时运行一遍或能导致前端卡顿半小时），\n' +
-							'　并给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
-							'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
+							i11n.service.功能限制_任务数上限(maxTaskCount, true),
 							NotificationLevel.warning
 						);
 						allTimerFinish();

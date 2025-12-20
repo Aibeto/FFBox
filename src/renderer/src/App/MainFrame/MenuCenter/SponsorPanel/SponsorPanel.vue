@@ -284,10 +284,6 @@ onMounted(async () => {
 					<td>{{ appStore.functionLevel < 45 ? '11:11' : '无限制' }}</td>
 				</tr>
 				<tr>
-					<td>视频 ABR/CBR 码率设定限制</td>
-					<td>{{ appStore.functionLevel < 50 ? '500Kbps ~ 32Mbps' : '无限制' }}</td>
-				</tr>
-				<tr>
 					<td>远程单文件上传大小上限</td>
 					<td>{{ getLimitaion('maxUploadSizeGB') ? getLimitaion('maxUploadSizeGB') + 'GB' : '无限制' }}</td>
 				</tr>

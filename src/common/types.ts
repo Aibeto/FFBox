@@ -162,7 +162,7 @@ export interface StreamInfo {
 	infoText?: string;	// 原文
 	type: string;	// video, audio, subtitle, data, attachment
 	metadata: { [key: string]: string };
-	sidedata: { [key: string]: string };
+	sidedata: string[];
 	isDefault?: boolean;
 	language?: string;
 	codec?: string;

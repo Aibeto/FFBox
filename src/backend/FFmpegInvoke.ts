@@ -187,7 +187,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 						const readingStreamInfo: StreamInfo = {
 							type: undefined,
 							metadata: {},
-							sidedata: {},
+							sidedata: [],
 						}
 						const parts = thisLine.split(': ');
 						const [basicInfo, type, detail] = parts;
@@ -223,10 +223,10 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 								i += 2;
 								while ((thisLine = this.readingInputsInfoBuffer[i] || '').startsWith('      ')) {
 									const match = thisLine.match(/([\w_]+) *: (.+)/);
-									if (nextLine.includes('Metadata:')) {
+									if (nextLine.includes('Metadata:') && match) {
 										readingStreamInfo.metadata[match[1]] = match[2];
 									} else {
-										readingStreamInfo.sidedata[match[1]] = match[2];
+										readingStreamInfo.sidedata.push(thisLine.trim());
 									}
 									i++;
 								}

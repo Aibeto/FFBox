@@ -78,7 +78,7 @@
 1. `编辑器`：推荐使用 `Visual Studio Code`，已在 `.vscode` 目录中预置了启动调试后端、插入调试主进程等相关任务。
 2. `运行环境`：推荐使用 `node.js`，主要用于项目的编译。如有需要还可 `nvm`，使用它可以切换当前的 nodejs 版本，解决部分情况下运行不起来的问题。  
    如有需要，也可使用 `bun` 作为运行环境。您可以把它理解成安卓版鸿蒙。但目前 bun 无法用于调试。
-3. `包管理器`：推荐使用 `pnpm`。由于 electron-builder 对 utimes 的编译存在问题，pnpm 已配置为 `node-linker=hoisted`。  
+3. `包管理器`：推荐使用 `pnpm`（推荐使用 8 版本。高版本存在 electron 安装问题）。由于 electron-builder 对 utimes 的编译存在问题，pnpm 已配置为 `node-linker=hoisted`。  
    您也可以使用 `npm` 作为包管理器，npm 的速度约慢一半。这样打出来的包体积大小会有轻微不同（哪怕删除 lock 文件拉取最新）。  
    `yarn` 和 `bun` 打出来的包目前只有前端可以交由 electron-builder 打包，后端 pkg 打出来的包不可用。
 4. `404 和 408 问题`：`pnpm install`、`pkg:backend`、`package` 的时候均需要联网下载二进制预编译文件。GitHub 的 url 在国内尤为难以访问，您可能需要依据互联网上的攻略，通过如 `pnpm set registry` `pnpm set ELECTRON_MIRROR` 等方式配置 `源` 或者 `“转发的魔法”`。

@@ -390,11 +390,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		if (Object.keys(this.tasklist).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
 			this.setNotification(
 				undefined,
-				`😞任务数量达到上限了（后端）\n` +
-				`💔您的用户等级最高支持在任务列表中放入 ${maxTaskCount} 个任务，您可以先删除一些任务再添加\n` +
-				'🤫开发者设计该项限制的意图是避免超出合理范围的操作导致前端卡顿（实测 100 个任务同时运行一遍或能导致前端卡顿半小时），\n' +
-				'　并给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
-				'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
+				i11n.service.功能限制_任务数上限(maxTaskCount, false),
 				NotificationLevel.warning,
 			);
 			return;
@@ -632,25 +628,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			time: new Date().getTime() / 1000,
 		});
 		this.setCmdText(id, '', false);
-		if (this.functionLevel < 50) {
-			for (const output of task.after.outputs) {
-				const videoParam = output.video;
-				if (videoParam.ratecontrol === 'ABR' || videoParam.ratecontrol === 'CBR') {
-					const ratevalue = videoParam.ratevalue as number;
-					if (ratevalue > 0.75 || ratevalue < 0.25) {
-						this.setNotification(
-							id,
-							`任务「${task.taskName}」设置的视频码率已被限制\n` +
-								'💔您的用户等级在 ABR/CBR 模式下的视频码率仅支持 500Kbps ~ 32Mbps\n' +
-								'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
-								'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',	
-								NotificationLevel.warning,
-						);
-						videoParam.ratevalue = ratevalue > 0.75 ? 0.75 : 0.25;
-					}
-				}
-			}
-		}
 		// const filePath = task.after.input.files[0].filePath!; // 需要上传完成，状态为 TASK_STOPPED 时才能开始任务，因此 filePath 非空
 		let newFFmpeg: FFmpeg;
 		if (task.remoteTask) {
@@ -933,7 +910,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private queueAssign(dontStop?: boolean): number {
 		if (this.workingStatus === WorkingStatus.running) {
 			let runningCount = Object.values(this.tasklist).reduce((prev, curr) => curr.status === TaskStatus.running ? prev + 1 : prev, 0);
-			const maxThreads = Math.min(this.maxThreads, this.functionLevel < 40 ? 6 : this.functionLevel < 60 ? 9 : Number.MAX_SAFE_INTEGER);
+			const maxThreads = Math.min(this.maxThreads, this.functionLevel < 20 ? 4 : this.functionLevel < 35 ? 6 : this.functionLevel < 50 ? 9 : this.functionLevel < 70 ? 99 : 256);
 			for (const [id, task] of Object.entries(this.tasklist)) {
 				if (runningCount >= maxThreads || id === '-1') {
 					break;

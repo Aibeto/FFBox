@@ -27,8 +27,8 @@ const aiDisabledList: RadioListProps['list'] = [
 	{ value: true, caption: '不用' },
 ];
 const useVirtualTaskListList: RadioListProps['list'] = [
-	{ value: true, caption: '启用仿虚拟列表' },
-	{ value: false, caption: '完全渲染（不优化）' },
+	{ value: true, caption: '启用仿虚拟列表（强优化）' },
+	{ value: false, caption: 'VDOM 完全渲染（弱优化）' },
 ];
 
 const localServiceStatus = computed(() => {

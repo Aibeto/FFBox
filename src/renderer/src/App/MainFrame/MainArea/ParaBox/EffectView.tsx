@@ -2,6 +2,7 @@ import { computed, defineComponent, h, onMounted, ref, Transition, watch } from 
 import { parse, ITag, IText } from 'html5parser';
 import { FFmpegFilterDetail, FilterLine, FilterNode, NotificationLevel } from '@common/types';
 import { associateNodesAndDetails, associateNodesAndLines, deleteNode, filtersList, fixNodePortPosition, getNodeInputPoints, getNodeOutputPoints } from '@common/params/filter';
+import i11n from '@common/i11n/i11n';
 import { parseSingleOption } from '@common/params/parser';
 import { randomString } from '@common/utils';
 import { defaultParams } from '@common/defaultParams';
@@ -543,9 +544,7 @@ const EffectView = defineComponent((props: Props) => {
 		const maxNodeCount = getLimitaion('maxFilterNodeCount');
 		if (nodes.value.length >= maxNodeCount) {
 			Popup({
-				message: `😞节点数量达到上限了\n` +
-						`💔您的用户等级最高支持在滤镜图中放入 ${maxNodeCount} 个任务，您可以先删除一些节点再添加\n` +
-						'☺️探访一下 FFBox 官网或作者发布媒介，或许就能发现激活方式了✅',
+				message: i11n.service.功能限制_滤镜图节点数上限(maxNodeCount),
 				level: NotificationLevel.warning,
 			});
 			return;
