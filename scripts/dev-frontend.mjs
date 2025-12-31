@@ -137,7 +137,7 @@ await injectProcessEnv();
 // bootstrap
 const server = await createServer({ configFile: rendererConfig })
 
-await server.listen();
+await server.listen(5174);
 const address = server.httpServer.address();
 console.log(`已启动服务于 ${address.address}:${address.port}`);
 await watchPreload(server);

@@ -1708,6 +1708,7 @@ export const resolution: MenuItem[] = [
 	{ type: 'submenu', label: '电脑显示标准', subMenu: [
 		{ type: 'normal', label: '10240×4320', value: '10240x4320', tooltip: '(64:27), 44.2M 像素' },
 		{ type: 'normal', label: '7680×4320', value: '7680x4320', tooltip: 'UHD 8K (16:9), 33.2M 像素' },
+		{ type: 'normal', label: '6144×3456', value: '6144x3456', tooltip: '(16:9), 21.2M 像素' },
 		{ type: 'normal', label: '5760×3240', value: '5760x3240', tooltip: '(16:9), 18.7M 像素' },
 		{ type: 'normal', label: '5120×3200', value: '5120x3200', tooltip: 'WHXGA (8:5), 16.4M 像素' },
 		{ type: 'normal', label: '4096×3072', value: '4096x3072', tooltip: '(4:3), 12.6M 像素' },

@@ -107,18 +107,6 @@ export const builtInMuxers: MenuItem<Muxer>[] = [
 				label: 'DVD',
 				tooltip: '（另有 .vob 扩展名）\n默认视频编码器：mpeg2video\n默认音频编码器：mp2',
 			},
-			{
-				type: 'normal',
-				value: 'h264',
-				label: 'h264',
-				tooltip: 'h.264 裸流',
-			},
-			{
-				type: 'normal',
-				value: 'hevc',
-				label: 'hevc',
-				tooltip: 'hevc 裸流',
-			},
 		],
 	},
 	{
@@ -264,6 +252,24 @@ export const builtInMuxers: MenuItem<Muxer>[] = [
 				value: 'webp',
 				label: 'WEBP',
 				tooltip: 'WebP 是由 Google 开发的衍生自 VP8 的现代图像格式，支持有损和无损压缩、透明通道和动画，广泛用于网页图片。',
+			},
+			{
+				type: 'normal',
+				value: 'h264',
+				label: 'h264',
+				tooltip: 'h.264 裸流',
+			},
+			{
+				type: 'normal',
+				value: 'hevc',
+				label: 'hevc',
+				tooltip: 'hevc 裸流',
+			},
+			{
+				type: 'normal',
+				value: 'mjpeg',
+				label: 'mjpeg',
+				tooltip: 'mjpeg 裸流',
 			},
 		],
 	},

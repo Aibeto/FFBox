@@ -25,6 +25,7 @@ interface ProviderConfig {
 	probabilitySum: number; // 权重和（在数组中必须递增）
 	models: ModelConfig[];
 	modelPrice?: ModelPrice; // 已使用模型的用量计算算法
+	conversationStatusUrl?: string;	// 用于查询当前大模型会话状态
 }
 
 interface ResponseKeywordMessage {
@@ -42,6 +43,15 @@ interface ResponseResponseKeywordLink {
 	execute?: string[];	// 执行程序
 }
 type RequestResponseKeywordLink = ResponseResponseKeywordLink & { needContinue?: boolean };	// continue 表示匹配到后是否继续向 API 发送消息，默认 true
+
+export interface AIChatMessage {
+	role: 'user' | 'ai' | 'aiErr' | 'aiInfo';
+	text: string;
+	time?: Date;
+	refers?: string[];
+	expense?: number;
+	actions?: { label: string; url: string }[];
+}
 
 /**
  * 整体配置对象类型
@@ -62,7 +72,7 @@ interface AISearchConfig {
 	maxRoundsMessage?: string;
 	titleName?: string;
 	initMsgbox?: string;	// 第一次打开聊天窗时的弹窗
-	initSystemMessage?: string;	// 第一次打开聊天窗和重置对话时显示一条系统消息
+	initSystemMessage?: AIChatMessage;	// 第一次打开聊天窗和重置对话时显示一条系统消息
 	invalidReply?: string;	// AI 检测到非法内容不予回答时显示一条系统消息
 }
 

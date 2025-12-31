@@ -1110,11 +1110,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				return true;
 			}
 		}
-		if (this.functionLevel < 45) {
-			if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > 671) {
-				this.trailLimit_stopTranscoding(id, 'working');
-				return true;
-			}
+		const maxWorkingDuration = this.functionLevel < 45 ? 671 : 40271;
+		if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > maxWorkingDuration) {
+			this.trailLimit_stopTranscoding(id, 'working');
+			return true;
 		}
 	}
 

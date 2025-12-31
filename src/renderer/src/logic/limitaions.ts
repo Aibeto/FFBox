@@ -7,7 +7,7 @@ export function getLimitaion(type: 'maxMediaDuration' | 'maxWorkingDuration' | '
 		case 'maxMediaDuration':
 			return n < 50 ? 671 : undefined;
 		case 'maxWorkingDuration':
-			return n < 45 ? 671 : undefined;
+			return n < 45 ? 671 : 40271;
 		case 'maxUploadSizeGB':
 			return n < 15 ? 1 : n < 30 ? 4 : n < 45 ? 10 : n < 65 ? 32 : 1024;
 		case 'maxTaskListCount':

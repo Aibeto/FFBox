@@ -1,11 +1,14 @@
-<script setup lang="ts">
+<script setup lang="tsx">
 import { computed, ref, watch } from 'vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { NotificationLevel } from '@common/types';
+import { getOutputFileBaseName } from '@common/params/formats';
+import { getOutputFileTime } from '@common/utils';
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
 import Popup from '@renderer/components/Popup/Popup';
 import { TaskItem } from './TaskItem/TaskItem';
+import showMenu from '@renderer/components/Menu/Menu';
 import ImageNoffmpeg from './noffmpeg.svg?component';
 
 const appStore = useAppStore();
@@ -130,6 +133,70 @@ const handleTaskClicked = (event: MouseEvent, id: number, index: number) => {
 	appStore.applySelectedTask();
 };
 
+const handleTaskBatchContextMenu = (event: MouseEvent) => {
+	showMenu({
+		menu: [
+			{ type: 'normal', label: `已选中 ${appStore.selectedTask.size} 个任务`, value: 'description', disabled: true },
+			{ type: 'separator',  },
+			{ type: 'normal', icon: <span>▶️</span>, label: '立即开始', value: '立即开始选中任务', tooltip: '马上启动所选任务的编码（仅对未启动、排队开始、排队继续任务有效）', onClick: () => {
+				for (const taskId of appStore.selectedTask) {
+					appStore.currentServer.entity.taskStart(taskId);
+				}
+			} },
+			{ type: 'normal', icon: <span>⏳</span>, label: '排队开始', value: '排队开始选中任务', tooltip: '将所选任务置入准备状态（对未启动任务置入排队开始状态，对已暂停任务置入排队继续状态）', onClick: () => {
+				for (const taskId of appStore.selectedTask) {
+					appStore.currentServer.entity.taskReady(taskId);
+				}
+			} },
+			{ type: 'normal', icon: <span>⏹️</span>, label: '停止或重置', value: '停止或重置选中任务', tooltip: '对正在运行任务进行软停止，对正在停止任务进行硬停止，对已停止、已完成、出错任务置入未开始状态', onClick: () => {
+				for (const taskId of appStore.selectedTask) {
+					appStore.currentServer.entity.taskReset(taskId);
+				}
+			} },
+			{ type: 'normal', icon: <span>🗑️</span>, label: '删除', value: '删除选中任务', tooltip: '对未开始、上传中任务进行删除操作（对其他状态任务无效）', onClick: () => {
+				appStore.deleteTasks([...appStore.selectedTask]);
+			} },
+			...(appStore.currentServer.entity.ip !== 'localhost' ? [
+				{ type: 'normal' as const, icon: <span>⬇️</span>, label: '下载输出文件', value: '下载输出文件', tooltip: '将所有已完成任务输出文件下载到指定文件夹', onClick: () => {
+					const entity = appStore.currentServer.entity;
+					const tasks = [...appStore.selectedTask].map((taskId) => appStore.currentServer.data.tasks[taskId]);
+					if (nodeBridge.env === 'electron') {
+						const downloadList = [];
+						for (const task of tasks) {
+							for (const [s_index, filePath] of Object.entries(task.outputFiles)) {
+								const newFileBaseName = getOutputFileBaseName(task.after.outputs[+s_index].mux, task.taskName);
+								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
+								let fileTime = undefined;
+								const output = task.after.outputs[+s_index];
+								const mux = output.mux;
+								if (mux.keepFileTime) {
+									let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, +s_index);
+									fileTime = { accessTime, createTime, modifyTime };
+								}
+								downloadList.push({ url, finalFileBaseName: newFileBaseName, fileTime });
+								appStore.downloadMap.set(url, appStore.currentServer.data.id);
+							}							
+						}
+						nodeBridge.ipcRenderer?.send('downloadFiles', { sessionId: entity.sessionId, files: downloadList });
+					} else {
+						for (const task of tasks) {
+							for (const [s_index, filePath] of Object.entries(task.outputFiles)) {
+								const newFileBaseName = getOutputFileBaseName(task.after.outputs[+s_index].mux, task.taskName);
+								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
+								const elem = document.createElement('a');
+								elem.href = `${url}?fileBaseName=${newFileBaseName}`;	// 目前只对浏览器环境添加此参数控制响应的 header。electron 环境会涉及 encodeURI 的操作，因此较方便的做法是分开处理
+								elem.click();
+							}
+						}
+					}
+				} },
+			] : []),
+		],
+		type: 'action',
+		triggerRect: { xMin: event.pageX - 110, xMax: event.pageX + 110, yMin: event.pageY, yMax: event.pageY },
+	})
+};
+
 const handleDownloadFFmpegClicked = () => {
 	nodeBridge.jumpToUrl('https://ffmpeg.org/download.html');
 };
@@ -168,6 +235,7 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 					:selected="appStore.selectedTask.has(id)"
 					:should-handle-hover="true"
 					@click="handleTaskClicked"
+					@batchContextMenu="handleTaskBatchContextMenu"
 				/>
 				<TaskItem
 					v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? [] : appStore.currentServer.data.tasks).map(Number)"
@@ -179,6 +247,7 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 					:selected="appStore.selectedTask.has(id)"
 					:should-handle-hover="true"
 					@click="handleTaskClicked"
+					@batchContextMenu="handleTaskBatchContextMenu"
 				/>
 			</TransitionGroup>
 		</div>

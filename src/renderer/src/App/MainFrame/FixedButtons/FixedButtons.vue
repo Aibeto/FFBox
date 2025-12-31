@@ -144,7 +144,7 @@ const handleCloseClicked = () => {
 		padding-bottom: 8px;
 		display: flex;
 		align-items: center;
-		// text-align: right;
+		justify-content: end;
 		z-index: 100;
 		-webkit-app-region: none;
 		button {

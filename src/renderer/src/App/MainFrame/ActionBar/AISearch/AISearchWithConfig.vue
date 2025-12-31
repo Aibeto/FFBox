@@ -88,12 +88,42 @@ const initWindow = () => {
 			.catch(error => {
 				throw new Error(error);	// 暂不容错
 			});
+	} else if (providerName.value === 'ali') {
+		let options = {
+			'method': 'POST',
+			'url': `https://dashscope.aliyuncs.com/api/v1/apps/${fetchedConfig.value.ali.appId}/completion`,
+			'headers': {
+				"Authorization": `Bearer ${fetchedConfig.value.ali.key}`,
+				"Content-Type": "application/json",
+			},
+			data: JSON.stringify({
+				input: {
+					prompt: '[init]',
+					biz_params: {
+						customModelId: model.value.id,
+						conversationId,
+						userIdv1,
+					}
+				},
+				parameters: {
+					// model_id: model.value.id,
+				},
+				debug: {}
+			})
+		};
+		axios(options).then((res) => {
+			const resData = res.data;
+			conversationId = resData.output.session_id;
+		})
+		.catch(error => {
+			throw new Error(error);	// 暂不容错
+		});
 	}
 };
 
 const resetChat = () => {
 	if (providerName.value === 'ali') {
-		conversationId = undefined;
+		initWindow();
 	} else if (providerName.value === 'baidu') {
 		initWindow();
 	}
@@ -123,6 +153,7 @@ const chatAPI = async (message: string) => {
 						...(conversationId ? { session_id: conversationId } : {}),
 						biz_params: {
 							customModelId: model.value.id,
+							conversationId,
 							userIdv1,
 						}
 					},
@@ -145,7 +176,7 @@ const chatAPI = async (message: string) => {
 			}
 			let usageSum = 0;
 			const modelsPrice = fetchedConfig.value.ali.modelPrice || [];
-			for (const [usedModelIndex, _usedModel] of Object.entries(resData.usage.models)) {
+			for (const [usedModelIndex, _usedModel] of Object.entries(resData.usage.models || [])) {
 				const usedModel = _usedModel as any;
 				const multiplyerConfig = modelsPrice.find((modelPrice) =>
 					modelPrice.modelIdOrIndex === usedModel.model_id ||
@@ -159,7 +190,10 @@ const chatAPI = async (message: string) => {
 			}
 			useQuota(usageSum);
 
-			return Promise.resolve(resData.output.text);
+			return Promise.resolve({
+				content: resData.output.text,
+				expense: usageSum,
+			});
 		} catch (err) {
 			console.log(err);
 			if (err instanceof AxiosError) {
@@ -208,13 +242,35 @@ const chatAPI = async (message: string) => {
 			}
 			// useQuota(resData.usage.models[0].input_tokens + resData.usage.models[0].output_tokens);
 
-			return Promise.resolve(resData.output.text);
+			return Promise.resolve({
+				content: resData.output.text,
+				expense: 0,
+			});
 		} catch (err) {
 			console.log(err);
 			if (err instanceof AxiosError) {
 				return Promise.reject(`请求失败：${err.message}`);
 			}
 			return Promise.reject(`请求失败：未知原因`);
+		}
+	}
+}
+
+const statusAPI = async () => {
+	if (providerName.value === 'ali') {
+		if (fetchedConfig.value.ali.conversationStatusUrl) {
+			try {
+				const options = {
+					url: fetchedConfig.value.ali.conversationStatusUrl,
+					method: 'POST',
+					mode: 'cors',
+					data: JSON.stringify({ type: 'get', conversationId }),
+				}
+				const result = await axios(options);
+				return result.data;				
+			} catch (error) {
+				return undefined;
+			}
 		}
 	}
 }
@@ -280,7 +336,7 @@ onMounted(() => {
 <template>
 	<AISearch v-if="!appStore.frontendSettings.aiDisabled"
 		:enabled="fetchedConfig ? true : false"
-		:chatAPI="chatAPI" :init="initWindow" :resetChat="resetChat"
+		:chatAPI="chatAPI" :init="initWindow" :resetChat="resetChat" :statusAPI="statusAPI"
 		:titleName="fetchedConfig?.titleName" :modelName="model ? model.name : undefined"
 		:initialPlaceholders="fetchedConfig?.initialPlaceholders" :initialPlaceholderInterval="fetchedConfig?.initialPlaceholderInterval"
 		:initSystemMessage="fetchedConfig?.initSystemMessage"

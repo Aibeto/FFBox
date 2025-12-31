@@ -305,7 +305,7 @@ onMounted(async () => {
 		<p>您可以通过激活码去除这些限制，详情请到官网或官方信息发布平台查询～</p>
 		<BoxedNormalInput :value="activateCode" style="margin: 0" title="激活码" :long="true" placeholder="一份激活码对应唯一的机器码，请您输入与本机机器码对应的激活码进行激活🫡" @change="(value) => activateCode = value" />
 		<Button :disabled="nodeBridge.env === 'browser'" @click="handleActivateButtonClick('frontend')">激活前端</Button>
-		<Button :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" @click="handleActivateButtonClick('both')">激活本地服务器</Button>
+		<Button :disabled="appStore.localServer?.entity.status !== ServiceBridgeStatus.Connected" @click="handleActivateButtonClick('backend')">激活本地服务器</Button>
 		<p>机器码（前端）：<span style="user-select: all;" @click="handleMachineIdClick(frontendMachineId)">
 			{{ frontendMachineId }}
 		</span></p>

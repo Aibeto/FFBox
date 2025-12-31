@@ -30,6 +30,7 @@ interface Props {
 	selected?: boolean;
 	shouldHandleHover?: boolean;	// 如果正在多选，或者单选但选的不是自己，那么不响应悬浮
 	onClick?: (event: MouseEvent, id: number, index: number) => any;
+	onBatchContextMenu?: (event: MouseEvent) => any;	// 如果单个任务右键菜单，直接在 taskItem 处理；如果多个任务右键菜单，则到外面处理
 }
 
 export const TaskItem = defineComponent((props: Props) => {
@@ -403,6 +404,10 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	const handleTaskContextMenu = (event: MouseEvent) => {
 		event.preventDefault();
+		if (appStore.selectedTask.size > 1) {
+			(props.onBatchContextMenu || (() => {}))(event);
+			return;
+		}
 		const hasQueuedTask = appStore.currentServer.data.tasks.some((task) => [TaskStatus.idle_queued, TaskStatus.paused_queued].includes(task.status));	// 暂停或停止某个任务可能会导致另一任务启动，此时给予侧面提示
 		showMenu({
 			menu: [
@@ -717,5 +722,5 @@ export const TaskItem = defineComponent((props: Props) => {
 		</div>)
 	};
 }, {
-	props: ['task', 'id', 'index', 'show', 'selected', 'shouldHandleHover', 'onClick'],
+	props: ['task', 'id', 'index', 'show', 'selected', 'shouldHandleHover', 'onClick', 'onBatchContextMenu'],
 });

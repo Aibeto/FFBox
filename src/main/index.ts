@@ -14,13 +14,19 @@ import osBridge from './osBridge';
 import * as mica from './mica';
 // import { FFBoxService } from './service/FFBoxService';
 
+interface DownloadMap {
+	item?: Electron.DownloadItem;
+	finalFileBaseName?: string;
+	dir?: string;	// 批量下载前指定文件夹，这样每个文件下载时就不弹窗
+	fileTime?: { accessTime: number, createTime: number, modifyTime: number };
+}
 
 class ElectronApp {
 	mainWindow: BrowserWindow | null = null;
 	// electronStore: ElectronStore;
 	service: ProcessInstance | null = null;
 	blockWindowClose = true;
-	downloadMap: Map<string, { item?: Electron.DownloadItem, finalFileBaseName?: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number } }> = new Map();
+	downloadMap: Map<string, DownloadMap> = new Map();
 
 	constructor() {
 		this.mountAppEvents();
@@ -149,8 +155,11 @@ class ElectronApp {
 			if (!map || map?.item) return;
 			map.item = item;
 
-			item.setSaveDialogOptions({ defaultPath: map.finalFileBaseName });
-			// item.setSavePath(folderpath + `\\${item.getFilename()}`);	// 设置文件存放位置
+			if (map.dir) {
+				item.setSavePath(path.join(map.dir, map.finalFileBaseName));
+			} else {
+				item.setSaveDialogOptions({ defaultPath: map.finalFileBaseName });
+			}
 			mainWindow.webContents.send('downloadStatusChange', { url: url, status: 'started' });
 			item.on('updated', (event, state) => {
 				if (state === 'interrupted') {
@@ -433,6 +442,19 @@ class ElectronApp {
 				callback({ requestHeaders: details.requestHeaders });
 			});
 			this.mainWindow!.webContents.downloadURL(params.url);
+		});
+
+		ipcMain.on('downloadFiles', async (_event, params: { sessionId: string; files: { url: string; finalFileBaseName?: string; fileTime?: any }[] }) => {
+			const result = await dialog.showOpenDialog(this.mainWindow, {
+				title: `指定 ${params.files.length} 个下载文件的保存文件夹`,
+				properties: ['openDirectory', 'createDirectory']
+			});
+			if (!result.canceled) {
+				for (const file of params.files) {
+					this.downloadMap.set(file.url, { finalFileBaseName: file.finalFileBaseName, fileTime: file.fileTime, dir: result.filePaths[0] });
+					this.mainWindow!.webContents.downloadURL(file.url);
+				}
+			}
 		});
 
 		// 启动一个 ffboxService，这个 ffboxService 目前钦定监听 localhost:33269，而 serviceBridge 会连接此 service

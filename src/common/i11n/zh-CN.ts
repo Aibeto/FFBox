@@ -3,14 +3,13 @@ import { I11n } from './i11n';
 const lang: I11n = {
 	service: {
 		功能限制_暂停转码: (taskName, byFrontend, reason) =>
-			`任务「${taskName}」转码达到${byFrontend ? '前端' : '后端'}时长上限了\n` +
-			`💔您的用户等级最高支持 11:11 的${reason === 'media' ? '媒体时长' : '处理耗时'}\n` +
+			`任务「${taskName}」转码达到${byFrontend ? '前端' : '后端'}的${reason === 'media' ? '媒体时长' : '处理耗时'}时长上限了\n` +
 			'🤫开发者设计该项限制的意图是为了给“伸手党”和“白嫖党”制造一些不便😞谁知盘中餐，粒粒皆辛苦！\n' +
 			'☺️探访一下 FFBox 官网、作者发布媒介，或者 AI，或许就能发现激活方式了✅',
 		功能限制_不能继续: (taskName, byFrontend, reason, pid) =>
-			`任务「${taskName}」转码达到${byFrontend ? '前端' : '后端'}时长上限了\n` +
-			`💔您的用户等级最高支持 11:11 的${reason === 'media' ? '媒体时长' : '处理耗时'}\n` +
-			`您可以选择停止该任务，或改用 FFBox 以外的软件恢复进程。PID：${pid}`,
+			`任务「${taskName}」转码达到${byFrontend ? '前端' : '后端'}的${reason === 'media' ? '媒体时长' : '处理耗时'}时长上限了\n` +
+			'请在菜单中心的功能解限面板查看详情\n' +
+			`您可以选择停止该任务、激活${byFrontend ? '前端' : '后端'}后重试，或改用 FFBox 以外的软件恢复进程。PID：${pid}`,
 		功能限制_任务数上限: (maxTaskCount, byFrontend) =>
 			`😞任务数量达到${byFrontend ? '前端' : '后端'}上限了\n` +
 			`💔您的用户等级最高支持在任务列表中放入 ${maxTaskCount} 个任务，您可以先删除一些任务再添加\n` +

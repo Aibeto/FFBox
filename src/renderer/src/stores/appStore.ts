@@ -564,16 +564,17 @@ export const useAppStore = defineStore('app', {
 		 */
 		async loadPreset(name: string) {
 			const 这 = useAppStore();
-			if (name === '默认配置') {
+			const secureName = name.replaceAll('.', '．');
+			if (secureName === '默认配置') {
 				这.globalParams = JSON.parse(JSON.stringify(defaultParams));
-				这.presetName = name;
+				这.presetName = secureName;
 				这.checkAndApplyCodecDefaults({ video: true, audio: true });
 			} else {
-				const params = await nodeBridge.localStorage.get(`presets.${name}`);
+				const params = await nodeBridge.localStorage.get(`presets.${secureName}`);
 				if (params) {
 					这.globalParams = params;
 				}
-				这.presetName = name;
+				这.presetName = secureName;
 				这.applyParameters('loadPreset');
 			}
 			if (这.selectedTask.size > 0) {
@@ -585,27 +586,31 @@ export const useAppStore = defineStore('app', {
 		},
 		savePreset(name: string) {
 			const 这 = useAppStore();
-			return nodeBridge.localStorage.set(`presets.${name}`, 这.globalParams).then(() => {
-				这.presetName = name;
+			const secureName = name.replaceAll('.', '．');
+			return nodeBridge.localStorage.set(`presets.${secureName}`, 这.globalParams).then(() => {
+				这.presetName = secureName;
 				这.loadPresetList();
 			});
 		},
 		editPreset(oldName: string, newName: string) {
 			const 这 = useAppStore();
+			const secureOldName = oldName.replaceAll('.', '．');
+			const secureNewName = newName.replaceAll('.', '．');
 			async function f() {
-				const oldPreset = await nodeBridge.localStorage.get(`presets.${oldName}`);
-				nodeBridge.localStorage.set(`presets.${newName}`, oldPreset);
+				const oldPreset = await nodeBridge.localStorage.get(`presets.${secureOldName}`);
+				nodeBridge.localStorage.set(`presets.${secureNewName}`, oldPreset);
 				if (newName !== oldName) {
-					nodeBridge.localStorage.delete(`presets.${oldName}`);
+					nodeBridge.localStorage.delete(`presets.${secureOldName}`);
 				}
-				这.presetName = newName;
+				这.presetName = secureNewName;
 				这.loadPresetList();
 			}
 			return f();
 		},
 		deletePreset(name: string) {
 			const 这 = useAppStore();
-			return nodeBridge.localStorage.delete(`presets.${name}`).then(() => {
+			const secureName = name.replaceAll('.', '．');
+			return nodeBridge.localStorage.delete(`presets.${secureName}`).then(() => {
 				这.presetName = '';
 				这.loadPresetList();
 			});
@@ -851,7 +856,7 @@ export const useAppStore = defineStore('app', {
 				const key = machineId + fixedCode;
 				const decrypted = CryptoJS.AES.decrypt(userInput, key)
 				const decryptedString = CryptoJS.enc.Utf8.stringify(decrypted);
-				if (parseInt(decryptedString).toString() === decryptedString) {
+				if ((+decryptedString).toString() === decryptedString) {
 					这.functionLevel = parseInt(decryptedString);
 					nodeBridge.localStorage.set('frontendSettings.activationCode', userInput);
 					return parseInt(decryptedString);

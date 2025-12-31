@@ -13,17 +13,18 @@ const ShortcutView: FunctionalComponent<Props> = (props) => {
 	const radioListList = [
 		{ value: '默认配置' },
 		...appStore.availablePresets.map((name) => ({
-			value: name,
+			value: name.replaceAll('．', '.'),
 			editable: true,
 			deletable: true,
 		})),
 		{ value: '', editable: true },
 	];
+	// 存储在 localStorage 以及 appStore 的 presetName 都是已转义的，只有交给 RadioList 作显示和编辑的时候进行反转义
 	return (
 		<div class={css.container} ref={containerRef}>
 			<RadioList
 				list={radioListList}
-				value={appStore.presetName}
+				value={appStore.presetName.replaceAll('．', '.')}
 				placeholder="未保存设定"
 				onChange={(value) => appStore.loadPreset(`${value}`)}
 				onDelete={(value) => appStore.deletePreset(`${value}`)}

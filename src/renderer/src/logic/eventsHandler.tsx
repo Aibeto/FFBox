@@ -4,6 +4,7 @@ import { Server, UITask } from '@renderer/types';
 import { getInitialUITask, mergeTaskFromService } from '@common/utils';
 import { dashboardTimer, overallProgressTimer } from '@renderer/common/dashboardCalc';
 import { useAppStore } from '../stores/appStore';
+import { getLimitaion } from './limitaions';
 import Popup from '@renderer/components/Popup/Popup';
 import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import { ButtonType } from '@renderer/components/Button/Button';
@@ -160,8 +161,9 @@ export function handleProgressUpdate(server: Server, id: number, time: number, s
 			return;
 		}
 	}
-	if (functionLevel < 45 && task.progressLog.time.length > 0) {
-		if (task.progressLog.elapsed + new Date().getTime() / 1000 - task.progressLog.lastStarted > 671) {
+	const maxWorkingDuration = getLimitaion('maxWorkingDuration');
+	if (task.progressLog.time.length > 0) {
+		if (task.progressLog.elapsed + new Date().getTime() / 1000 - task.progressLog.lastStarted > maxWorkingDuration) {
 			server.entity.trailLimit_stopTranscoding(id, 'working');
 			return;
 		}
