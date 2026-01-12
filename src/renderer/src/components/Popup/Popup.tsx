@@ -15,8 +15,11 @@ interface Instance {
 const instances: Instance[] = [];
 let seed = 0;
 
-const container = document.createElement('div');
-document.body.appendChild(container);
+let container: HTMLDivElement;
+if (typeof document !== 'undefined') {
+	container = document.createElement('div');
+	document.body.appendChild(container);
+}
 
 const Popup = function (options: PopupOptions) {
 	if (!options.level) {

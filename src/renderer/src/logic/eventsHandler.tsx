@@ -191,7 +191,9 @@ export function handleNotificationUpdate(server: Server, notificationId: number,
 
 // #region ipc events
 
-export function handleCloseConfirm(localServer?: Server) {
+export function handleCloseConfirm() {
+	const 这 = useAppStore();
+	const localServer = 这.localServer;
 	function readyToClose () {
 		nodeBridge.ipcRenderer?.send('exitConfirm');
 		setTimeout(() => {
@@ -211,14 +213,14 @@ export function handleCloseConfirm(localServer?: Server) {
 	if (!localServer) {
 		readyToClose();
 	} else {
-		let queueTaskCount = getQueueTaskCount(localServer);
+		let queueTaskCount = getQueueTaskCount(localServer as any);
 		if (queueTaskCount > 0) {
 			Msgbox({
 				container: document.body,
 				// container: containerRef.value,
 				image: <ImageExitConfirm />,
 				title: '要退出吗？',
-				content: `本地服务器还有 ${queueTaskCount} 个任务未完成，退出将会强制停止任务哦～`,
+				content: <>本地服务器还有 {queueTaskCount} 个任务未完成<br />如果 FFBox 服务器是由客户端启动的，退出将会强制停止任务哦～</>,
 				buttons: [
 					{ text: '退退退', callback: readyToClose, type: ButtonType.Danger, role: 'confirm' },
 					{ text: '再等等', role: 'cancel' },

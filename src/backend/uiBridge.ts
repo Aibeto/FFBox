@@ -132,7 +132,7 @@ const uiBridge = {
 		wss = new WebSocket.Server({ server });
 
 		const port = +(getSingleArgvValue('--port') || 33269);
-		server.listen(port);
+		server.listen(port, '::');
 		log.info(`Websocket 开始监听端口 ${port}。`);
 
 		// 挂载 WebSocket 服务器相关事件

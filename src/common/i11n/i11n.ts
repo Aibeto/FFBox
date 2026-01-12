@@ -26,7 +26,17 @@ export interface I11n {
 	frontend: {
 		settings: {
 			useVirtualTaskListDesc: string;
-		}
+		},
+		applicationMenu: {
+			编辑: string;
+			撤销: string;
+			重做: string;
+			剪切: string;
+			复制: string;
+			粘贴: string;
+			删除: string;
+			全选: string;
+		},
 	},
 }
 

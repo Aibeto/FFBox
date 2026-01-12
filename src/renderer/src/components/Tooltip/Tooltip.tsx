@@ -14,10 +14,13 @@ const defaultProps = {
 };
 
 const vnode = createVNode(TooltipUI, defaultProps);
-const container = document.createElement('div');
-document.body.appendChild(container);
-// vnode.appContext = appContext;
-render(vnode, container);
+let container: HTMLDivElement;
+if (typeof document !== 'undefined') {
+	container = document.createElement('div');
+	document.body.appendChild(container);
+	// vnode.appContext = appContext;
+	render(vnode, container);
+}
 
 const Tooltip = function () {
 	return vnode;

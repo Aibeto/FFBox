@@ -36,8 +36,7 @@ onMounted(async () => {
 
 	// 挂载退出确认
 	nodeBridge.ipcRenderer?.on("exitConfirm", () => {
-		const localServer = appStore.servers.find((server) => server.entity.ip === 'localhost')
-		handleCloseConfirm(localServer as Server);
+		handleCloseConfirm();
 	});
 
 	// 挂载下载进度指示

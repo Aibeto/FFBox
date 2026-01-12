@@ -9,6 +9,7 @@ import fs from 'fs/promises';
 import { getMachineId } from './utils';
 import ProcessInstance from '@common/processInstance';
 import localConfig from '@common/localConfig';
+import i11n from '@common/i11n/i11n';
 import { convertFFBoxMenuToElectronMenuTemplate, getOs } from './utils';
 import osBridge from './osBridge';
 import * as mica from './mica';
@@ -469,6 +470,21 @@ class ElectronApp {
 		// 应用菜单更新
 		ipcMain.on('setApplicationMenu', (event, menuStr: string) => {
 			const menuTemplate = convertFFBoxMenuToElectronMenuTemplate(menuStr, this.mainWindow.webContents);
+			if (process.platform === 'darwin') {
+				menuTemplate.splice(1, 0, {
+					label: i11n.frontend.applicationMenu.编辑,
+					submenu: [
+						{ role: 'undo', label: i11n.frontend.applicationMenu.撤销 },
+						{ role: 'redo', label: i11n.frontend.applicationMenu.重做 },
+						{ type: 'separator' },
+						{ role: 'cut', label: i11n.frontend.applicationMenu.剪切 },
+						{ role: 'copy', label: i11n.frontend.applicationMenu.复制 },
+						{ role: 'paste', label: i11n.frontend.applicationMenu.粘贴 },
+						{ role: 'delete', label: i11n.frontend.applicationMenu.删除 },
+						{ role: 'selectall', label: i11n.frontend.applicationMenu.全选 },
+					] as any
+				});
+			}
 			const menu = Menu.buildFromTemplate(menuTemplate as any);
 			Menu.setApplicationMenu(menu);	
 		});

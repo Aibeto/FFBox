@@ -37,13 +37,15 @@ const getButtonClass = (type?: ButtonType, disabled?: boolean, size?: ButtonProp
 };
 
 const ButtonComponent: FunctionalComponent<ButtonProps> = (props, ctx) => {
+	const { type, disabled, size, onClick, ...restProps } = props;
 	const appStore = useAppStore();
 	return (
 		<button
 			data-color_theme={appStore.frontendSettings.colorTheme}
-			class={getButtonClass(props.type, props.disabled, props.size)}
-			disabled={props.disabled}
-			onClick={(event) => { (props.onClick || (() => {}))(event); event.stopImmediatePropagation() } }
+			class={getButtonClass(type, disabled, size)}
+			disabled={disabled}
+			onClick={(event) => { (onClick || (() => {}))(event); event.stopImmediatePropagation() } }
+			{...restProps}
 		>
 			{ h(ctx.slots.default) }
 		</button>

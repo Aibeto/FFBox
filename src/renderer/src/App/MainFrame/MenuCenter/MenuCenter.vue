@@ -6,6 +6,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
 import nodeBridge from '@renderer/bridges/nodeBridge';
+import { handleCloseConfirm } from '@renderer/logic/eventsHandler';
 import { showEnvironmentInfo } from '@renderer/components/misc/EnvironmentInfo'
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
 import { showServerConfig } from '@renderer/components/misc/ServerConfig';
@@ -41,6 +42,8 @@ const finalMenu = computed(() => {
 			type: 'submenu',
 			label: 'FFBox (A)',
 			subMenu: [
+			{ type: 'normal', label: `FFBox v${version}`, value: 'FFBox', tooltip: '显示环境信息', onClick: () => showEnvironmentInfo() },
+				{ type: 'separator' },
 				{ type: 'submenu', label: '访问官网', subMenu: [
 					{ type: 'normal', label: 'FFBox 官网', value: 'FFBox 官网', onClick: () => nodeBridge.jumpToUrl('http://ffbox.ttqf.tech') },
 					// { type: 'normal', label: '作者个人网站', value: '作者个人网站', onClick: () => nodeBridge.jumpToUrl('http://ttqf.tech') },
@@ -51,7 +54,7 @@ const finalMenu = computed(() => {
 					{ type: 'normal', label: 'gitee 仓库', value: 'gitee 仓库', onClick: () => nodeBridge.jumpToUrl('https://gitee.com/ttqf/FFBox') },
 				] },
 				{ type: 'separator' },
-				{ type: 'normal', label: `FFBox v${version}`, value: 'FFBox', tooltip: '显示环境信息', onClick: () => showEnvironmentInfo() },
+				{ type: 'normal', label: `退出 FFBox`, value: 'closeFFBox', onClick: () => handleCloseConfirm() },
 			],
 		},
 		{
