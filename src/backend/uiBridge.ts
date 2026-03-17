@@ -10,17 +10,18 @@ import koaMount from 'koa-mount';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { FFBoxServiceEventApi, FFBoxServiceEventParam, FFBoxServiceFunctionApi } from '@common/types';
+import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams } from '@common/types';
 import { version } from '@common/constants';
-import { getSingleArgvValue, randomString } from '@common/utils';
+import { getSingleArgvValue } from '@common/utils';
 import { getOs, log } from './utils';
 import localConfig from '@common/localConfig';
 import { FFBoxService } from './FFBoxService';
+import { sessionManager } from './utils/sessionManager';
 
 interface Client {
 	ws: WebSocket;
 	sessionId: string;
-	username: string | undefined;
+	username: string;
 	functionLevel: number;
 }
 
@@ -67,10 +68,13 @@ const uiBridge = {
 
 		// 初始化响应头和响应码
 		koa.use(async (ctx, next) => {
-			log.dev('收到请求。', ctx.request.url);
+			const authHeader = ctx.get('Authorization');
+			const sessionId = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+		
+			log.dev('收到请求', sessionId, ctx.request.method, ctx.request.url);
 			ctx.response.set('Access-Control-Allow-Origin', '*');
 			ctx.response.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-			ctx.response.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+			ctx.response.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
 			ctx.response.set('Access-Control-Max-Age', '999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999');
 			if (ctx.request.method === 'OPTIONS') {
 				ctx.response.status = 204;
@@ -85,29 +89,12 @@ const uiBridge = {
 				await next();
 			} catch (err) {
 				console.log(err);
+				ctx.status = 500;
+				ctx.body = { error: 'Internal Server Error' };
 			}
 		});
 
-		// session 校验中间件
-		koa.use(async (ctx, next) => {
-			if (['/login', '/version'].includes(ctx.path) || ctx.path.includes('/download')) {
-				// 登录和获取版本接口可不鉴权
-				// 下载接口若需使用自定义 header 鉴权，必须使用 js 进行请求，不能用浏览器的下载管理器。工程上的做法是新建一个接口，由 sessionId 和下载地址生成一个带签名的直链，再进行下载。FFBox 暂不将此作为工作重心，所以不管了
-				return next();
-			}
-			const authHeader = ctx.get('Authorization');
-			if (authHeader && authHeader.startsWith('Bearer ')) {
-				// const sessionId = ctx.get('Session-Id'); // 注意 ctx.get 获取 header 不区分大小写
-				const sessionId = authHeader.slice(7); // 去掉 "Bearer "
-				if (!sessionId || (clients.get(sessionId)?.functionLevel || 0) <= 0) {
-					ctx.status = 401;
-					return;
-				}
-				await next();	// 校验通过，进入后续路由
-			}
-		});
-
-		// 读取请求体，提取到 request.body 中
+		// 读取请求体
 		koa.use(
 			koaBody({
 				multipart: true,
@@ -133,18 +120,18 @@ const uiBridge = {
 
 		const port = +(getSingleArgvValue('--port') || 33269);
 		server.listen(port, '::');
-		log.info(`Websocket 开始监听端口 ${port}。`);
+		log.info(`HTTP/WebSocket 服务开始监听端口 ${port}。`);
 
 		// 挂载 WebSocket 服务器相关事件
 		wss.on('connection', mountWebSocketEvents);
 		wss.on('error', function (error: Error) {
-			log.error('Websocket 服务出错，建议检查防火墙。', error);
+			log.error('WebSocket 服务出错，建议检查防火墙。', error);
 			ffboxService!.emit('serverError', { error });
 			wss = null;
 		});
 		wss.on('close', function () {
 			ffboxService!.emit('serverClose');
-			log.info('Websocket 服务关闭。');
+			log.info('WebSocket 服务关闭。');
 			wss = null;
 		});
 		setTimeout(() => {
@@ -156,83 +143,63 @@ const uiBridge = {
 	},
 };
 
-// #region 事件挂载区
+// #region WebSocket 事件处理
 
 /**
- * 每个传入的 WebSocket 客户端连接都听过此函数挂载事件监听
- * 4.4 及更新版本的客户端会首先检查客户端版本再进行 WebSocket 连接，然后等待 sessionId。因此客户端接入后需尽快返回 sessionId，提供给客户端进行 login
- * 为什么不是在 Websocket 连接后直接通过 Websocket 登录，而是要另发请求呢？这是因为登录是一种“请求”，尽量不做成“事件”让客户端转锁等待
+ * WebSocket 连接处理
+ * 新流程：前端先通过 HTTP 登录获取 sessionId，然后建立 WebSocket 时在 URL query 中携带 sessionId
  */
 function mountWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): void {
 	const address = request.socket.remoteAddress;
-	const sessionId = randomString(6);
-	const client: Client = { ws, sessionId, username: undefined, functionLevel: 0 };
-	clients.set(sessionId, client);
-	log.info(`新客户端接入：${address}。sessionId：${sessionId}。当前客户端数量：${clients.size}.`);
 
-	ws.on('message', function (message: Buffer, isBinary: boolean): void {
-		// console.log('uiBridge: 收到来自客户端的消息', message);
-		if (!isBinary) {
-			if (client.functionLevel <= 0) {
-				log.dev(`客户端 ${sessionId} 未登录，调用已拒绝`, message.toString());
-				return;
-			}
-			handleMessageFromClient(message.toString(), ws);
-		}
-	});
-	ws.on('close', function (code: number, reason: string) {
+	// 从 URL query 中获取 sessionId
+	const url = new URL(request.url || '/', `http://localhost`);
+	const sessionId = url.searchParams.get('sessionId');
+
+	if (!sessionId) {
+		log.warn(`客户端连接被拒绝：缺少 sessionId。地址：${address}`);
+		ws.close(4001, 'Missing sessionId');
+		return;
+	}
+
+	const session = sessionManager.verifySession(sessionId);
+	if (!session) {
+		log.warn(`客户端连接被拒绝：无效的 sessionId。地址：${address}`);
+		ws.close(4001, 'Invalid sessionId');
+		return;
+	}
+
+	// 检查是否已有该 sessionId 的连接，如果有则断开旧连接
+	const existingClient = clients.get(sessionId);
+	if (existingClient) {
+		log.info(`客户端重复连接，断开旧连接。sessionId：${sessionId}`);
+		existingClient.ws.close(4002, 'Replaced by new connection');
+	}
+
+	// 连接成功，绑定 client
+	const client: Client = {
+		ws,
+		sessionId,
+		username: session.username,
+		functionLevel: session.functionLevel,
+	};
+	clients.set(sessionId, client);
+	log.info(`新客户端接入：${address}。sessionId：${sessionId}，用户：${session.username || '(匿名)'}。当前客户端数量：${clients.size}。`);
+
+	ws.on('close', function (code: number, reason: Buffer) {
 		clients.delete(sessionId);
-		log.info(`客户端连接关闭：${address}。当前客户端数量：${clients.size}。`, code, reason);
+		log.info(`客户端连接关闭：${address}。当前客户端数量：${clients.size}。`, code, reason.toString());
 	});
 	ws.on('error', function (err: Error) {
 		log.error(`客户端连接出错：${address}。`, err);
 	});
-	ws.on('open', function () {
-		log.info(`客户端连接打开：${address}。`);
-	});
 
+	// 发送连接成功事件
 	const data: FFBoxServiceEventApi = {
-		event: 'sessionId',
-		payload: sessionId,
+		event: 'connected',
+		payload: { timestamp: Date.now() },
 	};
 	ws.send(JSON.stringify(data));
-}
-
-/**
- * 接受 UI 事件入口（来自 ws.onmessage）
- */
-function handleMessageFromClient(message: string, wsClient: WebSocket): void {
-	if (!ffboxService) {
-		throw new Error('uiBridge 使用前应 init()');
-	}
-	const data: FFBoxServiceFunctionApi = JSON.parse(message);
-	const args = data.args;
-	log.dev('收到调用：', data);
-	// @ts-ignore
-	const result = ffboxService[data.function](...args.map((value) => (value === null ? undefined : value)));
-	if (result instanceof Promise && typeof data.seq === 'number') {
-		result.then((result) => {
-			const response: FFBoxServiceEventApi = {
-				event: 'ack',
-				payload: {
-					seq: data.seq,
-					ok: true,
-					result,
-				},
-			};
-			wsClient.send(JSON.stringify(response));
-		}).catch((reason) => {
-			const response: FFBoxServiceEventApi = {
-				event: 'ack',
-				payload: {
-					seq: data.seq,
-					ok: false,
-					result: reason,
-				},
-			};
-			wsClient.send(JSON.stringify(response));
-		});
-	}
 }
 
 /**
@@ -242,7 +209,6 @@ function mountEventFromService(): void {
 	if (!ffboxService || !wss) {
 		throw new Error('uiBridge 使用前应 init()');
 	}
-	// eslint-disable-next-line
 	const eventsEnum: Array<keyof FFBoxServiceEventParam> = [
 		'ffmpegInfo',
 		"workingStatusUpdate",
@@ -251,18 +217,17 @@ function mountEventFromService(): void {
 		"cmdUpdate",
 		"progressUpdate",
 		"notificationUpdate",
-	]
+	];
 	for (const event of eventsEnum) {
 		ffboxService.on(event, (payload: FFBoxServiceEventParam[keyof FFBoxServiceEventParam]) => {
-			for (const client of wss!.clients) {
-				if (client.readyState === client.OPEN) {
+			for (const client of clients.values()) {
+				if (client.ws.readyState === WebSocket.OPEN) {
 					const data: FFBoxServiceEventApi = {
 						event,
 						payload,
 					};
 					log.dev('触发信息：', data);
-					// console.log('将要发送 ws 信息', event, event === 'taskUpdate' ? [(payload as any).content.after.input.files, (payload as any).content.paraArray.join(' ')] : undefined);
-					client.send(JSON.stringify(data));
+					client.ws.send(JSON.stringify(data));
 				}
 			}
 		});
@@ -271,105 +236,667 @@ function mountEventFromService(): void {
 
 // #endregion
 
-// #region http request 服务区
+// #region HTTP 路由
 
 /**
- * 网络文件添加说明
- * 1. addTask，文件路径留空，指示该文件未 ready，暂不调用 FFmpeg 读取信息
- * 2. 前端扫描整个文件 md5，/upload/check 检查文件是否已缓存，已缓存返回奇数
- * 3. 前端判断文件完整性，然后 /upload/file 上传文件（后端根据文件名信息判断是否已缓存，过滤非法请求）
- * 5. updateUploadProgress，上传过程中更新任务的进度
- * 4. mergeUploaded 文件上传完成后，前端发送 md5 列表和任务 id，后端更新任务信息然后 TaskUpdate
+ * 可选鉴权中间件
+ * - 有 sessionId 时验证 sessionId
+ * - 无 sessionId 时检查是否允许无密码访问
  */
+async function optionalAuth(ctx: Koa.Context, next: () => Promise<void>): Promise<void> {
+	const authHeader = ctx.get('Authorization');
+	const sessionId = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+	if (sessionId) {
+		const session = sessionManager.verifySession(sessionId);
+		if (session) {
+			ctx.state.session = session;
+			ctx.state.functionLevel = session.functionLevel;
+			await next();
+			return;
+		}
+		ctx.status = 401;
+		ctx.body = { error: 'Invalid session' };
+		return;
+	}
+
+	async function isPasswordlessAllowed(): Promise<boolean> {
+		const users = await localConfig.get('service.users') as any[];
+		const defaultAdmin = users?.find((u: any) => u.username === '');
+		return !defaultAdmin || !defaultAdmin.passkey;
+	}
+	
+	// 无 sessionId 时检查是否允许无密码访问
+	if (await isPasswordlessAllowed()) {
+		ctx.state.isAnonymous = true;
+		ctx.state.functionLevel = 100;
+		await next();
+		return;
+	}
+
+	ctx.status = 401;
+	ctx.body = { error: 'Authentication required' };
+}
 
 function getRouter(): Router {
 	const router = new Router();
 
-	// 获取 FFBoxService 版本
-	router.get('/version', async function (ctx) {
-		const result = version;
-		ctx.response.status = 200;
-		ctx.response.body = result;
-	});
+	// ==================== 认证模块 ====================
 
-	// 获取 FFBoxService 各种信息
-	router.get('/properties', async function (ctx) {
-		const result = {
-			os: getOs(),
-			isSandboxed: process.cwd() === '/', // macOS 中，直接双击运行服务（无论是否在 app 内）会得到用户目录，在终端运行会得到终端当前目录，通过 FFBox 调用会得到 '/'
-			machineId: ffboxService.machineId,
-			functionLevel: ffboxService.functionLevel,
-			ffmpegInfo: ffboxService.ffmpegInfo,
-		};
-		ctx.response.status = 200;
-		ctx.response.body = result;
-	});
-
-	// 登录
-	router.post('/login', async function (ctx) {
+	/**
+	 * @openapi
+	 * /api/v1/auth/login:
+	 *   post:
+	 *     summary: 用户登录
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               username:
+	 *                 type: string
+	 *               passkey:
+	 *                 type: string
+	 *                 description: SHA256 哈希后的密码
+	 *     responses:
+	 *       200:
+	 *         description: 登录结果
+	 */
+	router.post('/api/v1/auth/login', async function (ctx) {
 		if (!ctx.request.body) {
-			// 非法请求
-			ctx.response.status = 400;
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
 			return;
 		}
-		const result = { isUserExist: false, isSuccess: false, functionLevel: 0 };
-		const body = ctx.request.body;
-		if (body.sessionId) {
-			const users: { username: string; passkey: string; maxFunctionLevel: number }[]
-				= (await localConfig.get('userInfo.users') as any) || [{ username : "", passkey: "", maxFunctionLevel: 100 }];
-			const client = clients.get(body.sessionId);
-			const user = users.find((user) => user.username === body.username);
-			if (client && user) {
-				result.isUserExist = true;
-				if (!user.passkey || user.passkey === body.passkey) {
-					result.isSuccess = true;
-					result.functionLevel = user.maxFunctionLevel;
-					client.functionLevel = user.maxFunctionLevel;
-					client.username = body.username;
-					ctx.response.status = 200;
-					ctx.response.body = result;
-					return;
-				}
-			}
+
+		const { username, passkey } = ctx.request.body;
+		const users = await localConfig.get('service.users') as any[]
+			|| [{ username: "", passkey: "", maxFunctionLevel: 100 }];
+
+		// 查找用户（空用户名匹配默认管理员）
+		const user = users.find((u: any) => u.username === (username || ''));
+
+		if (!user) {
+			ctx.body = { isUserExist: false, isSuccess: false };
+			return;
 		}
-		ctx.response.status = 400;
-		ctx.response.body = result;
+
+		// 验证密码（空密码直接通过）
+		if (!user.passkey || user.passkey === passkey) {
+			const sessionId = sessionManager.createSession(user.username || '', user.maxFunctionLevel);
+			ctx.body = {
+				isUserExist: true,
+				isSuccess: true,
+				sessionId,
+				functionLevel: user.maxFunctionLevel,
+			};
+		} else {
+			ctx.body = { isUserExist: true, isSuccess: false };
+		}
 	});
 
-	// 获取服务器通知
-	router.get('/notification', async function (ctx) {
-		const result = ffboxService.notifications;
-		ctx.response.status = 200;
-		ctx.response.body = result;
+	// ==================== 任务管理模块 ====================
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks:
+	 *   get:
+	 *     summary: 获取任务列表
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 任务 ID 列表
+	 */
+	router.get('/api/v1/tasks', optionalAuth, async function (ctx) {
+		ctx.body = Object.keys(ffboxService!.tasklist).map(Number);
 	});
 
-	// 获取已扫描的 FFmpeg 编码器、（解）复用器、滤镜信息
-	router.get('/AVOptions', async function (ctx) {
-		const result = {
-			codecs: ffboxService.ffmpegCodecs,
-			formats: ffboxService.ffmpegFormats,
-			filters: ffboxService.ffmpegFilters,
+	/**
+	 * @openapi
+	 * /api/v1/tasks:
+	 *   post:
+	 *     summary: 创建新任务
+	 *     security:
+	 *       - bearerAuth: []
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               taskName:
+	 *                 type: string
+	 *               outputParams:
+	 *                 type: object
+	 *     responses:
+	 *       200:
+	 *         description: 返回任务 ID
+	 */
+	router.post('/api/v1/tasks', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const { taskName, outputParams } = ctx.request.body;
+		const isRemote = ctx.URL.hostname !== 'localhost' && ctx.URL.hostname !== '127.0.0.1';
+		const result = await ffboxService!.taskAdd(taskName, outputParams as OutputParams, isRemote);
+		ctx.body = result;
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}:
+	 *   get:
+	 *     summary: 获取单个任务详情
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 任务详情
+	 */
+	router.get('/api/v1/tasks/:id', optionalAuth, async function (ctx) {
+		const task = ffboxService!.tasklist[+ctx.params.id];
+		if (!task) {
+			ctx.status = 404;
+			ctx.body = { error: 'Task not found' };
+			return;
+		}
+		ctx.body = task;
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}:
+	 *   delete:
+	 *     summary: 删除任务
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 删除成功
+	 */
+	router.delete('/api/v1/tasks/:id', optionalAuth, async function (ctx) {
+		ffboxService!.taskDelete(+ctx.params.id);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/start:
+	 *   post:
+	 *     summary: 启动任务
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 启动成功
+	 */
+	router.post('/api/v1/tasks/:id/start', optionalAuth, async function (ctx) {
+		ffboxService!.taskStart(+ctx.params.id);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/ready:
+	 *   post:
+	 *     summary: 准备任务（加入队列）
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 操作成功
+	 */
+	router.post('/api/v1/tasks/:id/ready', optionalAuth, async function (ctx) {
+		ffboxService!.taskReady(+ctx.params.id);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/pause:
+	 *   post:
+	 *     summary: 暂停任务
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 暂停成功
+	 */
+	router.post('/api/v1/tasks/:id/pause', optionalAuth, async function (ctx) {
+		ffboxService!.taskPause(+ctx.params.id);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/resume:
+	 *   post:
+	 *     summary: 恢复任务
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 恢复成功
+	 */
+	router.post('/api/v1/tasks/:id/resume', optionalAuth, async function (ctx) {
+		ffboxService!.taskResume(+ctx.params.id);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/reset:
+	 *   post:
+	 *     summary: 重置任务
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 重置成功
+	 */
+	router.post('/api/v1/tasks/:id/reset', optionalAuth, async function (ctx) {
+		await ffboxService!.taskReset(+ctx.params.id);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/parameters:
+	 *   put:
+	 *     summary: 设置任务参数
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               ids:
+	 *                 type: array
+	 *                 items:
+	 *                   type: integer
+	 *               params:
+	 *                 type: array
+	 *                 items:
+	 *                   type: object
+	 *     responses:
+	 *       200:
+	 *         description: 设置成功
+	 */
+	router.put('/api/v1/tasks/:id/parameters', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const { ids, params } = ctx.request.body;
+		ffboxService!.setParameters(ids, params);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/merge-upload:
+	 *   post:
+	 *     summary: 合并上传的文件
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               hashs:
+	 *                 type: array
+	 *                 items:
+	 *                   type: string
+	 *               fileBaseName:
+	 *                 type: string
+	 *               inputName:
+	 *                 type: string
+	 *               fileTime:
+	 *                 type: object
+	 *     responses:
+	 *       200:
+	 *         description: 合并成功
+	 */
+	router.post('/api/v1/tasks/:id/merge-upload', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const { hashs, fileBaseName, inputName, fileTime } = ctx.request.body;
+		await ffboxService!.mergeUploaded(+ctx.params.id, hashs, fileBaseName, inputName, fileTime);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/upload-status:
+	 *   put:
+	 *     summary: 设置上传状态
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               isUploading:
+	 *                 type: boolean
+	 *     responses:
+	 *       200:
+	 *         description: 设置成功
+	 */
+	router.put('/api/v1/tasks/:id/upload-status', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const { isUploading } = ctx.request.body;
+		ffboxService!.setUploadStatus(+ctx.params.id, isUploading);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/stop:
+	 *   post:
+	 *     summary: 停止转码（功能限制）
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               reason:
+	 *                 type: string
+	 *                 enum: [media, working]
+	 *     responses:
+	 *       200:
+	 *         description: 停止成功
+	 */
+	router.post('/api/v1/tasks/:id/stop', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const { reason } = ctx.request.body;
+		ffboxService!.trailLimit_stopTranscoding(+ctx.params.id, reason, true);
+		ctx.body = { success: true };
+	});
+
+	// ==================== 队列管理模块 ====================
+
+	/**
+	 * @openapi
+	 * /api/v1/queue/start:
+	 *   post:
+	 *     summary: 启动队列
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 启动成功
+	 */
+	router.post('/api/v1/queue/start', optionalAuth, async function (ctx) {
+		ffboxService!.queueStart();
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/queue/pause:
+	 *   post:
+	 *     summary: 暂停队列
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 暂停成功
+	 */
+	router.post('/api/v1/queue/pause', optionalAuth, async function (ctx) {
+		ffboxService!.queuePause();
+		ctx.body = { success: true };
+	});
+
+	// ==================== 系统信息模块 ====================
+
+	/**
+	 * @openapi
+	 * /api/v1/system/version:
+	 *   get:
+	 *     summary: 获取版本号
+	 *     responses:
+	 *       200:
+	 *         description: 版本号
+	 */
+	router.get('/api/v1/system/version', async function (ctx) {
+		ctx.body = version;
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/system/properties:
+	 *   get:
+	 *     summary: 获取系统属性
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 系统属性
+	 */
+	router.get('/api/v1/system/properties', optionalAuth, async function (ctx) {
+		ctx.body = {
+			os: getOs(),
+			isSandboxed: process.cwd() === '/',
+			machineId: ffboxService!.machineId,
+			functionLevel: ffboxService!.functionLevel,
+			ffmpegInfo: ffboxService!.ffmpegInfo,
 		};
-		ctx.response.status = 200;
-		ctx.response.body = result;
 	});
 
-	// 获取服务器运行状态
-	router.get('/workingStatus', async function (ctx) {
-		const result = ffboxService.workingStatus;
-		ctx.response.status = 200;
-		ctx.response.body = result;
+	/**
+	 * @openapi
+	 * /api/v1/system/codecs:
+	 *   get:
+	 *     summary: 获取编解码器信息
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 编解码器列表
+	 */
+	router.get('/api/v1/system/codecs', optionalAuth, async function (ctx) {
+		ctx.body = {
+			codecs: ffboxService!.ffmpegCodecs,
+			formats: ffboxService!.ffmpegFormats,
+			filters: ffboxService!.ffmpegFilters,
+		};
 	});
 
-	// 检查文件是否已缓存
-	// 已缓存返回奇数
-	router.post('/upload/check/', async function (ctx) {
+	/**
+	 * @openapi
+	 * /api/v1/system/working-status:
+	 *   get:
+	 *     summary: 获取工作状态
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 工作状态
+	 */
+	router.get('/api/v1/system/working-status', optionalAuth, async function (ctx) {
+		ctx.body = ffboxService!.workingStatus;
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/system/notifications:
+	 *   get:
+	 *     summary: 获取通知列表
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 通知列表
+	 */
+	router.get('/api/v1/system/notifications', optionalAuth, async function (ctx) {
+		ctx.body = ffboxService!.notifications;
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/system/notifications/{id}:
+	 *   delete:
+	 *     summary: 删除通知
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 删除成功
+	 */
+	router.delete('/api/v1/system/notifications/:id', optionalAuth, async function (ctx) {
+		ffboxService!.deleteNotification(+ctx.params.id);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/system/settings/reload:
+	 *   post:
+	 *     summary: 重新加载设置
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 重载成功
+	 */
+	router.post('/api/v1/system/settings/reload', optionalAuth, async function (ctx) {
+		await ffboxService!.initSettings();
+		ctx.body = { success: true };
+	});
+
+	// ==================== 文件上传模块 ====================
+
+	/**
+	 * @openapi
+	 * /api/v1/upload/check:
+	 *   post:
+	 *     summary: 检查文件是否已缓存
+	 *     security:
+	 *       - bearerAuth: []
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               hashs:
+	 *                 type: array
+	 *                 items:
+	 *                   type: string
+	 *     responses:
+	 *       200:
+	 *         description: 检查结果（已缓存返回奇数）
+	 */
+	router.post('/api/v1/upload/check', optionalAuth, async function (ctx) {
 		if (!ctx.request.body || !(ctx.request.body.hashs instanceof Array)) {
-			// 非法请求
-			ctx.response.status = 400;
+			ctx.status = 400;
+			ctx.body = { error: 'Invalid request' };
 			return;
 		}
-		// 暂定 body 里的属性只有一个 hashs: Array<string>，不写 ts 定义了
 		log.info('检查文件缓存性', ctx.request.body.hashs);
 		const hashs = ctx.request.body.hashs as Array<string>;
 		const ret: Array<number> = [];
@@ -381,93 +908,125 @@ function getRouter(): Router {
 				ret.push(0);
 			}
 		}
-		ctx.response.status = 200;
-		ctx.response.body = ret;
+		ctx.body = ret;
 	});
 
-	// 接收文件
-	router.post('/upload/file', async function (ctx) {
-		if (!ctx.request.files || !ctx.request.files.file /* || !(ctx.request.files instanceof formidable.File)*/) {
-			// 非法请求
-			ctx.response.status = 400;
+	/**
+	 * @openapi
+	 * /api/v1/upload/file:
+	 *   post:
+	 *     summary: 上传文件
+	 *     security:
+	 *       - bearerAuth: []
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         multipart/form-data:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               file:
+	 *                 type: string
+	 *                 format: binary
+	 *               name:
+	 *                 type: string
+	 *     responses:
+	 *       200:
+	 *         description: 上传成功
+	 */
+	router.post('/api/v1/upload/file', optionalAuth, async function (ctx) {
+		if (!ctx.request.files || !ctx.request.files.file) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing file' };
 			return;
 		}
-		const file = ctx.request.files.file /*as formidable.File*/ as any;
+		const file = ctx.request.files.file as any;
 		const body = ctx.request.body;
 		log.info('收到文件', file.originalFilename);
 		const destPath = uploadDir + '/' + body.name;
 		try {
 			fs.renameSync(file.filepath, destPath);
 			log.info('文件已缓存至', destPath);
-			ctx.response.status = 200;
+			ctx.body = { success: true };
 		} catch (error) {
 			log.error('文件重命名失败', error);
-			ctx.response.status = 500;
+			ctx.status = 500;
+			ctx.body = { error: 'Failed to save file' };
 		}
 	});
 
-	// 因 ws RPC 暂时没做中间件设计，而 taskAdd 需要由后端处理传入 isRemote，所以这里使用请求
-	router.put('/task', async function (ctx) {
-		if (!ctx.request.body) {
-			// 非法请求
-			ctx.response.status = 400;
-			return;
-		}
-		const body = ctx.request.body;
-		const result = await ffboxService!.taskAdd(body.taskName, body.outputParams, ctx.URL.hostname !== 'localhost');
-		ctx.response.status = 200;
-		ctx.response.body = result;
-	});
+	// ==================== 激活模块 ====================
 
-	// 获取任务 ID 列表
-	router.get('/task', async function (ctx) {
-		const result = Object.keys(ffboxService.tasklist).map(Number);
-		ctx.response.status = 200;
-		ctx.response.body = result;
-	});
-
-	// 获取单个任务信息
-	router.get('/task/:id', async function (ctx) {
-		const result = ffboxService.tasklist[+ctx.params.id];
-		ctx.response.status = 200;
-		ctx.response.body = result;
-	});
-
-	// 激活
-	router.post('/activation', async function (ctx) {
+	/**
+	 * @openapi
+	 * /api/v1/activation:
+	 *   post:
+	 *     summary: 激活软件
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               userInput:
+	 *                 type: string
+	 *     responses:
+	 *       200:
+	 *         description: 激活结果
+	 */
+	router.post('/api/v1/activation', async function (ctx) {
 		if (!ctx.request.body?.userInput) {
-			// 非法请求
-			ctx.response.status = 400;
+			ctx.status = 400;
+			ctx.body = { error: 'Missing activation code' };
 			return;
 		}
 		const userInput = ctx.request.body.userInput;
 		const fixedCode = 'd324c697ebfc42b7';
-		const key = ffboxService.machineId + fixedCode;
+		const key = ffboxService!.machineId + fixedCode;
 		const decrypted = CryptoJS.AES.decrypt(userInput, key);
 		const activationResult = CryptoJS.enc.Utf8.stringify(decrypted);
 		if (parseInt(activationResult).toString() === activationResult) {
-			ffboxService.functionLevel = parseInt(activationResult);
+			ffboxService!.functionLevel = parseInt(activationResult);
 			localConfig.set('userInfo.activationCode', userInput);
 			const returnEncrypted = CryptoJS.AES.encrypt(activationResult, fixedCode).toString();
-			ctx.response.status = 200;
-			ctx.response.body = returnEncrypted;
+			ctx.body = returnEncrypted;
 		} else {
-			ctx.response.status = 200;
+			ctx.status = 400;
+			ctx.body = '';
 		}
 	});
 
-	// 获取缓存
-	router.get('/cache', async function (ctx) {
-		const result = await ffboxService!.getCacheInfo(false);
-		ctx.response.status = 200;
-		ctx.response.body = result;
+	// ==================== 缓存管理模块 ====================
+
+	/**
+	 * @openapi
+	 * /api/v1/cache:
+	 *   get:
+	 *     summary: 获取缓存信息
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 缓存信息
+	 */
+	router.get('/api/v1/cache', optionalAuth, async function (ctx) {
+		ctx.body = await ffboxService!.getCacheInfo(false);
 	});
 
-	// 清除缓存
-	router.delete('/cache', async function (ctx) {
-		const result = await ffboxService!.getCacheInfo(true);
-		ctx.response.status = 200;
-		ctx.response.body = result;
+	/**
+	 * @openapi
+	 * /api/v1/cache:
+	 *   delete:
+	 *     summary: 清除缓存
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 清除结果
+	 */
+	router.delete('/api/v1/cache', optionalAuth, async function (ctx) {
+		ctx.body = await ffboxService!.getCacheInfo(true);
 	});
 
 	return router;

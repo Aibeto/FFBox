@@ -36,22 +36,22 @@ export interface FFmpegInfo {
 // #region FFBoxService
 
 export interface FFBoxServiceInterface {
-	initSettings(): void;
+	initSettings(): Promise<void>;
 	initFFmpeg(): void;
 	taskAdd(taskName: string, outputParams?: OutputParams): Promise<number>;
-	mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): void;
-	setUploadStatus(id: number, isUploading: boolean): void;
-	taskDelete(id: number): void;
-	taskStart(id: number): void;
-	taskReady(id: number): void;
-	taskPause(id: number): void;
-	taskResume(id: number): void;
+	mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void>;
+	setUploadStatus(id: number, isUploading: boolean): Promise<void>;
+	taskDelete(id: number): Promise<void>;
+	taskStart(id: number): Promise<void>;
+	taskReady(id: number): Promise<void>;
+	taskPause(id: number): Promise<void>;
+	taskResume(id: number): Promise<void>;
 	taskReset(id: number): Promise<void>;
-	queueStart(): void;
-	queuePause(): void;
-	deleteNotification(taskId: number, index: number): void;
-	setParameters(ids: number[], params: OutputParams[]): void;
-	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): void;
+	queueStart(): Promise<void>;
+	queuePause(): Promise<void>;
+	deleteNotification(notificationId: number): Promise<void>;
+	setParameters(ids: number[], params: OutputParams[]): Promise<void>;
+	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void>;
 }
 
 export interface FFBoxServiceEventParam {
@@ -68,26 +68,14 @@ export type FFBoxServiceEvent = {
 	[K in keyof FFBoxServiceEventParam]: (arg: FFBoxServiceEventParam[K]) => void;
 };
 
+// FFBoxService emit 到前端
 export type FFBoxServiceEventApi = {
 	event: keyof FFBoxServiceEventParam;
 	payload: FFBoxServiceEventParam[keyof FFBoxServiceEventParam];
 } | {
-	event: 'sessionId';
-	payload: string;
-} | {
-	event: 'ack';
-	payload: {
-		seq: number;
-		ok: boolean;
-		result: Awaited<ReturnType<FFBoxServiceInterface[keyof FFBoxServiceInterface]>>;
-	};
+	event: 'connected';
+	payload: { timestamp: number };
 };
-
-export interface FFBoxServiceFunctionApi {
-	function: keyof FFBoxServiceInterface;
-	args: Parameters<FFBoxServiceInterface[keyof FFBoxServiceInterface]>;	// 数组形式，按顺序传入参数
-	seq?: number;
-}
 
 export interface NormalApiWrapper<T> {
 	status: number;

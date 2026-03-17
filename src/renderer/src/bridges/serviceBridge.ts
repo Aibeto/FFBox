@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import CryptoJS from 'crypto-js';
-import { getTimeString, TypedEventEmitter } from '@common/utils';
-import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceFunctionApi, FFBoxServiceInterface, Notification, OutputParams, Task } from '@common/types';
+import { TypedEventEmitter } from '@common/utils';
+import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Notification, OutputParams, Task } from '@common/types';
 
 export interface ServeiceBridgeEvent {
 	connected: () => void;
@@ -20,8 +20,6 @@ export enum ServiceBridgeStatus {
 
 export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & ServeiceBridgeEvent>) implements FFBoxServiceInterface {
 	private ws: WebSocket | null = null;
-	private seq = 0;
-	private waitingForResponse: Map<number, [((okResult: any) => any)?, ((errResult: any) => any)?]> = new Map();
 	public ip: string;
 	public port: number;
 	public username: string;
@@ -39,6 +37,36 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		}, 0);
 	}
 
+	// #region HTTP 请求封装
+
+	/**
+	 * 发送 HTTP 请求
+	 */
+	private async httpRequest<T>(method: string, path: string, body?: any): Promise<T> {
+		const headers: HeadersInit = { 'Content-Type': 'application/json' };
+		if (this.sessionId) {
+			headers['Authorization'] = `Bearer ${this.sessionId}`;
+		}
+		const response = await fetch(`http://${this.ip}:${this.port}${path}`, {
+			method,
+			headers,
+			body: body ? JSON.stringify(body) : undefined,
+		});
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}`);
+		}
+		const text = await response.text();
+		try {
+			return JSON.parse(text);
+		} catch {
+			return text as T;
+		}
+	}
+
+	// #endregion
+
+	// #region 连接管理
+
 	public async connect(ip?: string, port?: number, username?: string, password?: string) {
 		if (ip && port) {
 			this.ip = ip;
@@ -54,93 +82,79 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 
 		const finalResult = await new Promise(async (connectResult, _) => {
 			// 4.4 版本后的服务器具有登录系统。不支持以前版本的服务器
+			// 5.3 版本大量改用 HTTP request，并且版本接口新增 /api/v1 前缀
+
+			// 1. 检查服务器版本
+			console.log(`serviceBridge: 正在检查服务器版本 http://${this.ip}:${this.port}/api/v1/system/version 或 /version`);
 			const requestOK1 = await new Promise<boolean>((resolve, reject) => {
-				console.log(`serviceBridge: 正在检查服务器版本 http://${this.ip}:${this.port}/`);
-				fetch(`http://${ip}:${port}/version`, { method: 'get' }).then((res) => {
-					res.text().then((text) => {
-						resolve(true);
-					}).catch(() => {
-						resolve(false);
-					});
-				}).catch((err) => {
-					resolve(false);
+				// 并行发送两个请求，取其中一个成功结果
+				const newVersionRequest = fetch(`http://${this.ip}:${this.port}/api/v1/system/version`, { method: 'get' })
+					.then(() => true)
+					.catch(() => false);
+				const oldVersionRequest = fetch(`http://${this.ip}:${this.port}/version`, { method: 'get' })
+					.then(() => true)
+					.catch(() => false);
+				
+				Promise.all([newVersionRequest, oldVersionRequest]).then(([newResult, oldResult]) => {
+					resolve(newResult || oldResult);
 				});
 			});
 			if (!requestOK1) {
-				this.emit('error', '连接失败：获取服务器版本失败');
+				this.emit('error', '连接失败：获取服务器版本失败（可能是前端与后端版本不匹配，或网络完全不通所致）');
 				connectResult(false);
 				return;
 			}
-	
-			console.log(`serviceBridge: 正在连接服务器 ws://${this.ip}:${this.port}/`);
-			let ws = new WebSocket(`ws://${this.ip}:${this.port}/`);
-			this.ws = ws;
-			let 这 = this;
-			ws.onopen = async function (event) {
-				console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器连接成功`, event);
-				// 转锁 2s 等待 sessionId 返回（ws 不支持 once 监听 message，所以这里简便设计）
-				for (let n = 50; n > 0; n--) {
-					if (这.sessionId) {
-						break;
-					} else {
-						await new Promise((r) => setTimeout(() => r(undefined), 40));
-					}
-				}
-				if (!这.sessionId) {
-					这.emit('error', '连接失败：服务器未及时返回 sessionId');
-					ws.close();
-					connectResult(false);
-					return;
-				}
-				const [requestOK2, isUserExist, loginSuccess, functionLevel] = await new Promise<[boolean, boolean, boolean, number]>((resolve, reject) => {
-					fetch(`http://${ip}:${port}/login`, {
-						method: 'post',
-						body: JSON.stringify({ username, passkey: CryptoJS.SHA256(password).toString(), sessionId: 这.sessionId }),
-						headers: new Headers({
-							'Content-Type': 'application/json'
-						}),
-					}).then((response) => {
-						response.text().then((text) => {
-							try {
-								let result = JSON.parse(text);
-								resolve([true, result.isUserExist, result.isSuccess, result.functionLevel]);
-							} catch (e) {
-								resolve([false, false, false, NaN]);
-							}
-						}).catch((err) => {
-							resolve([false, false, false, NaN]);
-						});
-					}).catch((err) => {
-						resolve([false, false, false, NaN]);
-					});	
+
+			// 2. HTTP 登录获取 sessionId
+			console.log(`serviceBridge: 正在登录 http://${this.ip}:${this.port}/api/v1/auth/login`);
+			const [loginSuccess, loginResult] = await new Promise<[boolean, any]>((resolve, reject) => {
+				fetch(`http://${this.ip}:${this.port}/api/v1/auth/login`, {
+					method: 'post',
+					body: JSON.stringify({
+						username: username || '',
+						passkey: password ? CryptoJS.SHA256(password).toString() : '',
+					}),
+					headers: new Headers({
+						'Content-Type': 'application/json'
+					}),
+				}).then((response) => {
+					response.json().then((result) => {
+						resolve([result.isSuccess, result]);
+					}).catch(() => {
+						resolve([false, null]);
+					});
+				}).catch((err) => {
+					resolve([false, null]);
 				});
-				if (!requestOK2) {
-					这.emit('error', '连接失败：登录连接失败');
-					ws.close();
-					connectResult(false);
-					return;
-				}		
-				if (!isUserExist) {
-					这.emit('error', '登录失败：用户名错误');
-					ws.close();
-					connectResult(false);
-					return;
-				}		
-				if (!loginSuccess) {
-					这.emit('error', '登录失败：密码错误');
-					ws.close();
-					connectResult(false);
-					return;
+			});
+
+			if (!loginSuccess) {
+				if (loginResult?.isUserExist === false) {
+					this.emit('error', '登录失败：用户名错误');
+				} else {
+					this.emit('error', '登录失败：密码错误');
 				}
-	
+				connectResult(false);
+				return;
+			}
+
+			this.sessionId = loginResult.sessionId;
+			this.functionLevel = loginResult.functionLevel;
+			console.log(`serviceBridge: 登录成功，sessionId: ${this.sessionId}, functionLevel: ${this.functionLevel}`);
+
+			// 3. 建立 WebSocket 连接（携带 sessionId）
+			console.log(`serviceBridge: 正在连接 WebSocket ws://${this.ip}:${this.port}/?sessionId=${this.sessionId}`);
+			const ws = new WebSocket(`ws://${this.ip}:${this.port}/?sessionId=${this.sessionId}`);
+			this.ws = ws;
+			const 这 = this;
+
+			ws.onopen = async function (event) {
+				console.log(`serviceBridge: WebSocket 连接成功`, event);
 				这.status = ServiceBridgeStatus.Connected;
 				这.emit('connected');
 				connectResult(true);
+			};
 
-				setTimeout(() => {
-					// 这.testSendBigPackage();	// test
-				}, 4000);
-			}
 			ws.onclose = function (event) {
 				// close 事件在 error 事件后触发
 				if (这.status === ServiceBridgeStatus.Connected) {
@@ -152,24 +166,24 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 				这.sessionId = undefined;
 				这.functionLevel = NaN;
 				这.emit('disconnected');
-			}
+			};
+
 			ws.onerror = function (event) {
-				// console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器连接失败`, event);
-				这.emit('error', 'Websocket 连接失败');
-				return;
-			}
+				这.emit('error', 'WebSocket 连接失败');
+				// return;
+			};
+
 			ws.onmessage = function (event) {
 				// console.log(`serviceBridge: ws://${这.ip}:${这.port}/ 服务器发来消息`, event);
 				// 这.emit('message', event);
 				这.handleWsEvents(event);
-			}
+			};
 		});
+
 		if (!finalResult) {
 			if (this.status === ServiceBridgeStatus.Connecting) {
-				// 第一次连接就失败
 				this.status = ServiceBridgeStatus.Idle;
 			} else if (this.status === ServiceBridgeStatus.Reconnecting) {
-				// 连接后重连失败
 				this.status = ServiceBridgeStatus.Disconnected;
 			}
 		}
@@ -186,330 +200,135 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	 * 接受 service 事件入口（来自 ws.onmessage）
 	 */
 	private handleWsEvents(event: MessageEvent<any>) {
-		let data: FFBoxServiceEventApi = JSON.parse(event.data);
-		if (data.event === 'sessionId') {
-			// 连接后，服务器将马上触发 sessionId 事件，此时即可使登录操作继续
-			console.log(`本次登录 sessionId：${data.payload}`);
-			this.sessionId = data.payload;
-		} else if (data.event === 'ack') {
-			const funcs = this.waitingForResponse.get(data.payload.seq);
-			if (funcs) {
-				if (data.payload.ok) {
-					(funcs[0] || (() => {}))(data.payload.result);
-				} else {
-					(funcs[1] || (() => {}))(data.payload.result);
-				}
-				this.waitingForResponse.delete(data.payload.seq);
-			}
+		const data: FFBoxServiceEventApi = JSON.parse(event.data);
+		if (data.event === 'connected') {
+			console.log(`serviceBridge: 收到 connected 事件`, data.payload);
 		} else {
 			this.emit(data.event, data.payload as any);
 		}
 	}
 
-	private sendWs(data: FFBoxServiceFunctionApi) {
-		this.status === ServiceBridgeStatus.Connected && this.ws?.send(JSON.stringify(data));
-	}
+	// #endregion
 
-	private testSendBigPackage() {
-		console.log(getTimeString(new Date()), '发送大包');
-		const array = new Float32Array(512);
+	// #region 任务管理
 
-		for (var i = 0; i < array.length; ++i) {
-			array[i] = i;
-		}
-	  
-		this.ws?.send(array);
-
-	}
-
-	// #region service 调用相关
-
-	public initSettings() {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'initSettings',
-			args: [],
-		}
-		this.sendWs(data);
-	}
-
-	public initFFmpeg() {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'initFFmpeg',
-			args: [],
-		}
-		this.sendWs(data);
-	}
-
-	// public taskAdd(taskName: string, outputParams?: OutputParams): Promise<number> {
-	// 	let data: FFBoxServiceFunctionApi = {
-	// 		function: 'taskAdd',
-	// 		args: [taskName, outputParams],
-	// 		seq: ++this.seq,
-	// 	}
-	// 	this.sendWs(data);
-	// 	return new Promise<number>((resolve, reject) => {
-	// 		this.waitingForResponse.set(this.seq, [(result) => resolve(result), () => reject()]);
-	// 	});
-	// }
-	// 因为 service 需要一个独特的 isRemote，所以这里不能用 ws RPC，需要用请求
 	public taskAdd(taskName: string, outputParams?: OutputParams): Promise<number> {
-		return new Promise((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/task`, {
-				method: 'put',
-				body: JSON.stringify({ taskName, outputParams }),
-				headers: new Headers({
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-			}).then((response) => {
-				response.text().then((text) => {
-					let id = parseInt(text);
-					resolve(id);
-				})
-			}).catch((err) => reject(err))
-		});
+		return this.httpRequest<number>('POST', '/api/v1/tasks', { taskName, outputParams });
 	}
 
-	public mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'mergeUploaded',
-			args: [id, hashs, fileBaseName, inputName, fileTime],
-		}
-		this.sendWs(data);
+	public taskDelete(id: number): Promise<void> {
+		return this.httpRequest<void>('DELETE', `/api/v1/tasks/${id}`);
 	}
 
-	public setUploadStatus(id: number, isUploading: boolean) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'setUploadStatus',
-			args: [id, isUploading],
-		}
-		this.sendWs(data);
+	public taskStart(id: number): Promise<void> {
+		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/start`);
 	}
 
-	public activate(activationCode: string) {
-		return new Promise<string | false>((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/activation`, {
-				method: 'post',
-				headers: new Headers({
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-				body: JSON.stringify({ userInput: activationCode }),
-			}).then((response) => {
-				response.text().then((result) => {
-					if (result) {
-						const fixedCode = 'd324c697ebfc42b7';
-						const decrypted = CryptoJS.AES.decrypt(result, fixedCode);
-						const activationResult = CryptoJS.enc.Utf8.stringify(decrypted);
-						resolve(activationResult);
-					} else {
-						console.error('后端解密失败');
-						resolve(false);
-					}
-				}).catch((err) => {
-					console.error('前端解密失败');
-					resolve(false);
-				});
-			}).catch((err) => {
-				resolve(false);
-			});
-		});
+	public taskReady(id: number): Promise<void> {
+		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/ready`);
 	}
 
-	public getCacheInfo(needDelete: boolean): Promise<{ uploadCount: number, uploadSize: number, downloadCount: number, downloadSize: number }> {
-		return new Promise((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/cache`, {
-				method: needDelete ? 'delete' : 'get',
-				headers: new Headers({
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-			}).then((response) => {
-				response.json().then((result) => resolve(result));
-			}).catch((err) => {
-				reject(err);
-			});
-		});
+	public taskPause(id: number): Promise<void> {
+		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/pause`);
 	}
 
-	public taskDelete(id: number) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'taskDelete',
-			args: [id],
-		}
-		this.sendWs(data);
+	public taskResume(id: number): Promise<void> {
+		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/resume`);
 	}
 
-	public taskStart(id: number) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'taskStart',
-			args: [id],
-		}
-		this.sendWs(data);
+	public taskReset(id: number): Promise<void> {
+		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/reset`);
 	}
 
-	public taskReady(id: number) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'taskReady',
-			args: [id],
-		}
-		this.sendWs(data);
+	public mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void> {
+		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/merge-upload`, { hashs, fileBaseName, inputName, fileTime });
 	}
 
-	public taskPause(id: number) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'taskPause',
-			args: [id],
-		}
-		this.sendWs(data);
+	public setUploadStatus(id: number, isUploading: boolean): Promise<void> {
+		return this.httpRequest<void>('PUT', `/api/v1/tasks/${id}/upload-status`, { isUploading });
 	}
 
-	public taskResume(id: number) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'taskResume',
-			args: [id],
-		}
-		this.sendWs(data);
+	public setParameters(ids: number[], params: OutputParams[]): Promise<void> {
+		return this.httpRequest<void>('PUT', `/api/v1/tasks/${ids[0]}/parameters`, { ids, params });
 	}
 
-	public taskReset(id: number) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'taskReset',
-			args: [id],
-			seq: ++this.seq,
-		}
-		this.sendWs(data);
-		return new Promise<void>((resolve, reject) => {
-			this.waitingForResponse.set(this.seq, [() => resolve(), () => reject()]);
-		});
-	}
-
-	public queueStart() {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'queueStart',
-			args: [],
-		}
-		this.sendWs(data);
-	}
-
-	public queuePause() {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'queuePause',
-			args: [],
-		}
-		this.sendWs(data);
-	}
-
-	public deleteNotification(notificationId: number) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'deleteNotification',
-			args: [notificationId],
-		}
-		this.sendWs(data);
-	}
-
-	public setParameters(ids: number[], params: OutputParams[]) {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'setParameters',
-			args: [ids, params],
-		}
-		this.sendWs(data);
-	}
-
-	public trailLimit_stopTranscoding(id: number, reason: 'media' | 'working') {
-		let data: FFBoxServiceFunctionApi = {
-			function: 'trailLimit_stopTranscoding',
-			args: [id, reason, true],
-		}
-		this.sendWs(data);
+	public trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void> {
+		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/stop`, { reason });
 	}
 
 	// #endregion
 
-	// #region 直接获取信息
+	// #region 队列管理
+
+	public queueStart(): Promise<void> {
+		return this.httpRequest<void>('POST', '/api/v1/queue/start');
+	}
+
+	public queuePause(): Promise<void> {
+		return this.httpRequest<void>('POST', '/api/v1/queue/pause');
+	}
+
+	// #endregion
+
+	// #region 通知管理
+
+	public deleteNotification(notificationId: number): Promise<void> {
+		return this.httpRequest<void>('DELETE', `/api/v1/system/notifications/${notificationId}`);
+	}
+
+	// #endregion
+
+	// #region 信息获取
 
 	public getProperties(): Promise<any> {
-		return new Promise<any>((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/properties`, {
-				method: 'get',
-				headers: new Headers({
-					// 'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-			}).then((response) => {
-				response.json().then((result) => resolve(result));
-			}).catch((err) => reject(err));
-		});
+		return this.httpRequest<any>('GET', '/api/v1/system/properties');
 	}
 
 	public getWorkingStatus(): Promise<string> {
-		return new Promise<any>((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/workingStatus`, {
-				method: 'get',
-				headers: new Headers({
-					// 'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-			}).then((response) => {
-				response.text().then((content) => resolve(content));
-			}).catch((err) => reject(err));
-		});
+		return this.httpRequest<string>('GET', '/api/v1/system/working-status');
 	}
 
 	public getTaskList(): Promise<number[]> {
-		return new Promise<number[]>((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/task`, {
-				method: 'get',
-				headers: new Headers({
-					// 'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-			}).then((response) => {
-				response.json().then((result) => resolve(result));
-			}).catch((err) => reject(err));
-		});
+		return this.httpRequest<number[]>('GET', '/api/v1/tasks');
 	}
 
 	public getTask(taskId: number): Promise<Task> {
-		return new Promise((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/task/${taskId}`, {
-				method: 'get',
-				headers: new Headers({
-					// 'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-			}).then((response) => {
-				response.json().then((result) => resolve(result));
-			}).catch((err) => reject(err));
-		});
+		return this.httpRequest<Task>('GET', `/api/v1/tasks/${taskId}`);
 	}
 
 	public getNotifications(): Promise<Notification[]> {
-		return new Promise((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/notification`, {
-				method: 'get',
-				headers: new Headers({
-					// 'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-			}).then((response) => {
-				response.json().then((result) => resolve(result));
-			}).catch((err) => reject(err));
-		});
+		return this.httpRequest<Notification[]>('GET', '/api/v1/system/notifications');
 	}
 
 	public getAVOptions(): Promise<any> {
-		return new Promise<any>((resolve, reject) => {
-			fetch(`http://${this.ip}:${this.port}/AVOptions`, {
-				method: 'get',
-				headers: new Headers({
-					// 'Content-Type': 'application/json',
-					'Authorization': `Bearer ${this.sessionId}`,
-				}),
-			}).then((response) => {
-				response.json().then((result) => resolve(result));
-			}).catch((err) => reject(err));
-		});
+		return this.httpRequest<any>('GET', '/api/v1/system/codecs');
+	}
+
+	// #endregion
+
+	// #region 激活与缓存
+
+	public activate(activationCode: string): Promise<string | false> {
+		return this.httpRequest<string | false>('POST', '/api/v1/activation', { userInput: activationCode });
+	}
+
+	public getCacheInfo(needDelete: boolean): Promise<{ uploadCount: number, uploadSize: number, downloadCount: number, downloadSize: number }> {
+		return this.httpRequest<{ uploadCount: number, uploadSize: number, downloadCount: number, downloadSize: number }>(
+			needDelete ? 'DELETE' : 'GET',
+			'/api/v1/cache'
+		);
+	}
+
+	// #endregion
+
+	// #region 初始化方法（后端内部调用，前端无需调用）
+
+	public initSettings(): Promise<void> {
+		return this.httpRequest<void>('POST', '/api/v1/system/settings/reload');
+	}
+
+	public initFFmpeg(): void {
+		// 后端内部调用，前端无需实现
 	}
 
 	// #endregion

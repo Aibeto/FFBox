@@ -76,3 +76,8 @@ log.dev = function (...content: any) {
 		logMsg(...content);
 	}
 }
+log.warn = function (...content: any) {
+	if (loglevel >= 4) {
+		logMsg(...content);
+	}
+}
