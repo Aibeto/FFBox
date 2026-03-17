@@ -53,7 +53,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			body: body ? JSON.stringify(body) : undefined,
 		});
 		if (!response.ok) {
-			throw new Error(`HTTP ${response.status}`);
+			// throw new Error(`HTTP ${response.status}`);
 		}
 		const text = await response.text();
 		try {
@@ -249,7 +249,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	}
 
 	public setParameters(ids: number[], params: OutputParams[]): Promise<void> {
-		return this.httpRequest<void>('PUT', `/api/v1/tasks/${ids[0]}/parameters`, { ids, params });
+		return this.httpRequest<void>('PUT', `/api/v1/tasks/parameters`, { ids, params });
 	}
 
 	public trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void> {

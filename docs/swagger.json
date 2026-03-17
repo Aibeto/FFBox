@@ -1,0 +1,1688 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "FFBox API",
+    "version": "5.3.0",
+    "description": "FFBox 后端服务 API 文档",
+    "contact": {
+      "name": "滔滔清风",
+      "email": "ttqf.tech@qq.com",
+      "url": "http://ffbox.ttqf.tech"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:33269",
+      "description": "默认本地服务器地址"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "通过 /api/v1/auth/login 获取的 sessionId"
+      }
+    },
+    "schemas": {
+      "Task": {
+        "type": "object",
+        "properties": {
+          "taskName": {
+            "type": "string"
+          },
+          "before": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InputInfo"
+            }
+          },
+          "after": {
+            "$ref": "#/components/schemas/OutputParams"
+          },
+          "paraArray": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "deleted",
+              "initializing",
+              "idle",
+              "idle_queued",
+              "running",
+              "paused",
+              "paused_queued",
+              "stopping",
+              "finishing",
+              "finished",
+              "error"
+            ]
+          },
+          "progressLog": {
+            "type": "object",
+            "properties": {
+              "time": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "frame": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "size": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "lastStarted": {
+                "type": "number"
+              },
+              "elapsed": {
+                "type": "number"
+              },
+              "lastPaused": {
+                "type": "number"
+              }
+            }
+          },
+          "cmdData": {
+            "type": "string"
+          },
+          "errorInfo": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputFiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "number"
+          },
+          "taskId": {
+            "type": "number"
+          },
+          "content": {
+            "type": "string"
+          },
+          "level": {
+            "type": "integer",
+            "enum": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "description": "0=info, 1=ok, 2=warning, 3=error"
+          }
+        }
+      },
+      "FFmpegInfo": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "scanning": {
+            "type": "boolean"
+          },
+          "videoEncodersCount": {
+            "type": "integer"
+          },
+          "audioEncodersCount": {
+            "type": "integer"
+          },
+          "muxersCount": {
+            "type": "integer"
+          },
+          "demuxersCount": {
+            "type": "integer"
+          },
+          "filtersCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "FFmpegProgress": {
+        "type": "object",
+        "properties": {
+          "frame": {
+            "type": "integer"
+          },
+          "fps": {
+            "type": "number"
+          },
+          "q": {
+            "type": "number"
+          },
+          "size": {
+            "type": "number",
+            "description": "kB"
+          },
+          "time": {
+            "type": "number",
+            "description": "秒"
+          },
+          "bitrate": {
+            "type": "number",
+            "description": "kbps"
+          },
+          "speed": {
+            "type": "number"
+          }
+        }
+      },
+      "OutputParams": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "$ref": "#/components/schemas/OutputParams_input"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/OutputParams_filter"
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "video": {
+                  "$ref": "#/components/schemas/OutputParams_video"
+                },
+                "audio": {
+                  "$ref": "#/components/schemas/OutputParams_audio"
+                },
+                "mux": {
+                  "$ref": "#/components/schemas/OutputParams_mux"
+                }
+              }
+            }
+          },
+          "extra": {
+            "$ref": "#/components/schemas/OutputParams_extra"
+          }
+        }
+      },
+      "OutputParams_input": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InputFile"
+            }
+          }
+        }
+      },
+      "OutputParams_filter": {
+        "type": "object",
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilterNode"
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilterLine"
+            }
+          }
+        }
+      },
+      "OutputParams_video": {
+        "type": "object",
+        "properties": {
+          "vcodec": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": "string"
+          },
+          "framerate": {
+            "type": "string"
+          },
+          "ratecontrol": {
+            "type": "string"
+          },
+          "ratevalue": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "custom": {
+            "type": "string"
+          }
+        }
+      },
+      "OutputParams_audio": {
+        "type": "object",
+        "properties": {
+          "acodec": {
+            "type": "string"
+          },
+          "ratecontrol": {
+            "type": "string"
+          },
+          "ratevalue": {
+            "type": "string"
+          },
+          "vol": {
+            "type": "number"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "custom": {
+            "type": "string"
+          }
+        }
+      },
+      "OutputParams_mux": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "moveflags": {
+            "type": "boolean"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "begin": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "keepMetadata": {
+            "type": "string",
+            "enum": [
+              "false",
+              "map",
+              "movflags",
+              "both"
+            ]
+          },
+          "keepFileTime": {
+            "type": "string",
+            "enum": [
+              "false",
+              "original",
+              "autoShift",
+              "fixCTbyMTandShift",
+              "fixByFilenameAndShift"
+            ]
+          },
+          "custom": {
+            "type": "string"
+          }
+        }
+      },
+      "OutputParams_extra": {
+        "type": "object",
+        "properties": {
+          "presetName": {
+            "type": "string"
+          }
+        }
+      },
+      "InputFile": {
+        "type": "object",
+        "properties": {
+          "hwaccel": {
+            "type": "string"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "demuxer": {
+            "type": "string"
+          },
+          "begin": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "realtime": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "custom": {
+            "type": "string"
+          }
+        }
+      },
+      "FilterNode": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          }
+        }
+      },
+      "FilterLine": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "prevNodeId": {
+            "type": "integer"
+          },
+          "prevNodePortIndex": {
+            "type": "integer"
+          },
+          "nextNodeId": {
+            "type": "integer"
+          },
+          "nextNodePortIndex": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "V",
+              "A",
+              "N",
+              "U"
+            ]
+          }
+        }
+      },
+      "InputInfo": {
+        "type": "object",
+        "properties": {
+          "demuxer": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "number"
+          },
+          "bitrate": {
+            "type": "number"
+          },
+          "start": {
+            "type": "number"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "streams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StreamInfo"
+            }
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChapterInfo"
+            }
+          },
+          "accessTime": {
+            "type": "number"
+          },
+          "createTime": {
+            "type": "number"
+          },
+          "modifyTime": {
+            "type": "number"
+          }
+        }
+      },
+      "StreamInfo": {
+        "type": "object",
+        "properties": {
+          "infoText": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "sidedata": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": "string"
+          },
+          "codec": {
+            "type": "string"
+          },
+          "pixelFormat": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": "string"
+          },
+          "bitrate": {
+            "type": "number"
+          },
+          "fps": {
+            "type": "number"
+          },
+          "sampleRate": {
+            "type": "number"
+          },
+          "channel": {
+            "type": "string"
+          }
+        }
+      },
+      "ChapterInfo": {
+        "type": "object",
+        "properties": {
+          "infoText": {
+            "type": "string"
+          },
+          "start": {
+            "type": "number"
+          },
+          "end": {
+            "type": "number"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "FFmpegCodecDetail": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "encoders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EncoderWithDetail"
+            }
+          }
+        }
+      },
+      "FFmpegMuxerDetail": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultVideoCodec": {
+            "type": "string"
+          },
+          "defaultAudioCodec": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EncoderOption"
+            }
+          }
+        }
+      },
+      "FFmpegFilterDetail": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "inputType": {
+            "type": "string"
+          },
+          "outputType": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EncoderOption"
+            }
+          }
+        }
+      },
+      "EncoderWithDetail": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "generalCapabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "threadingCapabilities": {
+            "type": "string"
+          },
+          "supportedPixelFormats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportedSampleRates": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "supportedSampleFormats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportedChannelLayouts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EncoderOption"
+            }
+          }
+        }
+      },
+      "EncoderOption": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "int",
+              "int64",
+              "float",
+              "double",
+              "boolean",
+              "string",
+              "dictionary",
+              "flags",
+              "color",
+              "duration",
+              "image_size",
+              "rational",
+              "sample_fmt[]",
+              "int[]",
+              "channel_layout[]"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "default": {
+            "type": "string"
+          }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "CacheInfo": {
+        "type": "object",
+        "properties": {
+          "uploadCount": {
+            "type": "integer",
+            "description": "上传缓存文件数量"
+          },
+          "uploadSize": {
+            "type": "integer",
+            "description": "上传缓存文件总大小（字节）"
+          },
+          "downloadCount": {
+            "type": "integer",
+            "description": "下载缓存文件数量"
+          },
+          "downloadSize": {
+            "type": "integer",
+            "description": "下载缓存文件总大小（字节）"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "用户登录",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "passkey": {
+                    "type": "string",
+                    "description": "SHA256 哈希后的密码"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "isUserExist": {
+                      "type": "boolean"
+                    },
+                    "isSuccess": {
+                      "type": "boolean",
+                      "description": "密码不正确则失败"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "functionLevel": {
+                      "type": "integer",
+                      "description": "暂无实际作用"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks": {
+      "get": {
+        "summary": "获取任务 ID 列表",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务 ID 列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "创建新任务",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskName": {
+                    "type": "string"
+                  },
+                  "outputParams": {
+                    "$ref": "#/components/schemas/OutputParams"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "返回新创建的任务 ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "taskId": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}": {
+      "get": {
+        "summary": "获取单个任务详情",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务未找到",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除任务",
+        "description": "【initializing / idle / idle_queued / finished / error】 => 【deleted】",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/start": {
+      "post": {
+        "summary": "启动单个任务",
+        "description": "【idle / idle_queued / error】 => 【running】 => 【finished / error】",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "启动成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/ready": {
+      "post": {
+        "summary": "准备任务（加入队列）",
+        "description": "将单个任务进入排队状态（不会启动调度系统改变当前的执行/暂停状态）\\n【idle / paused】 => 【idle_queued / paused_queued】 => 【running】",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/pause": {
+      "post": {
+        "summary": "暂停任务",
+        "description": "暂停单个任务\\n【running / paused_queued】 => 【paused】",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "暂停成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/resume": {
+      "post": {
+        "summary": "继续执行单个任务",
+        "description": "【paused / paused_queued】 => 【running】",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "恢复成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/reset": {
+      "post": {
+        "summary": "重置任务",
+        "description": "重置任务（收尾/强行，根据状态决定） 【paused / paused_queued / stopping / finished / error】 => 【idle】",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "重置成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/parameters": {
+      "put": {
+        "summary": "设置任务参数",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "params": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/OutputParams"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "设置成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/merge-upload": {
+      "post": {
+        "summary": "合并上传的文件",
+        "description": "对于远程文件，上传完成后调用此函数合并文件 前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hashs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "fileBaseName": {
+                    "type": "string",
+                    "description": "文件名参数不包含 hash，仅用于作为 input.files[].filePath 最终文件名的一部分供用户识别。相同 hash 但文件名不同的话，服务器会保留多份"
+                  },
+                  "inputName": {
+                    "type": "string",
+                    "description": "在新建任务上传文件之前，或添加输入文件上传之前，hash 尚未得知，因此前端应发起修改输入参数的调用，生成这个上传文件的一个临时占位符。上传完毕后，往 inputName 传入生成的占位符，以便后端将其替换为真实文件名"
+                  },
+                  "fileTime": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "合并成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/upload-status": {
+      "put": {
+        "summary": "设置上传状态",
+        "description": "切换任务状态的初始化或待命状态\\n如果设置为完成，还会进行一次 getFileMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isUploading": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "设置成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/queue/start": {
+      "post": {
+        "summary": "启动队列",
+        "description": "首先将【空闲_已排队】【已暂停_已排队】的任务启动，然后将所有【空闲】【已暂停】的任务进入【空闲_已排队】【已暂停_已排队】状态，再次进行任务安排\\n也就是优先启动已排队的任务，再将空闲任务加入排队",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "启动成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/queue/pause": {
+      "post": {
+        "summary": "暂停队列",
+        "description": "暂停处理队列，将所有【正在运行】的任务暂停、【空闲_已排队】的任务重置",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "暂停成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/version": {
+      "get": {
+        "summary": "获取 FFBoxService 版本号",
+        "responses": {
+          "200": {
+            "description": "版本号",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/properties": {
+      "get": {
+        "summary": "获取系统属性信息",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "系统属性",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "os": {
+                      "type": "string"
+                    },
+                    "isSandboxed": {
+                      "type": "boolean"
+                    },
+                    "machineId": {
+                      "type": "string"
+                    },
+                    "functionLevel": {
+                      "type": "integer"
+                    },
+                    "ffmpegInfo": {
+                      "$ref": "#/components/schemas/FFmpegInfo"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/codecs": {
+      "get": {
+        "summary": "获取已缓存的 ffmpeg 编解码器信息",
+        "description": "如果未扫描并缓存，或者想要刷新，可通过更新服务器配置中的 ffmpeg 路径的方法触发扫描",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "编解码器、复用器、滤镜列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "codecs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FFmpegCodecDetail"
+                      }
+                    },
+                    "formats": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FFmpegMuxerDetail"
+                      }
+                    },
+                    "filters": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FFmpegFilterDetail"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/working-status": {
+      "get": {
+        "summary": "获取工作状态",
+        "description": "返回当前队列的工作状态，只有 idle（空闲）和 running（运行中）两种状态",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "工作状态",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "idle",
+                    "running"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/notifications": {
+      "get": {
+        "summary": "获取通知列表",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "通知列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Notification"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/notifications/{id}": {
+      "delete": {
+        "summary": "删除通知",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/settings/reload": {
+      "post": {
+        "summary": "重新加载服务器配置",
+        "description": "从本地存储初始化设置",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "重载成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/upload/check": {
+      "post": {
+        "summary": "批量检查给定 hash 的文件是否已缓存",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hashs": {
+                    "type": "array",
+                    "description": "要检查的文件 hash 数组",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "检查结果（已缓存返回奇数）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "description": "1 代表已缓存，0 代表未缓存"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/upload/file": {
+      "post": {
+        "summary": "上传文件",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上传成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/activation": {
+      "post": {
+        "summary": "激活 FFBoxService",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userInput": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "激活结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "激活码无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cache": {
+      "get": {
+        "summary": "获取上传下载缓存信息",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "缓存信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CacheInfo"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "清除上传下载缓存",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "清除结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CacheInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": []
+}

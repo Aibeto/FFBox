@@ -303,6 +303,21 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 登录结果
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 isUserExist:
+	 *                   type: boolean
+	 *                 isSuccess:
+	 *                   type: boolean
+	 *                   description: 密码不正确则失败
+	 *                 sessionId:
+	 *                   type: string
+	 *                 functionLevel:
+	 *                   type: integer
+	 *                   description: 暂无实际作用
 	 */
 	router.post('/api/v1/auth/login', async function (ctx) {
 		if (!ctx.request.body) {
@@ -343,12 +358,18 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/tasks:
 	 *   get:
-	 *     summary: 获取任务列表
+	 *     summary: 获取任务 ID 列表
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
 	 *         description: 任务 ID 列表
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: array
+	 *               items:
+	 *                 type: integer
 	 */
 	router.get('/api/v1/tasks', optionalAuth, async function (ctx) {
 		ctx.body = Object.keys(ffboxService!.tasklist).map(Number);
@@ -371,10 +392,17 @@ function getRouter(): Router {
 	 *               taskName:
 	 *                 type: string
 	 *               outputParams:
-	 *                 type: object
+	 *                 $ref: '#/components/schemas/OutputParams'
 	 *     responses:
 	 *       200:
-	 *         description: 返回任务 ID
+	 *         description: 返回新创建的任务 ID
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 taskId:
+	 *                   type: integer
 	 */
 	router.post('/api/v1/tasks', optionalAuth, async function (ctx) {
 		if (!ctx.request.body) {
@@ -404,6 +432,16 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 任务详情
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/Task'
+	 *       404:
+	 *         description: 任务未找到
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/ErrorResponse'
 	 */
 	router.get('/api/v1/tasks/:id', optionalAuth, async function (ctx) {
 		const task = ffboxService!.tasklist[+ctx.params.id];
@@ -420,6 +458,7 @@ function getRouter(): Router {
 	 * /api/v1/tasks/{id}:
 	 *   delete:
 	 *     summary: 删除任务
+	 *     description: 【initializing / idle / idle_queued / finished / error】 => 【deleted】
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -431,6 +470,10 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 删除成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.delete('/api/v1/tasks/:id', optionalAuth, async function (ctx) {
 		ffboxService!.taskDelete(+ctx.params.id);
@@ -441,7 +484,8 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/tasks/{id}/start:
 	 *   post:
-	 *     summary: 启动任务
+	 *     summary: 启动单个任务
+	 *     description: 【idle / idle_queued / error】 => 【running】 => 【finished / error】
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -453,6 +497,10 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 启动成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/tasks/:id/start', optionalAuth, async function (ctx) {
 		ffboxService!.taskStart(+ctx.params.id);
@@ -464,6 +512,7 @@ function getRouter(): Router {
 	 * /api/v1/tasks/{id}/ready:
 	 *   post:
 	 *     summary: 准备任务（加入队列）
+	 *     description: 将单个任务进入排队状态（不会启动调度系统改变当前的执行/暂停状态）\n【idle / paused】 => 【idle_queued / paused_queued】 => 【running】
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -475,6 +524,10 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 操作成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/tasks/:id/ready', optionalAuth, async function (ctx) {
 		ffboxService!.taskReady(+ctx.params.id);
@@ -486,6 +539,7 @@ function getRouter(): Router {
 	 * /api/v1/tasks/{id}/pause:
 	 *   post:
 	 *     summary: 暂停任务
+	 *     description: 暂停单个任务\n【running / paused_queued】 => 【paused】
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -497,6 +551,10 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 暂停成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/tasks/:id/pause', optionalAuth, async function (ctx) {
 		ffboxService!.taskPause(+ctx.params.id);
@@ -507,7 +565,8 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/tasks/{id}/resume:
 	 *   post:
-	 *     summary: 恢复任务
+	 *     summary: 继续执行单个任务
+	 *     description: 【paused / paused_queued】 => 【running】
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -519,6 +578,10 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 恢复成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/tasks/:id/resume', optionalAuth, async function (ctx) {
 		ffboxService!.taskResume(+ctx.params.id);
@@ -530,6 +593,7 @@ function getRouter(): Router {
 	 * /api/v1/tasks/{id}/reset:
 	 *   post:
 	 *     summary: 重置任务
+	 *     description: 重置任务（收尾/强行，根据状态决定） 【paused / paused_queued / stopping / finished / error】 => 【idle】
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -541,6 +605,10 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 重置成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/tasks/:id/reset', optionalAuth, async function (ctx) {
 		await ffboxService!.taskReset(+ctx.params.id);
@@ -549,17 +617,11 @@ function getRouter(): Router {
 
 	/**
 	 * @openapi
-	 * /api/v1/tasks/{id}/parameters:
+	 * /api/v1/tasks/parameters:
 	 *   put:
 	 *     summary: 设置任务参数
 	 *     security:
 	 *       - bearerAuth: []
-	 *     parameters:
-	 *       - in: path
-	 *         name: id
-	 *         required: true
-	 *         schema:
-	 *           type: integer
 	 *     requestBody:
 	 *       required: true
 	 *       content:
@@ -574,12 +636,16 @@ function getRouter(): Router {
 	 *               params:
 	 *                 type: array
 	 *                 items:
-	 *                   type: object
+	 *                   $ref: '#/components/schemas/OutputParams'
 	 *     responses:
 	 *       200:
 	 *         description: 设置成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
-	router.put('/api/v1/tasks/:id/parameters', optionalAuth, async function (ctx) {
+	router.put('/api/v1/tasks/parameters', optionalAuth, async function (ctx) {
 		if (!ctx.request.body) {
 			ctx.status = 400;
 			ctx.body = { error: 'Missing request body' };
@@ -595,6 +661,7 @@ function getRouter(): Router {
 	 * /api/v1/tasks/{id}/merge-upload:
 	 *   post:
 	 *     summary: 合并上传的文件
+	 *     description: 对于远程文件，上传完成后调用此函数合并文件 前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -616,13 +683,19 @@ function getRouter(): Router {
 	 *                   type: string
 	 *               fileBaseName:
 	 *                 type: string
+	 *                 description: 文件名参数不包含 hash，仅用于作为 input.files[].filePath 最终文件名的一部分供用户识别。相同 hash 但文件名不同的话，服务器会保留多份
 	 *               inputName:
 	 *                 type: string
+	 *                 description: 在新建任务上传文件之前，或添加输入文件上传之前，hash 尚未得知，因此前端应发起修改输入参数的调用，生成这个上传文件的一个临时占位符。上传完毕后，往 inputName 传入生成的占位符，以便后端将其替换为真实文件名
 	 *               fileTime:
 	 *                 type: object
 	 *     responses:
 	 *       200:
 	 *         description: 合并成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/tasks/:id/merge-upload', optionalAuth, async function (ctx) {
 		if (!ctx.request.body) {
@@ -640,6 +713,7 @@ function getRouter(): Router {
 	 * /api/v1/tasks/{id}/upload-status:
 	 *   put:
 	 *     summary: 设置上传状态
+	 *     description: 切换任务状态的初始化或待命状态\n如果设置为完成，还会进行一次 getFileMetadata
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -660,6 +734,10 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 设置成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.put('/api/v1/tasks/:id/upload-status', optionalAuth, async function (ctx) {
 		if (!ctx.request.body) {
@@ -673,31 +751,7 @@ function getRouter(): Router {
 	});
 
 	/**
-	 * @openapi
-	 * /api/v1/tasks/{id}/stop:
-	 *   post:
-	 *     summary: 停止转码（功能限制）
-	 *     security:
-	 *       - bearerAuth: []
-	 *     parameters:
-	 *       - in: path
-	 *         name: id
-	 *         required: true
-	 *         schema:
-	 *           type: integer
-	 *     requestBody:
-	 *       required: true
-	 *       content:
-	 *         application/json:
-	 *           schema:
-	 *             type: object
-	 *             properties:
-	 *               reason:
-	 *                 type: string
-	 *                 enum: [media, working]
-	 *     responses:
-	 *       200:
-	 *         description: 停止成功
+	 * 此接口无需进行 openapi 定义
 	 */
 	router.post('/api/v1/tasks/:id/stop', optionalAuth, async function (ctx) {
 		if (!ctx.request.body) {
@@ -717,11 +771,16 @@ function getRouter(): Router {
 	 * /api/v1/queue/start:
 	 *   post:
 	 *     summary: 启动队列
+	 *     description: 首先将【空闲_已排队】【已暂停_已排队】的任务启动，然后将所有【空闲】【已暂停】的任务进入【空闲_已排队】【已暂停_已排队】状态，再次进行任务安排\n也就是优先启动已排队的任务，再将空闲任务加入排队
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
 	 *         description: 启动成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/queue/start', optionalAuth, async function (ctx) {
 		ffboxService!.queueStart();
@@ -733,11 +792,16 @@ function getRouter(): Router {
 	 * /api/v1/queue/pause:
 	 *   post:
 	 *     summary: 暂停队列
+	 *     description: 暂停处理队列，将所有【正在运行】的任务暂停、【空闲_已排队】的任务重置
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
 	 *         description: 暂停成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/queue/pause', optionalAuth, async function (ctx) {
 		ffboxService!.queuePause();
@@ -750,10 +814,14 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/system/version:
 	 *   get:
-	 *     summary: 获取版本号
+	 *     summary: 获取 FFBoxService 版本号
 	 *     responses:
 	 *       200:
 	 *         description: 版本号
+	 *         content:
+	 *           text/plain:
+	 *             schema:
+	 *               type: string
 	 */
 	router.get('/api/v1/system/version', async function (ctx) {
 		ctx.body = version;
@@ -763,12 +831,27 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/system/properties:
 	 *   get:
-	 *     summary: 获取系统属性
+	 *     summary: 获取系统属性信息
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
 	 *         description: 系统属性
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 os:
+	 *                   type: string
+	 *                 isSandboxed:
+	 *                   type: boolean
+	 *                 machineId:
+	 *                   type: string
+	 *                 functionLevel:
+	 *                   type: integer
+	 *                 ffmpegInfo:
+	 *                   $ref: '#/components/schemas/FFmpegInfo'
 	 */
 	router.get('/api/v1/system/properties', optionalAuth, async function (ctx) {
 		ctx.body = {
@@ -784,12 +867,30 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/system/codecs:
 	 *   get:
-	 *     summary: 获取编解码器信息
+	 *     summary: 获取已缓存的 ffmpeg 编解码器信息
+	 *     description: 如果未扫描并缓存，或者想要刷新，可通过更新服务器配置中的 ffmpeg 路径的方法触发扫描
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
-	 *         description: 编解码器列表
+	 *         description: 编解码器、复用器、滤镜列表
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 codecs:
+	 *                   type: array
+	 *                   items:
+	 *                     $ref: '#/components/schemas/FFmpegCodecDetail'
+	 *                 formats:
+	 *                   type: array
+	 *                   items:
+	 *                     $ref: '#/components/schemas/FFmpegMuxerDetail'
+	 *                 filters:
+	 *                   type: array
+	 *                   items:
+	 *                     $ref: '#/components/schemas/FFmpegFilterDetail'
 	 */
 	router.get('/api/v1/system/codecs', optionalAuth, async function (ctx) {
 		ctx.body = {
@@ -804,11 +905,17 @@ function getRouter(): Router {
 	 * /api/v1/system/working-status:
 	 *   get:
 	 *     summary: 获取工作状态
+	 *     description: 返回当前队列的工作状态，只有 idle（空闲）和 running（运行中）两种状态
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
 	 *         description: 工作状态
+	 *         content:
+	 *           text/plain:
+	 *             schema:
+	 *               type: string
+	 *               enum: [idle, running]
 	 */
 	router.get('/api/v1/system/working-status', optionalAuth, async function (ctx) {
 		ctx.body = ffboxService!.workingStatus;
@@ -824,6 +931,12 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 通知列表
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: array
+	 *               items:
+	 *                 $ref: '#/components/schemas/Notification'
 	 */
 	router.get('/api/v1/system/notifications', optionalAuth, async function (ctx) {
 		ctx.body = ffboxService!.notifications;
@@ -845,6 +958,10 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 删除成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.delete('/api/v1/system/notifications/:id', optionalAuth, async function (ctx) {
 		ffboxService!.deleteNotification(+ctx.params.id);
@@ -855,12 +972,17 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/system/settings/reload:
 	 *   post:
-	 *     summary: 重新加载设置
+	 *     summary: 重新加载服务器配置
+	 *     description: 从本地存储初始化设置
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
 	 *         description: 重载成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/system/settings/reload', optionalAuth, async function (ctx) {
 		await ffboxService!.initSettings();
@@ -873,7 +995,7 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/upload/check:
 	 *   post:
-	 *     summary: 检查文件是否已缓存
+	 *     summary: 批量检查给定 hash 的文件是否已缓存
 	 *     security:
 	 *       - bearerAuth: []
 	 *     requestBody:
@@ -885,11 +1007,19 @@ function getRouter(): Router {
 	 *             properties:
 	 *               hashs:
 	 *                 type: array
+	 *                 description: 要检查的文件 hash 数组
 	 *                 items:
 	 *                   type: string
 	 *     responses:
 	 *       200:
 	 *         description: 检查结果（已缓存返回奇数）
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: array
+	 *               items:
+	 *                 type: integer
+	 *                 description: 1 代表已缓存，0 代表未缓存
 	 */
 	router.post('/api/v1/upload/check', optionalAuth, async function (ctx) {
 		if (!ctx.request.body || !(ctx.request.body.hashs instanceof Array)) {
@@ -933,6 +1063,10 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 上传成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
 	router.post('/api/v1/upload/file', optionalAuth, async function (ctx) {
 		if (!ctx.request.files || !ctx.request.files.file) {
@@ -961,7 +1095,7 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/activation:
 	 *   post:
-	 *     summary: 激活软件
+	 *     summary: 激活 FFBoxService
 	 *     requestBody:
 	 *       required: true
 	 *       content:
@@ -974,6 +1108,19 @@ function getRouter(): Router {
 	 *     responses:
 	 *       200:
 	 *         description: 激活结果
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: string
+	 *       400:
+	 *         description: 激活码无效
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 error:
+	 *                   type: string
 	 */
 	router.post('/api/v1/activation', async function (ctx) {
 		if (!ctx.request.body?.userInput) {
@@ -993,7 +1140,7 @@ function getRouter(): Router {
 			ctx.body = returnEncrypted;
 		} else {
 			ctx.status = 400;
-			ctx.body = '';
+			ctx.body = { error: 'Unrecognizable activation code' };
 		}
 	});
 
@@ -1003,12 +1150,16 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/cache:
 	 *   get:
-	 *     summary: 获取缓存信息
+	 *     summary: 获取上传下载缓存信息
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
 	 *         description: 缓存信息
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/CacheInfo'
 	 */
 	router.get('/api/v1/cache', optionalAuth, async function (ctx) {
 		ctx.body = await ffboxService!.getCacheInfo(false);
@@ -1018,12 +1169,16 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/cache:
 	 *   delete:
-	 *     summary: 清除缓存
+	 *     summary: 清除上传下载缓存
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
 	 *         description: 清除结果
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/CacheInfo'
 	 */
 	router.delete('/api/v1/cache', optionalAuth, async function (ctx) {
 		ctx.body = await ffboxService!.getCacheInfo(true);
