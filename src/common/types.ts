@@ -356,3 +356,110 @@ export enum WorkingStatus {
 }
 
 // #endregion
+
+// #region Webhook
+
+// 任务相关事件
+export type TaskEventType =
+	| 'task.created'        // 任务创建
+	| 'task.started'        // 任务开始
+	| 'task.paused'         // 任务暂停
+	| 'task.resumed'        // 任务继续
+	| 'task.completed'      // 任务完成
+	| 'task.error'          // 任务出错
+	| 'task.deleted'        // 任务删除
+	| 'task.progress'       // 任务进度更新（包含转码进度和命令行输出）
+	;
+
+// 队列相关事件
+export type QueueEventType =
+	| 'queue.started'       // 队列启动
+	| 'queue.paused'        // 队列暂停
+	;
+
+// 任务列表相关事件
+export type TaskListEventType =
+	| 'tasklist.changed'    // 任务列表变化（通用）
+	| 'tasklist.added'      // 任务添加
+	| 'tasklist.removed'    // 任务删除
+	;
+
+// 通知事件
+export type NotificationEventType =
+	| 'notification'        // 通知消息
+	;
+
+// 所有 Webhook 事件类型
+export type WebhookEventType = TaskEventType | QueueEventType | TaskListEventType | NotificationEventType;
+
+
+// Webhook 事件过滤器
+export interface WebhookFilter {
+	task_id?: number[];     // 订阅特定任务 ID 列表
+	// 未来可扩展其他过滤器：
+}
+
+export interface Webhook {
+	id: string;                    // 唯一标识符 (UUID)
+	name: string;                  // Webhook 名称
+	url: string;                   // 回调地址
+	secret?: string;               // 签名密钥（可选）
+	events: WebhookEventType[];    // 订阅的事件类型
+	filter?: WebhookFilter;        // 事件过滤器
+	enabled: boolean;              // 是否启用
+	createdAt: number;             // 创建时间
+	lastTriggeredAt?: number;      // 最后触发时间
+	failureCount: number;          // 连续失败次数
+}
+
+
+export interface WebhookEventDataMap {
+	// 任务事件
+	'task.created': { taskId: number; task: Task };
+	'task.started': { taskId: number; task: Task };
+	'task.paused': { taskId: number; task: Task };
+	'task.resumed': { taskId: number; task: Task };
+	'task.completed': { taskId: number; task: Task };
+	'task.error': { taskId: number; task: Task; error?: string };
+	'task.deleted': { taskId: number };
+	'task.progress': { taskId: number; progress?: FFmpegProgress };
+
+	// 队列事件
+	'queue.started': { timestamp: number };
+	'queue.paused': { timestamp: number };
+
+	// 任务列表事件
+	'tasklist.changed': { taskIds: number[] };
+	'tasklist.added': { taskId: number; task: Task };
+	'tasklist.removed': { taskId: number };
+
+	// 通知事件
+	'notification': { notificationId: number; notification: Notification };
+}
+
+export interface WebhookPayload<E extends WebhookEventType = WebhookEventType> {
+	id: string;                    // 载荷唯一 ID (UUID)
+	timestamp: number;             // 发送时间戳
+	event: E;                      // 事件类型
+	data: WebhookEventDataMap[E];  // 类型安全的事件数据
+}
+
+export interface CreateWebhookRequest {
+	name: string;
+	url: string;
+	secret?: string;
+	events: WebhookEventType[];
+	filter?: WebhookFilter;
+	enabled?: boolean;
+}
+
+export interface UpdateWebhookRequest {
+	name?: string;
+	url?: string;
+	secret?: string;
+	events?: WebhookEventType[];
+	filter?: WebhookFilter;
+	enabled?: boolean;
+}
+
+// #endregion

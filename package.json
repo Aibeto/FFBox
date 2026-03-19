@@ -19,7 +19,7 @@
     "bun:backend": "bun build ./app/backend/index.cjs --compile --minify --bytecode --outfile ./app/backend/index-bun",
     "package": "electron-builder",
     "build:everything": "npm run build:frontend && npm run build:backend && npm run package",
-    "swagger": "node scripts/generate-swagger.js"
+    "swagger": "node scripts/generate-schemas.js && node scripts/generate-swagger.js"
   },
   "author": {
     "name": "滔滔清风",
@@ -46,6 +46,7 @@
     "pkg": "^5.8.1",
     "prettier": "^2.8.1",
     "swagger-jsdoc": "^6.2.8",
+    "ts-json-schema-generator": "^2.9.0",
     "ts-loader": "^9.4.2",
     "typescript": "^4.9.4",
     "vite": "^4.0.0",

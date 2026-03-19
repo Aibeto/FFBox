@@ -10,13 +10,14 @@ import koaMount from 'koa-mount';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams } from '@common/types';
+import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams, CreateWebhookRequest, UpdateWebhookRequest } from '@common/types';
 import { version } from '@common/constants';
 import { getSingleArgvValue } from '@common/utils';
-import { getOs, log } from './utils';
 import localConfig from '@common/localConfig';
 import { FFBoxService } from './FFBoxService';
+import { getOs, log } from './utils';
 import { sessionManager } from './utils/sessionManager';
+import { webhookManager } from './utils/webhookManager';
 
 interface Client {
 	ws: WebSocket;
@@ -281,7 +282,7 @@ async function optionalAuth(ctx: Koa.Context, next: () => Promise<void>): Promis
 function getRouter(): Router {
 	const router = new Router();
 
-	// ==================== 认证模块 ====================
+	// #region 认证模块
 
 	/**
 	 * @openapi
@@ -352,7 +353,9 @@ function getRouter(): Router {
 		}
 	});
 
-	// ==================== 任务管理模块 ====================
+	// #endregion
+
+	// #region 任务管理模块
 
 	/**
 	 * @openapi
@@ -661,7 +664,7 @@ function getRouter(): Router {
 	 * /api/v1/tasks/{id}/merge-upload:
 	 *   post:
 	 *     summary: 合并上传的文件
-	 *     description: 对于远程文件，上传完成后调用此函数合并文件 前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并
+	 *     description: 对于远程文件，上传完成后调用此函数合并文件\n前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -764,7 +767,9 @@ function getRouter(): Router {
 		ctx.body = { success: true };
 	});
 
-	// ==================== 队列管理模块 ====================
+	// #endregion
+
+	// #region 队列管理模块
 
 	/**
 	 * @openapi
@@ -808,7 +813,9 @@ function getRouter(): Router {
 		ctx.body = { success: true };
 	});
 
-	// ==================== 系统信息模块 ====================
+	// #endregion
+
+	// #region 系统信息模块
 
 	/**
 	 * @openapi
@@ -989,7 +996,9 @@ function getRouter(): Router {
 		ctx.body = { success: true };
 	});
 
-	// ==================== 文件上传模块 ====================
+	// #endregion
+
+	// #region 文件传输模块（下载不走此处路由）
 
 	/**
 	 * @openapi
@@ -1089,7 +1098,9 @@ function getRouter(): Router {
 		}
 	});
 
-	// ==================== 激活模块 ====================
+	// #endregion
+
+	// ==================== 人品模块 ====================
 
 	/**
 	 * @openapi
@@ -1144,7 +1155,9 @@ function getRouter(): Router {
 		}
 	});
 
-	// ==================== 缓存管理模块 ====================
+	// #endregion
+
+	// #region 缓存管理模块
 
 	/**
 	 * @openapi
@@ -1183,6 +1196,205 @@ function getRouter(): Router {
 	router.delete('/api/v1/cache', optionalAuth, async function (ctx) {
 		ctx.body = await ffboxService!.getCacheInfo(true);
 	});
+
+	// #endregion
+
+	// #region Webhook 模块
+
+	/**
+	 * @openapi
+	 * /api/v1/webhooks:
+	 *   get:
+	 *     summary: 获取所有 Webhook
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: Webhook 列表
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: array
+	 *               items:
+	 *                 $ref: '#/components/schemas/Webhook'
+	 */
+	router.get('/api/v1/webhooks', optionalAuth, async function (ctx) {
+		const webhooks = webhookManager.getAll();
+		// 不返回 secret 字段
+		ctx.body = webhooks.map(w => ({ ...w, secret: undefined as string | undefined }));
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/webhooks:
+	 *   post:
+	 *     summary: 创建 Webhook
+	 *     security:
+	 *       - bearerAuth: []
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             $ref: '#/components/schemas/CreateWebhookRequest'
+	 *     responses:
+	 *       200:
+	 *         description: 创建成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/Webhook'
+	 */
+	router.post('/api/v1/webhooks', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const webhook = webhookManager.create(ctx.request.body as CreateWebhookRequest);
+		ctx.body = { ...webhook, secret: undefined as string | undefined };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/webhooks/{id}:
+	 *   get:
+	 *     summary: 获取单个 Webhook
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     responses:
+	 *       200:
+	 *         description: Webhook 详情
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/Webhook'
+	 *       404:
+	 *         description: Webhook 未找到
+	 */
+	router.get('/api/v1/webhooks/:id', optionalAuth, async function (ctx) {
+		const webhook = webhookManager.get(ctx.params.id);
+		if (!webhook) {
+			ctx.status = 404;
+			ctx.body = { error: 'Webhook not found' };
+			return;
+		}
+		ctx.body = { ...webhook, secret: undefined as string | undefined };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/webhooks/{id}:
+	 *   put:
+	 *     summary: 更新 Webhook
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             $ref: '#/components/schemas/UpdateWebhookRequest'
+	 *     responses:
+	 *       200:
+	 *         description: 更新成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/Webhook'
+	 *       404:
+	 *         description: Webhook 未找到
+	 */
+	router.put('/api/v1/webhooks/:id', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const webhook = webhookManager.update(ctx.params.id, ctx.request.body as UpdateWebhookRequest);
+		if (!webhook) {
+			ctx.status = 404;
+			ctx.body = { error: 'Webhook not found' };
+			return;
+		}
+		ctx.body = { ...webhook, secret: undefined as string | undefined };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/webhooks/{id}:
+	 *   delete:
+	 *     summary: 删除 Webhook
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     responses:
+	 *       200:
+	 *         description: 删除成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
+	 */
+	router.delete('/api/v1/webhooks/:id', optionalAuth, async function (ctx) {
+		const success = webhookManager.delete(ctx.params.id);
+		if (!success) {
+			ctx.status = 404;
+			ctx.body = { error: 'Webhook not found' };
+			return;
+		}
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/webhooks/{id}/test:
+	 *   post:
+	 *     summary: 测试 Webhook 连通性
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: string
+	 *     responses:
+	 *       200:
+	 *         description: 测试结果
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 success:
+	 *                   type: boolean
+	 *                 message:
+	 *                   type: string
+	 */
+	router.post('/api/v1/webhooks/:id/test', optionalAuth, async function (ctx) {
+		const result = await webhookManager.test(ctx.params.id);
+		ctx.body = result;
+	});
+
+	// #endregion
 
 	return router;
 }

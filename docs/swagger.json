@@ -47,50 +47,19 @@
             }
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "deleted",
-              "initializing",
-              "idle",
-              "idle_queued",
-              "running",
-              "paused",
-              "paused_queued",
-              "stopping",
-              "finishing",
-              "finished",
-              "error"
-            ]
+            "$ref": "#/components/schemas/TaskStatus"
           },
           "progressLog": {
             "type": "object",
             "properties": {
               "time": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "number"
-                  }
-                }
+                "$ref": "#/components/schemas/SingleProgressLog"
               },
               "frame": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "number"
-                  }
-                }
+                "$ref": "#/components/schemas/SingleProgressLog"
               },
               "size": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "number"
-                  }
-                }
+                "$ref": "#/components/schemas/SingleProgressLog"
               },
               "lastStarted": {
                 "type": "number"
@@ -101,7 +70,16 @@
               "lastPaused": {
                 "type": "number"
               }
-            }
+            },
+            "required": [
+              "time",
+              "frame",
+              "size",
+              "lastStarted",
+              "elapsed",
+              "lastPaused"
+            ],
+            "additionalProperties": false
           },
           "cmdData": {
             "type": "string"
@@ -118,325 +96,20 @@
               "type": "string"
             }
           }
-        }
-      },
-      "Notification": {
-        "type": "object",
-        "properties": {
-          "time": {
-            "type": "number"
-          },
-          "taskId": {
-            "type": "number"
-          },
-          "content": {
-            "type": "string"
-          },
-          "level": {
-            "type": "integer",
-            "enum": [
-              0,
-              1,
-              2,
-              3
-            ],
-            "description": "0=info, 1=ok, 2=warning, 3=error"
-          }
-        }
-      },
-      "FFmpegInfo": {
-        "type": "object",
-        "properties": {
-          "version": {
-            "type": "string"
-          },
-          "scanning": {
-            "type": "boolean"
-          },
-          "videoEncodersCount": {
-            "type": "integer"
-          },
-          "audioEncodersCount": {
-            "type": "integer"
-          },
-          "muxersCount": {
-            "type": "integer"
-          },
-          "demuxersCount": {
-            "type": "integer"
-          },
-          "filtersCount": {
-            "type": "integer"
-          }
-        }
-      },
-      "FFmpegProgress": {
-        "type": "object",
-        "properties": {
-          "frame": {
-            "type": "integer"
-          },
-          "fps": {
-            "type": "number"
-          },
-          "q": {
-            "type": "number"
-          },
-          "size": {
-            "type": "number",
-            "description": "kB"
-          },
-          "time": {
-            "type": "number",
-            "description": "秒"
-          },
-          "bitrate": {
-            "type": "number",
-            "description": "kbps"
-          },
-          "speed": {
-            "type": "number"
-          }
-        }
-      },
-      "OutputParams": {
-        "type": "object",
-        "properties": {
-          "input": {
-            "$ref": "#/components/schemas/OutputParams_input"
-          },
-          "filter": {
-            "$ref": "#/components/schemas/OutputParams_filter"
-          },
-          "outputs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "video": {
-                  "$ref": "#/components/schemas/OutputParams_video"
-                },
-                "audio": {
-                  "$ref": "#/components/schemas/OutputParams_audio"
-                },
-                "mux": {
-                  "$ref": "#/components/schemas/OutputParams_mux"
-                }
-              }
-            }
-          },
-          "extra": {
-            "$ref": "#/components/schemas/OutputParams_extra"
-          }
-        }
-      },
-      "OutputParams_input": {
-        "type": "object",
-        "properties": {
-          "files": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/InputFile"
-            }
-          }
-        }
-      },
-      "OutputParams_filter": {
-        "type": "object",
-        "properties": {
-          "nodes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FilterNode"
-            }
-          },
-          "lines": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FilterLine"
-            }
-          }
-        }
-      },
-      "OutputParams_video": {
-        "type": "object",
-        "properties": {
-          "vcodec": {
-            "type": "string"
-          },
-          "resolution": {
-            "type": "string"
-          },
-          "framerate": {
-            "type": "string"
-          },
-          "ratecontrol": {
-            "type": "string"
-          },
-          "ratevalue": {
-            "type": "string"
-          },
-          "detail": {
-            "type": "object"
-          },
-          "custom": {
-            "type": "string"
-          }
-        }
-      },
-      "OutputParams_audio": {
-        "type": "object",
-        "properties": {
-          "acodec": {
-            "type": "string"
-          },
-          "ratecontrol": {
-            "type": "string"
-          },
-          "ratevalue": {
-            "type": "string"
-          },
-          "vol": {
-            "type": "number"
-          },
-          "detail": {
-            "type": "object"
-          },
-          "custom": {
-            "type": "string"
-          }
-        }
-      },
-      "OutputParams_mux": {
-        "type": "object",
-        "properties": {
-          "format": {
-            "type": "string"
-          },
-          "moveflags": {
-            "type": "boolean"
-          },
-          "filePath": {
-            "type": "string"
-          },
-          "begin": {
-            "type": "string"
-          },
-          "end": {
-            "type": "string"
-          },
-          "detail": {
-            "type": "object"
-          },
-          "keepMetadata": {
-            "type": "string",
-            "enum": [
-              "false",
-              "map",
-              "movflags",
-              "both"
-            ]
-          },
-          "keepFileTime": {
-            "type": "string",
-            "enum": [
-              "false",
-              "original",
-              "autoShift",
-              "fixCTbyMTandShift",
-              "fixByFilenameAndShift"
-            ]
-          },
-          "custom": {
-            "type": "string"
-          }
-        }
-      },
-      "OutputParams_extra": {
-        "type": "object",
-        "properties": {
-          "presetName": {
-            "type": "string"
-          }
-        }
-      },
-      "InputFile": {
-        "type": "object",
-        "properties": {
-          "hwaccel": {
-            "type": "string"
-          },
-          "filePath": {
-            "type": "string"
-          },
-          "demuxer": {
-            "type": "string"
-          },
-          "begin": {
-            "type": "string"
-          },
-          "end": {
-            "type": "string"
-          },
-          "realtime": {
-            "type": "boolean"
-          },
-          "detail": {
-            "type": "object"
-          },
-          "custom": {
-            "type": "string"
-          }
-        }
-      },
-      "FilterNode": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "params": {
-            "type": "object"
-          },
-          "x": {
-            "type": "number"
-          },
-          "y": {
-            "type": "number"
-          }
-        }
-      },
-      "FilterLine": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "prevNodeId": {
-            "type": "integer"
-          },
-          "prevNodePortIndex": {
-            "type": "integer"
-          },
-          "nextNodeId": {
-            "type": "integer"
-          },
-          "nextNodePortIndex": {
-            "type": "integer"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "V",
-              "A",
-              "N",
-              "U"
-            ]
-          }
-        }
+        },
+        "required": [
+          "taskName",
+          "before",
+          "after",
+          "paraArray",
+          "status",
+          "progressLog",
+          "cmdData",
+          "errorInfo",
+          "outputFiles"
+        ],
+        "additionalProperties": false,
+        "description": "文件路径处理规则： 添加任务时调用 mainVue 的 addTask，传入 baseName，并且把输入添加到 input.files 中。但此项中的 filePath 属性，本地任务直接添加绝对路径，远程任务则留空 FFBoxService 收到指令后直接加入到任务列表。然后，本地任务直接 gen 一个 paraArray，远程任务需要马上 gen 一个 outputFile，然后才 gen paraArray 远程任务上传完成后调用 mergeUploaded，然后把刚才留空的路径用 hash 补上。 此时，任务均具有 fileBaseName 属性。对于本地任务，input.files 具有绝对路径，outputFile 暂时留空；对于远程任务，input.files 具有绝对路径（但文件名是 hash），outputFile 具有绝对路径（但文件名是 hash.[ext]） 任务开始时，本地任务根据输出参数 gen 一个 outputFile（不参与到 paraArray 中，只是为了后续打开文件），远程任务直接使用之前计算的 outputFile 对 paraArray 进行 override 任务结束后，双击任务时，本地任务直接打开 outputFile 的文件，远程任务则弹出文件保存窗口，然后通过 IPC 触发 webContents.downloadURL，继而触发 will-download 事件"
       },
       "InputInfo": {
         "type": "object",
@@ -457,7 +130,10 @@
             "type": "number"
           },
           "metadata": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
           },
           "streams": {
             "type": "array",
@@ -480,7 +156,15 @@
           "modifyTime": {
             "type": "number"
           }
-        }
+        },
+        "required": [
+          "demuxer",
+          "path",
+          "metadata",
+          "streams",
+          "chapters"
+        ],
+        "additionalProperties": false
       },
       "StreamInfo": {
         "type": "object",
@@ -492,7 +176,10 @@
             "type": "string"
           },
           "metadata": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
           },
           "sidedata": {
             "type": "array",
@@ -527,7 +214,13 @@
           "channel": {
             "type": "string"
           }
-        }
+        },
+        "required": [
+          "type",
+          "metadata",
+          "sidedata"
+        ],
+        "additionalProperties": false
       },
       "ChapterInfo": {
         "type": "object",
@@ -542,9 +235,754 @@
             "type": "number"
           },
           "metadata": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
+        },
+        "required": [
+          "start",
+          "end",
+          "metadata"
+        ],
+        "additionalProperties": false
+      },
+      "OutputParams": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "$ref": "#/components/schemas/OutputParams_input"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/OutputParams_filter"
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "video": {
+                  "$ref": "#/components/schemas/OutputParams_video"
+                },
+                "audio": {
+                  "$ref": "#/components/schemas/OutputParams_audio"
+                },
+                "mux": {
+                  "$ref": "#/components/schemas/OutputParams_mux"
+                }
+              },
+              "required": [
+                "video",
+                "audio",
+                "mux"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "extra": {
+            "$ref": "#/components/schemas/OutputParams_extra"
+          }
+        },
+        "required": [
+          "input",
+          "filter",
+          "outputs",
+          "extra"
+        ],
+        "additionalProperties": false
+      },
+      "OutputParams_input": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InputFile"
+            }
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "InputFile": {
+        "type": "object",
+        "properties": {
+          "hwaccel": {
+            "type": "string"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "demuxer": {
+            "type": "string"
+          },
+          "begin": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "realtime": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "custom": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OutputParams_filter": {
+        "type": "object",
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilterNode"
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilterLine"
+            }
+          }
+        },
+        "required": [
+          "nodes",
+          "lines"
+        ],
+        "additionalProperties": false
+      },
+      "FilterNode": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "prevs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilterLine"
+            }
+          },
+          "nexts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilterLine"
+            }
+          },
+          "detail": {
+            "$ref": "#/components/schemas/FFmpegFilterDetail"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "params",
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      },
+      "FilterLine": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "prevNodeId": {
+            "type": "number"
+          },
+          "prevNodePortIndex": {
+            "type": "number"
+          },
+          "nextNodeId": {
+            "type": "number"
+          },
+          "nextNodePortIndex": {
+            "type": "number"
+          },
+          "prevXY": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "nextXY": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "V",
+              "A",
+              "N",
+              "U"
+            ]
+          },
+          "invisiblePort": {
+            "type": "string",
+            "enum": [
+              "prev",
+              "next"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "prevNodeId",
+          "prevNodePortIndex",
+          "nextNodeId",
+          "nextNodePortIndex"
+        ],
+        "additionalProperties": false
+      },
+      "FFmpegFilterDetail": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "inputType": {
+            "type": "string"
+          },
+          "outputType": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "int",
+                    "int64",
+                    "float",
+                    "double",
+                    "boolean",
+                    "string",
+                    "dictionary",
+                    "flags",
+                    "color",
+                    "duration",
+                    "image_size",
+                    "rational",
+                    "sample_fmt[]",
+                    "int[]",
+                    "channel_layout[]"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "default": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "type",
+                "description"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "inputType",
+          "outputType",
+          "options"
+        ],
+        "additionalProperties": false
+      },
+      "OutputParams_video": {
+        "type": "object",
+        "properties": {
+          "vcodec": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": "string"
+          },
+          "framerate": {
+            "type": "string"
+          },
+          "ratecontrol": {
+            "type": "string"
+          },
+          "ratevalue": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "detail": {
+            "type": "object"
+          },
+          "custom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vcodec",
+          "resolution",
+          "framerate",
+          "ratecontrol",
+          "ratevalue",
+          "detail"
+        ],
+        "additionalProperties": false
+      },
+      "OutputParams_audio": {
+        "type": "object",
+        "properties": {
+          "acodec": {
+            "type": "string"
+          },
+          "ratecontrol": {
+            "type": "string"
+          },
+          "ratevalue": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "vol": {
+            "type": "number"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "custom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "acodec",
+          "ratecontrol",
+          "ratevalue",
+          "vol",
+          "detail"
+        ],
+        "additionalProperties": false
+      },
+      "OutputParams_mux": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "moveflags": {
+            "type": "boolean"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "begin": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "keepMetadata": {
+            "type": [
+              "boolean",
+              "string"
+            ],
+            "enum": [
+              false,
+              "map",
+              "movflags",
+              "both"
+            ]
+          },
+          "keepFileTime": {
+            "type": [
+              "boolean",
+              "string"
+            ],
+            "enum": [
+              false,
+              "original",
+              "autoShift",
+              "fixCTbyMTandShift",
+              "fixByFilenameAndShift"
+            ]
+          },
+          "custom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "format",
+          "moveflags",
+          "filePath",
+          "detail"
+        ],
+        "additionalProperties": false
+      },
+      "OutputParams_extra": {
+        "type": "object",
+        "properties": {
+          "presetName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaskStatus": {
+        "type": "string",
+        "enum": [
+          "deleted",
+          "initializing",
+          "idle",
+          "idle_queued",
+          "running",
+          "paused",
+          "paused_queued",
+          "stopping",
+          "finishing",
+          "finished",
+          "error"
+        ]
+      },
+      "SingleProgressLog": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
         }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "number"
+          },
+          "taskId": {
+            "type": "number"
+          },
+          "content": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/NotificationLevel"
+          }
+        },
+        "required": [
+          "time",
+          "content",
+          "level"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationLevel": {
+        "type": "number",
+        "enum": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "FFBoxVersion": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "buildNumber": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "version",
+          "buildNumber"
+        ],
+        "additionalProperties": false
+      },
+      "FFmpegInfo": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "scanning": {
+            "type": "boolean"
+          },
+          "videoEncodersCount": {
+            "type": "number"
+          },
+          "audioEncodersCount": {
+            "type": "number"
+          },
+          "muxersCount": {
+            "type": "number"
+          },
+          "demuxersCount": {
+            "type": "number"
+          },
+          "filtersCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "version",
+          "scanning",
+          "videoEncodersCount",
+          "audioEncodersCount",
+          "muxersCount",
+          "demuxersCount",
+          "filtersCount"
+        ],
+        "additionalProperties": false
+      },
+      "FFmpegProgress": {
+        "type": "object",
+        "properties": {
+          "frame": {
+            "type": "number"
+          },
+          "fps": {
+            "type": "number"
+          },
+          "q": {
+            "type": "number"
+          },
+          "size": {
+            "type": "number"
+          },
+          "time": {
+            "type": "number"
+          },
+          "bitrate": {
+            "type": "number"
+          },
+          "speed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "frame",
+          "fps",
+          "q",
+          "size",
+          "time",
+          "bitrate",
+          "speed"
+        ],
+        "additionalProperties": false
+      },
+      "EncoderDetail": {
+        "type": "object",
+        "properties": {
+          "generalCapabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "threadingCapabilities": {
+            "type": "string"
+          },
+          "supportedPixelFormats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportedSampleRates": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "supportedSampleFormats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportedChannelLayouts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "commonExtensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mineType": {
+            "type": "string"
+          },
+          "defaultVideoCodec": {
+            "type": "string"
+          },
+          "defaultAudioCodec": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "int",
+                    "int64",
+                    "float",
+                    "double",
+                    "boolean",
+                    "string",
+                    "dictionary",
+                    "flags",
+                    "color",
+                    "duration",
+                    "image_size",
+                    "rational",
+                    "sample_fmt[]",
+                    "int[]",
+                    "channel_layout[]"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "default": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "type",
+                "description"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "options"
+        ],
+        "additionalProperties": false
       },
       "FFmpegCodecDetail": {
         "type": "object",
@@ -558,10 +996,151 @@
           "encoders": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/EncoderWithDetail"
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "generalCapabilities": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "threadingCapabilities": {
+                  "type": "string"
+                },
+                "supportedPixelFormats": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "supportedSampleRates": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "supportedSampleFormats": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "supportedChannelLayouts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "commonExtensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "mineType": {
+                  "type": "string"
+                },
+                "defaultVideoCodec": {
+                  "type": "string"
+                },
+                "defaultAudioCodec": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "int",
+                          "int64",
+                          "float",
+                          "double",
+                          "boolean",
+                          "string",
+                          "dictionary",
+                          "flags",
+                          "color",
+                          "duration",
+                          "image_size",
+                          "rational",
+                          "sample_fmt[]",
+                          "int[]",
+                          "channel_layout[]"
+                        ]
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "options": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": [
+                                "string",
+                                "number"
+                              ]
+                            },
+                            "description": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      },
+                      "default": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "type",
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "options"
+              ]
             }
           }
-        }
+        },
+        "required": [
+          "name",
+          "description",
+          "encoders"
+        ],
+        "additionalProperties": false
       },
       "FFmpegMuxerDetail": {
         "type": "object",
@@ -587,120 +1166,486 @@
           "options": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/EncoderOption"
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "int",
+                    "int64",
+                    "float",
+                    "double",
+                    "boolean",
+                    "string",
+                    "dictionary",
+                    "flags",
+                    "color",
+                    "duration",
+                    "image_size",
+                    "rational",
+                    "sample_fmt[]",
+                    "int[]",
+                    "channel_layout[]"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "default": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "type",
+                "description"
+              ],
+              "additionalProperties": false
             }
           }
-        }
+        },
+        "required": [
+          "name",
+          "description",
+          "extensions",
+          "options"
+        ],
+        "additionalProperties": false
       },
-      "FFmpegFilterDetail": {
+      "TaskEventType": {
+        "type": "string",
+        "enum": [
+          "task.created",
+          "task.started",
+          "task.paused",
+          "task.resumed",
+          "task.completed",
+          "task.error",
+          "task.deleted",
+          "task.progress"
+        ]
+      },
+      "QueueEventType": {
+        "type": "string",
+        "enum": [
+          "queue.started",
+          "queue.paused"
+        ]
+      },
+      "TaskListEventType": {
+        "type": "string",
+        "enum": [
+          "tasklist.changed",
+          "tasklist.added",
+          "tasklist.removed"
+        ]
+      },
+      "NotificationEventType": {
+        "type": "string",
+        "const": "notification"
+      },
+      "WebhookEventType": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TaskEventType"
+          },
+          {
+            "$ref": "#/components/schemas/QueueEventType"
+          },
+          {
+            "$ref": "#/components/schemas/TaskListEventType"
+          },
+          {
+            "$ref": "#/components/schemas/NotificationEventType"
+          }
+        ]
+      },
+      "WebhookFilter": {
         "type": "object",
         "properties": {
+          "task_id": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Webhook": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
-          "description": {
+          "url": {
             "type": "string"
           },
-          "inputType": {
+          "secret": {
             "type": "string"
           },
-          "outputType": {
-            "type": "string"
-          },
-          "options": {
+          "events": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/EncoderOption"
-            }
-          }
-        }
-      },
-      "EncoderWithDetail": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "generalCapabilities": {
-            "type": "array",
-            "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/WebhookEventType"
             }
           },
-          "threadingCapabilities": {
-            "type": "string"
+          "filter": {
+            "$ref": "#/components/schemas/WebhookFilter"
           },
-          "supportedPixelFormats": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "enabled": {
+            "type": "boolean"
           },
-          "supportedSampleRates": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            }
-          },
-          "supportedSampleFormats": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "supportedChannelLayouts": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "options": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EncoderOption"
-            }
-          }
-        }
-      },
-      "EncoderOption": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "int",
-              "int64",
-              "float",
-              "double",
-              "boolean",
-              "string",
-              "dictionary",
-              "flags",
-              "color",
-              "duration",
-              "image_size",
-              "rational",
-              "sample_fmt[]",
-              "int[]",
-              "channel_layout[]"
-            ]
-          },
-          "description": {
-            "type": "string"
-          },
-          "min": {
+          "createdAt": {
             "type": "number"
           },
-          "max": {
+          "lastTriggeredAt": {
             "type": "number"
           },
-          "default": {
-            "type": "string"
+          "failureCount": {
+            "type": "number"
           }
-        }
+        },
+        "required": [
+          "id",
+          "name",
+          "url",
+          "events",
+          "enabled",
+          "createdAt",
+          "failureCount"
+        ],
+        "additionalProperties": false
+      },
+      "WebhookEventDataMap": {
+        "type": "object",
+        "properties": {
+          "task.created": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              },
+              "task": {
+                "$ref": "#/components/schemas/Task"
+              }
+            },
+            "required": [
+              "taskId",
+              "task"
+            ],
+            "additionalProperties": false
+          },
+          "task.started": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              },
+              "task": {
+                "$ref": "#/components/schemas/Task"
+              }
+            },
+            "required": [
+              "taskId",
+              "task"
+            ],
+            "additionalProperties": false
+          },
+          "task.paused": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              },
+              "task": {
+                "$ref": "#/components/schemas/Task"
+              }
+            },
+            "required": [
+              "taskId",
+              "task"
+            ],
+            "additionalProperties": false
+          },
+          "task.resumed": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              },
+              "task": {
+                "$ref": "#/components/schemas/Task"
+              }
+            },
+            "required": [
+              "taskId",
+              "task"
+            ],
+            "additionalProperties": false
+          },
+          "task.completed": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              },
+              "task": {
+                "$ref": "#/components/schemas/Task"
+              }
+            },
+            "required": [
+              "taskId",
+              "task"
+            ],
+            "additionalProperties": false
+          },
+          "task.error": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              },
+              "task": {
+                "$ref": "#/components/schemas/Task"
+              },
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "taskId",
+              "task"
+            ],
+            "additionalProperties": false
+          },
+          "task.deleted": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "taskId"
+            ],
+            "additionalProperties": false
+          },
+          "task.progress": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              },
+              "progress": {
+                "$ref": "#/components/schemas/FFmpegProgress"
+              }
+            },
+            "required": [
+              "taskId"
+            ],
+            "additionalProperties": false
+          },
+          "queue.started": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "timestamp"
+            ],
+            "additionalProperties": false
+          },
+          "queue.paused": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "timestamp"
+            ],
+            "additionalProperties": false
+          },
+          "tasklist.changed": {
+            "type": "object",
+            "properties": {
+              "taskIds": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            },
+            "required": [
+              "taskIds"
+            ],
+            "additionalProperties": false
+          },
+          "tasklist.added": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              },
+              "task": {
+                "$ref": "#/components/schemas/Task"
+              }
+            },
+            "required": [
+              "taskId",
+              "task"
+            ],
+            "additionalProperties": false
+          },
+          "tasklist.removed": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "taskId"
+            ],
+            "additionalProperties": false
+          },
+          "notification": {
+            "type": "object",
+            "properties": {
+              "notificationId": {
+                "type": "number"
+              },
+              "notification": {
+                "$ref": "#/components/schemas/Notification"
+              }
+            },
+            "required": [
+              "notificationId",
+              "notification"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "task.created",
+          "task.started",
+          "task.paused",
+          "task.resumed",
+          "task.completed",
+          "task.error",
+          "task.deleted",
+          "task.progress",
+          "queue.started",
+          "queue.paused",
+          "tasklist.changed",
+          "tasklist.added",
+          "tasklist.removed",
+          "notification"
+        ],
+        "additionalProperties": false
+      },
+      "CreateWebhookRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEventType"
+            }
+          },
+          "filter": {
+            "$ref": "#/components/schemas/WebhookFilter"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "url",
+          "events"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateWebhookRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEventType"
+            }
+          },
+          "filter": {
+            "$ref": "#/components/schemas/WebhookFilter"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
       },
       "SuccessResponse": {
         "type": "object",
@@ -1149,7 +2094,7 @@
     "/api/v1/tasks/{id}/merge-upload": {
       "post": {
         "summary": "合并上传的文件",
-        "description": "对于远程文件，上传完成后调用此函数合并文件 前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并",
+        "description": "对于远程文件，上传完成后调用此函数合并文件\\n前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并",
         "security": [
           {
             "bearerAuth": []
@@ -1676,6 +2621,209 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CacheInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks": {
+      "get": {
+        "summary": "获取所有 Webhook",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook 列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Webhook"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "创建 Webhook",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{id}": {
+      "get": {
+        "summary": "获取单个 Webhook",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook 详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook 未找到"
+          }
+        }
+      },
+      "put": {
+        "summary": "更新 Webhook",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook 未找到"
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除 Webhook",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{id}/test": {
+      "post": {
+        "summary": "测试 Webhook 连通性",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "测试结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
