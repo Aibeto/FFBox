@@ -20,7 +20,7 @@ export default defineConfig({
 			formats: ['cjs'],
 			fileName: () => '[name].cjs',
 		},
-		rollupOptions: {
+		rolldownOptions: {
 			external: [
 				'electron',
 				...builtinModules,
@@ -63,7 +63,7 @@ export default defineConfig({
 		base: '../src/backend/index.ts'
 	},
 	resolve: {
-		// conditions: ['module', 'development|production'],	// 相比于默认值去除了“browser”
+		// conditions: ['module', 'development|production'],	// 相比于默认值去除了"browser"
 		extensions: ['.ts', '.js'],
 		alias: { '@common': path.resolve('src/common') },
 	},

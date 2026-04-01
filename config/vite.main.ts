@@ -17,7 +17,7 @@ export default defineConfig({
 			formats: ['cjs'],
 			fileName: () => '[name].cjs',
 		},
-		rollupOptions: {
+		rolldownOptions: {
 			external: [
 				'electron',
 				...builtinModules,

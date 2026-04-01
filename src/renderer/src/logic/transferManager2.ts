@@ -298,7 +298,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 		// 获取到所有分片后，拼接 hash 并检查
 		const concatedHash = CryptoJS.enc.Utf8.parse(file.chunks.map(c => c.hash).join(''));
 		const fileHash = CryptoJS.SHA1(concatedHash).toString();
-		const response = await fetch(`http://${server.entity.ip}:${server.entity.port}/upload/check/`, {
+		const response = await fetch(`http://${server.entity.ip}:${server.entity.port}/api/v1/upload/check/`, {
 			method: 'post',
 			body: JSON.stringify({
 				hashs: [`${fileBaseName}⬝${fileHash}`],	// 与服务器 mergeUploaded 的文件名逻辑保持相同
@@ -337,7 +337,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 			console.log(fileBaseName, '未缓存');
 			// 若未缓存则检查分片缓存状态对各个分片进行上传。若出错则重试
 			// const isCachedList = new Array(file.chunks.length).fill(false);
-			const response = await fetch(`http://${server.entity.ip}:${server.entity.port}/upload/check/`, {
+			const response = await fetch(`http://${server.entity.ip}:${server.entity.port}/api/v1/upload/check/`, {
 				method: 'post',
 				body: JSON.stringify({
 					hashs: file.chunks.map((chunk) => chunk.hash),
@@ -418,7 +418,7 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 									chunk.abortController.signal.removeEventListener('abort', abortFunc);
 									reject('paused');
 								};
-								xhr.open('post', `http://${server.entity.ip}:${server.entity.port}/upload/file/`, true);
+								xhr.open('post', `http://${server.entity.ip}:${server.entity.port}/api/v1/upload/file/`, true);
 								// xhr.setRequestHeader('Content-Type', 'multipart/form-data');
 								xhr.setRequestHeader('Authorization', `Bearer ${server.entity.sessionId}`);
 								xhr.send(form);

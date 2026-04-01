@@ -78,12 +78,11 @@
 1. `编辑器`：推荐使用 `Visual Studio Code`，已在 `.vscode` 目录中预置了启动调试后端、插入调试主进程等相关任务。
 2. `运行环境`：推荐使用 `node.js`，主要用于项目的编译。如有需要还可 `nvm`，使用它可以切换当前的 nodejs 版本，解决部分情况下运行不起来的问题。  
    如有需要，也可使用 `bun` 作为运行环境。您可以把它理解成安卓版鸿蒙。但目前 bun 无法用于调试。
-3. `包管理器`：推荐使用 `pnpm`（推荐使用 8 版本。高版本存在 electron 安装问题）。由于 electron-builder 对 utimes 的编译存在问题，pnpm 已配置为 `node-linker=hoisted`。  
+3. `包管理器`：推荐使用 `pnpm`（推荐使用 8 版本。高版本存在 electron 安装问题，见下文）。由于 electron-builder 对 utimes 的编译存在问题，pnpm 已配置为 `node-linker=hoisted`。  
    您也可以使用 `npm` 作为包管理器，npm 的速度约慢一半。这样打出来的包体积大小会有轻微不同（哪怕删除 lock 文件拉取最新）。  
    `yarn` 和 `bun` 打出来的包目前只有前端可以交由 electron-builder 打包，后端 pkg 打出来的包不可用。
-4. `404 和 408 问题`：`pnpm install`、`pkg:backend`、`package` 的时候均需要联网下载二进制预编译文件。GitHub 的 url 在国内尤为难以访问，您可能需要依据互联网上的攻略，通过如 `pnpm set registry` `pnpm set ELECTRON_MIRROR` 等方式配置 `源` 或者 `“转发的魔法”`。
-5. `Windows 上的 FFBoxHelper`：该文件已预编译好。如果您想自行编译，则需要 `Visual Studio 2022`。
-6. `Windows 上的安装包`：Linux / macOS 的完整打包流程无需额外配置软件，但 Windows 上需要安装 `Inno Setup 6`，并将软件（iscc.exe）放置在环境变量中。另外，`ChineseSimplified.isl` 也需要另行准备放在该软件目录下。
+4. `Windows 上的 FFBoxHelper`：该文件已预编译好。如果您想自行编译，则需要 `Visual Studio 2022`。
+5. `Windows 上的安装包`：Linux / macOS 的完整打包流程无需额外配置软件，但 Windows 上需要安装 `Inno Setup 6`，并将软件（iscc.exe）放置在环境变量中。另外，`ChineseSimplified.isl` 也需要另行准备放在该软件目录下。
 
 ## FFmpeg
 
@@ -126,3 +125,19 @@ flowchart TB
   打包("打包") --> 生产后端 & 生产前端 --> pkg["npm run package"]
   注1 --> 开发 & 打包[打包【npm run build:everything】]
 ```
+
+## 中国特色 404 与 408 问题
+
+在执行 `pnpm install`、`pkg:backend`、`package` 等命令时，均需要联网下载二进制预编译文件。GitHub 的 url 在国内尤为难以访问，您可能需要依据互联网上的攻略，通过如 `pnpm set registry` `pnpm set ELECTRON_MIRROR` 等方式配置 `源` 或者 `“转发的魔法”`。
+
+本项目已在 `.npmrc` 中配置 registry 和 ELECTRON_MIRROR。但 node.js 并不乐意将这种被广泛使用的方法制定为标准，并试图弃用它而且不提供任何补救方案。很遗憾的是，pnpm 似乎愿意遵循这种趋势，在版本升级到 >= 9 后，将不再读取 `.npmrc` 中的非官方配置项。这将导致新版的 pnpm 安装完毕后可能会无法运行 electron。
+["Unknown user/project config" warnings starting in npm 11.2.0 · Issue #8153 · npm/cli](https://github.com/npm/cli/issues/8153)
+
+### Error: Electron failed to install correctly, please delete node_modules/electron and try installing again
+
+若您出现了此问题，可尝试以下解决方案：
+
+1. 退回到 pnpm@^8 版本再进行安装。
+2. 从执行原理来说，electron 在 postinstall 阶段会执行 install.js，调用 @electron/get 进行下载。如果这个阶段失败，可能没有错误提示。此时需要进行手动操作（仅供参考）：
+2.1. 手动下载 electron，如 `electron-v24.8.8-win32-x64.zip` 并解压到 `node_modules/electron/dist`。
+2.2. 创建 `node_modules/electron/path.txt`，写入 `electron.exe`。

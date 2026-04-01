@@ -18,13 +18,13 @@ export default defineConfig({
 		minify: process.env./* from mode option */NODE_ENV === 'production' || false,
 		sourcemap: true,
 		// 如果使用了 lib 字段，vite 会将项目构建为库，此时不输出 index.html
-		// 若有需要可在 rollupOptions 里配置输入，否则默认是 src/index
+		// 若有需要可在 rolldownOptions 里配置输入，否则默认是 src/index
 		// lib: {
 		// 	entry: 'src/index.ts',
 		// 	formats: ['cjs'],
 		// 	fileName: () => '[name].cjs',
 		// },
-		rollupOptions: {
+		rolldownOptions: {
 			external: [
 				'electron',
 				// ...builtinModules,
@@ -36,7 +36,7 @@ export default defineConfig({
 	resolve: {
 		extensions: ['.ts', '.js', '.tsx'],
 		alias: {
-			'@common': path.resolve('src/common'),	// 因为 vite 根目录被设置成 renderer，其 devServer 出来的路径不能再找上一级了，所以需要另行处理
+			'@common': path.resolve('src/common'),	// 因为 vite 根目录被设置成 renderer，其 devServer 出来的路径不能再找上一级了，所以需另行处理
 			'@renderer': path.resolve('src/renderer/src'),
 			// '@renderer': './src',	// 生产模式下这样引用不到
 		},

@@ -679,16 +679,17 @@ export const useAppStore = defineStore('app', {
 		updateServerProperties(server: Server) {
 			const 这 = useAppStore();
 			Promise.all([
-				fetch(`http://${server.entity.ip}:${server.entity.port}/version`, { method: 'get' }),
+				fetch(`http://${server.entity.ip}:${server.entity.port}/api/v1/system/version`, { method: 'get' }),
 				server.entity.getProperties(),
 				server.entity.getWorkingStatus(),
 			]).then(([versionResponse, properties, workingStatus]) => {
 				versionResponse.text().then((text) => {
 					server.data.version = text;
-					if (['3.0', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5', '5.0'].includes(text)) {
+					if (['3.0', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5', '5.0', '5.1', '5.2'].includes(text)) {
 						// 4.3 版本更新了任务管理方式
 						// 5.0 版本更新了任务参数数据结构
 						// 5.1 版本更新了任务名
+						// 5.3 版本更新了 API
 						Popup({ message: `服务器版本 ${text} 与客户端版本 ${version} 不兼容，请更换服务器或客户端`, level: NotificationLevel.warning });
 					} else if (text !== version) {
 						Popup({ message: `服务器版本 ${text} 与客户端版本不匹配，可能会导致部分操作异常，请谨慎操作`, level: NotificationLevel.warning });
@@ -836,7 +837,7 @@ export const useAppStore = defineStore('app', {
 		// #region 其他
 		async activateBackend(userInput: string): Promise<number | false> {
 			const 这 = useAppStore();
-			const result = await 这.currentServer?.entity.activate(userInput);
+			const result = await 这.currentServer?.entity.activate(userInput).catch(() => false);
 			if (result && Number.isFinite(+result)) {
 				这.currentServer!.data.functionLevel = +result;
 				return +result;

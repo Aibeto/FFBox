@@ -126,16 +126,16 @@ const handleActivateButtonClick = async (end: 'frontend' | 'backend' | 'both') =
 	if (activateCode.value.length) {
 		let frontendResult, backendResult;
 		if (end === 'frontend') {
-			frontendResult = await appStore.activateFrontend(activateCode.value);
+			frontendResult = await appStore.activateFrontend(activateCode.value).catch(() => false);
 			backendResult = '-';
 		}
 		if (end === 'backend') {
 			frontendResult = '-';
-			backendResult = await appStore.activateBackend(activateCode.value);
+			backendResult = await appStore.activateBackend(activateCode.value).catch(() => false);
 		}
 		if (end === 'both') {
-			frontendResult = await appStore.activateFrontend(activateCode.value);
-			backendResult = await appStore.activateBackend(activateCode.value);
+			frontendResult = await appStore.activateFrontend(activateCode.value).catch(() => false);
+			backendResult = await appStore.activateBackend(activateCode.value).catch(() => false);
 		}
 		console.log('激活结果', frontendResult, backendResult);
 		if (frontendResult && backendResult) {
