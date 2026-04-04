@@ -7,6 +7,7 @@ import ListArea from './ListArea/ListArea.vue';
 import ParaBox from './ParaBox/ParaBox.vue';
 import TransferCenter from './TransferCenter/TransferCenter.vue';
 import TaskInfo from './TaskInfo/TaskInfo.vue';
+import CutOperator from './CutOperator/CutOperator.vue';
 import DragFilesOverlay from './DragFilesOverlay/DragFilesOverlay.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
@@ -253,13 +254,16 @@ onMounted(() => {
 		</div>
 		<div class="lowerArea" :style="{ height: `${(1 - appStore.draggerPos) * 100}%` }">
 			<Transition name="paraboxanim">
-				<ParaBox v-if="!appStore.showTransferCenter && appStore.showTaskInfo === undefined" />
+				<ParaBox v-if="!appStore.showTransferCenter && appStore.showTaskInfo === undefined && !appStore.showCutOperator" />
 			</Transition>
 			<Transition name="paraboxanim">
-				<TransferCenter v-if="appStore.showTransferCenter" />
+				<TransferCenter v-if="appStore.showTransferCenter && !appStore.showCutOperator" />
 			</Transition>
 			<Transition name="paraboxanim">
-				<TaskInfo v-if="appStore.showTaskInfo !== undefined" />
+				<TaskInfo v-if="appStore.showTaskInfo !== undefined && !appStore.showCutOperator" />
+			</Transition>
+			<Transition name="paraboxanim">
+				<CutOperator v-if="appStore.showCutOperator !== undefined" />
 			</Transition>
 		</div>
 		<DragFilesOverlay />

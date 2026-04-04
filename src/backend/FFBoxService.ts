@@ -25,7 +25,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	public tasklist: ServiceTask[] = [];
 	private latestTaskId = 0;
 	public workingStatus: WorkingStatus = WorkingStatus.idle;
-	private ffmpegPath = '';
+	public ffmpegPath = '';
 	public ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0, muxersCount: 0, demuxersCount: 0 };
 	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; };
 	public ffmpegFormats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[]; };
@@ -1165,5 +1165,65 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				NotificationLevel.warning,
 			);
 		}
+	}
+
+	/**
+	 * 扫描指定视频流的帧信息
+	 * @param id 任务 ID
+	 * @param fileIndex 输入文件索引（对应 Task.before[fileIndex]）
+	 * @param videoStreamIndex 视频流索引（第 n 个 type 为 video 的 stream）
+	 */
+	public async getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number): Promise<void> {
+		const task = this.tasklist[id];
+		if (!task) {
+			log.error(`[任务 ${id}] 获取帧信息：任务不存在！`);
+			return;
+		}
+		const inputInfo = task.before[fileIndex];
+		if (!inputInfo) {
+			log.error(`[任务 ${id}] 获取帧信息：输入文件索引 ${fileIndex} 不存在！`);
+			return;
+		}
+		const videoStreams = inputInfo.streams.filter(s => s.type === 'Video');
+		const targetStream = videoStreams[videoStreamIndex];
+		if (!targetStream) {
+			log.error(`[任务 ${id}] 获取帧信息：视频流索引 ${videoStreamIndex} 不存在！`);
+			return;
+		}
+		const filePath = task.after.input.files?.[fileIndex]?.filePath;
+		if (!filePath) {
+			log.error(`[任务 ${id}] 获取帧信息：输入文件路径为空！`);
+			return;
+		}
+		const realFilePath = task.remoteTask ? `${os.tmpdir()}/FFBoxUploadCache/${filePath}` : filePath;
+		const streamIndex = inputInfo.streams.indexOf(targetStream);	// 该 stream 在原始 streams 数组中的索引（用于 -map）
+		log.info(`[任务 ${id}] 开始扫描帧信息：${realFilePath}`);
+
+		// 构造 FFmpeg 命令
+		const ffmpeg = new FFmpeg(this.ffmpegPath, 6, [
+			'-hide_banner',
+			'-hwaccel', 'auto',
+			'-i', realFilePath,
+			'-map', `0:${streamIndex}`,
+			'-vf', 'scale=h=160:w=-1:flags=neighbor,showinfo',
+			'-f', 'null',
+			'-'
+		]);
+
+		targetStream.frames = [];
+		ffmpeg.on('data', ({ content }) => {
+			this.setCmdText(id, content);
+		});
+		ffmpeg.on('frameInfo', ({ frames }) => {
+			targetStream.frames = frames;
+			log.info(`[任务 ${id}] 帧扫描完成，共 ${frames.length} 帧。`);
+			this.emitTaskUpdate(id, task);
+		});
+		ffmpeg.on('closed', (errorCode, runningResult) => {
+			if (errorCode || runningResult === 'failed') {
+				log.error(`[任务 ${id}] 帧扫描失败。`);
+				this.setNotification(id, `任务「${task.taskName}」帧扫描失败`, NotificationLevel.error);
+			}
+		});
 	}
 }

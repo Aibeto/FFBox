@@ -52,6 +52,7 @@ export interface FFBoxServiceInterface {
 	deleteNotification(notificationId: number): Promise<void>;
 	setParameters(ids: number[], params: OutputParams[]): Promise<void>;
 	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void>;
+	getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number): Promise<void>;
 }
 
 export interface FFBoxServiceEventParam {
@@ -146,6 +147,23 @@ export interface FFmpegFilterDetail {
 
 // #region 输入参数
 
+export interface Frame {
+	n: number;			// 帧号
+	pts: number;		// 时间戳
+	pts_time: number;	// 换算为秒的时间戳
+	// pos?: number;	// 字节偏移（使用 -map 的时候它会不存在）
+	// fmt?: string;	// 像素格式
+	// sar?: string;
+	// s?: string;		// 分辨率，由于统计前经过了滤镜，所以这里不要
+	// i?: string;
+	// iskey?: boolean;
+	type: 'I' | 'P' | 'B';	// 帧类型
+	// checksum?: string;
+	// plane_checksum?: string;
+	mean: number[];        // YUV 平均值（可能是 2 或 3 个数字）
+	stdev: number[];       // YUV 标准差（可能是 2 或 3 个数字）
+}
+
 export interface StreamInfo {
 	infoText?: string;	// 原文
 	type: string;	// video, audio, subtitle, data, attachment
@@ -160,6 +178,7 @@ export interface StreamInfo {
 	fps?: number;
 	sampleRate?: number;
 	channel?: string;
+	frames?: Frame[];	// 帧信息数组（仅 video 类型使用）
 }
 export interface ChapterInfo {
 	infoText?: string;	// 原文

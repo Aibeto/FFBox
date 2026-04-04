@@ -1,5 +1,6 @@
 import Http from 'http';
 import WebSocket, { WebSocketServer } from 'ws';
+import { PassThrough } from 'stream';
 import CryptoJS from 'crypto-js';
 import Koa from 'koa';
 import Router from 'koa-router';
@@ -10,6 +11,7 @@ import koaMount from 'koa-mount';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { spawn } from 'child_process';
 import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams, CreateWebhookRequest, UpdateWebhookRequest } from '@common/types';
 import { version } from '@common/constants';
 import { getSingleArgvValue } from '@common/utils';
@@ -772,6 +774,183 @@ function getRouter(): Router {
 		const { reason } = ctx.request.body;
 		ffboxService!.trailLimit_stopTranscoding(+ctx.params.id, reason, true);
 		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/frame-info:
+	 *   post:
+	 *     summary: 扫描视频帧信息
+	 *     description: 使用 FFmpeg showinfo 滤镜扫描指定视频流的帧信息，等待扫描完成后返回，结果存储在 StreamInfo.frames 中
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               fileIndex:
+	 *                 type: integer
+	 *                 description: 输入文件索引
+	 *               videoStreamIndex:
+	 *                 type: integer
+	 *                 description: 视频流索引（第 n 个 type 为 video 的 stream）
+	 *     responses:
+	 *       200:
+	 *         description: 帧扫描完成
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 success:
+	 *                   type: boolean
+	 *       404:
+	 *         description: 任务或输入文件不存在
+	 */
+	router.post('/api/v1/tasks/:id/frame-info', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const { fileIndex, videoStreamIndex } = ctx.request.body;
+		if (fileIndex === undefined || videoStreamIndex === undefined) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing fileIndex or videoStreamIndex' };
+			return;
+		}
+		const task = ffboxService!.tasklist[+ctx.params.id];
+		if (!task) {
+			ctx.status = 404;
+			ctx.body = { error: 'Task not found' };
+			return;
+		}
+
+		await ffboxService!.getMediaFrameInfo(+ctx.params.id, fileIndex, videoStreamIndex);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/preview-stream:
+	 *   get:
+	 *     summary: 获取视频预览流
+	 *     description: 使用 FFmpeg 将视频转码为 fMP4 格式，通过 HTTP 流式传输。用于裁切操作器的视频预览。
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *         description: 任务 ID
+	 *       - in: query
+	 *         name: startTime
+	 *         schema:
+	 *           type: number
+	 *         description: 起始时间（秒）
+	 *       - in: query
+	 *         name: endTime
+	 *         schema:
+	 *           type: number
+	 *         description: 结束时间（秒）
+	 *     responses:
+	 *       200:
+	 *         description: fMP4 流
+	 *         content:
+	 *           video/mp4:
+	 *             schema:
+	 *               type: string
+	 *               format: binary
+	 *       404:
+	 *         description: 任务不存在
+	 *       400:
+	 *         description: 参数错误
+	 */
+	router.get('/api/v1/tasks/:id/preview-stream', optionalAuth, async function (ctx) {
+		const task = ffboxService!.tasklist[+ctx.params.id];
+		if (!task) {
+			ctx.status = 404;
+			ctx.body = { error: 'Task not found' };
+			return;
+		}
+
+		const startTime = parseFloat(ctx.query.startTime as string) || 0;
+		const endTime = parseFloat(ctx.query.endTime as string) || task.before[0]?.duration || 0;
+		const filePath = task.after.input.files[0]?.filePath;
+
+		if (!filePath) {
+			ctx.status = 400;
+			ctx.body = { error: 'No input file' };
+			return;
+		}
+
+		if (startTime >= endTime) {
+			ctx.status = 400;
+			ctx.body = { error: 'Invalid time range' };
+			return;
+		}
+
+		const realFilePath = task.remoteTask
+			? `${os.tmpdir()}/FFBoxUploadCache/${filePath}`
+			: filePath;
+
+		// FFmpeg 参数：输出 fragmented MP4（支持流式传输）
+		const ffmpegArgs = [
+			'-ss', String(startTime),
+			'-i', realFilePath,
+			'-t', String(endTime - startTime),
+			'-map', '0:v:0',
+			'-c:v', 'libx264',
+			'-preset', 'ultrafast',
+			'-tune', 'zerolatency',
+			'-g', '1',  // 全关键帧
+			'-movflags', '+frag_keyframe+empty_moov+default_base_moof',
+			'-f', 'mp4',
+			'-',
+		];
+
+		ctx.response.set('Content-Type', 'video/mp4');
+		ctx.response.set('Transfer-Encoding', 'chunked');
+
+		// 使用 PassThrough 流
+		const stream = new PassThrough();
+		ctx.body = stream;
+
+		// 启动 FFmpeg 进程
+		const ffmpeg = spawn(ffboxService!.ffmpegPath, ffmpegArgs);
+
+		ffmpeg.stdout.pipe(stream);
+
+		ffmpeg.stderr.on('data', (data: Buffer) => {
+			log.dev('FFmpeg preview:', data.toString());
+		});
+
+		ffmpeg.on('close', (code: number) => {
+			stream.end();
+			log.dev('FFmpeg preview stream closed with code:', code);
+		});
+
+		ffmpeg.on('error', (err: Error) => {
+			log.error('FFmpeg preview stream error:', err);
+			stream.end();
+		});
+
+		// 处理客户端断开连接
+		ctx.req.on('close', () => {
+			log.dev('Client disconnected, killing FFmpeg preview stream');
+			ffmpeg.kill();
+		});
 	});
 
 	// #endregion

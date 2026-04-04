@@ -187,12 +187,61 @@
       },
       "channel": {
         "type": "string"
+      },
+      "frames": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Frame"
+        }
       }
     },
     "required": [
       "type",
       "metadata",
       "sidedata"
+    ],
+    "additionalProperties": false
+  },
+  "Frame": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "number"
+      },
+      "pts": {
+        "type": "number"
+      },
+      "pts_time": {
+        "type": "number"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "I",
+          "P",
+          "B"
+        ]
+      },
+      "mean": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      },
+      "stdev": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      }
+    },
+    "required": [
+      "n",
+      "pts",
+      "pts_time",
+      "type",
+      "mean",
+      "stdev"
     ],
     "additionalProperties": false
   },
@@ -568,10 +617,6 @@
     },
     "required": [
       "vcodec",
-      "resolution",
-      "framerate",
-      "ratecontrol",
-      "ratevalue",
       "detail"
     ],
     "additionalProperties": false
@@ -603,9 +648,6 @@
     },
     "required": [
       "acodec",
-      "ratecontrol",
-      "ratevalue",
-      "vol",
       "detail"
     ],
     "additionalProperties": false

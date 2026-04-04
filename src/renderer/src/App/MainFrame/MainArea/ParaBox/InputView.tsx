@@ -1,5 +1,6 @@
 import { computed, defineComponent, ref, Transition, TransitionGroup } from 'vue';
 import { deleteNode } from '@common/params/filter';
+import { NotificationLevel } from '@common/types';
 import InputAutoSize from '@renderer/components/InputAutoSize/InputAutoSize.vue';
 import { durationFixer, durationValidator } from '../../../../components/validatorAndFixer';
 import { hwaccels, builtInDemuxers, allDemuxers, Demuxer } from '@common/params/formats'
@@ -110,7 +111,29 @@ const InputView = defineComponent((props: Props) => {
 			files[i].hwaccel = files[index].hwaccel;
 			files[i].realtime = files[index].realtime;
 			files[i].custom = files[index].custom;
-		}	
+		}
+	};
+
+	const handleCutOperatorDoubleClick = () => {
+		const globalParams = appStore.globalParams;
+		const filter = globalParams.filter;
+
+		// 检查进入条件
+		if (globalParams.input.files.length !== 1 ||
+			globalParams.outputs.length !== 1 ||
+			filter.nodes.length > 0 ||
+			filter.lines.length > 0) {
+			Popup({ message: '此功能仅限单输入输出模式使用', level: NotificationLevel.warning });
+			return;
+		}
+
+		// 检查是否有选中的任务
+		if (appStore.selectedTask.size !== 1) {
+			Popup({ message: '请先选择一个任务', level: NotificationLevel.warning });
+			return;
+		}
+
+		appStore.openCutOperator([...appStore.selectedTask][0], 'input');
 	};
 
 	const handleFileNameChange = (index: number, value: string) => {
@@ -357,8 +380,8 @@ const InputView = defineComponent((props: Props) => {
 			<div class={css.right} style={{ width: `${100 - centerDraggerPos.value}%`}}>
 				{editingInput.value ? (<>
 					<BoxedDropdownInput title="硬件解码" text={editingInput.value.hwaccel} list={hwaccels} onChange={(value: string) => handleParamChange('hwaccel', value)} />
-					<BoxedNormalInput title="剪辑起点" value={editingInput.value.begin} onChange={(value: string) => handleParamChange('begin', value)} validator={durationValidator} inputFixer={durationFixer} />
-					<BoxedNormalInput title="剪辑终点" value={editingInput.value.end} onChange={(value: string) => handleParamChange('end', value)} validator={durationValidator} inputFixer={durationFixer} />
+					<BoxedNormalInput title="切割起点" value={editingInput.value.begin} onDoubleClick={handleCutOperatorDoubleClick} onChange={(value: string) => handleParamChange('begin', value)} validator={durationValidator} inputFixer={durationFixer} />
+					<BoxedNormalInput title="切割终点" value={editingInput.value.end} onDoubleClick={handleCutOperatorDoubleClick} onChange={(value: string) => handleParamChange('end', value)} validator={durationValidator} inputFixer={durationFixer} />
 					<BoxedSwitch title="限制一倍速" checked={editingInput.value.realtime} onChange={(value: boolean) => handleParamChange('realtime', value)} />
 					<BoxedNormalInput title="自定义参数" value={editingInput.value.custom} onChange={(value: string) => handleParamChange('custom', value)} long={true} />
 					{(editingInputParams.value?.parameters || []).filter((parameter) => parameter.optional).length && (

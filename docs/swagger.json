@@ -213,12 +213,61 @@
           },
           "channel": {
             "type": "string"
+          },
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Frame"
+            }
           }
         },
         "required": [
           "type",
           "metadata",
           "sidedata"
+        ],
+        "additionalProperties": false
+      },
+      "Frame": {
+        "type": "object",
+        "properties": {
+          "n": {
+            "type": "number"
+          },
+          "pts": {
+            "type": "number"
+          },
+          "pts_time": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "I",
+              "P",
+              "B"
+            ]
+          },
+          "mean": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "stdev": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "n",
+          "pts",
+          "pts_time",
+          "type",
+          "mean",
+          "stdev"
         ],
         "additionalProperties": false
       },
@@ -594,10 +643,6 @@
         },
         "required": [
           "vcodec",
-          "resolution",
-          "framerate",
-          "ratecontrol",
-          "ratevalue",
           "detail"
         ],
         "additionalProperties": false
@@ -629,9 +674,6 @@
         },
         "required": [
           "acodec",
-          "ratecontrol",
-          "ratevalue",
-          "vol",
           "detail"
         ],
         "additionalProperties": false
@@ -2197,6 +2239,124 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/frame-info": {
+      "post": {
+        "summary": "扫描视频帧信息",
+        "description": "使用 FFmpeg showinfo 滤镜扫描指定视频流的帧信息，等待扫描完成后返回，结果存储在 StreamInfo.frames 中",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileIndex": {
+                    "type": "integer",
+                    "description": "输入文件索引"
+                  },
+                  "videoStreamIndex": {
+                    "type": "integer",
+                    "description": "视频流索引（第 n 个 type 为 video 的 stream）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "帧扫描完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务或输入文件不存在"
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/preview-stream": {
+      "get": {
+        "summary": "获取视频预览流",
+        "description": "使用 FFmpeg 将视频转码为 fMP4 格式，通过 HTTP 流式传输。用于裁切操作器的视频预览。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "任务 ID"
+          },
+          {
+            "in": "query",
+            "name": "startTime",
+            "schema": {
+              "type": "number"
+            },
+            "description": "起始时间（秒）"
+          },
+          {
+            "in": "query",
+            "name": "endTime",
+            "schema": {
+              "type": "number"
+            },
+            "description": "结束时间（秒）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "fMP4 流",
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "404": {
+            "description": "任务不存在"
           }
         }
       }

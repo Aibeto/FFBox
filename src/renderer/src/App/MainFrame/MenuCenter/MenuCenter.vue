@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { TaskStatus, WorkingStatus } from '@common/types';
+import { TaskStatus, WorkingStatus, NotificationLevel } from '@common/types';
 import { version } from '@common/constants';
 import { useAppStore } from '@renderer/stores/appStore';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
@@ -204,6 +204,7 @@ const finalMenu = computed(() => {
 						appStore.showInfoCenter = false;
 					} else {
 						appStore.showInfoCenter = true;
+						appStore.showCutOperator = undefined;
 						appStore.showMenuCenter = 0;
 					}
 				} },
@@ -212,6 +213,7 @@ const finalMenu = computed(() => {
 						appStore.showTransferCenter = false;
 					} else {
 						appStore.showTransferCenter = true;
+						appStore.showCutOperator = undefined;
 						appStore.showMenuCenter = 0;
 					}
 				} },

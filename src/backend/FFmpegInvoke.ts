@@ -5,7 +5,7 @@
 // const scanf = utils.scanf;
 import { spawn, ChildProcess } from 'child_process';
 import EventEmitter from 'events';
-import { ChapterInfo, EncoderDetail, InputInfo, StreamInfo } from '@common/types';
+import { ChapterInfo, EncoderDetail, InputInfo, StreamInfo, Frame } from '@common/types';
 import i11n from '@common/i11n/i11n';
 import { spawnInvoker } from '@common/spawnInvoker';
 import { selectString, replaceString, scanf, TypedEventEmitter } from '@common/utils';
@@ -59,13 +59,14 @@ interface FFmpegInvokerEvent {
 	codecs: (codecsResult?: CodecsResult, detail?: EncoderDetail) => void;
 	formats: (formatsResult?: FormatsResult, detail?: EncoderDetail) => void;
 	filters: (filtersResult?: FilterResult[], detail?: EncoderDetail) => void;
+	frameInfo: (arg: { frames: Frame[] }) => void;
 	closed: (errorCode: number, runningResult: 'success' | 'failed' | undefined) => void;
 	warning: (arg: { content: string }) => void;
 }
 
 export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegInvokerEvent>) {
 	public process: ChildProcess | null = null;
-	private mode: 'direct' | 'version' | 'metadata' | 'getCodecs' | 'getFormats' | 'getFilters';
+	private mode: 'direct' | 'version' | 'metadata' | 'getCodecs' | 'getFormats' | 'getFilters' | 'getFrameInfo';
 	private runningResult: 'success' | 'failed' | undefined;	// 受状态机识别的错误都应设定此值。如果未设值而退出，则为异常退出
 	private paused: boolean = false;
 	private sm: any = 0; // 状态机状态码，详见下方说明
@@ -75,6 +76,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 	private codecsResult: CodecsResult = { videoCodecs: [], audioCodecs: [] };
 	private formatsResult: FormatsResult = { muxers: [], demuxers: [] };
 	private filtersResult: FilterResult[] = [];
+	private framesResult: Frame[] = [];
 	private readingAVOption: EncoderDetail['options'][number];
 	private readingInputsInfoBuffer: string[] = [];
 	private inputsInfo: InputInfo[] = [];
@@ -84,9 +86,9 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 	/**
 	 * @param mode 0: 直接执行 ffmpeg　1: 检测 ffmpeg 版本　２：多媒体文件信息读取
 	 */
-	constructor(path = 'ffmpeg', mode: 0 | 1 | 2 | 3 | 4 | 5 = 0, params?: Array<string>) {
+	constructor(path = 'ffmpeg', mode: 0 | 1 | 2 | 3 | 4 | 5 | 6 = 0, params?: Array<string>) {
 		super();
-		this.mode = ['direct', 'version', 'metadata', 'getCodecs', 'getFormats', 'getFilters'][mode] as any;
+		this.mode = ['direct', 'version', 'metadata', 'getCodecs', 'getFormats', 'getFilters', 'getFrameInfo'][mode] as any;
 
 		log.dev('启动 ffmpeg', (params || []).join(', '));
 		spawnInvoker(path, params, {
@@ -123,6 +125,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 					this.emit('formats', this.formatsResult, this.encoderDetail);
 				} else if (this.mode === 'getFilters') {
 					this.emit('filters', this.filtersResult, this.encoderDetail);
+				} else if (this.mode === 'getFrameInfo') {
+					this.emit('frameInfo', { frames: this.framesResult });
 				}
 			}, 10);
 		});
@@ -281,7 +285,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 
 		// 解析其他信息（主要是错误信息）
 		const parseOtherMessage = (thisLine: string, stage: FFmpegMessage["stage"] = 'transcoding') => {
-			const match = thisLine.match(/\[(.+) @ .+\] (.+)/);
+			const match = thisLine.match(/\[(.+) @ .+?\] (.+)/);
 			let _, sender, message;
 			if (match) {
 				[_, sender, message] = match;
@@ -337,6 +341,26 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				// FFmpeg cannot edit existing files in-place.
 				this.messages.push({ stage, sender, message: thisLine, translatedMessage: i11n.ffmpeg.无法原地编辑, type: 'error' });
 				this.runningResult = 'failed';
+			} else if (match && sender.startsWith('Parsed_showinfo_') && message.startsWith('n:')) {
+				// 解析 showinfo 输出
+				const nMatch = message.match(/n: *(\d+)/);
+				const ptsMatch = message.match(/pts: *(\d+)/);
+				const ptsTimeMatch = message.match(/pts_time: *(\d+\.?\d*)/);
+				const typeMatch = message.match(/type: *([IPB])/);
+				const meanMatch = message.match(/mean: *\[([^\]]+)\]/);
+				const stdevMatch = message.match(/stdev: *\[([^\]]+)\]/);
+
+				if (nMatch && ptsMatch && ptsTimeMatch && typeMatch && meanMatch && stdevMatch) {
+					const frame: Frame = {
+						n: parseInt(nMatch[1]),
+						pts: parseInt(ptsMatch[1]),
+						pts_time: parseFloat(ptsTimeMatch[1]),
+						type: typeMatch[1] as 'I' | 'P' | 'B',
+						mean: meanMatch[1].split(' ').map(Number),
+						stdev: stdevMatch[1].split(' ').map(Number),
+					};
+					this.framesResult.push(frame);
+				}
 			}
 
 			if (match && this.messages.length === beforeMessagesLength) {

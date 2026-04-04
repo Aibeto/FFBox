@@ -42,6 +42,7 @@ const handleTransferCenterButtonClicked = () => {
 		} else {
 			appStore.showTransferCenter = true;
 			appStore.showTaskInfo = undefined;
+			appStore.showCutOperator = undefined;
 		}
 	}
 }

@@ -10,6 +10,7 @@ interface Props {
 	inputFixer?: (value: string) => string;
 	onChange?: (value: string) => any;
 	onEnter?: () => any;
+	onDoubleClick?: () => any;  // 作为临时的功能
 };
 
 const props = defineProps<Props>();
@@ -85,7 +86,7 @@ onMounted(() => {
 
 <template>
 	<div class="inputbox-selector" :style="selectorStyle">
-		<input :type="$props.type || 'text'" :disabled="props.disabled" v-model="inputText" @blur="handleBlur" @focus="handleFocus" @input="handleInput" @keydown="handleKeydown" :placeholder="placeholder">
+		<input :type="$props.type || 'text'" :disabled="props.disabled" v-model="inputText" @blur="handleBlur" @focus="handleFocus" @input="handleInput" @keydown="handleKeydown" @dblclick="props.onDoubleClick" :placeholder="placeholder">
 	</div>
 </template>
 

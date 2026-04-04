@@ -28,6 +28,7 @@ interface StoreState {
 	showInfoCenter: boolean;
 	showTransferCenter: boolean;
 	showTaskInfo: [number, 0 | 1 | 2, params?: any] | undefined;
+	showCutOperator: { initialDraggerPos: number; focusOn: 'input' | 'output' } | undefined;  // 新增：裁切操作器状态
 	showDragFilesOverlay: boolean;
 	paraSelected: number,
 	draggerPos: number,
@@ -80,6 +81,7 @@ export const useAppStore = defineStore('app', {
 			showInfoCenter: false,
 			showTransferCenter: false,
 			showTaskInfo: undefined,
+			showCutOperator: undefined,
 			showDragFilesOverlay: false,
 			paraSelected: 1,
 			draggerPos: 0.57,
@@ -129,6 +131,23 @@ export const useAppStore = defineStore('app', {
 	},
 	actions: {
 		// #region 纯 UI
+		/**
+		 * 打开切割操作器
+		 */
+		openCutOperator(taskId: number, focusOn: 'input' | 'output') {
+			const 这 = useAppStore();
+			this.showInfoCenter = false;
+			this.showTransferCenter = false;
+			this.showTaskInfo = undefined;
+			this.showMenuCenter = 0;
+			this.showCutOperator = { initialDraggerPos: 这.draggerPos, focusOn };
+		},
+		/**
+		 * 关闭切割操作器
+		 */
+		closeCutOperator() {
+			this.showCutOperator = undefined;
+		},
 		// #endregion 纯 UI
 		// #region 任务处理
 		/**
