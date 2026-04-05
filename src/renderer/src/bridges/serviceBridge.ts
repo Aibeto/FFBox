@@ -256,6 +256,10 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/stop`, { reason });
 	}
 
+	public getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number): Promise<void> {
+		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/frame-info`, { fileIndex, videoStreamIndex });
+	}
+
 	// #endregion
 
 	// #region 队列管理
