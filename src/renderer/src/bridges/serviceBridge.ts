@@ -65,7 +65,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 
 	// #endregion
 
-	// #region 连接管理
+	// #region 连接/断开/WebSocket 监听
 
 	public async connect(ip?: string, port?: number, username?: string, password?: string) {
 		if (ip && port) {
@@ -206,6 +206,22 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		} else {
 			this.emit(data.event, data.payload as any);
 		}
+	}
+
+	// #endregion
+
+	// #region 流式请求
+
+	/**
+	 * 发送流式 HTTP 请求（用于视频预览等场景）
+	 * 返回原始 Response 对象，可通过 response.body.getReader() 控制读取节奏
+	 */
+	public fetchStream(path: string): Promise<Response> {
+		const headers: HeadersInit = {};
+		if (this.sessionId) {
+			headers['Authorization'] = `Bearer ${this.sessionId}`;
+		}
+		return fetch(`http://${this.ip}:${this.port}${path}`, { headers });
 	}
 
 	// #endregion

@@ -2,15 +2,17 @@
 import { computed, ref, onMounted, onUnmounted, watch, StyleValue } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import { NotificationLevel } from '@common/types';
-import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
-import { durationValidator, durationFixer } from '@renderer/components/validatorAndFixer';
-import IconUpArrow from '../ParaBox/uparrow.svg?component';
 import { formatTimeToFFmpegStyle, parseTimeString } from '@common/utils';
+import { PreviewStreamDecoder, PreviewDecoderConfig, BufferInfo } from '@renderer/logic/PreviewStreamDecoder';
+import { ServiceBridge } from '@renderer/bridges/serviceBridge';
+import { durationValidator, durationFixer } from '@renderer/components/validatorAndFixer';
+import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
+import IconUpArrow from '../ParaBox/uparrow.svg?component';
 
 const appStore = useAppStore();
 const selectedTasks = computed(() => appStore.selectedTask.size === 0
-	? { task: undefined, count: 0 }
-	: { task: appStore.currentServer.data.tasks[[...appStore.selectedTask][0]], count: appStore.selectedTask.size }
+	? { task: undefined, taskId: undefined, count: 0 }
+	: { task: appStore.currentServer.data.tasks[[...appStore.selectedTask][0]], taskId: [...appStore.selectedTask][0], count: appStore.selectedTask.size }
 );
 const selectedStream = computed(() => selectedTasks.value.task?.after.input.files.length >= 1 && appStore.globalParams.outputs.length >= 1 ? {
 	before: selectedTasks.value.task.before[0],
@@ -115,60 +117,265 @@ const handleScrollAreaWheel = (event: WheelEvent) => {
 
 // 中键拖拽开始
 const handleScrollAreaMouseDown = (event: MouseEvent) => {
-	if (event.button !== 1) return;  // 只处理中键
-	event.preventDefault();
+	if (event.button === 1) {
+		// 中键：视区拖拽
+		event.preventDefault();
 
-	const scrollArea = event.currentTarget as HTMLElement;
-	panState.value = {
-		active: true,
-		startX: event.pageX,
-		startViewBegin: viewBegin.value,
-		startViewEnd: viewEnd.value,
-	};
+		const scrollArea = event.currentTarget as HTMLElement;
+		panState.value = {
+			active: true,
+			startX: event.pageX,
+			startViewBegin: viewBegin.value,
+			startViewEnd: viewEnd.value,
+		};
 
-	scrollArea.style.cursor = 'grabbing';
-	window.addEventListener('mousemove', handleScrollAreaMouseMove);
-	window.addEventListener('mouseup', handleScrollAreaMouseUp);
+		scrollArea.style.cursor = 'grabbing';
+
+		// 中键拖拽监听
+		const handleScrollAreaMouseMove = (event: MouseEvent) => {
+			if (!panState.value.active) return;
+
+			const scrollArea = document.querySelector('.cutOperator .scrollArea');
+			if (!scrollArea) return;
+
+			const rect = scrollArea.getBoundingClientRect();
+			const deltaX = event.pageX - panState.value.startX;
+			const viewRange = panState.value.startViewEnd - panState.value.startViewBegin;
+			const deltaTime = -deltaX / rect.width * viewRange;  // 向右拖拽 = 视区向左移动
+
+			let newBegin = panState.value.startViewBegin + deltaTime;
+			const newEnd = newBegin + viewRange;
+
+			// 边界约束
+			if (newBegin < 0) {
+				newBegin = 0;
+			}
+			if (newEnd > duration.value) {
+				newBegin = Math.max(0, duration.value - viewRange);
+			}
+
+			viewBegin.value = newBegin;
+			viewEnd.value = newBegin + viewRange;
+		};
+		const handleScrollAreaMouseUp = (event: MouseEvent) => {
+			if (event.button !== 1) return;
+
+			panState.value.active = false;
+			const scrollArea = document.querySelector('.cutOperator .scrollArea') as HTMLElement | null;
+			if (scrollArea) {
+				scrollArea.style.cursor = 'col-resize';
+			}
+			window.removeEventListener('mousemove', handleScrollAreaMouseMove);
+			window.removeEventListener('mouseup', handleScrollAreaMouseUp);
+		};
+		window.addEventListener('mousemove', handleScrollAreaMouseMove);
+		window.addEventListener('mouseup', handleScrollAreaMouseUp);
+	} else if (event.button === 0) {
+		// 左键：进度拖拽
+		event.preventDefault();
+		isProgressDragging.value = true;
+
+		// 直接计算鼠标位置对应的时间
+		const scrollArea = event.currentTarget as HTMLElement;
+		const rect = scrollArea.getBoundingClientRect();
+		const mouseXRatio = (event.pageX - rect.left) / rect.width;
+		const viewRange = viewEnd.value - viewBegin.value;
+		const clickedTime = viewBegin.value + mouseXRatio * viewRange;
+
+		playbackPosition.value = Math.max(0, Math.min(duration.value, clickedTime));
+		seekToPosition(playbackPosition.value);
+
+		// 左键进度拖拽监听
+		const handleProgressMouseMove = (event: MouseEvent) => {
+			if (!isProgressDragging.value) return;
+
+			const scrollArea = document.querySelector('.cutOperator .scrollArea');
+			if (!scrollArea) return;
+
+			const rect = scrollArea.getBoundingClientRect();
+			const mouseXRatio = (event.pageX - rect.left) / rect.width;
+			const viewRange = viewEnd.value - viewBegin.value;
+			const newTime = Math.max(0, Math.min(duration.value, viewBegin.value + mouseXRatio * viewRange));
+
+			playbackPosition.value = newTime;
+			seekToPosition(newTime);
+		};
+		const handleProgressMouseUp = () => {
+			isProgressDragging.value = false;
+			window.removeEventListener('mousemove', handleProgressMouseMove);
+			window.removeEventListener('mouseup', handleProgressMouseUp);
+		};
+		window.addEventListener('mousemove', handleProgressMouseMove);
+		window.addEventListener('mouseup', handleProgressMouseUp);
+	}
 };
 
-// 中键拖拽移动
-const handleScrollAreaMouseMove = (event: MouseEvent) => {
-	if (!panState.value.active) return;
+// #endregion
 
-	const scrollArea = document.querySelector('.cutOperator .scrollArea');
-	if (!scrollArea) return;
+// #region 进度控制
 
-	const rect = scrollArea.getBoundingClientRect();
-	const deltaX = event.pageX - panState.value.startX;
-	const viewRange = panState.value.startViewEnd - panState.value.startViewBegin;
-	const deltaTime = -deltaX / rect.width * viewRange;  // 向右拖拽 = 视区向左移动
+// 进度控制状态
+const playbackPosition = ref(0);  // 独立的播放位置（秒）
+const isProgressDragging = ref(false);  // 左键拖拽进度状态
 
-	let newBegin = panState.value.startViewBegin + deltaTime;
-	const newEnd = newBegin + viewRange;
+// 帧数据
+const allFrames = computed(() => {
+	return selectedStream.value?.before?.streams?.[0]?.frames || [];
+});
 
-	// 边界约束
-	if (newBegin < 0) {
-		newBegin = 0;
+// 关键帧列表（仅 I 帧）
+const keyFrames = computed(() => {
+	return allFrames.value.filter((f) => f.type === 'I').sort((a, b) => a.pts_time - b.pts_time);
+});
+
+// 统一的 seek 操作
+const seekToPosition = async (time: number) => {
+	if (!previewDecoder.value || !videoRef.value) return;
+	const bufferInfo = previewDecoder.value.getBufferInfo();
+	if (time >= bufferInfo.start && time <= bufferInfo.end) {
+		videoRef.value.currentTime = time;  // 在缓冲范围内直接设置
+		playbackPosition.value = time;
+		console.log(`跳转到 ${time} 在缓冲区 ${bufferInfo.start} ~ ${bufferInfo.end} 内`);
+	} else {
+		console.log(`跳转到 ${time} 🚫缓冲区 ${bufferInfo.start} ~ ${bufferInfo.end} 内，调用 seekTo 方法`);
+		bufferLoading.value = true;
+		try {
+			await previewDecoder.value.restart(time);
+		} catch (e) {
+			console.error('[CutOperator] Seek 失败', e);
+		}
+		bufferLoading.value = false;
 	}
-	if (newEnd > duration.value) {
-		newBegin = Math.max(0, duration.value - viewRange);
-	}
-
-	viewBegin.value = newBegin;
-	viewEnd.value = newBegin + viewRange;
 };
 
-// 中键拖拽结束
-const handleScrollAreaMouseUp = (event: MouseEvent) => {
-	if (event.button !== 1) return;
+// 当前帧：使用二分法查找 playbackPosition 对应的帧（处理浮点误差）
+const currentFrame = computed(() => {
+	const frames = allFrames.value;
+	if (frames.length === 0) return null;
 
-	panState.value.active = false;
-	const scrollArea = document.querySelector('.cutOperator .scrollArea') as HTMLElement | null;
-	if (scrollArea) {
-		scrollArea.style.cursor = 'grab';
+	const time = playbackPosition.value;
+	const floatPrecisionOffset = 0.0000001;
+
+	// 二分查找：找到 pts_time <= time 的最大帧
+	let left = 0, right = frames.length - 1;
+	while (left < right) {
+		const mid = Math.ceil((left + right) / 2);
+		if (frames[mid].pts_time <= time + floatPrecisionOffset) {
+			left = mid;	// 目标在中间点偏右侧的位置，或者正好是此处
+		} else {
+			right = mid - 1;
+		}
 	}
-	window.removeEventListener('mousemove', handleScrollAreaMouseMove);
-	window.removeEventListener('mouseup', handleScrollAreaMouseUp);
+
+	// 验证结果：确保找到的帧确实在时间范围内（AI 写的，怪怪的）
+	const foundFrame = frames[left];
+	// 如果时间超出最后一帧，返回最后一帧
+	// if (left === frames.length - 1 && time > foundFrame.pts_time + 0.1) {
+	// 	return foundFrame;
+	// }
+	return foundFrame;
+});
+
+// 进度指示器位置样式
+const progressIndicatorStyle = computed(() => {
+	const viewRange = viewEnd.value - viewBegin.value;
+	if (viewRange <= 0) return { left: '0%' };
+	const leftPercent = ((playbackPosition.value - viewBegin.value) / viewRange) * 100;
+	return { left: `${Math.max(0, Math.min(100, leftPercent))}%` };
+});
+
+// 播放控制方法
+// 播放/暂停切换
+const togglePlayPause = () => {
+	if (!videoRef.value) return;
+
+	if (!videoRef.value.paused) {
+		videoRef.value.pause();
+	} else {
+		// 检查当前位置是否在缓冲范围内
+		// if (!previewDecoder.value?.isCurrentTimeInBuffer()) {
+		// 	// 需要先 seek
+		// 	seekToPosition(playbackPosition.value);
+		// }
+		seekToPosition(playbackPosition.value);
+		videoRef.value.play();
+	}
+};
+
+// 查找前一个关键帧
+const findPrevKeyFrame = (currentTime: number): number | null => {
+	const kfs = keyFrames.value;
+	if (kfs.length === 0) return null;
+
+	for (let i = kfs.length - 1; i >= 0; i--) {
+		if (kfs[i].pts_time < currentTime - 0.01) {  // 添加小阈值避免找到当前帧
+			return kfs[i].pts_time;
+		}
+	}
+	return null;
+};
+
+// 查找后一个关键帧
+const findNextKeyFrame = (currentTime: number): number | null => {
+	const kfs = keyFrames.value;
+	if (kfs.length === 0) return null;
+
+	for (let i = 0; i < kfs.length; i++) {
+		if (kfs[i].pts_time > currentTime + 0.01) {  // 添加小阈值避免找到当前帧
+			return kfs[i].pts_time;
+		}
+	}
+	return null;
+};
+
+// 上一帧：跳转到 currentFrame 的前一帧
+const seekToPrevFrame = async () => {
+	if (videoPlaying.value) videoRef.value?.pause();
+
+	const frame = currentFrame.value;
+	if (!frame || frame.n <= 0) return;
+
+	const prevFrame = allFrames.value[frame.n - 1];
+	if (prevFrame) {
+		playbackPosition.value = prevFrame.pts_time;
+		await seekToPosition(prevFrame.pts_time);
+	}
+};
+
+// 下一帧：跳转到 currentFrame 的后一帧
+const seekToNextFrame = async () => {
+	if (videoPlaying.value) videoRef.value?.pause();
+
+	const frame = currentFrame.value;
+	if (!frame || frame.n >= allFrames.value.length - 1) return;
+
+	const nextFrame = allFrames.value[frame.n + 1];
+	if (nextFrame) {
+		playbackPosition.value = nextFrame.pts_time;
+		await seekToPosition(nextFrame.pts_time);
+	}
+};
+
+// 上一关键帧
+const seekToPrevKeyFrame = async () => {
+	if (videoPlaying.value) videoRef.value?.pause();
+
+	const prevKfTime = findPrevKeyFrame(playbackPosition.value);
+	if (prevKfTime !== null) {
+		playbackPosition.value = prevKfTime;
+		await seekToPosition(prevKfTime);
+	}
+};
+
+// 下一关键帧
+const seekToNextKeyFrame = async () => {
+	if (videoPlaying.value) videoRef.value?.pause();
+
+	const nextKfTime = findNextKeyFrame(playbackPosition.value);
+	if (nextKfTime !== null) {
+		playbackPosition.value = nextKfTime;
+		await seekToPosition(nextKfTime);
+	}
 };
 
 // #endregion
@@ -291,7 +498,6 @@ const handleSelectionMouseDown = (event: MouseEvent, selectionType: 'input' | 'o
 			case 'outputBegin':
 				// startTime: outputBegin
 				// endTime: outputEnd（无视）
-				console.log(inputBegin.value, dragState.value.startTime + deltaTime, outputEnd.value - 0.1)
 				outputBegin.value = Math.max(inputBegin.value, Math.min(dragState.value.startTime + deltaTime, outputEnd.value - 0.1));
 				break;
 			case 'outputEnd':
@@ -352,8 +558,8 @@ const drawKeyFrames = () => {
 	ctx.clearRect(0, 0, keyFramesCanvasWidth.value, keyFramesCanvasHeight.value);
 
 	// 获取 frames 数据
-	const frames = selectedStream.value?.before?.streams?.[0]?.frames;
-	if (!frames || frames.length === 0) {
+	const kFrames = keyFrames.value;
+	if (!kFrames || kFrames.length === 0) {
 		// 无帧信息时绘制提示文字
 		ctx.fillStyle = '#666';
 		ctx.font = '12px sans-serif';
@@ -361,13 +567,6 @@ const drawKeyFrames = () => {
 		ctx.fillText(framesLoading.value ? '正在加载帧信息...' : '无关键帧信息', keyFramesCanvasWidth.value / 2, keyFramesCanvasHeight.value / 2);
 		return;
 	}
-
-	// 筛选视区内的关键帧
-	const keyFrames = frames.filter((f) =>
-		f.type === 'I' &&
-		f.pts_time >= viewBegin.value &&
-		f.pts_time <= viewEnd.value
-	);
 
 	// 视野参数
 	const viewRange = viewEnd.value - viewBegin.value;
@@ -408,14 +607,14 @@ const drawKeyFrames = () => {
 	ctx.textBaseline = 'middle';
 
 	// 绘制关键帧竖线和标签
-	if (keyFrames.length / keyFramesCanvasWidth.value < 0.1) {
+	if (kFrames.length / keyFramesCanvasWidth.value < 0.1) {
 		ctx.strokeStyle = '#8886';
-		ctx.lineWidth = keyFramesCanvasWidth.value / (keyFrames.length + 10) * 0.02;
+		ctx.lineWidth = keyFramesCanvasWidth.value / (kFrames.length + 10) * 0.02;
 		// console.log('lineWidth', ctx.lineWidth);
 		ctx.setLineDash([4, 4]);
 		ctx.fillStyle = '#8888';
 		ctx.font = '10px Bahnschrift,Calibri,\"SF Electrotome\",Avenir';
-		for (const frame of keyFrames) {
+		for (const frame of kFrames) {
 			const percent = (frame.pts_time - viewBegin.value) / viewRange;
 			const x = CANVAS_PADDING + percent * drawWidth;
 	
@@ -424,7 +623,7 @@ const drawKeyFrames = () => {
 			ctx.lineTo(x, 60);
 			ctx.stroke();
 	
-			if (keyFrames.length / keyFramesCanvasWidth.value < 0.01) {	// 平均至少 100px 绘制一个标签
+			if (kFrames.length / keyFramesCanvasWidth.value < 0.01) {	// 平均至少 100px 绘制一个标签
 				ctx.fillText(`${timeFilter(frame.pts_time)} #${frame.n}`, x, 66);
 			}
 		}
@@ -439,7 +638,6 @@ const drawKeyFrames = () => {
 	ctx.font = '10px 华文中宋 black';
 	const timeUnit = getScaleUnit(viewRange, drawWidth, true, 40, 1);
 	const firstTimeLineTime = Math.ceil(viewBegin.value / timeUnit) * timeUnit;
-	console.log(timeUnit, firstTimeLineTime, textStrokeColor);
 	for (let time = firstTimeLineTime; time <= viewEnd.value; time += timeUnit) { 
 		const percent = (time - viewBegin.value) / viewRange;
 		const x = CANVAS_PADDING + percent * drawWidth;
@@ -474,6 +672,27 @@ const updateKeyFrameCanvasSize = () => {
 	drawKeyFrames();
 };
 
+// 调用后端加载帧信息
+const fetchFrameInfo = async () => {
+	if (!selectedTasks.value.task || framesLoading.value) return;
+
+	const frames = selectedStream.value?.before?.streams?.[0]?.frames;
+	framesLoading.value = false;
+	if (frames?.length > 0) return;  // 已有帧信息
+
+	framesLoading.value = true;
+	try {
+		await appStore.currentServer.entity.getMediaFrameInfo(selectedTasks.value.taskId, 0, 0);
+	} catch (err) {
+		console.error('加载帧信息失败:', err);
+	} finally {
+		framesLoading.value = false;
+	}
+};
+
+// 监听视区和帧数据变化，重绘关键帧 canvas
+watch([viewBegin, viewEnd, () => selectedStream.value?.before?.streams?.[0]?.frames], drawKeyFrames);
+
 // #endregion
 
 // #region 选取输入框
@@ -500,6 +719,131 @@ const handleOutputEndChange = (value: string) => {
 };
 
 // #endregion
+
+// #region 视频预览解码器
+
+const videoRef = ref<HTMLVideoElement>(null);
+const previewDecoder = ref<PreviewStreamDecoder | null>(null);
+const videoPlaying = ref(false);
+const videoCurrentTime = ref(0);
+const bufferInfo = ref<BufferInfo>({ start: 0, end: 0, duration: 0 });
+const bufferLoading = ref(false);
+
+// 初始化预览解码器
+const initPreviewDecoder = async () => {
+	console.log('[CutOperator] initPreviewDecoder');
+	if (!videoRef.value || !selectedTasks.value.task) return;
+
+	// 检查服务器连接
+	const entity = appStore.currentServer?.entity;
+	if (!entity) {
+		console.warn('[CutOperator] No server connection available');
+		return;
+	}
+
+	// 销毁旧实例
+	if (previewDecoder.value) {
+		await previewDecoder.value.destroy();
+		previewDecoder.value = null;
+	}
+
+	// 获取 taskId
+	const taskId = [...appStore.selectedTask][0];
+
+	// 创建新实例
+	const config: PreviewDecoderConfig = {
+		taskId,
+		startTime: inputBegin.value,
+		bufferSec: 20,
+		server: entity as ServiceBridge,
+	};
+
+	previewDecoder.value = new PreviewStreamDecoder(config);
+
+	// 设置事件回调
+	previewDecoder.value.onBufferUpdate = (info: BufferInfo) => {
+		bufferInfo.value = info;
+	};
+
+	previewDecoder.value.onStreamError = (error: Error) => {
+		console.error('[CutOperator] Preview stream error:', error);
+	};
+
+	// previewDecoder.value.onSeekRequired = (newTime: number) => {
+	// 	// currentTime 超出缓冲范围，需要重建
+	// 	if (!previewDecoder.value || !videoRef.value) return;
+
+	// 	console.log(`[CutOperator] Seek required to ${newTime.toFixed(2)}s`);
+
+	// 	bufferLoading.value = true;
+	// 	try {
+	// 		await previewDecoder.value.seekTo(newTime, videoRef.value);
+	// 		bufferLoading.value = false;
+	// 	} catch (e) {
+	// 		console.error('[CutOperator] Seek failed:', e);
+	// 		bufferLoading.value = false;
+	// 	}
+	// };
+
+	try {
+		bufferLoading.value = true;
+		await previewDecoder.value.initialize(videoRef.value);
+		bufferLoading.value = false;
+
+		// 设置初始播放位置
+		videoRef.value.currentTime = inputBegin.value;
+	} catch (e) {
+		console.error('[CutOperator] Failed to initialize preview decoder:', e);
+		bufferLoading.value = false;
+	}
+};
+
+// 视频时间更新处理
+const handleVideoTimeUpdate = () => {
+	if (videoRef.value) {
+		videoCurrentTime.value = videoRef.value.currentTime + previewDecoder.value.config.startTime;
+	}
+};
+
+// 视频等待缓冲
+const handleVideoWaiting = () => {
+	bufferLoading.value = true;
+	videoPlaying.value = false;
+};
+
+// 视频开始播放
+const handleVideoPlaying = () => {
+	bufferLoading.value = false;
+	videoPlaying.value = true;
+};
+// 视频暂停播放
+const handleVideoPaused = () => {
+	videoPlaying.value = false;
+};
+
+// 视频播放结束
+const handleVideoEnded = () => {
+	videoPlaying.value = false;
+};
+
+// 监听任务变化，初始化/销毁解码器
+watch(() => selectedTasks.value.task, async (newTask, oldTask) => {
+	if (newTask) {
+		// 任务切换时延迟初始化解码器
+		setTimeout(() => {
+			initPreviewDecoder();
+		}, 1000);
+	} else {
+		// 无任务时销毁解码器
+		if (previewDecoder.value) {
+			await previewDecoder.value.destroy();
+			previewDecoder.value = null;
+		}
+	}
+}, { immediate: true });
+
+// #endregion
+
 // 从 OutputParams 加载选区数据
 const updateSelectionFromParams = () => {
 	if (!selectedTasks.value.task) return;
@@ -514,7 +858,6 @@ const updateSelectionFromParams = () => {
 	ob = Math.max(0, Math.min(ob, ie - ib));
 	oe = Math.max(ob, Math.min(oe, ie - ib));
 	
-	console.log(ib, ie, ob, oe, duration.value);
 	inputBegin.value = ib;
 	inputEnd.value = ie;
 	outputBegin.value = ib + ob;
@@ -522,38 +865,26 @@ const updateSelectionFromParams = () => {
 };
 
 
-// 加载帧信息
-const fetchFrameInfo = async () => {
-	if (!selectedTasks.value.task || framesLoading.value) return;
-
-	const frames = selectedStream.value?.before?.streams?.[0]?.frames;
-	if (frames && frames.length > 0) return;  // 已有帧信息
-
-	framesLoading.value = true;
-	try {
-		const taskId = [...appStore.selectedTask][0];
-		await appStore.currentServer.entity.getMediaFrameInfo(taskId, 0, 0);
-	} catch (err) {
-		console.error('加载帧信息失败:', err);
-	} finally {
-		framesLoading.value = false;
-	}
-};
-
-
 // 监听任务变化
 watch(() => selectedTasks.value.task, () => {
 	updateSelectionFromParams();
+	playbackPosition.value = 0;
+	// 视区
 	viewBegin.value = 0;
 	viewEnd.value = duration.value;
+	// 关键帧
+	fetchFrameInfo();
 	setTimeout(() => {
 		updateKeyFrameCanvasSize();
 	}, 0);
-	fetchFrameInfo();
 }, { immediate: true });
 
-// 监听视区和帧数据变化，重绘 canvas
-watch([viewBegin, viewEnd, () => selectedStream.value?.before?.streams?.[0]?.frames], drawKeyFrames);
+// 播放进度同步：播放时同步 playbackPosition 到 video.currentTime
+watch([videoPlaying, videoCurrentTime], ([playing, currentTime]) => {
+	if (playing && !isProgressDragging.value) {
+		playbackPosition.value = currentTime;
+	}
+});
 
 onMounted(() => {
 	if (keyFramesCanvasRef.value?.parentElement) {
@@ -561,9 +892,13 @@ onMounted(() => {
 		resizeObserver.observe(keyFramesCanvasRef.value.parentElement);
 	}
 });
-onUnmounted(() => {
+onUnmounted(async () => {
 	if (resizeObserver) {
 		resizeObserver.disconnect();
+	}
+	if (previewDecoder.value) {
+		await previewDecoder.value.destroy();
+		previewDecoder.value = null;
 	}
 });
 
@@ -585,18 +920,49 @@ onUnmounted(() => {
 		<div class="lower">
 			<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task.taskName }}</div>
 			<div class="previewArea" v-if="selectedTasks.task">
-				<div class="previewPlaceholder">
-					<p>视频预览区域（待实现）</p>
-					<p style="font-size: 12px;">绝对选区：{{ inputBegin }}~{{ inputEnd }}, {{ outputBegin }}~{{ outputEnd }}</p>
-					<p style="font-size: 12px;">视区：{{ viewBegin }}~{{ viewEnd }}</p>
+				<video ref="videoRef"
+					@timeupdate="handleVideoTimeUpdate"
+					@waiting="handleVideoWaiting"
+					@playing="handleVideoPlaying"
+					@pause="handleVideoPaused"
+					@ended="handleVideoEnded"
+					class="previewVideo"
+					controls
+				></video>
+				<!-- 悬浮控件盒 -->
+				<div class="controlsOverlay" v-show="!isProgressDragging && !bufferLoading">
+					<div class="controlsBox">
+						<button class="controlBtn" @click="seekToPrevKeyFrame" title="上一关键帧" :disabled="!findPrevKeyFrame(playbackPosition)">
+							<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h2v12H4zm4 6l6 4.5V7.5z"/></svg>
+						</button>
+						<button class="controlBtn" @click="seekToPrevFrame" title="上一帧" :disabled="!currentFrame || currentFrame.n <= 0">
+							<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+						</button>
+						<button class="controlBtn controlBtnPlay" @click="togglePlayPause" title="播放/暂停">
+							<svg v-if="videoPlaying" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+							<svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+						</button>
+						<button class="controlBtn" @click="seekToNextFrame" title="下一帧" :disabled="!currentFrame || currentFrame.n >= allFrames.length - 1">
+							<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zm-9.5 6l8.5-6v12z"/></svg>
+						</button>
+						<button class="controlBtn" @click="seekToNextKeyFrame" title="下一关键帧" :disabled="!findNextKeyFrame(playbackPosition)">
+							<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 6l-6 4.5v9l6-4.5V6zm4 0h2v12h-2V6z"/></svg>
+						</button>
+					</div>
+					<div class="timeDisplay">
+						{{ formatTimeToFFmpegStyle(playbackPosition) }} (#{{ currentFrame.n }}) / {{ formatTimeToFFmpegStyle(duration) }}
+					</div>
+				</div>
+				<div class="bufferIndicator" v-if="bufferLoading">
+					<span>缓冲中...</span>
 				</div>
 			</div>
 			<div v-else style="flex: 1"></div>
 			<div class="timelineArea" v-if="selectedTasks.task">
 				<canvas ref="keyFramesCanvasRef"></canvas>
-				<div class="scrollArea"
-						@wheel.prevent="handleScrollAreaWheel"
-						@mousedown="handleScrollAreaMouseDown">
+				<div class="scrollArea" @wheel.prevent="handleScrollAreaWheel" @mousedown="handleScrollAreaMouseDown">
+					<!-- 进度指示器 -->
+					<div class="progressIndicator" :style="progressIndicatorStyle"></div>
 					<div class="rectInput" :style="rectEndsPosition.input" @mousedown="(e) => handleSelectionMouseDown(e, 'input')">
 						<div class="handle handle-left"></div>
 						<div class="handle handle-right"></div>
@@ -751,11 +1117,95 @@ onUnmounted(() => {
 				background: #000;
 				min-height: 0px;
 				overflow: hidden;
-				.previewPlaceholder {
-					color: #999;
-					text-align: center;
-					p {
-						margin: 4px 0;
+				position: relative;
+				.previewVideo {
+					width: 100%;
+					height: 100%;
+					object-fit: contain;
+				}
+				.bufferIndicator {
+					position: absolute;
+					top: 50%;
+					left: 50%;
+					transform: translate(-50%, -50%);
+					background: rgba(0, 0, 0, 0.7);
+					padding: 8px 16px;
+					border-radius: 4px;
+					color: #fff;
+					font-size: 14px;
+					pointer-events: none;
+				}
+				.controlsOverlay {
+					position: absolute;
+					top: 0;
+					left: 0;
+					right: 0;
+					padding: 12px;
+					display: flex;
+					flex-direction: column;
+					align-items: center;
+					gap: 8px;
+					background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent 80%);
+					opacity: 0.7;
+					transition: opacity 0.3s ease;
+					&:hover {
+						opacity: 1;
+					}
+					.controlsBox {
+						display: flex;
+						gap: 4px;
+						background: rgba(30, 30, 30, 0.7);
+						padding: 6px 12px;
+						border-radius: 20px;
+						backdrop-filter: blur(8px);
+						.controlBtn {
+							width: 28px;
+							height: 28px;
+							display: flex;
+							justify-content: center;
+							align-items: center;
+							background: transparent;
+							border: none;
+							color: #fff;
+							cursor: pointer;
+							border-radius: 50%;
+							transition: background 0.2s ease, transform 0.1s ease;
+							&:hover:not(:disabled) {
+								background: rgba(255, 255, 255, 0.15);
+							}
+							&:active:not(:disabled) {
+								background: rgba(255, 255, 255, 0.25);
+								transform: scale(0.95);
+							}
+							&:disabled {
+								opacity: 0.4;
+								cursor: not-allowed;
+							}
+							svg {
+								width: 18px;
+								height: 18px;
+							}
+						}
+						.controlBtnPlay {
+							width: 36px;
+							height: 36px;
+							background: rgba(80, 80, 80, 0.6);
+							margin: 0 4px;
+							svg {
+								width: 22px;
+								height: 22px;
+							}
+							&:hover:not(:disabled) {
+								background: rgba(100, 100, 100, 0.7);
+							}
+						}
+					}
+					.timeDisplay {
+						font-size: 13px;
+						color: rgba(255, 255, 255, 0.9);
+						font-family: Bahnschrift, 'SF Mono', 'Consolas', monospace;
+						text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+						letter-spacing: 0.5px;
 					}
 				}
 			}
@@ -772,7 +1222,35 @@ onUnmounted(() => {
 					left: 40px;
 					right: 40px;
 					overflow: visible;
-					cursor: grab;
+					cursor: col-resize;
+					.progressIndicator {
+						position: absolute;
+						top: 0;
+						bottom: 0;
+						width: 2px;
+						background: #f44;
+						transform: translateX(-50%);
+						z-index: 10;
+
+						&::before {
+							content: '';
+							position: absolute;
+							top: 50%;
+							left: 50%;
+							transform: translate(-50%, -50%);
+							width: 8px;
+							height: 8px;
+							background: #f44;
+							border-radius: 50%;
+							opacity: 0;
+							transition: opacity 0.2s ease, transform 0.2s ease;
+						}
+
+						&:hover::before {
+							opacity: 1;
+							transform: translate(-50%, -50%) scale(1.5);
+						}
+					}
 					.rectInput, .rectOutput {
 						position: absolute;
 						height: 24px;

@@ -859,11 +859,6 @@ function getRouter(): Router {
 	 *         schema:
 	 *           type: number
 	 *         description: 起始时间（秒）
-	 *       - in: query
-	 *         name: endTime
-	 *         schema:
-	 *           type: number
-	 *         description: 结束时间（秒）
 	 *     responses:
 	 *       200:
 	 *         description: fMP4 流
@@ -886,7 +881,7 @@ function getRouter(): Router {
 		}
 
 		const startTime = parseFloat(ctx.query.startTime as string) || 0;
-		const endTime = parseFloat(ctx.query.endTime as string) || task.before[0]?.duration || 0;
+		// const endTime = parseFloat(ctx.query.endTime as string) || task.before[0]?.duration || 0;
 		const filePath = task.after.input.files[0]?.filePath;
 
 		if (!filePath) {
@@ -894,12 +889,11 @@ function getRouter(): Router {
 			ctx.body = { error: 'No input file' };
 			return;
 		}
-
-		if (startTime >= endTime) {
-			ctx.status = 400;
-			ctx.body = { error: 'Invalid time range' };
-			return;
-		}
+		// if (startTime >= endTime) {
+		// 	ctx.status = 400;
+		// 	ctx.body = { error: 'Invalid time range' };
+		// 	return;
+		// }
 
 		const realFilePath = task.remoteTask
 			? `${os.tmpdir()}/FFBoxUploadCache/${filePath}`
@@ -909,7 +903,7 @@ function getRouter(): Router {
 		const ffmpegArgs = [
 			'-ss', String(startTime),
 			'-i', realFilePath,
-			'-t', String(endTime - startTime),
+			// '-t', String(endTime - startTime),
 			'-map', '0:v:0',
 			'-c:v', 'libx264',
 			'-preset', 'ultrafast',
