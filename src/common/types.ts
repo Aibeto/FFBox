@@ -482,3 +482,28 @@ export interface UpdateWebhookRequest {
 }
 
 // #endregion
+
+// #region 预览 WebSocket 消息协议
+
+// 前端 -> 后端
+export interface PreviewWsMessage {
+	type: 'start' | 'stop' | 'ping' | 'continue';
+	startTime?: number;  // 仅用于 start
+}
+
+// 后端 -> 前端
+export interface PreviewWsResponse {
+	type: 'connected' | 'started' | 'streamEnd' | 'error' | 'pong';
+	sessionId?: string;
+	taskId?: number;
+	startTime?: number;
+	stats?: {
+		bytesReceived: number;
+		bytesSent: number;
+		bytesBuffered: number;
+		waitingForContinue: boolean;
+	};
+	message?: string;
+}
+
+// #endregion

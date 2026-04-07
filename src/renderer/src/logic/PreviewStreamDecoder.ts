@@ -1,4 +1,5 @@
 import { ServiceBridge } from '@renderer/bridges/serviceBridge';
+import { PreviewWsMessage, PreviewWsResponse } from '@common/types';
 
 export interface PreviewDecoderConfig {
 	taskId: number;
@@ -16,10 +17,12 @@ export interface BufferInfo {
 /**
  * 视频预览流解码器
  *
- * 使用 MediaSource API 实现"阻塞式"流式播放：
- * - 前端通过 ReadableStream.reader.read() 控制读取节奏
- * - 缓冲足够时暂停读取，HTTP TCP 缓冲机制提供背压
- * - currentTime 超出缓冲范围时重建解码实例
+ * 使用 MediaSource API + WebSocket 实现流式播放（步进模式）：
+ * - 后端每次发送一个 chunk 后等待，收到 continue 确认后发送下一个
+ * - 前端收到数据并 appendBuffer 完成后，检查缓冲水位线
+ * - 缓冲不足时发送 continue 消息，后端才发送下一个 chunk
+ * - 定时器持续检查缓冲水位线，不足时发送 continue
+ * - currentTime 超出缓冲范围时重新建立连接
  */
 export class PreviewStreamDecoder {
 	private mediaSource: MediaSource | null = null;
@@ -27,16 +30,19 @@ export class PreviewStreamDecoder {
 	private videoElement: HTMLVideoElement | null = null;
 
 	public config: PreviewDecoderConfig;
-	private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-	private abortController: AbortController | null = null;
+	private ws: WebSocket | null = null;
+	private sessionId: string | null = null;
 
 	// 缓冲状态
 	private bufferedStartTime: number = 0;
 	private bufferedEndTime: number = 0;
-	private isReading: boolean = false;
 	private streamEnded: boolean = false;
 	private isDestroying: boolean = false;	// 如果销毁时 sourceBuffer.updating，这个值会被设置为 true
 	private requestId: number = 0;	// 每次 initialize 和 request 时都会 +1，用于在异步循环中判断之前的东西是否已经注销
+
+	// SourceBuffer 操作队列
+	private bufferQueue: Uint8Array[] = [];
+	private isBufferProcessing: boolean = false;
 
 	// 缓冲检查定时器
 	private bufferCheckTimer: number | null = null;
@@ -47,7 +53,6 @@ export class PreviewStreamDecoder {
 	// 事件回调
 	public onBufferUpdate?: (info: BufferInfo) => void;	// buffer 更新完成时触发
 	public onStreamError?: (error: Error) => void;	// 预览请求出错时触发
-	// public onSeekRequired?: (newTime: number) => void;
 	public onInsufficientSpeed?: () => void;	// 检查缓存时发现 buffer 剩余时间小于 1s 时触发
 
 	constructor(config: PreviewDecoderConfig) {
@@ -93,114 +98,192 @@ export class PreviewStreamDecoder {
 			}
 		}
 
-		// 启动流请求
-		// await this.startStreamRequest();
-		this.abortController = new AbortController();
-		this.streamEnded = false;
-		const url = `/api/v1/tasks/${this.config.taskId}/preview-stream?startTime=${this.config.startTime}`;
-		try {
-			const requestId = this.requestId;
-			const response = await this.config.server.fetchStream(url);
-			if (!response.ok) {
-				throw new Error(`[PreviewStreamDecoder] 预览请求失败 ${response.status}`);
-			}
-			if (!response.body) {
-				throw new Error('[PreviewStreamDecoder] 预览请求异常');
-			}
-			if (requestId !== this.requestId) return;
-			this.reader = response.body.getReader();	// 获取 ReadableStream reader
-			this.readLoop();	// 开始读取循环
-		} catch (e) {
-			console.error('[PreviewStreamDecoder] 预览请求出错', e);
-			this.onStreamError?.(e as Error);
-		}
+		// 建立 WebSocket 连接
+		await this.connectWebSocket();
 
 		// 启动缓冲检查定时器
+		this.startBufferCheckTimer();
+	}
+
+	/**
+	 * 建立 WebSocket 连接
+	 */
+	private connectWebSocket(): Promise<void> {
+		return new Promise((resolve, reject) => {
+			const wsUrl = `ws://${this.config.server.ip}:${this.config.server.port}/ws/preview?taskId=${this.config.taskId}&startTime=${this.config.startTime}`;
+			console.log('[PreviewStreamDecoder] 连接 WebSocket:', wsUrl);
+
+			this.ws = new WebSocket(wsUrl);
+			this.ws.binaryType = 'arraybuffer';
+
+			this.ws.onopen = () => {
+				console.log('[PreviewStreamDecoder] WebSocket 连接成功');
+				// 连接成功后发送 start 指令
+				this.sendMessage({ type: 'start', startTime: this.config.startTime });
+				resolve();
+			};
+
+			this.ws.onmessage = (event) => {
+				if (typeof event.data === 'string') {
+					this.handleTextMessage(JSON.parse(event.data) as PreviewWsResponse);
+				} else {
+					// 二进制数据 -> SourceBuffer
+					this.appendToBuffer(new Uint8Array(event.data));
+				}
+			};
+
+			this.ws.onerror = (err) => {
+				console.error('[PreviewStreamDecoder] WebSocket error', err);
+				this.onStreamError?.(new Error('WebSocket error'));
+				reject(err);
+			};
+
+			this.ws.onclose = (event) => {
+				console.log('[PreviewStreamDecoder] WebSocket closed', event.code, event.reason);
+				this.streamEnded = true;
+			};
+		});
+	}
+
+	/**
+	 * 处理文本消息
+	 */
+	private handleTextMessage(message: PreviewWsResponse): void {
+		switch (message.type) {
+			case 'connected':
+				this.sessionId = message.sessionId || null;
+				console.log('[PreviewStreamDecoder] Connected', message);
+				break;
+
+			case 'started':
+				this.streamEnded = false;
+				console.log('[PreviewStreamDecoder] Stream started', message.startTime);
+				break;
+
+			case 'streamEnd':
+				this.streamEnded = true;
+				console.log('[PreviewStreamDecoder] Stream ended');
+				break;
+
+			case 'error':
+				console.error('[PreviewStreamDecoder] Error', message.message);
+				this.onStreamError?.(new Error(message.message || 'Unknown error'));
+				break;
+
+			case 'pong':
+				// 心跳响应
+				break;
+		}
+	}
+
+	/**
+	 * 发送消息
+	 */
+	private sendMessage(message: PreviewWsMessage): void {
+		if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+			this.ws.send(JSON.stringify(message));
+		}
+	}
+
+	/**
+	 * 发送 continue 消息（步进模式）
+	 */
+	private sendContinue(): void {
+		this.sendMessage({ type: 'continue' });
+	}
+
+	/**
+	 * 启动缓冲检查定时器
+	 * 步进模式下：缓冲不足时发送 continue 消息请求下一个 chunk
+	 */
+	private startBufferCheckTimer(): void {
 		const requestId = this.requestId;
 		this.bufferCheckTimer = window.setInterval(() => {
-			if (this.streamEnded || this.abortController?.signal.aborted || this.isDestroying || this.requestId !== requestId) return;
+			if (this.streamEnded || !this.ws || this.isDestroying || this.requestId !== requestId) return;
 
-			// 剩余缓冲量不足时启动读取循环
 			const currentBufferSec = this.getCurrentBufferDuration();
-			if (currentBufferSec < this.config.bufferSec * 0.5 && !this.isReading) {
-				console.log(`[PreviewDecoder] 剩余缓冲不足 (${currentBufferSec.toFixed(2)}s)，启动读取循环`);
-				this.readLoop();
-			} else if (currentBufferSec <= 1) { 
-				console.log(`[PreviewDecoder] 剩余缓冲不足 1s`);
+
+			// 缓冲不足时发送 continue 请求下一个 chunk
+			if (currentBufferSec < this.config.bufferSec) {
+				console.log(`[PreviewStreamDecoder] 缓冲不足 (${currentBufferSec.toFixed(2)}s)，请求下一个 chunk`);
+				this.sendContinue();
+			}
+
+			// 缓冲严重不足时触发警告
+			if (currentBufferSec <= 1) {
 				this.onInsufficientSpeed?.();
 			}
-	
-			// this.checkCurrentTimeInBuffer();
 		}, 1000);
 	}
 
 	/**
-	 * 启动读取循环（核心阻塞式控制），直到缓存足够或者读完
+	 * Append 数据到 SourceBuffer（队列模式）
 	 */
-	private async readLoop(): Promise<void> {
-		if (this.isReading || !this.reader) return;
-		this.isReading = true;
-		const requestId = this.requestId;
-
-		try {
-			while (!this.streamEnded && !this.abortController?.signal.aborted && this.requestId === requestId) {
-				// 检查当前缓冲量，如果缓冲量已达目标，暂停读取
-				const currentBufferSec = this.getCurrentBufferDuration();
-				if (currentBufferSec >= this.config.bufferSec) {
-					console.log(`[PreviewStreamDecoder] 剩余缓冲充足 (${currentBufferSec.toFixed(2)}s), 读取暂停`);
-					this.isReading = false;
-					return;
-				}
-
-				// 从流中读取数据
-				const { done, value } = await this.reader.read();
-				if (done) {
-					this.streamEnded = true;
-					console.log('[PreviewDecoder] 预览流结束');
-					break;
-				}
-				if (this.requestId === requestId) {
-					await this.appendToBuffer(value);
-				}
-			}
-		} catch (e) {
-			if ((e as Error).name !== 'AbortError') {
-				console.error('[PreviewStreamDecoder] 读取循环出错', e);
-			}
+	private appendToBuffer(data: Uint8Array): void {
+		// 将数据加入队列
+		this.bufferQueue.push(data);
+		// 如果当前没有在处理，启动处理流程
+		if (!this.isBufferProcessing) {
+			this.processBufferQueue();
 		}
-		this.isReading = false;
 	}
 
 	/**
-	 * Append 数据到 SourceBuffer
+	 * 处理 SourceBuffer 队列
+	 * 步进模式：每次 appendBuffer 完成后检查缓冲水位线，不足时发送 continue
 	 */
-	private async appendToBuffer(data: Uint8Array): Promise<void> {
-		if (!this.sourceBuffer) {
-			throw new Error('[PreviewDecoder] SourceBuffer 未初始化');
+	private async processBufferQueue(): Promise<void> {
+		if (this.isBufferProcessing) return;
+		this.isBufferProcessing = true;
+
+		while (this.bufferQueue.length > 0 && !this.isDestroying) {
+			const data = this.bufferQueue.shift()!;
+			if (!this.sourceBuffer) break;
+
+			// 等待 SourceBuffer 空闲
+			if (this.sourceBuffer.updating) {
+				await new Promise<void>((resolve) => {
+					const handler = () => {
+						this.sourceBuffer?.removeEventListener('updateend', handler);
+						resolve();
+					};
+					this.sourceBuffer.addEventListener('updateend', handler);
+				});
+			}
+
+			// 检查是否在等待过程中被销毁
+			if (this.isDestroying || !this.sourceBuffer) break;
+
+			// 执行 append
+			try {
+				this.sourceBuffer.appendBuffer(data);
+				await new Promise<void>((resolve) => {
+					const handler = () => {
+						this.sourceBuffer?.removeEventListener('updateend', handler);
+						resolve();
+					};
+					this.sourceBuffer.addEventListener('updateend', handler);
+				});
+			} catch (e) {
+				console.error('[PreviewStreamDecoder] appendBuffer 错误', e);
+				break;
+			}
+
+			// 更新缓冲范围信息
+			this.updateBufferRanges();
+
+			// 步进模式：appendBuffer 完成后检查缓冲水位线
+			// 缓冲不足时立即发送 continue 请求下一个 chunk
+			const currentBufferSec = this.getCurrentBufferDuration();
+			if (currentBufferSec < this.config.bufferSec && !this.streamEnded) {
+				console.log(`[PreviewStreamDecoder] appendBuffer 完成，缓冲不足 (${currentBufferSec.toFixed(2)}s)，请求下一个 chunk`);
+				this.sendContinue();
+			}
 		}
 
-		// SourceBuffer 正在更新时不能 append
-		if (this.sourceBuffer.updating) {
-			await new Promise<void>((resolve) => {
-				const handler = () => {
-					// 有可能在 updateend 之前被跳转操作 destroy 了
-					this.sourceBuffer?.removeEventListener('updateend', handler);
-					resolve();
-				};
-				this.sourceBuffer.addEventListener('updateend', handler);
-			});
-		}
-		this.sourceBuffer.appendBuffer(data);
-		await new Promise<void>((resolve) => {
-			const handler = () => {
-				// 有可能在 updateend 之前被跳转操作 destroy 了
-				this.sourceBuffer?.removeEventListener('updateend', handler);
-				resolve();
-			};
-			this.sourceBuffer.addEventListener('updateend', handler);
-		});
-		this.updateBufferRanges();
+		this.isBufferProcessing = false;
 	}
+
 	/**
 	 * 更新缓冲范围信息
 	 */
@@ -261,8 +344,8 @@ export class PreviewStreamDecoder {
 	 */
 	public getBufferInfo(): BufferInfo {
 		return {
-			start: this.bufferedStartTime,
-			end: this.bufferedEndTime,
+			start: this.bufferedStartTime + this.config.startTime,
+			end: this.bufferedEndTime + this.config.startTime,
 			duration: this.bufferedEndTime - this.bufferedStartTime,
 		};
 	}
@@ -271,7 +354,7 @@ export class PreviewStreamDecoder {
 	 * 销毁解码实例
 	 */
 	public async destroy(): Promise<void> {
-		console.log('[PreviewDecoder] Destroying decoder');
+		console.log('[PreviewStreamDecoder] Destroying decoder');
 		this.requestId++;
 		this.isDestroying = true;
 
@@ -280,30 +363,29 @@ export class PreviewStreamDecoder {
 			window.clearInterval(this.bufferCheckTimer);
 			this.bufferCheckTimer = null;
 		}
-		if (this.abortController) {
-			this.abortController.abort();	// 中断请求
-			this.abortController = null;
-		}
-		if (this.reader) {
-			this.reader.cancel();	// 关闭 reader
-			this.reader = null;
+
+		// 关闭 WebSocket
+		if (this.ws) {
+			if (this.ws.readyState === WebSocket.OPEN) {
+				this.sendMessage({ type: 'stop' });
+			}
+			this.ws.close();
+			this.ws = null;
 		}
 
 		// 清理 MediaSource
 		if (this.mediaSource && this.mediaSource.readyState === 'open' && this.sourceBuffer) {
-			// SourceBuffer 正在更新时不能 append
 			if (this.sourceBuffer.updating) {
 				await new Promise<void>((resolve) => {
 					const handler = () => {
-						// 有可能在 updateend 之前被跳转操作 destroy 了
 						this.sourceBuffer?.removeEventListener('updateend', handler);
 						resolve();
 					};
 					this.sourceBuffer.addEventListener('updateend', handler);
 				});
 			}
-			this.mediaSource!.removeSourceBuffer(this.sourceBuffer!);
-			this.mediaSource!.endOfStream();
+			this.mediaSource.removeSourceBuffer(this.sourceBuffer);
+			this.mediaSource.endOfStream();
 		}
 
 		// 清理 video src
@@ -322,14 +404,15 @@ export class PreviewStreamDecoder {
 		this.bufferedStartTime = 0;
 		this.bufferedEndTime = 0;
 		this.streamEnded = false;
-		this.isReading = false;
+		this.bufferQueue = [];
+		this.isBufferProcessing = false;
 	}
 
 	/**
 	 * 跳转到新的时间点（重建解码实例）
 	 */
 	public async restart(newTime: number, videoElement?: HTMLVideoElement): Promise<void> {
-		console.log(`[PreviewDecoder] 重建解码实例，开始时间 ${newTime.toFixed(2)}s`);
+		console.log(`[PreviewStreamDecoder] 重建解码实例，开始时间 ${newTime.toFixed(2)}s`);
 
 		this.config.startTime = newTime;
 		if (this.isDestroying) return;	// 上一个 destroy 完成后会继续往下跑，这个 restart 就不用继续了

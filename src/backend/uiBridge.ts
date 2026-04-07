@@ -20,6 +20,7 @@ import { FFBoxService } from './FFBoxService';
 import { getOs, log } from './utils';
 import { sessionManager } from './utils/sessionManager';
 import { webhookManager } from './utils/webhookManager';
+import { ControllableTransform } from './utils/ControllableTransform';
 
 interface Client {
 	ws: WebSocket;
@@ -31,8 +32,19 @@ interface Client {
 let server: Http.Server | null;
 let koa: Koa | null;
 let wss: WebSocket.Server | null;
+let wssPreview: WebSocket.Server | null;  // 预览流 WebSocket
 let clients = new Map<string, Client>();
 let ffboxService: FFBoxService | null;
+
+// 预览 WebSocket 会话管理
+interface PreviewSession {
+	ws: WebSocket;
+	taskId: number;
+	startTime: number;
+	ffmpeg: ReturnType<typeof spawn> | null;
+	transform: ControllableTransform;
+}
+const previewSessions = new Map<string, PreviewSession>();
 
 const uploadDir = os.tmpdir() + '/FFBoxUploadCache'; // 文件上传目录
 const downloadDir = os.tmpdir() + '/FFBoxDownloadCache'; // 文件下载目录
@@ -125,14 +137,34 @@ const uiBridge = {
 
 		server = Http.createServer(koa.callback());
 
-		// wss = new (WebSocket.Server || WebSocketServer)({ server }); // https://github.com/websockets/ws/issues/1538
-		wss = new WebSocket.Server({ server });
+		// WebSocket 改为 noServer 模式，支持多个路径
+		wss = new WebSocket.Server({ noServer: true });
+		wssPreview = new WebSocket.Server({ noServer: true });
+
+		// 手动处理 WebSocket 升级请求，根据路径分发
+		server.on('upgrade', (request, socket, head) => {
+			const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+			if (pathname === '/') {
+				// 主 WebSocket（UI-Service 事件）
+				wss!.handleUpgrade(request, socket, head, (ws) => {
+					wss!.emit('connection', ws, request);
+				});
+			} else if (pathname === '/ws/preview') {
+				// 预览流 WebSocket
+				wssPreview!.handleUpgrade(request, socket, head, (ws) => {
+					wssPreview!.emit('connection', ws, request);
+				});
+			} else {
+				// 拒绝其他路径的 WebSocket 升级
+				socket.destroy();
+			}
+		});
 
 		const port = +(getSingleArgvValue('--port') || 33269);
 		server.listen(port, '::');
 		log.info(`HTTP/WebSocket 服务开始监听端口 ${port}。`);
 
-		// 挂载 WebSocket 服务器相关事件
+		// 挂载主 WebSocket 服务器相关事件
 		wss.on('connection', mountWebSocketEvents);
 		wss.on('error', function (error: Error) {
 			log.error('WebSocket 服务出错，建议检查防火墙。', error);
@@ -144,6 +176,18 @@ const uiBridge = {
 			log.info('WebSocket 服务关闭。');
 			wss = null;
 		});
+
+		// 挂载预览 WebSocket 服务器相关事件
+		wssPreview.on('connection', mountPreviewWebSocketEvents);
+		wssPreview.on('error', function (error: Error) {
+			log.error('预览 WebSocket 服务出错。', error);
+			wssPreview = null;
+		});
+		wssPreview.on('close', function () {
+			log.info('预览 WebSocket 服务关闭。');
+			wssPreview = null;
+		});
+
 		setTimeout(() => {
 			if (wss) {
 				mountEventFromService();
@@ -242,6 +286,204 @@ function mountEventFromService(): void {
 			}
 		});
 	}
+}
+
+// #endregion
+
+// #region 预览 WebSocket 事件处理
+
+/**
+ * 预览 WebSocket 连接处理
+ * 从 URL query 获取 taskId 和 startTime，无需 sessionId 验证
+ */
+function mountPreviewWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): void {
+	const address = request.socket.remoteAddress;
+
+	// 从 URL query 获取参数
+	const url = new URL(request.url || '/', 'http://localhost');
+	const taskId = parseInt(url.searchParams.get('taskId'));
+	const startTime = parseFloat(url.searchParams.get('startTime') || '0');
+
+	if (!ffboxService!.tasklist[taskId]) {
+		log.warn(`预览 WebSocket 连接被拒绝：无效 taskId。地址：${address}`);
+		ws.close(4003, 'Invalid taskId');
+		return;
+	}
+
+	const sessionId = `preview_${taskId}_${Date.now()}`;
+
+	log.info(`预览 WebSocket 连接：${address}，taskId：${taskId}，startTime：${startTime}`);
+
+	// 创建会话
+	const session: PreviewSession = {
+		ws,
+		taskId,
+		startTime,
+		ffmpeg: null,
+		transform: new ControllableTransform({ highWaterMark: 1000 * 1000, batchMode: true }),  // 1MB 批次
+	};
+	previewSessions.set(sessionId, session);
+
+	// WebSocket 消息处理
+	ws.on('message', (data: Buffer) => {
+		handlePreviewMessage(sessionId, session, data);
+	});
+
+	ws.on('close', () => {
+		cleanupPreviewSession(sessionId);
+		log.info(`预览 WebSocket 关闭：${address}`);
+	});
+
+	ws.on('error', (err: Error) => {
+		log.error(`预览 WebSocket 错误：${address}`, err);
+		cleanupPreviewSession(sessionId);
+	});
+
+	// 发送连接成功消息
+	ws.send(JSON.stringify({
+		type: 'connected',
+		sessionId,
+		taskId,
+		startTime,
+	}));
+}
+
+/**
+ * 处理预览 WebSocket 消息
+ */
+function handlePreviewMessage(sessionId: string, session: PreviewSession, data: Buffer): void {
+	try {
+		const message = JSON.parse(data.toString());
+		log.dev('收到预览消息', message);
+
+		switch (message.type) {
+			case 'start':
+				startPreviewStream(session, message.startTime ?? session.startTime);
+				break;
+
+			case 'stop':
+				cleanupPreviewSession(sessionId);
+				break;
+
+			case 'ping':
+				session.ws.send(JSON.stringify({ type: 'pong' }));
+				break;
+
+			case 'continue':
+				// 步进模式：前端确认发送下一个 chunk
+				session.transform.continueStream();
+				break;
+
+			default:
+				log.warn('未知的预览消息类型', message.type);
+		}
+	} catch (e) {
+		log.error('解析预览消息失败', e);
+	}
+}
+
+/**
+ * 启动预览流
+ */
+function startPreviewStream(session: PreviewSession, startTime: number): void {
+	const task = ffboxService!.tasklist[session.taskId];
+	if (!task) {
+		session.ws.send(JSON.stringify({
+			type: 'error',
+			message: 'Task not found',
+		}));
+		return;
+	}
+
+	const filePath = task.after.input.files[0]?.filePath;
+	if (!filePath) {
+		session.ws.send(JSON.stringify({
+			type: 'error',
+			message: 'No input file',
+		}));
+		return;
+	}
+
+	const realFilePath = task.remoteTask
+		? `${os.tmpdir()}/FFBoxUploadCache/${filePath}`
+		: filePath;
+
+	session.startTime = startTime;
+
+	// FFmpeg 参数：输出 fragmented MP4（支持流式传输）
+	const ffmpegArgs = [
+		'-ss', String(startTime),
+		'-i', realFilePath,
+		'-map', '0:v:0',
+		'-c:v', 'libx264',
+		'-preset', 'ultrafast',
+		'-tune', 'zerolatency',
+		'-g', '1',  // 全关键帧
+		'-movflags', '+frag_keyframe+empty_moov+default_base_moof',
+		'-f', 'mp4',
+		'-',
+	];
+
+	// 启动 FFmpeg
+	session.ffmpeg = spawn(ffboxService!.ffmpegPath, ffmpegArgs);
+
+	// 重置 Transform
+	session.transform.reset();
+
+	// 管道连接：FFmpeg.stdout -> Transform -> WebSocket
+	session.ffmpeg.stdout.pipe(session.transform);
+
+	// Transform 输出到 WebSocket
+	session.transform.on('data', (chunk: Buffer) => {
+		if (session.ws.readyState === WebSocket.OPEN) {
+			session.ws.send(chunk);  // 二进制数据
+		}
+	});
+
+	session.transform.on('end', () => {
+		if (session.ws.readyState === WebSocket.OPEN) {
+			session.ws.send(JSON.stringify({ type: 'streamEnd' }));
+		}
+	});
+
+	// session.ffmpeg.stderr.on('data', (data: Buffer) => {
+	// 	log.dev('FFmpeg preview:', data.toString());
+	// });
+
+	session.ffmpeg.on('close', (code: number) => {
+		log.dev('FFmpeg preview closed', code);
+		session.ffmpeg = null;
+	});
+
+	session.ffmpeg.on('error', (err: Error) => {
+		log.error('FFmpeg preview error', err);
+		session.ws.send(JSON.stringify({
+			type: 'error',
+			message: err.message,
+		}));
+	});
+
+	// 发送开始确认
+	session.ws.send(JSON.stringify({
+		type: 'started',
+		startTime,
+	}));
+}
+
+/**
+ * 清理预览会话
+ */
+function cleanupPreviewSession(sessionId: string): void {
+	const session = previewSessions.get(sessionId);
+	if (!session) return;
+
+	if (session.ffmpeg) {
+		session.ffmpeg.kill();
+		session.ffmpeg = null;
+	}
+
+	session.transform.reset();
+	previewSessions.delete(sessionId);
 }
 
 // #endregion
@@ -839,113 +1081,6 @@ function getRouter(): Router {
 		ctx.body = { success: true };
 	});
 
-	/**
-	 * @openapi
-	 * /api/v1/tasks/{id}/preview-stream:
-	 *   get:
-	 *     summary: 获取视频预览流
-	 *     description: 使用 FFmpeg 将视频转码为 fMP4 格式，通过 HTTP 流式传输。用于裁切操作器的视频预览。
-	 *     security:
-	 *       - bearerAuth: []
-	 *     parameters:
-	 *       - in: path
-	 *         name: id
-	 *         required: true
-	 *         schema:
-	 *           type: integer
-	 *         description: 任务 ID
-	 *       - in: query
-	 *         name: startTime
-	 *         schema:
-	 *           type: number
-	 *         description: 起始时间（秒）
-	 *     responses:
-	 *       200:
-	 *         description: fMP4 流
-	 *         content:
-	 *           video/mp4:
-	 *             schema:
-	 *               type: string
-	 *               format: binary
-	 *       404:
-	 *         description: 任务不存在
-	 *       400:
-	 *         description: 参数错误
-	 */
-	router.get('/api/v1/tasks/:id/preview-stream', optionalAuth, async function (ctx) {
-		const task = ffboxService!.tasklist[+ctx.params.id];
-		if (!task) {
-			ctx.status = 404;
-			ctx.body = { error: 'Task not found' };
-			return;
-		}
-
-		const startTime = parseFloat(ctx.query.startTime as string) || 0;
-		// const endTime = parseFloat(ctx.query.endTime as string) || task.before[0]?.duration || 0;
-		const filePath = task.after.input.files[0]?.filePath;
-
-		if (!filePath) {
-			ctx.status = 400;
-			ctx.body = { error: 'No input file' };
-			return;
-		}
-		// if (startTime >= endTime) {
-		// 	ctx.status = 400;
-		// 	ctx.body = { error: 'Invalid time range' };
-		// 	return;
-		// }
-
-		const realFilePath = task.remoteTask
-			? `${os.tmpdir()}/FFBoxUploadCache/${filePath}`
-			: filePath;
-
-		// FFmpeg 参数：输出 fragmented MP4（支持流式传输）
-		const ffmpegArgs = [
-			'-ss', String(startTime),
-			'-i', realFilePath,
-			// '-t', String(endTime - startTime),
-			'-map', '0:v:0',
-			'-c:v', 'libx264',
-			'-preset', 'ultrafast',
-			'-tune', 'zerolatency',
-			'-g', '1',  // 全关键帧
-			'-movflags', '+frag_keyframe+empty_moov+default_base_moof',
-			'-f', 'mp4',
-			'-',
-		];
-
-		ctx.response.set('Content-Type', 'video/mp4');
-		ctx.response.set('Transfer-Encoding', 'chunked');
-
-		// 使用 PassThrough 流
-		const stream = new PassThrough();
-		ctx.body = stream;
-
-		// 启动 FFmpeg 进程
-		const ffmpeg = spawn(ffboxService!.ffmpegPath, ffmpegArgs);
-
-		ffmpeg.stdout.pipe(stream);
-
-		ffmpeg.stderr.on('data', (data: Buffer) => {
-			log.dev('FFmpeg preview:', data.toString());
-		});
-
-		ffmpeg.on('close', (code: number) => {
-			stream.end();
-			log.dev('FFmpeg preview stream closed with code:', code);
-		});
-
-		ffmpeg.on('error', (err: Error) => {
-			log.error('FFmpeg preview stream error:', err);
-			stream.end();
-		});
-
-		// 处理客户端断开连接
-		ctx.req.on('close', () => {
-			log.dev('Client disconnected, killing FFmpeg preview stream');
-			ffmpeg.kill();
-		});
-	});
 
 	// #endregion
 

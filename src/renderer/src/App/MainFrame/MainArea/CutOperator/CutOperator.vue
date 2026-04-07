@@ -237,6 +237,7 @@ const seekToPosition = async (time: number) => {
 		playbackPosition.value = time;
 		console.log(`跳转到 ${time} 在缓冲区 ${bufferInfo.start} ~ ${bufferInfo.end} 内`);
 	} else {
+		if (bufferInfo.end === 0) debugger;
 		console.log(`跳转到 ${time} 🚫缓冲区 ${bufferInfo.start} ~ ${bufferInfo.end} 内，调用 seekTo 方法`);
 		bufferLoading.value = true;
 		try {
@@ -558,7 +559,7 @@ const drawKeyFrames = () => {
 	ctx.clearRect(0, 0, keyFramesCanvasWidth.value, keyFramesCanvasHeight.value);
 
 	// 获取 frames 数据
-	const kFrames = keyFrames.value;
+	const kFrames = keyFrames.value.filter((f) => f.pts_time >= viewBegin.value && f.pts_time <= viewEnd.value);
 	if (!kFrames || kFrames.length === 0) {
 		// 无帧信息时绘制提示文字
 		ctx.fillStyle = '#666';
