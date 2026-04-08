@@ -49,14 +49,14 @@ export class ControllableTransform extends Transform {
 	 * Transform 实现：步进模式
 	 */
 	_transform(chunk: Buffer, _encoding: BufferEncoding, callback: TransformCallback): void {
-		console.log(`[ControllableTransform] 接收到数据，大小 ${chunk.length}，模式 ${this.batchMode ? '组装' : '逐块'}`);
+		// console.log(`[ControllableTransform] 接收到数据，大小 ${chunk.length}，模式 ${this.batchMode ? '组装' : '逐块'}`);
 		this.stats.bytesReceived += chunk.length;
 
 		// 如果正在等待 continue 确认，缓存数据并暂停上游
 		if (this.waitingForContinue) {
 			this.pendingChunk = chunk;
 			this.stats.bytesBuffered = chunk.length;
-			console.log(`[ControllableTransform] 等待中，缓存数据 ${chunk.length} 字节`);
+			// console.log(`[ControllableTransform] 等待中，缓存数据 ${chunk.length} 字节`);
 			this.pendingCallback = callback;
 			return;
 		}
@@ -66,7 +66,7 @@ export class ControllableTransform extends Transform {
 			this.batchBuffer.push(chunk);
 			this.batchBytes += chunk.length;
 			this.stats.batchBytes = this.batchBytes;
-			console.log(`[ControllableTransform] 累积批次，当前 ${this.batchBytes} 字节`);
+			// console.log(`[ControllableTransform] 累积批次，当前 ${this.batchBytes} 字节`);
 
 			// 达到阈值时发送批次并暂停上游
 			if (this.batchBytes >= this.highWaterMark) {
@@ -82,7 +82,7 @@ export class ControllableTransform extends Transform {
 			this.stats.bytesSent += chunk.length;
 			this.waitingForContinue = true;
 			this.stats.waitingForContinue = true;
-			console.log(`[ControllableTransform] 逐块发送，等待 continue`);
+			// console.log(`[ControllableTransform] 逐块发送，等待 continue`);
 			this.pendingCallback = callback;
 		}
 	}
@@ -93,7 +93,7 @@ export class ControllableTransform extends Transform {
 	_flush(callback: TransformCallback): void {
 		// 组装模式：如果有剩余数据，发送出去
 		if (this.batchMode && this.batchBytes > 0) {
-			console.log(`[ControllableTransform] 流结束，发送剩余批次 ${this.batchBytes} 字节`);
+			// console.log(`[ControllableTransform] 流结束，发送剩余批次 ${this.batchBytes} 字节`);
 			this.flushBatch();
 		}
 		callback();
@@ -110,7 +110,7 @@ export class ControllableTransform extends Transform {
 		this.push(combined);
 		this.stats.bytesSent += combined.length;
 
-		console.log(`[ControllableTransform] 发送批次，大小 ${combined.length}，等待 continue 确认`);
+		// console.log(`[ControllableTransform] 发送批次，大小 ${combined.length}，等待 continue 确认`);
 
 		// 清空批次缓冲区
 		this.batchBuffer = [];
@@ -126,7 +126,7 @@ export class ControllableTransform extends Transform {
 	 * 前端确认发送下一批数据
 	 */
 	continueStream(): void {
-		console.log(`[ControllableTransform] 收到 continue，缓存 ${this.pendingChunk?.length ?? 0} 字节，等待 ${this.waitingForContinue}`);
+		// console.log(`[ControllableTransform] 收到 continue，缓存 ${this.pendingChunk?.length ?? 0} 字节，等待 ${this.waitingForContinue}`);
 		this.waitingForContinue = false;
 		this.stats.waitingForContinue = false;
 
@@ -164,7 +164,7 @@ export class ControllableTransform extends Transform {
 			// 发送后再次等待，不调用 callback（上游保持暂停）
 			this.waitingForContinue = true;
 			this.stats.waitingForContinue = true;
-			console.log(`[ControllableTransform] 发送缓存数据，大小 ${this.pendingChunk.length}，等待 continue`);
+			// console.log(`[ControllableTransform] 发送缓存数据，大小 ${this.pendingChunk.length}，等待 continue`);
 			this.pendingChunk = null;
 			return;
 		}

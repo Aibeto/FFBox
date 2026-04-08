@@ -3,11 +3,15 @@ import { computed, ref, onMounted, onUnmounted, watch, StyleValue } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import { NotificationLevel } from '@common/types';
 import { formatTimeToFFmpegStyle, parseTimeString } from '@common/utils';
-import { PreviewStreamDecoder, PreviewDecoderConfig, BufferInfo } from '@renderer/logic/PreviewStreamDecoder';
+import { PreviewStreamDecoder, PreviewDecoderConfig, BufferInfo } from '@renderer/App/MainFrame/MainArea/CutOperator/PreviewStreamDecoder';
 import { ServiceBridge } from '@renderer/bridges/serviceBridge';
 import { durationValidator, durationFixer } from '@renderer/components/validatorAndFixer';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import IconUpArrow from '../ParaBox/uparrow.svg?component';
+import IconPrevFrame from './PrevFrame.svg?component';
+import IconPrevKeyFrame from './PrevKeyFrame.svg?component';
+import IconNextFrame from './NextFrame.svg?component';
+import IconNextKeyFrame from './NextKeyFrame.svg?component';
 
 const appStore = useAppStore();
 const selectedTasks = computed(() => appStore.selectedTask.size === 0
@@ -175,30 +179,24 @@ const handleScrollAreaMouseDown = (event: MouseEvent) => {
 		event.preventDefault();
 		isProgressDragging.value = true;
 
-		// 直接计算鼠标位置对应的时间
 		const scrollArea = event.currentTarget as HTMLElement;
 		const rect = scrollArea.getBoundingClientRect();
-		const mouseXRatio = (event.pageX - rect.left) / rect.width;
-		const viewRange = viewEnd.value - viewBegin.value;
-		const clickedTime = viewBegin.value + mouseXRatio * viewRange;
-
-		playbackPosition.value = Math.max(0, Math.min(duration.value, clickedTime));
-		seekToPosition(playbackPosition.value);
 
 		// 左键进度拖拽监听
 		const handleProgressMouseMove = (event: MouseEvent) => {
 			if (!isProgressDragging.value) return;
 
-			const scrollArea = document.querySelector('.cutOperator .scrollArea');
-			if (!scrollArea) return;
-
-			const rect = scrollArea.getBoundingClientRect();
+			// 直接计算鼠标位置对应的时间
 			const mouseXRatio = (event.pageX - rect.left) / rect.width;
 			const viewRange = viewEnd.value - viewBegin.value;
-			const newTime = Math.max(0, Math.min(duration.value, viewBegin.value + mouseXRatio * viewRange));
+			const clickedTime = viewBegin.value + mouseXRatio * viewRange + 0.01;	// 暂不计算下一个帧在哪里，这种情况会导致帧一定出现在指针左侧，所以添加 0.01 秒舒服一点
+			const newTime = Math.max(0, Math.min(duration.value, clickedTime));
 
-			playbackPosition.value = newTime;
-			seekToPosition(newTime);
+			// 修正到帧边界
+			const { time: snappedTime2, frameIndex: frameIndex2 } = snapTimeToFrame(newTime);
+			playbackPosition.value = snappedTime2;
+			currentFrameIndex.value = frameIndex2;
+			seekToPosition(snappedTime2, frameIndex2);
 		};
 		const handleProgressMouseUp = () => {
 			isProgressDragging.value = false;
@@ -207,6 +205,7 @@ const handleScrollAreaMouseDown = (event: MouseEvent) => {
 		};
 		window.addEventListener('mousemove', handleProgressMouseMove);
 		window.addEventListener('mouseup', handleProgressMouseUp);
+		handleProgressMouseMove(event);
 	}
 };
 
@@ -214,34 +213,78 @@ const handleScrollAreaMouseDown = (event: MouseEvent) => {
 
 // #region 进度控制
 
-// 进度控制状态
-const playbackPosition = ref(0);  // 独立的播放位置（秒）
+// 进度控制状态：秒和帧双主控
+const playbackPosition = ref(0);  // 播放位置（秒）
+const currentFrameIndex = ref(-1);  // 当前帧索引（-1 表示无帧信息）
 const isProgressDragging = ref(false);  // 左键拖拽进度状态
 
 // 帧数据
-const allFrames = computed(() => {
-	return selectedStream.value?.before?.streams?.[0]?.frames || [];
-});
+const allFrames = computed(() => selectedStream.value?.before?.streams?.[0]?.frames || []);
+
+// 是否为视频（有帧信息）
+const isVideo = computed(() => allFrames.value.length > 0);
 
 // 关键帧列表（仅 I 帧）
-const keyFrames = computed(() => {
-	return allFrames.value.filter((f) => f.type === 'I').sort((a, b) => a.pts_time - b.pts_time);
+const keyFrames = computed(() => allFrames.value.filter((f) => f.type === 'I').sort((a, b) => a.pts_time - b.pts_time));
+
+// 视野内的关键帧列表
+const visibleKeyFrames = computed(() => {
+	const vb = viewBegin.value, ve = viewEnd.value;
+	return keyFrames.value.filter((f) => f.pts_time >= vb && f.pts_time <= ve);
 });
 
-// 统一的 seek 操作
-const seekToPosition = async (time: number) => {
+// 二分法查找时间对应的帧索引（返回 pts_time <= time 的最大帧索引）
+const findFrameByTime = (time: number): number => {
+	const frames = allFrames.value;
+	if (frames.length === 0) return -1;
+
+	const floatPrecisionOffset = 0.0000001;
+	let left = 0, right = frames.length - 1;
+	while (left < right) {
+		const mid = Math.ceil((left + right) / 2);
+		if (frames[mid].pts_time <= time + floatPrecisionOffset) {
+			left = mid;
+		} else {
+			right = mid - 1;
+		}
+	}
+	return left;
+};
+
+// 将时间修正到帧边界（视频时修正，音频时不修正）
+const snapTimeToFrame = (time: number): { time: number; frameIndex: number } => {
+	if (!isVideo.value) {
+		return { time, frameIndex: -1 };
+	}
+	const frameIndex = findFrameByTime(time);
+	const snappedTime = allFrames.value[frameIndex]?.pts_time ?? time;
+	return { time: snappedTime, frameIndex };
+};
+
+// 根据帧索引设置进度（用于上一帧/下一帧操作）
+const setPositionByFrameIndex = async (frameIndex: number) => {
+	if (frameIndex < 0 || frameIndex >= allFrames.value.length) return;
+	const frame = allFrames.value[frameIndex];
+	playbackPosition.value = frame.pts_time;
+	currentFrameIndex.value = frameIndex;
+	await seekToPosition(frame.pts_time, frameIndex);
+};
+
+// 统一的 seek 操作（time 应已修正到帧边界）
+const seekToPosition = async (time: number, frameIndex: number = -1) => {
 	if (!previewDecoder.value || !videoRef.value) return;
 	const bufferInfo = previewDecoder.value.getBufferInfo();
-	if (time >= bufferInfo.start && time <= bufferInfo.end) {
-		videoRef.value.currentTime = time;  // 在缓冲范围内直接设置
+	if (time >= bufferInfo.start && time < bufferInfo.end - 0.00001) {
+		videoRef.value.currentTime = time - previewDecoder.value.config.startTime + 0.00001;  // 在缓冲范围内直接设置（由于 video 同理不计算下一个帧在哪里，直接定在指定点的话由于浮点误差会有一定概率落在前一帧，所以要加一点点时间）
 		playbackPosition.value = time;
-		console.log(`跳转到 ${time} 在缓冲区 ${bufferInfo.start} ~ ${bufferInfo.end} 内`);
+		currentFrameIndex.value = frameIndex >= 0 ? frameIndex : findFrameByTime(time);
+		// console.log(`跳转到 ${time.toFixed(3)} (#${currentFrameIndex.value}) 在缓冲区 ${bufferInfo.start} ~ ${bufferInfo.end} 内`);
 	} else {
-		if (bufferInfo.end === 0) debugger;
-		console.log(`跳转到 ${time} 🚫缓冲区 ${bufferInfo.start} ~ ${bufferInfo.end} 内，调用 seekTo 方法`);
+		console.log(`跳转到 ${time.toFixed(3)} 不在缓冲区 ${bufferInfo.start} ~ ${bufferInfo.end}，重建预览`);
 		bufferLoading.value = true;
 		try {
 			await previewDecoder.value.restart(time);
+			currentFrameIndex.value = frameIndex >= 0 ? frameIndex : findFrameByTime(time);
 		} catch (e) {
 			console.error('[CutOperator] Seek 失败', e);
 		}
@@ -249,40 +292,12 @@ const seekToPosition = async (time: number) => {
 	}
 };
 
-// 当前帧：使用二分法查找 playbackPosition 对应的帧（处理浮点误差）
-const currentFrame = computed(() => {
-	const frames = allFrames.value;
-	if (frames.length === 0) return null;
-
-	const time = playbackPosition.value;
-	const floatPrecisionOffset = 0.0000001;
-
-	// 二分查找：找到 pts_time <= time 的最大帧
-	let left = 0, right = frames.length - 1;
-	while (left < right) {
-		const mid = Math.ceil((left + right) / 2);
-		if (frames[mid].pts_time <= time + floatPrecisionOffset) {
-			left = mid;	// 目标在中间点偏右侧的位置，或者正好是此处
-		} else {
-			right = mid - 1;
-		}
-	}
-
-	// 验证结果：确保找到的帧确实在时间范围内（AI 写的，怪怪的）
-	const foundFrame = frames[left];
-	// 如果时间超出最后一帧，返回最后一帧
-	// if (left === frames.length - 1 && time > foundFrame.pts_time + 0.1) {
-	// 	return foundFrame;
-	// }
-	return foundFrame;
-});
-
 // 进度指示器位置样式
 const progressIndicatorStyle = computed(() => {
 	const viewRange = viewEnd.value - viewBegin.value;
-	if (viewRange <= 0) return { left: '0%' };
+	if (viewRange <= 0) return { left: '-100%' };
 	const leftPercent = ((playbackPosition.value - viewBegin.value) / viewRange) * 100;
-	return { left: `${Math.max(0, Math.min(100, leftPercent))}%` };
+	return { left: `${leftPercent}%` };
 });
 
 // 播放控制方法
@@ -303,27 +318,27 @@ const togglePlayPause = () => {
 	}
 };
 
-// 查找前一个关键帧
-const findPrevKeyFrame = (currentTime: number): number | null => {
+// 查找前一个关键帧（返回帧索引）
+const findPrevKeyFrameIndex = (currentFrameIdx: number): number | null => {
 	const kfs = keyFrames.value;
 	if (kfs.length === 0) return null;
 
 	for (let i = kfs.length - 1; i >= 0; i--) {
-		if (kfs[i].pts_time < currentTime - 0.01) {  // 添加小阈值避免找到当前帧
-			return kfs[i].pts_time;
+		if (kfs[i].n < currentFrameIdx) {
+			return kfs[i].n;
 		}
 	}
 	return null;
 };
 
-// 查找后一个关键帧
-const findNextKeyFrame = (currentTime: number): number | null => {
+// 查找后一个关键帧（返回帧索引）
+const findNextKeyFrameIndex = (currentFrameIdx: number): number | null => {
 	const kfs = keyFrames.value;
 	if (kfs.length === 0) return null;
 
 	for (let i = 0; i < kfs.length; i++) {
-		if (kfs[i].pts_time > currentTime + 0.01) {  // 添加小阈值避免找到当前帧
-			return kfs[i].pts_time;
+		if (kfs[i].n > currentFrameIdx) {
+			return kfs[i].n;
 		}
 	}
 	return null;
@@ -333,38 +348,25 @@ const findNextKeyFrame = (currentTime: number): number | null => {
 const seekToPrevFrame = async () => {
 	if (videoPlaying.value) videoRef.value?.pause();
 
-	const frame = currentFrame.value;
-	if (!frame || frame.n <= 0) return;
-
-	const prevFrame = allFrames.value[frame.n - 1];
-	if (prevFrame) {
-		playbackPosition.value = prevFrame.pts_time;
-		await seekToPosition(prevFrame.pts_time);
-	}
+	if (currentFrameIndex.value <= 0) return;
+	await setPositionByFrameIndex(currentFrameIndex.value - 1);
 };
 
 // 下一帧：跳转到 currentFrame 的后一帧
 const seekToNextFrame = async () => {
 	if (videoPlaying.value) videoRef.value?.pause();
 
-	const frame = currentFrame.value;
-	if (!frame || frame.n >= allFrames.value.length - 1) return;
-
-	const nextFrame = allFrames.value[frame.n + 1];
-	if (nextFrame) {
-		playbackPosition.value = nextFrame.pts_time;
-		await seekToPosition(nextFrame.pts_time);
-	}
+	if (currentFrameIndex.value < 0 || currentFrameIndex.value >= allFrames.value.length - 1) return;
+	await setPositionByFrameIndex(currentFrameIndex.value + 1);
 };
 
 // 上一关键帧
 const seekToPrevKeyFrame = async () => {
 	if (videoPlaying.value) videoRef.value?.pause();
 
-	const prevKfTime = findPrevKeyFrame(playbackPosition.value);
-	if (prevKfTime !== null) {
-		playbackPosition.value = prevKfTime;
-		await seekToPosition(prevKfTime);
+	const prevKfIndex = findPrevKeyFrameIndex(currentFrameIndex.value);
+	if (prevKfIndex !== null) {
+		await setPositionByFrameIndex(prevKfIndex);
 	}
 };
 
@@ -372,10 +374,9 @@ const seekToPrevKeyFrame = async () => {
 const seekToNextKeyFrame = async () => {
 	if (videoPlaying.value) videoRef.value?.pause();
 
-	const nextKfTime = findNextKeyFrame(playbackPosition.value);
-	if (nextKfTime !== null) {
-		playbackPosition.value = nextKfTime;
-		await seekToPosition(nextKfTime);
+	const nextKfIndex = findNextKeyFrameIndex(currentFrameIndex.value);
+	if (nextKfIndex !== null) {
+		await setPositionByFrameIndex(nextKfIndex);
 	}
 };
 
@@ -428,7 +429,7 @@ const getDragType = (pageX: number, scrollAreaRect: DOMRect, type: 'input' | 'ou
 	const mouseX = pageX - scrollAreaRect.left;
 	const viewRange = viewEnd.value - viewBegin.value;
 
-	if (type === 'input') { 
+	if (type === 'input') {
 		const inputBeginX = ((inputBegin.value - viewBegin.value) / viewRange) * scrollAreaRect.width;
 		const inputEndX = ((inputEnd.value - viewBegin.value) / viewRange) * scrollAreaRect.width;
 		if (Math.abs(mouseX - inputBeginX) <= HANDLE_HIT_AREA) return 'inputBegin';
@@ -470,58 +471,106 @@ const handleSelectionMouseDown = (event: MouseEvent, selectionType: 'input' | 'o
 	// 选区拖拽移动
 	const handleSelectionMouseMove = (event: MouseEvent) => {
 		if (!dragState.value.type) return;
-	
+
 		const rect = scrollArea.getBoundingClientRect();
 		const deltaX = event.pageX - dragState.value.startX;
 		const deltaTime = deltaX / rect.width * (viewEnd.value - viewBegin.value);
-	
+
+		// 计算时间对应的像素位置（相对于 scrollArea）
+		const timeToPixelX = (time: number, scrollAreaWidth: number): number => {
+			const viewRange = viewEnd.value - viewBegin.value;
+			return ((time - viewBegin.value) / viewRange) * scrollAreaWidth;
+		};
+
+		// 关键帧贴附：以 SNAP_THRESHOLD_PX 为边界贴合视野内的关键帧
+		const SNAP_THRESHOLD_PX = 8;
+		const snapToKeyFrameIfClose = (targetTime: number, scrollAreaWidth: number): number => {
+			if (!isVideo.value) return targetTime;
+
+			const vkfs = visibleKeyFrames.value;
+			if (vkfs.length === 0) return targetTime;
+
+			// 计算目标时间对应的像素位置
+			const targetPixelX = timeToPixelX(targetTime, scrollAreaWidth);
+
+			// 查找最近的关键帧（像素距离）
+			for (const kf of vkfs) {
+				const kfPixelX = timeToPixelX(kf.pts_time, scrollAreaWidth);
+				const pixelDistance = Math.abs(targetPixelX - kfPixelX);
+
+				if (pixelDistance <= SNAP_THRESHOLD_PX) {
+					// 贴附到关键帧
+					return kf.pts_time;
+				}
+			}
+
+			return targetTime;
+		};
+
+		// 计算新时间并修正到帧边界 + 关键帧贴附
+		const applySnaps = (rawTime: number): number => {
+			// 先修正到帧边界
+			const { time: frameSnapped } = snapTimeToFrame(rawTime);
+			console.log(keyFramesCanvasWidth.value / (visibleKeyFrames.value.length + 10) * 0.02);
+			if (keyFramesCanvasWidth.value / (visibleKeyFrames.value.length + 10) * 0.02 >= 0.5) {
+				// 再尝试贴附关键帧
+				return snapToKeyFrameIfClose(frameSnapped, rect.width);
+			} else {
+				return frameSnapped;
+			}
+		};
+
 		switch (dragState.value.type) {
 			case 'inputBegin':
 				// startTime: inputBegin
 				// endTime: outputEnd（无视）
-				inputBegin.value = Math.max(0, Math.min(dragState.value.startTime + deltaTime, inputEnd.value - 0.1));
-				outputBegin.value = Math.max(inputBegin.value, outputBegin.value);
+				const newIB = applySnaps(Math.max(0, Math.min(dragState.value.startTime + deltaTime, inputEnd.value - 0.1)));
+				inputBegin.value = newIB;
+				outputBegin.value = Math.max(newIB, outputBegin.value);
 				break;
 			case 'inputEnd':
 				// startTime: outputBegin（无视）
 				// endTime: inputEnd
-				inputEnd.value = Math.max(inputBegin.value + 0.1, Math.min(dragState.value.endTime + deltaTime, duration.value));
-				outputEnd.value = Math.min(outputEnd.value, inputEnd.value);
+				const newIE = applySnaps(Math.max(inputBegin.value + 0.1, Math.min(dragState.value.endTime + deltaTime, duration.value)));
+				inputEnd.value = newIE;
+				outputEnd.value = Math.min(outputEnd.value, newIE);
 				break;
 			case 'inputBody':
 				// startTime: inputBegin
 				// endTime: inputEnd
 				const inputLength = dragState.value.endTime - dragState.value.startTime;
-				let newInputBegin = Math.max(0, Math.min(dragState.value.startTime + deltaTime, duration.value - inputLength));
+				let newInputBegin = applySnaps(Math.max(0, Math.min(dragState.value.startTime + deltaTime, duration.value - inputLength)));
 				inputBegin.value = newInputBegin;
 				inputEnd.value = newInputBegin + inputLength;
 				break;
 			case 'outputBegin':
 				// startTime: outputBegin
 				// endTime: outputEnd（无视）
-				outputBegin.value = Math.max(inputBegin.value, Math.min(dragState.value.startTime + deltaTime, outputEnd.value - 0.1));
+				const newOB = applySnaps(Math.max(inputBegin.value, Math.min(dragState.value.startTime + deltaTime, outputEnd.value - 0.1)));
+				outputBegin.value = newOB;
 				break;
 			case 'outputEnd':
 				// startTime: outputBegin（无视）
 				// endTime: outputEnd
-				outputEnd.value = Math.max(outputBegin.value + 0.1, Math.min(inputEnd.value, dragState.value.endTime + deltaTime));
+				const newOE = applySnaps(Math.max(outputBegin.value + 0.1, Math.min(inputEnd.value, dragState.value.endTime + deltaTime)));
+				outputEnd.value = newOE;
 				break;
 			case 'outputBody':
 				// startTime: outputBegin
 				// endTime: outputEnd
 				const outputLength = dragState.value.endTime - dragState.value.startTime;
-				let newOutputBegin = Math.max(inputBegin.value, Math.min(inputEnd.value - outputLength, dragState.value.startTime + deltaTime));
+				let newOutputBegin = applySnaps(Math.max(inputBegin.value, Math.min(inputEnd.value - outputLength, dragState.value.startTime + deltaTime)));
 				outputBegin.value = newOutputBegin;
 				outputEnd.value = newOutputBegin + outputLength;
 				break;
 		}
 	};
-	
+
 	// 选区拖拽结束
 	const handleSelectionMouseUp = () => {
 		window.removeEventListener('mousemove', handleSelectionMouseMove);
 		window.removeEventListener('mouseup', handleSelectionMouseUp);
-	
+
 		// 同步到 params
 		if (dragState.value.type) {
 			// 输入选区
@@ -532,7 +581,7 @@ const handleSelectionMouseDown = (event: MouseEvent, selectionType: 'input' | 'o
 			params.value.mux.end = formatTimeToFFmpegStyle(outputEnd.value - inputBegin.value);
 			appStore.applyParameters();
 		}
-	
+
 		dragState.value = { type: null, startX: 0, startTime: 0, endTime: 0 };
 	};
 	window.addEventListener('mousemove', handleSelectionMouseMove);
@@ -559,8 +608,8 @@ const drawKeyFrames = () => {
 	ctx.clearRect(0, 0, keyFramesCanvasWidth.value, keyFramesCanvasHeight.value);
 
 	// 获取 frames 数据
-	const kFrames = keyFrames.value.filter((f) => f.pts_time >= viewBegin.value && f.pts_time <= viewEnd.value);
-	if (!kFrames || kFrames.length === 0) {
+	const kFrames = visibleKeyFrames.value;
+	if (!allFrames.value?.length) {
 		// 无帧信息时绘制提示文字
 		ctx.fillStyle = '#666';
 		ctx.font = '12px sans-serif';
@@ -614,16 +663,16 @@ const drawKeyFrames = () => {
 		// console.log('lineWidth', ctx.lineWidth);
 		ctx.setLineDash([4, 4]);
 		ctx.fillStyle = '#8888';
-		ctx.font = '10px Bahnschrift,Calibri,\"SF Electrotome\",Avenir';
+		ctx.font = '10px Bahnschrift,Calibri,"SF Electrotome",Avenir';
 		for (const frame of kFrames) {
 			const percent = (frame.pts_time - viewBegin.value) / viewRange;
 			const x = CANVAS_PADDING + percent * drawWidth;
-	
+
 			ctx.beginPath();
 			ctx.moveTo(x, 0);
 			ctx.lineTo(x, 60);
 			ctx.stroke();
-	
+
 			if (kFrames.length / keyFramesCanvasWidth.value < 0.01) {	// 平均至少 100px 绘制一个标签
 				ctx.fillText(`${timeFilter(frame.pts_time)} #${frame.n}`, x, 66);
 			}
@@ -639,7 +688,7 @@ const drawKeyFrames = () => {
 	ctx.font = '10px 华文中宋 black';
 	const timeUnit = getScaleUnit(viewRange, drawWidth, true, 40, 1);
 	const firstTimeLineTime = Math.ceil(viewBegin.value / timeUnit) * timeUnit;
-	for (let time = firstTimeLineTime; time <= viewEnd.value; time += timeUnit) { 
+	for (let time = firstTimeLineTime; time <= viewEnd.value; time += timeUnit) {
 		const percent = (time - viewBegin.value) / viewRange;
 		const x = CANVAS_PADDING + percent * drawWidth;
 
@@ -650,6 +699,16 @@ const drawKeyFrames = () => {
 
 		ctx.fillText(timeFilter(time), x, 66);
 	}
+
+	// 绘制缓冲指示器
+	const start = CANVAS_PADDING + (bufferInfo.value.start - viewBegin.value) / viewRange * drawWidth;
+	const end = CANVAS_PADDING + (bufferInfo.value.end - viewBegin.value) / viewRange * drawWidth;
+	ctx.strokeStyle = '#EA3';
+	ctx.lineWidth = 2;
+	ctx.beginPath();
+	ctx.moveTo(start, 0);
+	ctx.lineTo(end, 0);
+	ctx.stroke();
 }
 
 // 更新 Canvas 尺寸
@@ -690,9 +749,6 @@ const fetchFrameInfo = async () => {
 		framesLoading.value = false;
 	}
 };
-
-// 监听视区和帧数据变化，重绘关键帧 canvas
-watch([viewBegin, viewEnd, () => selectedStream.value?.before?.streams?.[0]?.frames], drawKeyFrames);
 
 // #endregion
 
@@ -799,10 +855,18 @@ const initPreviewDecoder = async () => {
 	}
 };
 
-// 视频时间更新处理
+// 视频时间更新处理（修正到帧边界）
 const handleVideoTimeUpdate = () => {
-	if (videoRef.value) {
-		videoCurrentTime.value = videoRef.value.currentTime + previewDecoder.value.config.startTime;
+	if (videoRef.value && previewDecoder.value) {
+		const rawTime = videoRef.value.currentTime + previewDecoder.value.config.startTime + 0.00001;	// video 的进度显示似乎会落后一点点，导致修正到前一个帧去了
+		// 修正到帧边界
+		const { time: snappedTime, frameIndex } = snapTimeToFrame(rawTime);
+		videoCurrentTime.value = snappedTime;
+		// 只有不在拖拽时才同步
+		if (!isProgressDragging.value) {
+			playbackPosition.value = snappedTime;
+			currentFrameIndex.value = frameIndex;
+		}
 	}
 };
 
@@ -858,7 +922,7 @@ const updateSelectionFromParams = () => {
 	ie = Math.max(ib, Math.min(ie, duration.value));
 	ob = Math.max(0, Math.min(ob, ie - ib));
 	oe = Math.max(ob, Math.min(oe, ie - ib));
-	
+
 	inputBegin.value = ib;
 	inputEnd.value = ie;
 	outputBegin.value = ib + ob;
@@ -870,6 +934,7 @@ const updateSelectionFromParams = () => {
 watch(() => selectedTasks.value.task, () => {
 	updateSelectionFromParams();
 	playbackPosition.value = 0;
+	currentFrameIndex.value = allFrames.value.length > 0 ? 0 : -1;
 	// 视区
 	viewBegin.value = 0;
 	viewEnd.value = duration.value;
@@ -880,12 +945,8 @@ watch(() => selectedTasks.value.task, () => {
 	}, 0);
 }, { immediate: true });
 
-// 播放进度同步：播放时同步 playbackPosition 到 video.currentTime
-watch([videoPlaying, videoCurrentTime], ([playing, currentTime]) => {
-	if (playing && !isProgressDragging.value) {
-		playbackPosition.value = currentTime;
-	}
-});
+// 监听视区、帧数据变化、缓冲区变化，重绘关键帧 canvas
+watch([viewBegin, viewEnd, () => selectedStream.value?.before?.streams?.[0]?.frames, () => bufferInfo.value], drawKeyFrames);
 
 onMounted(() => {
 	if (keyFramesCanvasRef.value?.parentElement) {
@@ -928,30 +989,29 @@ onUnmounted(async () => {
 					@pause="handleVideoPaused"
 					@ended="handleVideoEnded"
 					class="previewVideo"
-					controls
 				></video>
 				<!-- 悬浮控件盒 -->
-				<div class="controlsOverlay" v-show="!isProgressDragging && !bufferLoading">
+				<div class="controlsOverlay">
+					<div class="timeDisplay">
+						{{ formatTimeToFFmpegStyle(playbackPosition) }} (#{{ currentFrameIndex >= 0 ? currentFrameIndex : '-' }}) / {{ formatTimeToFFmpegStyle(duration) }}
+					</div>
 					<div class="controlsBox">
-						<button class="controlBtn" @click="seekToPrevKeyFrame" title="上一关键帧" :disabled="!findPrevKeyFrame(playbackPosition)">
-							<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h2v12H4zm4 6l6 4.5V7.5z"/></svg>
+						<button class="controlBtn" @click="seekToPrevKeyFrame" title="上一关键帧" :disabled="currentFrameIndex <= 0">
+							<IconPrevKeyFrame />
 						</button>
-						<button class="controlBtn" @click="seekToPrevFrame" title="上一帧" :disabled="!currentFrame || currentFrame.n <= 0">
-							<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+						<button class="controlBtn" @click="seekToPrevFrame" title="上一帧" :disabled="currentFrameIndex <= 0">
+							<IconPrevFrame />
 						</button>
 						<button class="controlBtn controlBtnPlay" @click="togglePlayPause" title="播放/暂停">
 							<svg v-if="videoPlaying" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
 							<svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
 						</button>
-						<button class="controlBtn" @click="seekToNextFrame" title="下一帧" :disabled="!currentFrame || currentFrame.n >= allFrames.length - 1">
-							<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zm-9.5 6l8.5-6v12z"/></svg>
+						<button class="controlBtn" @click="seekToNextFrame" title="下一帧" :disabled="currentFrameIndex < 0 || currentFrameIndex >= allFrames.length - 1">
+							<IconNextFrame />
 						</button>
-						<button class="controlBtn" @click="seekToNextKeyFrame" title="下一关键帧" :disabled="!findNextKeyFrame(playbackPosition)">
-							<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 6l-6 4.5v9l6-4.5V6zm4 0h2v12h-2V6z"/></svg>
+						<button class="controlBtn" @click="seekToNextKeyFrame" title="下一关键帧" :disabled="!findNextKeyFrameIndex(currentFrameIndex)">
+							<IconNextKeyFrame />
 						</button>
-					</div>
-					<div class="timeDisplay">
-						{{ formatTimeToFFmpegStyle(playbackPosition) }} (#{{ currentFrame.n }}) / {{ formatTimeToFFmpegStyle(duration) }}
 					</div>
 				</div>
 				<div class="bufferIndicator" v-if="bufferLoading">
@@ -1015,6 +1075,11 @@ onUnmounted(async () => {
 </template>
 
 <style lang="less" scoped>
+	@property --controlsOpacity {
+		syntax: '<number>';
+		inherits: true;
+		initial-value: 1;
+	}
 	.cutOperator {
 		width: 100%;
 		height: 100%;
@@ -1115,7 +1180,7 @@ onUnmounted(async () => {
 				display: flex;
 				justify-content: center;
 				align-items: center;
-				background: #000;
+				background: #000E;
 				min-height: 0px;
 				overflow: hidden;
 				position: relative;
@@ -1138,7 +1203,7 @@ onUnmounted(async () => {
 				}
 				.controlsOverlay {
 					position: absolute;
-					top: 0;
+					bottom: 0;
 					left: 0;
 					right: 0;
 					padding: 12px;
@@ -1146,28 +1211,49 @@ onUnmounted(async () => {
 					flex-direction: column;
 					align-items: center;
 					gap: 8px;
-					background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent 80%);
-					opacity: 0.7;
-					transition: opacity 0.3s ease;
+					// background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent 80%);
+					// opacity: 0.9;
 					&:hover {
-						opacity: 1;
+						.controlsBox {
+							opacity: 1;
+							transition: opacity 0.3s ease;
+						}
+						.timeDisplay {
+							opacity: 0.9;
+							transform: translateY(0);
+							transition: all 0.3s ease;
+						}
+					}
+					.timeDisplay {
+						font-size: 14px;
+						color: hwb(0 100% 0% / 0.9);
+						font-family: Bahnschrift, 'SF Mono', 'Consolas', monospace;
+						text-shadow: 0 1px 3px hwb(0 0% 100% / 0.8);
+						letter-spacing: 0.5px;
+						opacity: 0.7;
+						transform: translateY(60px);
+						transition: all 1s cubic-bezier(0.3, 0, 0.1, 1) 2s;
 					}
 					.controlsBox {
 						display: flex;
+						align-items: center;
 						gap: 4px;
-						background: rgba(30, 30, 30, 0.7);
+						background: hwb(0 15% 85% / 0.5);
 						padding: 6px 12px;
 						border-radius: 20px;
-						backdrop-filter: blur(8px);
+						backdrop-filter: contrast(1.25) blur(6px);
+						opacity: 0.0;
+						transition: opacity 2s ease 1s;
 						.controlBtn {
-							width: 28px;
-							height: 28px;
+							width: 32px;
+							height: 32px;
 							display: flex;
 							justify-content: center;
 							align-items: center;
 							background: transparent;
 							border: none;
-							color: #fff;
+							padding: 0;
+							color: #FFF;
 							cursor: pointer;
 							border-radius: 50%;
 							transition: background 0.2s ease, transform 0.1s ease;
@@ -1183,30 +1269,23 @@ onUnmounted(async () => {
 								cursor: not-allowed;
 							}
 							svg {
-								width: 18px;
-								height: 18px;
+								width: 20px;
+								height: 20px;
 							}
 						}
 						.controlBtnPlay {
 							width: 36px;
 							height: 36px;
-							background: rgba(80, 80, 80, 0.6);
+							background: hwb(0 30% 70% / 0.7);
 							margin: 0 4px;
 							svg {
 								width: 22px;
 								height: 22px;
 							}
 							&:hover:not(:disabled) {
-								background: rgba(100, 100, 100, 0.7);
+								background: hwb(0 35% 65% / 0.9);
 							}
 						}
-					}
-					.timeDisplay {
-						font-size: 13px;
-						color: rgba(255, 255, 255, 0.9);
-						font-family: Bahnschrift, 'SF Mono', 'Consolas', monospace;
-						text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-						letter-spacing: 0.5px;
 					}
 				}
 			}

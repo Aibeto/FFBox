@@ -354,26 +354,22 @@ function mountPreviewWebSocketEvents(ws: WebSocket, request: Http.IncomingMessag
 function handlePreviewMessage(sessionId: string, session: PreviewSession, data: Buffer): void {
 	try {
 		const message = JSON.parse(data.toString());
-		log.dev('收到预览消息', message);
+		// log.dev('收到预览消息', message);
 
 		switch (message.type) {
 			case 'start':
 				startPreviewStream(session, message.startTime ?? session.startTime);
 				break;
-
 			case 'stop':
 				cleanupPreviewSession(sessionId);
 				break;
-
 			case 'ping':
 				session.ws.send(JSON.stringify({ type: 'pong' }));
 				break;
-
 			case 'continue':
 				// 步进模式：前端确认发送下一个 chunk
 				session.transform.continueStream();
 				break;
-
 			default:
 				log.warn('未知的预览消息类型', message.type);
 		}
@@ -412,6 +408,7 @@ function startPreviewStream(session: PreviewSession, startTime: number): void {
 
 	// FFmpeg 参数：输出 fragmented MP4（支持流式传输）
 	const ffmpegArgs = [
+		'-hwaccel', 'auto',
 		'-ss', String(startTime),
 		'-i', realFilePath,
 		'-map', '0:v:0',
@@ -423,6 +420,7 @@ function startPreviewStream(session: PreviewSession, startTime: number): void {
 		'-f', 'mp4',
 		'-',
 	];
+	log.dev(`[任务 ${session.taskId}] 预览流 ffmpeg 启动`, (ffmpegArgs || []).join(', '));
 
 	// 启动 FFmpeg
 	session.ffmpeg = spawn(ffboxService!.ffmpegPath, ffmpegArgs);

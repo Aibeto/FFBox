@@ -1202,6 +1202,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		// 构造 FFmpeg 命令
 		const ffmpeg = new FFmpeg(this.ffmpegPath, 6, [
 			'-hide_banner',
+			'-nostats',
 			'-hwaccel', 'auto',
 			'-i', realFilePath,
 			'-map', `0:${streamIndex}`,

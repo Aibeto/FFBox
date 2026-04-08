@@ -43,6 +43,7 @@ export class PreviewStreamDecoder {
 	// SourceBuffer 操作队列
 	private bufferQueue: Uint8Array[] = [];
 	private isBufferProcessing: boolean = false;
+	private isBufferFull: boolean = false;
 
 	// 缓冲检查定时器
 	private bufferCheckTimer: number | null = null;
@@ -132,14 +133,14 @@ export class PreviewStreamDecoder {
 				}
 			};
 
-			this.ws.onerror = (err) => {
-				console.error('[PreviewStreamDecoder] WebSocket error', err);
-				this.onStreamError?.(new Error('WebSocket error'));
-				reject(err);
+			this.ws.onerror = (event) => {
+				console.error('[PreviewStreamDecoder] WebSocket 连接错误', event);
+				this.onStreamError?.(new Error('WebSocket 连接错误'));
+				reject(event);
 			};
 
 			this.ws.onclose = (event) => {
-				console.log('[PreviewStreamDecoder] WebSocket closed', event.code, event.reason);
+				console.log('[PreviewStreamDecoder] WebSocket 已关闭', event.code, event.reason);
 				this.streamEnded = true;
 			};
 		});
@@ -203,9 +204,12 @@ export class PreviewStreamDecoder {
 
 			const currentBufferSec = this.getCurrentBufferDuration();
 
-			// 缓冲不足时发送 continue 请求下一个 chunk
-			if (currentBufferSec < this.config.bufferSec) {
-				console.log(`[PreviewStreamDecoder] 缓冲不足 (${currentBufferSec.toFixed(2)}s)，请求下一个 chunk`);
+			if (this.isBufferFull) {
+				// 此前缓冲还未加入 sourceBuffer，先尝试处理之前的
+				this.processBufferQueue();
+			} else if (currentBufferSec < this.config.bufferSec) {
+				// 缓冲不足时间时发送 continue 请求下一个 chunk
+				// console.log(`[PreviewStreamDecoder] 缓冲不足 (${currentBufferSec.toFixed(2)}s)，请求下一个 chunk`);
 				this.sendContinue();
 			}
 
@@ -257,6 +261,7 @@ export class PreviewStreamDecoder {
 			// 执行 append
 			try {
 				this.sourceBuffer.appendBuffer(data);
+				this.isBufferFull = false;
 				await new Promise<void>((resolve) => {
 					const handler = () => {
 						this.sourceBuffer?.removeEventListener('updateend', handler);
@@ -265,8 +270,17 @@ export class PreviewStreamDecoder {
 					this.sourceBuffer.addEventListener('updateend', handler);
 				});
 			} catch (e) {
-				console.error('[PreviewStreamDecoder] appendBuffer 错误', e);
-				break;
+				if (e.message.includes('The SourceBuffer is full')) {
+					// console.log(`[PreviewStreamDecoder] appendBuffer 取消，缓冲已满`);
+					this.bufferQueue.unshift(data);
+					this.isBufferProcessing = false;
+					this.isBufferFull = true;
+					return;
+				} else {
+					// 其他错误等遇到了再说，这里先让它继续
+					console.error('[PreviewStreamDecoder] appendBuffer 错误', e);
+					break;
+				}
 			}
 
 			// 更新缓冲范围信息
@@ -276,7 +290,7 @@ export class PreviewStreamDecoder {
 			// 缓冲不足时立即发送 continue 请求下一个 chunk
 			const currentBufferSec = this.getCurrentBufferDuration();
 			if (currentBufferSec < this.config.bufferSec && !this.streamEnded) {
-				console.log(`[PreviewStreamDecoder] appendBuffer 完成，缓冲不足 (${currentBufferSec.toFixed(2)}s)，请求下一个 chunk`);
+				// console.log(`[PreviewStreamDecoder] appendBuffer 完成，缓冲不足 (${currentBufferSec.toFixed(2)}s)，请求下一个 chunk`);
 				this.sendContinue();
 			}
 		}
