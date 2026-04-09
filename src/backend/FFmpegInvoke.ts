@@ -360,6 +360,9 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 						stdev: stdevMatch[1].split(' ').map(Number),
 					};
 					this.framesResult.push(frame);
+					if (frame.n % 2000 === 0 && frame.n > 0) {
+						log.dev(`帧扫描进度：${frame.n}`);
+					}
 				}
 			}
 
@@ -633,7 +636,10 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 			}
 
 		this.emit('data', { content: thisLine });	// 状态机运行过后再 emit，因为状态机内部可能会递归调用 dataProcessing()
-		this.dataProcessing(); // 可以把整个函数都 while (true)，为了节省空间，就改用递归了
+		setTimeout(() => {
+			// 约等于 while (true)，但加个延迟用于 doEvents
+			this.dataProcessing();
+		}, 0);
 	}
 	kill(callback: () => void): void {
 		if (!this.process) {

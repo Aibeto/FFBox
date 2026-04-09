@@ -6,27 +6,34 @@ import { formatTimeToFFmpegStyle, parseTimeString } from '@common/utils';
 import { PreviewStreamDecoder, PreviewDecoderConfig, BufferInfo } from '@renderer/App/MainFrame/MainArea/CutOperator/PreviewStreamDecoder';
 import { ServiceBridge } from '@renderer/bridges/serviceBridge';
 import { durationValidator, durationFixer } from '@renderer/components/validatorAndFixer';
+import { useTooltip } from '@renderer/common/tooltipUtil';
+import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import IconUpArrow from '../ParaBox/uparrow.svg?component';
 import IconPrevFrame from './PrevFrame.svg?component';
 import IconPrevKeyFrame from './PrevKeyFrame.svg?component';
 import IconNextFrame from './NextFrame.svg?component';
 import IconNextKeyFrame from './NextKeyFrame.svg?component';
+import IconHelp from './Help.svg?component';
+import IconSettings from './Settings.svg?component';
 
 const appStore = useAppStore();
 const selectedTasks = computed(() => appStore.selectedTask.size === 0
 	? { task: undefined, taskId: undefined, count: 0 }
 	: { task: appStore.currentServer.data.tasks[[...appStore.selectedTask][0]], taskId: [...appStore.selectedTask][0], count: appStore.selectedTask.size }
 );
-const selectedStream = computed(() => selectedTasks.value.task?.after.input.files.length >= 1 && appStore.globalParams.outputs.length >= 1 ? {
-	before: selectedTasks.value.task.before[0],
-} : undefined);
+const selectedStream = computed(() => {
+	if (selectedTasks.value.task?.after.input.files.length >= 1 && appStore.globalParams.outputs.length >= 1) {
+		const videoStreams = selectedTasks.value.task?.before[0].streams.filter((s) => s.type === 'Video');
+		return videoStreams[0];
+	}
+});
 const params = computed(() => ({
 	input: appStore.globalParams.input.files[0],
 	mux: appStore.globalParams.outputs[0].mux,
 }));
 
-const duration = computed(() => selectedStream.value?.before.duration || 0);
+const duration = computed(() => selectedTasks.value?.task?.before[0].duration || 0);
 let resizeObserver: ResizeObserver | null = null;
 
 // #region divider
@@ -219,7 +226,7 @@ const currentFrameIndex = ref(-1);  // 当前帧索引（-1 表示无帧信息�
 const isProgressDragging = ref(false);  // 左键拖拽进度状态
 
 // 帧数据
-const allFrames = computed(() => selectedStream.value?.before?.streams?.[0]?.frames || []);
+const allFrames = computed(() => selectedStream.value?.frames || []);
 
 // 是否为视频（有帧信息）
 const isVideo = computed(() => allFrames.value.length > 0);
@@ -483,7 +490,7 @@ const handleSelectionMouseDown = (event: MouseEvent, selectionType: 'input' | 'o
 		};
 
 		// 关键帧贴附：以 SNAP_THRESHOLD_PX 为边界贴合视野内的关键帧
-		const SNAP_THRESHOLD_PX = 8;
+		const SNAP_THRESHOLD_PX = 10;
 		const snapToKeyFrameIfClose = (targetTime: number, scrollAreaWidth: number): number => {
 			if (!isVideo.value) return targetTime;
 
@@ -511,9 +518,8 @@ const handleSelectionMouseDown = (event: MouseEvent, selectionType: 'input' | 'o
 		const applySnaps = (rawTime: number): number => {
 			// 先修正到帧边界
 			const { time: frameSnapped } = snapTimeToFrame(rawTime);
-			console.log(keyFramesCanvasWidth.value / (visibleKeyFrames.value.length + 10) * 0.02);
-			if (keyFramesCanvasWidth.value / (visibleKeyFrames.value.length + 10) * 0.02 >= 0.5) {
-				// 再尝试贴附关键帧
+			if (snapToKeyFrame.value && keyFramesCanvasWidth.value / (visibleKeyFrames.value.length + 10) * 0.02 >= 0.5) {
+				// 如果关键帧贴合开启，且关键帧密度足够（线条宽度 >= 0.5），再尝试贴附关键帧
 				return snapToKeyFrameIfClose(frameSnapped, rect.width);
 			} else {
 				return frameSnapped;
@@ -609,13 +615,12 @@ const drawKeyFrames = () => {
 
 	// 获取 frames 数据
 	const kFrames = visibleKeyFrames.value;
-	if (!allFrames.value?.length) {
+	if (!allFrames.value?.length && framesLoading.value) {
 		// 无帧信息时绘制提示文字
 		ctx.fillStyle = '#666';
 		ctx.font = '12px sans-serif';
 		ctx.textAlign = 'center';
-		ctx.fillText(framesLoading.value ? '正在加载帧信息...' : '无关键帧信息', keyFramesCanvasWidth.value / 2, keyFramesCanvasHeight.value / 2);
-		return;
+		ctx.fillText('正在加载帧信息...', keyFramesCanvasWidth.value / 2, keyFramesCanvasHeight.value / 2);
 	}
 
 	// 视野参数
@@ -657,12 +662,12 @@ const drawKeyFrames = () => {
 	ctx.textBaseline = 'middle';
 
 	// 绘制关键帧竖线和标签
-	if (kFrames.length / keyFramesCanvasWidth.value < 0.1) {
-		ctx.strokeStyle = '#8886';
+	if (showKeyFrameLabels.value && kFrames.length / keyFramesCanvasWidth.value < 0.1) {
+		ctx.strokeStyle = showTimeScale.value ? '#8886' : '#888C';
 		ctx.lineWidth = keyFramesCanvasWidth.value / (kFrames.length + 10) * 0.02;
 		// console.log('lineWidth', ctx.lineWidth);
 		ctx.setLineDash([4, 4]);
-		ctx.fillStyle = '#8888';
+		ctx.fillStyle = showTimeScale.value ? '#8888' : '#888';
 		ctx.font = '10px Bahnschrift,Calibri,"SF Electrotome",Avenir';
 		for (const frame of kFrames) {
 			const percent = (frame.pts_time - viewBegin.value) / viewRange;
@@ -673,31 +678,34 @@ const drawKeyFrames = () => {
 			ctx.lineTo(x, 60);
 			ctx.stroke();
 
-			if (kFrames.length / keyFramesCanvasWidth.value < 0.01) {	// 平均至少 100px 绘制一个标签
+			// 若没有时间刻度：直接绘画标签；否则绘制标签的条件是平均至少间隔 100px
+			if (!showTimeScale.value || kFrames.length / keyFramesCanvasWidth.value < 0.01) {
 				ctx.fillText(`${timeFilter(frame.pts_time)} #${frame.n}`, x, 66);
 			}
 		}
 	}
 
 	// 绘制时间刻度和标签
-	const textStrokeColor = getComputedStyle(document.body).getPropertyValue('--33').trim() || '#888';
-	ctx.strokeStyle = textStrokeColor + '6';
-	ctx.lineWidth = 1;
-	ctx.setLineDash([]);
-	ctx.fillStyle = textStrokeColor;
-	ctx.font = '10px 华文中宋 black';
-	const timeUnit = getScaleUnit(viewRange, drawWidth, true, 40, 1);
-	const firstTimeLineTime = Math.ceil(viewBegin.value / timeUnit) * timeUnit;
-	for (let time = firstTimeLineTime; time <= viewEnd.value; time += timeUnit) {
-		const percent = (time - viewBegin.value) / viewRange;
-		const x = CANVAS_PADDING + percent * drawWidth;
+	if (showTimeScale.value) {
+		const textStrokeColor = getComputedStyle(document.body).getPropertyValue('--33').trim() || '#888';
+		ctx.strokeStyle = textStrokeColor + '6';
+		ctx.lineWidth = 1;
+		ctx.setLineDash([]);
+		ctx.fillStyle = textStrokeColor;
+		ctx.font = '10px 华文中宋 black';
+		const timeUnit = getScaleUnit(viewRange, drawWidth, true, 50, 1);
+		const firstTimeLineTime = Math.ceil(viewBegin.value / timeUnit) * timeUnit;
+		for (let time = firstTimeLineTime; time <= viewEnd.value; time += timeUnit) {
+			const percent = (time - viewBegin.value) / viewRange;
+			const x = CANVAS_PADDING + percent * drawWidth;
 
-		ctx.beginPath();
-		ctx.moveTo(x, 0);
-		ctx.lineTo(x, 60);
-		ctx.stroke();
+			ctx.beginPath();
+			ctx.moveTo(x, 0);
+			ctx.lineTo(x, 60);
+			ctx.stroke();
 
-		ctx.fillText(timeFilter(time), x, 66);
+			ctx.fillText(timeFilter(time), x, 66);
+		}
 	}
 
 	// 绘制缓冲指示器
@@ -736,7 +744,7 @@ const updateKeyFrameCanvasSize = () => {
 const fetchFrameInfo = async () => {
 	if (!selectedTasks.value.task || framesLoading.value) return;
 
-	const frames = selectedStream.value?.before?.streams?.[0]?.frames;
+	const frames = allFrames.value;
 	framesLoading.value = false;
 	if (frames?.length > 0) return;  // 已有帧信息
 
@@ -813,6 +821,7 @@ const initPreviewDecoder = async () => {
 		startTime: inputBegin.value,
 		bufferSec: 20,
 		server: entity as ServiceBridge,
+		quality: previewQuality.value,
 	};
 
 	previewDecoder.value = new PreviewStreamDecoder(config);
@@ -909,6 +918,84 @@ watch(() => selectedTasks.value.task, async (newTask, oldTask) => {
 
 // #endregion
 
+// #region 帮助和设置
+
+// 设置状态
+const showTimeScale = ref(true);  // 显示时间坐标
+const showKeyFrameLabels = ref(true);  // 显示关键帧标签
+const snapToKeyFrame = ref(true);  // 关键帧贴合
+
+// 获取默认画质：localhost 时默认 H，否则 XL
+const getDefaultQuality = (): 'H' | 'M' | 'L' | 'XL' => {
+	const serverIp = appStore.currentServer?.entity?.ip;
+	if (serverIp === 'localhost' || serverIp === '127.0.0.1') {
+		return 'H';
+	}
+	return 'XL';
+};
+const previewQuality = ref<'H' | 'M' | 'L' | 'XL' | 'XXL'>(getDefaultQuality());  // 画质
+
+// 帮助内容（FFmpeg 时间裁剪说明）
+const helpContent = `\
+# 时间裁剪（切割）操作预览器
+**注意：**视频预览仅供参考，实际裁切位置会依其他参数而改变，预览窗口输出并不代表最终结果。
+
+【输入切割/输出切割】：输出切割 = 在输入切割的基础上再次切割。一般情况下，二选一单独使用即可。
+*这是 FFmpeg 的设计。别的软件可能不会给你两个切割选项，但 FFBox 为您原样呈现 :-)*
+
+【切割位置可能跟实际略有偏差】：在 copy 编码时，切割会从关键帧位置开始。如果您要精确切割，请从关键帧开始，或重新编码。
+
+【画质选项】：预览画面中的图像并非由 FFBox 前端直接解码，而是从后端实时重编码而来。若预览卡顿，您可通过降低画质来缓解此现象。
+*此画质选项并不影响输出文件。*
+
+【缓冲】：时间轴的上方以黄色横条显示当前已缓冲的预览。缓冲区内拖动进度条能快速响应。
+有时会发生缓冲区尾部持续消除的现象。这是 chromium 内核的默认行为，FFBox 无法干预。您可降低画质以减轻这种现象。\
+`;
+
+// 显示设置菜单
+const handleShowSettings = (event: MouseEvent) => {
+	const target = event.currentTarget as HTMLElement;
+	const rect = target.getBoundingClientRect();
+
+	const changeQuality = (newQuality: 'H' | 'M' | 'L' | 'XL' | 'XXL') => {
+		previewQuality.value = newQuality;
+		if (previewDecoder.value && selectedTasks.value.task) {
+			previewDecoder.value.restart(playbackPosition.value, undefined, newQuality);
+		}
+	}
+	const menuItems: MenuItem[] = [
+		{ type: 'checkbox', value: 'showTimeScale', checked: showTimeScale.value, label: '显示时间坐标', onClick: () => {
+			showTimeScale.value = !showTimeScale.value;
+			drawKeyFrames();
+		} },
+		{ type: 'checkbox', value: 'showKeyFrameLabels', checked: showKeyFrameLabels.value, label: '显示关键帧', onClick: () => {
+			showKeyFrameLabels.value = !showKeyFrameLabels.value;
+			if (!showKeyFrameLabels.value) {
+				snapToKeyFrame.value = false;
+			}
+			drawKeyFrames();
+		} },
+		{ type: 'checkbox', value: 'snapToKeyFrame', checked: snapToKeyFrame.value, label: '关键帧贴合', disabled: !showKeyFrameLabels.value, onClick: () => snapToKeyFrame.value = !snapToKeyFrame.value },
+		{ type: 'separator' },
+		{ type: 'submenu', label: '预览画质', subMenu: [
+			{ type: 'radio', value: 'H', checked: previewQuality.value === 'H', label: '高', onClick: () => changeQuality('H') },
+			{ type: 'radio', value: 'M', checked: previewQuality.value === 'M', label: '中', onClick: () => changeQuality('M') },
+			{ type: 'radio', value: 'L', checked: previewQuality.value === 'L', label: '低', onClick: () => changeQuality('L') },
+			{ type: 'radio', value: 'XL', checked: previewQuality.value === 'XL', label: '很低', tooltip: '分辨率减半\n（服务器编码性能较差时可选用）', onClick: () => changeQuality('XL') },
+			{ type: 'radio', value: 'XXL', checked: previewQuality.value === 'XXL', label: '超低', tooltip: '分辨率减至四分之一\n（服务器编码性能较差时可选用）', onClick: () => changeQuality('XXL') },
+		] },
+	];
+
+	showMenu({
+		menu: menuItems,
+		type: 'select',
+		selectedValue: null,
+		triggerRect: { xMin: rect.left, yMin: rect.bottom, xMax: rect.right, yMax: rect.bottom },
+	});
+};
+
+// #endregion
+
 // 从 OutputParams 加载选区数据
 const updateSelectionFromParams = () => {
 	if (!selectedTasks.value.task) return;
@@ -946,7 +1033,7 @@ watch(() => selectedTasks.value.task, () => {
 }, { immediate: true });
 
 // 监听视区、帧数据变化、缓冲区变化，重绘关键帧 canvas
-watch([viewBegin, viewEnd, () => selectedStream.value?.before?.streams?.[0]?.frames, () => bufferInfo.value], drawKeyFrames);
+watch([viewBegin, viewEnd, () => allFrames.value, () => bufferInfo.value], drawKeyFrames);
 
 onMounted(() => {
 	if (keyFramesCanvasRef.value?.parentElement) {
@@ -996,21 +1083,27 @@ onUnmounted(async () => {
 						{{ formatTimeToFFmpegStyle(playbackPosition) }} (#{{ currentFrameIndex >= 0 ? currentFrameIndex : '-' }}) / {{ formatTimeToFFmpegStyle(duration) }}
 					</div>
 					<div class="controlsBox">
-						<button class="controlBtn" @click="seekToPrevKeyFrame" title="上一关键帧" :disabled="currentFrameIndex <= 0">
+						<button class="controlBtn" v-bind="useTooltip(helpContent, 't')" title="帮助">
+							<IconHelp />
+						</button>
+						<button class="controlBtn" @click="seekToPrevKeyFrame" v-bind="useTooltip('上一关键帧', 't')" title="上一关键帧" :disabled="currentFrameIndex <= 0">
 							<IconPrevKeyFrame />
 						</button>
-						<button class="controlBtn" @click="seekToPrevFrame" title="上一帧" :disabled="currentFrameIndex <= 0">
+						<button class="controlBtn" @click="seekToPrevFrame" v-bind="useTooltip('上一帧', 't')" title="上一帧" :disabled="currentFrameIndex <= 0">
 							<IconPrevFrame />
 						</button>
-						<button class="controlBtn controlBtnPlay" @click="togglePlayPause" title="播放/暂停">
+						<button class="controlBtn controlBtnPlay" @click="togglePlayPause" v-bind="useTooltip('播放/暂停', 't')" title="播放/暂停">
 							<svg v-if="videoPlaying" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
 							<svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
 						</button>
-						<button class="controlBtn" @click="seekToNextFrame" title="下一帧" :disabled="currentFrameIndex < 0 || currentFrameIndex >= allFrames.length - 1">
+						<button class="controlBtn" @click="seekToNextFrame" v-bind="useTooltip('下一帧', 't')" title="下一帧" :disabled="currentFrameIndex < 0 || currentFrameIndex >= allFrames.length - 1">
 							<IconNextFrame />
 						</button>
-						<button class="controlBtn" @click="seekToNextKeyFrame" title="下一关键帧" :disabled="!findNextKeyFrameIndex(currentFrameIndex)">
+						<button class="controlBtn" @click="seekToNextKeyFrame" v-bind="useTooltip('下一关键帧', 't')" title="下一关键帧" :disabled="!findNextKeyFrameIndex(currentFrameIndex)">
 							<IconNextKeyFrame />
+						</button>
+						<button class="controlBtn" @click="handleShowSettings" v-bind="useTooltip('设置', 't')" title="设置">
+							<IconSettings />
 						</button>
 					</div>
 				</div>

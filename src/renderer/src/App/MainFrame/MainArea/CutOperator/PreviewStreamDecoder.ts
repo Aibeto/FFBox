@@ -6,6 +6,7 @@ export interface PreviewDecoderConfig {
 	startTime: number;		// 解码起始时间（秒）
 	bufferSec: number;		// 目标缓冲时长（秒），建议 5-10 秒
 	server: ServiceBridge;	// 服务器连接实例
+	quality?: 'H' | 'M' | 'L' | 'XL' | 'XXL';	// 画质等级（可选，默认 H）
 }
 
 export interface BufferInfo {
@@ -111,7 +112,8 @@ export class PreviewStreamDecoder {
 	 */
 	private connectWebSocket(): Promise<void> {
 		return new Promise((resolve, reject) => {
-			const wsUrl = `ws://${this.config.server.ip}:${this.config.server.port}/ws/preview?taskId=${this.config.taskId}&startTime=${this.config.startTime}`;
+			const quality = this.config.quality ?? 'H';  // 默认高画质
+			const wsUrl = `ws://${this.config.server.ip}:${this.config.server.port}/ws/preview?taskId=${this.config.taskId}&startTime=${this.config.startTime}&quality=${quality}`;
 			console.log('[PreviewStreamDecoder] 连接 WebSocket:', wsUrl);
 
 			this.ws = new WebSocket(wsUrl);
@@ -425,10 +427,13 @@ export class PreviewStreamDecoder {
 	/**
 	 * 跳转到新的时间点（重建解码实例）
 	 */
-	public async restart(newTime: number, videoElement?: HTMLVideoElement): Promise<void> {
-		console.log(`[PreviewStreamDecoder] 重建解码实例，开始时间 ${newTime.toFixed(2)}s`);
+	public async restart(newTime: number, videoElement?: HTMLVideoElement, newQuality?: 'H' | 'M' | 'L' | 'XL' | 'XXL'): Promise<void> {
+		console.log(`[PreviewStreamDecoder] 重建解码实例，开始时间 ${newTime.toFixed(2)}s${newQuality ? `，画质 ${newQuality}` : ''}`);
 
 		this.config.startTime = newTime;
+		if (newQuality) {
+			this.config.quality = newQuality;
+		}
 		if (this.isDestroying) return;	// 上一个 destroy 完成后会继续往下跑，这个 restart 就不用继续了
 		const _videoElement = videoElement || this.videoElement;
 		await this.destroy();

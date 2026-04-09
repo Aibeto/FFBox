@@ -41,6 +41,7 @@ interface PreviewSession {
 	ws: WebSocket;
 	taskId: number;
 	startTime: number;
+	quality: 'H' | 'M' | 'L' | 'XL' | 'XXL';  // 画质等级
 	ffmpeg: ReturnType<typeof spawn> | null;
 	transform: ControllableTransform;
 }
@@ -294,7 +295,7 @@ function mountEventFromService(): void {
 
 /**
  * 预览 WebSocket 连接处理
- * 从 URL query 获取 taskId 和 startTime，无需 sessionId 验证
+ * 从 URL query 获取 taskId、startTime 和 quality，无需 sessionId 验证
  */
 function mountPreviewWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): void {
 	const address = request.socket.remoteAddress;
@@ -303,6 +304,7 @@ function mountPreviewWebSocketEvents(ws: WebSocket, request: Http.IncomingMessag
 	const url = new URL(request.url || '/', 'http://localhost');
 	const taskId = parseInt(url.searchParams.get('taskId'));
 	const startTime = parseFloat(url.searchParams.get('startTime') || '0');
+	const quality = (url.searchParams.get('quality') || 'H') as 'H' | 'M' | 'L' | 'XL';  // 默认高画质
 
 	if (!ffboxService!.tasklist[taskId]) {
 		log.warn(`预览 WebSocket 连接被拒绝：无效 taskId。地址：${address}`);
@@ -312,13 +314,14 @@ function mountPreviewWebSocketEvents(ws: WebSocket, request: Http.IncomingMessag
 
 	const sessionId = `preview_${taskId}_${Date.now()}`;
 
-	log.info(`预览 WebSocket 连接：${address}，taskId：${taskId}，startTime：${startTime}`);
+	log.info(`预览 WebSocket 连接：${address}，taskId：${taskId}，startTime：${startTime}，quality：${quality}`);
 
 	// 创建会话
 	const session: PreviewSession = {
 		ws,
 		taskId,
 		startTime,
+		quality,
 		ffmpeg: null,
 		transform: new ControllableTransform({ highWaterMark: 1000 * 1000, batchMode: true }),  // 1MB 批次
 	};
@@ -379,6 +382,34 @@ function handlePreviewMessage(sessionId: string, session: PreviewSession, data: 
 }
 
 /**
+ * 根据画质等级和像素量计算 crf 值
+ * H=18, M=24, L=30 (基准 1080p)
+ * XL: crf=30 但分辨率减半
+ * 像素量每提升到 4 倍，crf 加 3
+ */
+function calculateCrf(quality: 'H' | 'M' | 'L' | 'XL' | 'XXL', resolution: string): { crf: number; scale: number } {
+	const baseCrfMap = { H: 18, M: 24, L: 30, XL: 30, XXL: 30 };
+	const baseCrf = baseCrfMap[quality];
+
+	// 从 resolution 字符串解析宽高（格式如 "1920x1080"）
+	const match = resolution.match(/^(\d+)x(\d+)$/);
+	const width = match ? parseInt(match[1]) : 1920;
+	const height = match ? parseInt(match[2]) : 1080;
+	const pixelCount = width * height;
+
+	// XL 画质：分辨率减半；XXL 再减半
+	const scale = quality === 'XXL' ? 0.25 : (quality === 'XL' ? 0.5 : 1);
+	const effectivePixelCount = pixelCount * scale * scale;
+
+	const basePixelCount = 1920 * 1080;
+	// 像素量每提升到 4 倍，crf 加 3
+	const ratio = effectivePixelCount / basePixelCount;
+	const additionalCrf = Math.floor(Math.log2(ratio) / 2) * 3;  // log4(pixelRatio) * 3
+	console.log('crf', baseCrf + additionalCrf, 'scale', scale);
+	return { crf: baseCrf + additionalCrf, scale };
+}
+
+/**
  * 启动预览流
  */
 function startPreviewStream(session: PreviewSession, startTime: number): void {
@@ -406,6 +437,10 @@ function startPreviewStream(session: PreviewSession, startTime: number): void {
 
 	session.startTime = startTime;
 
+	// 获取视频分辨率并计算 crf
+	const resolution = task.before?.[0]?.streams?.[0]?.resolution || '1920x1080';
+	const { crf, scale } = calculateCrf(session.quality, resolution);
+
 	// FFmpeg 参数：输出 fragmented MP4（支持流式传输）
 	const ffmpegArgs = [
 		'-hwaccel', 'auto',
@@ -415,6 +450,8 @@ function startPreviewStream(session: PreviewSession, startTime: number): void {
 		'-c:v', 'libx264',
 		'-preset', 'ultrafast',
 		'-tune', 'zerolatency',
+		'-crf', String(crf),
+		...(scale !== 1 ? ['-vf', `scale=iw*${scale}:ih*${scale}`] : []),
 		'-g', '1',  // 全关键帧
 		'-movflags', '+frag_keyframe+empty_moov+default_base_moof',
 		'-f', 'mp4',
@@ -1075,8 +1112,12 @@ function getRouter(): Router {
 			return;
 		}
 
-		await ffboxService!.getMediaFrameInfo(+ctx.params.id, fileIndex, videoStreamIndex);
-		ctx.body = { success: true };
+		try {
+			await ffboxService!.getMediaFrameInfo(+ctx.params.id, fileIndex, videoStreamIndex);
+			ctx.body = { success: true };
+		} catch (errorCode) {
+			ctx.body = { status: 500, errorCode };
+		}
 	});
 
 
