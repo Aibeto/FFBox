@@ -1,6 +1,7 @@
 import { h, VNodeRef } from 'vue';
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
+import gsap from 'gsap';
 import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, WorkingStatus } from '@common/types';
 import { version } from '@common/constants'; 
 import { Server } from '@renderer/types';
@@ -134,18 +135,57 @@ export const useAppStore = defineStore('app', {
 		/**
 		 * 打开切割操作器
 		 */
-		openCutOperator(taskId: number, focusOn: 'input' | 'output') {
+		openCutOperator(focusOn: 'input' | 'output') {
 			const 这 = useAppStore();
+
+			// 检查进入条件
+			const globalParams = 这.globalParams;
+			const filter = globalParams.filter;
+			if (globalParams.input.files.length !== 1 ||
+				globalParams.outputs.length !== 1 ||
+				filter.nodes.length > 0 ||
+				filter.lines.length > 0) {
+				Popup({ message: '此功能仅限单输入输出模式使用', level: NotificationLevel.warning });
+				return;
+			}
+			if (这.selectedTask.size !== 1) {
+				Popup({ message: '请先选择一个任务', level: NotificationLevel.warning });
+				return;
+			}
+	
 			this.showInfoCenter = false;
 			this.showTransferCenter = false;
 			this.showTaskInfo = undefined;
 			this.showMenuCenter = 0;
 			this.showCutOperator = { initialDraggerPos: 这.draggerPos, focusOn };
+			
+			const target = { value: 这.draggerPos };
+			gsap.to(target, {
+				value: 0,
+				duration: 0.5,
+				ease: "power3.inOut",
+				onUpdate: () => {
+					这.draggerPos = target.value;
+				},
+			});
 		},
 		/**
 		 * 关闭切割操作器
 		 */
 		closeCutOperator() {
+			const 这 = useAppStore();
+			const target = { value: 0 };
+			const initialDraggerPos = this.showCutOperator.initialDraggerPos;
+			if (这.draggerPos <= 0.01) {
+				gsap.to(target, {
+					value: initialDraggerPos,
+					duration: 0.5,
+					ease: "power3.inOut",
+					onUpdate: () => {
+						这.draggerPos = target.value;
+					},
+				});
+			}
 			this.showCutOperator = undefined;
 		},
 		// #endregion 纯 UI
@@ -295,7 +335,7 @@ export const useAppStore = defineStore('app', {
 								end: params.input.files[index]?.end ?? '',
 								hwaccel: params.input.files[index]?.hwaccel ?? '自动',
 								realtime: params.input.files[index]?.realtime ?? false,
-								detail: params.input.files[index]?.realtime ?? {},
+								detail: params.input.files[index]?.detail ?? {},
 								custom: params.input.files[index]?.custom ?? '',
 							})),
 						},
@@ -750,6 +790,7 @@ export const useAppStore = defineStore('app', {
 				},
 				entity: new ServiceBridge(),
 			});
+			这.selectedTask.clear();
 			这.currentServerId = id;
 			return id;
 		},

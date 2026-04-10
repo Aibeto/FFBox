@@ -9,6 +9,7 @@ import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrappe
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import BoxedDropdownInput from '@renderer/components/DropdownInput/BoxedDropdownInput.vue';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
+import BoxedCutTimeInput from '@renderer/components/CutTimeInput/BoxedCutTimeInput.vue';
 import Popup from '@renderer/components/Popup/Popup';
 import ImageFind from './find.svg?component';
 import css from './index.module.less';
@@ -75,34 +76,15 @@ const MuxView = defineComponent((props: Props) => {
 		}
 	};
 
-	const handleCutOperatorDoubleClick = () => {
-		const globalParams = appStore.globalParams;
-		const filter = globalParams.filter;
-
-		// 检查进入条件
-		if (globalParams.input.files.length !== 1 ||
-			globalParams.outputs.length !== 1 ||
-			filter.nodes.length > 0 ||
-			filter.lines.length > 0) {
-			Popup({ message: '此功能仅限单输入输出模式使用', level: NotificationLevel.warning });
-			return;
-		}
-
-		// 检查是否有选中的任务
-		if (appStore.selectedTask.size !== 1) {
-			Popup({ message: '请先选择一个任务', level: NotificationLevel.warning });
-			return;
-		}
-
-		appStore.openCutOperator([...appStore.selectedTask][0], 'output');
-	};
-
 	return () => muxParams.value && muxContainsInOutput.value ? (
 		<div class={css.container}>
 			<BoxedDropdownInput title="容器/格式" text={muxParams.value.format} list={combinedMuxersList.value} onChange={(value: string) => handleChange('format', value)} />
 			{/* <BoxedSwitch title="元数据前移" checked={muxParams.value.moveflags} onChange={(value: boolean) => handleChange('moveflags', value)} /> */}
-			<BoxedNormalInput title="切割起点" value={muxParams.value.begin} onDoubleClick={handleCutOperatorDoubleClick} onChange={(value: string) => handleChange('begin', value)} validator={durationValidator} inputFixer={durationFixer} />
-			<BoxedNormalInput title="切割终点" value={muxParams.value.end} onDoubleClick={handleCutOperatorDoubleClick} onChange={(value: string) => handleChange('end', value)} validator={durationValidator} inputFixer={durationFixer} />
+			<BoxedCutTimeInput title="切割时间" value={[muxParams.value.begin, muxParams.value.end]} onChange={(value: [string, string]) => {
+				muxParams.value.begin = value[0];
+				muxParams.value.end = value[1];
+				appStore.applyParameters();
+			}} onButtonClick={() => appStore.openCutOperator('output')} />
 			{muxParams.value.format !== '无' && (
 				<>
 					<BoxedDropdownInput title="元数据保留" text={muxParams.value.keepMetadata || '无'} list={keepMeatadataList} onChange={(value: any) => handleChange('keepMetadata', value)} />

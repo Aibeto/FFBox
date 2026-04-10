@@ -15,7 +15,6 @@ interface Props {
 	inputFixer?: (value: string) => string;
 	onChange?: (value: string) => any;
 	onEnter?: () => any;
-	onDoubleClick?: () => any;  // 作为临时的功能
 }
 
 const props = defineProps<Props>();

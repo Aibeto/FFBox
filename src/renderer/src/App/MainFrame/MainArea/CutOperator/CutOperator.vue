@@ -1057,7 +1057,7 @@ onUnmounted(async () => {
 	<div class="cutOperator">
 		<div class="upper">
 			<div class="devider" :ref="(el) => deviderRef = el as Element">
-				<button class="leftButton" @click="appStore.showCutOperator = undefined" aria-label="切割操作面板开关">
+				<button class="leftButton" @click="appStore.closeCutOperator()" aria-label="切割操作面板开关">
 					<IconUpArrow :style="{ transform: 'rotate(-90deg)' }" />
 					<span>任务参数</span>
 				</button>
@@ -1482,9 +1482,9 @@ onUnmounted(async () => {
 					box-shadow: 0 4px 12px hwb(var(--opposite) / 0.05),	// 外发光
 								0 0 1px 1px hwb(var(--opposite) / 0.1) inset;	// 内边缘
 					:deep(.controlBox) {
-						width: 180px !important;
+						width: 180px;
 						flex: 1 1 auto;
-						margin: 0 !important;
+						margin: 0;
 						.controlBox-title {
 							min-width: 50px;
 						}
