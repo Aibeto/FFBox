@@ -76,7 +76,7 @@
 由于这里不是前端课堂，此处当然不会有手把手的详细指南🌚。以下会列出一些需要的东西，您可自行了解：
 
 1. `编辑器`：推荐使用 `Visual Studio Code`，已在 `.vscode` 目录中预置了启动调试后端、插入调试主进程等相关任务。
-2. `运行环境`：推荐使用 `node.js`，主要用于项目的编译。如有需要还可 `nvm`，使用它可以切换当前的 nodejs 版本，解决部分情况下运行不起来的问题。  
+2. `运行环境`：推荐使用 `node.js`（版本 >= 22.12），主要用于项目的编译。如有需要还可 `nvm`，使用它可以切换当前的 nodejs 版本，解决部分情况下运行不起来的问题。  
    如有需要，也可使用 `bun` 作为运行环境。您可以把它理解成安卓版鸿蒙。但目前 bun 无法用于调试。
 3. `包管理器`：推荐使用 `pnpm`（推荐使用 8 版本。高版本存在 electron 安装问题，见下文）。由于 electron-builder 对 utimes 的编译存在问题，pnpm 已配置为 `node-linker=hoisted`。  
    您也可以使用 `npm` 作为包管理器，npm 的速度约慢一半。这样打出来的包体积大小会有轻微不同（哪怕删除 lock 文件拉取最新）。  
@@ -141,3 +141,7 @@ flowchart TB
 2. 从执行原理来说，electron 在 postinstall 阶段会执行 install.js，调用 @electron/get 进行下载。如果这个阶段失败，可能没有错误提示。此时需要进行手动操作（仅供参考）：
 2.1. 手动下载 electron，如 `electron-v24.8.8-win32-x64.zip` 并解压到 `node_modules/electron/dist`。
 2.2. 创建 `node_modules/electron/path.txt`，写入 `electron.exe`。
+
+### Cannot find module '@rolldown/binding-darwin-arm64'
+
+参考 https://github.com/npm/cli/issues/4828，需要使用 22.12+ 版本的 node.js。

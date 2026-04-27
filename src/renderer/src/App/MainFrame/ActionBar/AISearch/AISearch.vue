@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick, computed, onMounted, watch } from 'vue';
 import gsap from 'gsap';
-import AISearchConfig, { AIChatMessage } from './types';
+import AISearchConfig, { AIChatMessage, AIModelOption } from './types';
 import { getTimeString } from '@common/utils';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import nodeBridge from '@renderer/bridges/nodeBridge';
@@ -15,12 +15,12 @@ import IconX from '@renderer/assets/×.svg';
 
 interface Props {
 	enabled?: boolean;	// 是否启用并显示该组件，未定义则启用
-	chatAPI?: (message: string) => Promise<{ content: string, expense?: number }>;	// 聊天 API，未定义则将在对话框中输出当前时间，出错将显示错误信息
-	resetChat?: () => any;	// 点击重置对话时需要处理的副作用
-	init?: () => any;	// 首次打开窗口时需要处理的副作用
-	statusAPI?: () => Promise<string>;
+	chatAPI?: (message: string, modelKey?: string) => Promise<{ content: string, expense?: number }>;	// 聊天 API，未定义则将在对话框中输出当前时间，出错将显示错误信息
+	resetChat?: (modelKey?: string) => any;	// 点击重置对话时需要处理的副作用
+	init?: (modelKey?: string) => any;	// 首次打开窗口时需要处理的副作用
+	statusAPI?: (modelKey?: string) => Promise<string>;
 	titleName?: string;	// 标题名，未定义则使用“FFBox AI 帮助”
-	modelName?: string;	// 显示在标题旁的模型名，未定义则不显示
+	modelOptions?: AIModelOption[];
 	initialPlaceholders?: string[];	// 未激活窗口时的 placeholder，未定义则使用“智能帮助”
 	initialPlaceholderInterval?: number;	// 未激活窗口时的 placeholder 的轮换间隔（ms），未定义则使用 4000
 	initSystemMessage?: AIChatMessage;	// 初始化窗口以及重置对话前补充一条系统信息
@@ -46,6 +46,7 @@ const messages = ref<AIChatMessage[]>([]);
 const sessionId = ref<string | null>(null);
 const loading = ref(false);
 const statusText = ref('大模型处理中');
+const selectedModelKey = ref<string | undefined>(undefined);
 
 const defaultAnchorRef = ref<HTMLDivElement>(null);
 const anchorRef = ref<HTMLDivElement>(null);
@@ -95,7 +96,7 @@ const openWindow = () => {
 
 	if (!hasOpened && props.init) {
 		hasOpened = true;
-		props.init();
+		props.init(selectedModelKey.value);
 	}
 
 	const defaultRect = defaultAnchorRef.value.getBoundingClientRect();	// 记录默认位置
@@ -238,11 +239,13 @@ const sendMessage = async () => {
 	if (props.chatAPI) {
 		statusText.value = '呼叫大模型工作流';
 		const pollingTimer = setInterval(() => {
-			props.statusAPI().then((result) => {
-				if (result && loading.value) statusText.value = result;
-			});
+			if (props.statusAPI) {
+				props.statusAPI(selectedModelKey.value).then((result) => {
+					if (result && loading.value) statusText.value = result;
+				});
+			}
 		}, 800);
-		props.chatAPI(userText).then((chatResult) => {
+		props.chatAPI(userText, selectedModelKey.value).then((chatResult) => {
 			const result = JSON.parse(chatResult.content);
 			const { msg, ref, lnk, ext } = result.obj;
 			const extras = (ext || '').split('&') as string[];
@@ -343,7 +346,7 @@ const sendMessage = async () => {
 const resetChat = () => {
 	messages.value = [];
 	sessionId.value = null;
-	(props.resetChat || (() => {}))();
+	(props.resetChat || (() => {}))(selectedModelKey.value);
 	if (props.initSystemMessage) {
 		setTimeout(() => {
 			messages.value.push(props.initSystemMessage);
@@ -365,6 +368,31 @@ const handleActionButtonClick = (url: string) => {
 		window.open(url);
 	}
 }
+
+const handleModelChange = (event: Event) => {
+	const nextModelKey = (event.target as HTMLSelectElement).value;
+	if (!nextModelKey || nextModelKey === selectedModelKey.value) {
+		return;
+	}
+	const currentOption = props.modelOptions.find((item) => item.key === selectedModelKey.value);
+	const nextOption = props.modelOptions.find((item) => item.key === nextModelKey);
+	selectedModelKey.value = nextModelKey;
+	if (currentOption && nextOption && currentOption.provider !== nextOption.provider) {
+		resetChat();
+	}
+};
+
+watch(() => props.modelOptions, (newOptions) => {
+	const options = newOptions || [];
+	if (!options.length) {
+		selectedModelKey.value = undefined;
+		return;
+	}
+	const hasCurrent = options.some((item) => item.key === selectedModelKey.value);
+	if (!hasCurrent) {
+		selectedModelKey.value = options[0].key;
+	}
+}, { immediate: true });
 
 let initialPlaceholderTimer: number;
 const initialPlaceholderIndex = ref(0);
@@ -407,7 +435,14 @@ watch(() => messages.value.length, () => {
 						<div class="left">
 							<IconAI />
 							<h3>{{ props.titleName ?? 'FFBox AI 帮助' }}</h3>
-							<span class="modelName" v-if="props.modelName">{{ props.modelName }}</span>
+							<select
+								v-if="props.modelOptions.length"
+								class="modelName"
+								:value="selectedModelKey"
+								@change="handleModelChange"
+							>
+								<option v-for="item in props.modelOptions" :key="item.key" :value="item.key">{{ item.label }}</option>
+							</select>
 							<!-- Three Concentric Progress Rings (SVG only) -->
 							<div
 								v-if="props.quotaUsed"
@@ -733,6 +768,9 @@ watch(() => messages.value.length, () => {
 							border: hwb(255 50% 0% / 0.5) 1px solid;
 							border-radius: 4px;
 							background-color: hwb(255 50% 0% / 0.2);
+							color: inherit;
+							outline: none;
+							max-width: 220px;
 						}
 						.usage {
 							display: flex;

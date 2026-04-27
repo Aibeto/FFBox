@@ -1,31 +1,18 @@
 /**
- * 随机选择模型的参数
- */
-interface ModelConfig {
-	name: string;   // 模型显示名称
-	id: string; // 模型传递名称
-	probabilitySum: number; // 权重和（在数组中必须递增）
-}
-
-/**
  * 已使用模型的用量计算算法
  */
 type ModelPrice = {
-	modelIdOrIndex: string;
+	modelKey: string; // provider:model_id
 	inputMultiplyer: number; // 输入乘数
 	outputMultiplyer: number; // 输出乘数
 }[];
 
-/**
- * 服务商配置类型
- */
-interface ProviderConfig {
-	appId: string;
+export interface AIModelOption {
 	key: string;
-	probabilitySum: number; // 权重和（在数组中必须递增）
-	models: ModelConfig[];
-	modelPrice?: ModelPrice; // 已使用模型的用量计算算法
-	conversationStatusUrl?: string;	// 用于查询当前大模型会话状态
+	provider: string;
+	modelId: string;
+	modelName: string;
+	label: string;
 }
 
 interface ResponseKeywordMessage {
@@ -57,14 +44,16 @@ export interface AIChatMessage {
  * 整体配置对象类型
  */
 interface AISearchConfig {
-	ali?: ProviderConfig;
-	baidu?: ProviderConfig;
+	chatUrl?: string;
+	conversationStatusUrl?: string;
+	modelPrice?: ModelPrice;
+	modelOptions?: AIModelOption[];
 	requestKeywordLink?: RequestResponseKeywordLink[];	// 请求关键词匹配到则打开一个链接
 	responseKeywordLink?: ResponseResponseKeywordLink[];	// 响应关键词匹配到则打开一个链接
 	requestKeywordSystemMessage?: RequestKeywordMessage[];	// 请求关键词匹配到则显示一条系统消息
 	responseKeywordSystemMessage?: ResponseKeywordMessage[];	// 响应关键词匹配到则显示一条系统消息
-	tokenLimit?: { day?: number, week?: number, total?: number };
-	tokenLimitMessage?: { day?: string, week?: string, total?: string };
+	tokenLimit?: { day?: number; week?: number; total?: number };
+	tokenLimitMessage?: { day?: string; week?: string; total?: string };
 	maxInputLength?: number;
 	initialPlaceholders?: string[];
 	initialPlaceholderInterval?: number;

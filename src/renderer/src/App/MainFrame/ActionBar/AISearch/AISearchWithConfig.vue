@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import axios, { AxiosError } from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
-import CryptoJS from 'crypto-js';
-import AISearchConfig from './types';
+import AISearchConfig, { AIModelOption } from './types';
 import { version } from '@common/constants';
 import { randomString } from '@common/utils';
 import nodeBridge from '@renderer/bridges/nodeBridge';
@@ -14,11 +13,10 @@ import { ButtonType } from '@renderer/components/Button/Button';
 const appStore = useAppStore();
 
 const fetchedConfig = ref<AISearchConfig>();
-const providerName = ref<string>();
-const model = ref<{ name: string; id: string }>();
-let conversationId: string;
-let lastUsedTime: number;	// 若使用的日期发生变化，重置用量
-let userIdv1: string;
+const modelOptions = ref<AIModelOption[]>([]);
+const conversationIdByProvider: Partial<Record<AIModelOption['provider'], string>> = {};
+let lastUsedTime = 0;	// 若使用的日期发生变化，重置用量
+let userIdv1 = '';
 const tokenUsed = ref({ day: 0, week: 0, total: 0 });
 
 const quotaUsed = computed(() => ({
@@ -27,7 +25,15 @@ const quotaUsed = computed(() => ({
 	total: fetchedConfig.value?.tokenLimit?.total ? tokenUsed.value.total / fetchedConfig.value.tokenLimit.total : undefined,
 }));
 
-// 检查日期，如果变化则写盘
+const getModelOption = (modelKey?: string): AIModelOption | undefined => {
+	if (!modelOptions.value.length) return undefined;
+	if (modelKey) {
+		const matched = modelOptions.value.find((item) => item.key === modelKey);
+		if (matched) return matched;
+	}
+	return modelOptions.value[0];
+};
+
 const checkQuota = async () => {
 	const aiAssistantData = await nodeBridge.localStorage.get('aiAssistant');
 
@@ -56,81 +62,58 @@ const useQuota = async (count: number) => {
 	tokenUsed.value.week += count;
 	tokenUsed.value.total += count;
 	await nodeBridge.localStorage.set('aiAssistant.tokenUsed', tokenUsed.value);
-}
+};
 
 // 只有 config 加载出来才会加载 AISearch，加载 AISearch 第一次打开弹窗才会 initWindow()
-const initWindow = () => {
+const initWindow = async (modelKey?: string) => {
+	if (!fetchedConfig.value) return;
+
 	if (fetchedConfig.value.initMsgbox) {
 		Msgbox({
 			content: fetchedConfig.value.initMsgbox,
 			buttons: [
-				{ text: `我已知悉，继续`, type: ButtonType.Primary },
+				{ text: '我已知悉，继续', type: ButtonType.Primary },
 			]
-		})
-	}
-	if (providerName.value === 'baidu') {
-		var options = {
-			'method': 'POST',
-			'url': 'https://qianfan.baidubce.com/v2/app/conversation',
-			'headers': {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${fetchedConfig.value.baidu.key}`
-			},
-			data: JSON.stringify({
-				"app_id": fetchedConfig.value.baidu.appId,
-			})
-		};
-		axios(options)
-			.then((res) => {
-				console.log(res.data);
-				conversationId = res.data.conversation_id;
-			})
-			.catch(error => {
-				throw new Error(error);	// 暂不容错
-			});
-	} else if (providerName.value === 'ali') {
-		let options = {
-			'method': 'POST',
-			'url': `https://dashscope.aliyuncs.com/api/v1/apps/${fetchedConfig.value.ali.appId}/completion`,
-			'headers': {
-				"Authorization": `Bearer ${fetchedConfig.value.ali.key}`,
-				"Content-Type": "application/json",
-			},
-			data: JSON.stringify({
-				input: {
-					prompt: '[init]',
-					biz_params: {
-						customModelId: model.value.id,
-						conversationId,
-						userIdv1,
-					}
-				},
-				parameters: {
-					// model_id: model.value.id,
-				},
-				debug: {}
-			})
-		};
-		axios(options).then((res) => {
-			const resData = res.data;
-			conversationId = resData.output.session_id;
-		})
-		.catch(error => {
-			throw new Error(error);	// 暂不容错
 		});
 	}
+
+	const selected = getModelOption(modelKey);
+	if (!selected) return;
+
+	if (!fetchedConfig.value.chatUrl) return;
+
+	const currentConversationId = conversationIdByProvider[selected.provider];
+	const options = {
+		method: 'POST',
+		url: fetchedConfig.value.chatUrl,
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		data: JSON.stringify({
+			input: {
+				prompt: '[init]',
+				biz_params: {
+					customModelId: selected.modelId,
+					conversationId: currentConversationId,
+					userIdv1,
+				},
+			},
+			parameters: {},
+			debug: {},
+		}),
+	};
+	const res = await axios(options);
+	conversationIdByProvider[selected.provider] = res.data.output.session_id;
 };
 
-const resetChat = () => {
-	if (providerName.value === 'ali') {
-		initWindow();
-	} else if (providerName.value === 'baidu') {
-		initWindow();
-	}
+const resetChat = async (modelKey?: string) => {
+	const selected = getModelOption(modelKey);
+	if (!selected) return;
+	delete conversationIdByProvider[selected.provider];
+	await initWindow(selected.key);
 };
 
-const chatAPI = async (message: string) => {
-	// 用量检查
+const chatAPI = async (message: string, modelKey?: string) => {
 	checkQuota();
 	if (fetchedConfig.value?.tokenLimit?.day && tokenUsed.value.day >= fetchedConfig.value.tokenLimit.day) {
 		return Promise.reject(fetchedConfig.value?.tokenLimitMessage?.day ?? '今日 AI 用量已达到上限');
@@ -142,184 +125,129 @@ const chatAPI = async (message: string) => {
 		return Promise.reject(fetchedConfig.value?.tokenLimitMessage?.total ?? '累计 AI 用量已达到上限');
 	}
 
-	// API 请求
-	if (providerName.value === 'ali') {
-		try {
-			const res = await axios.post(
-				`https://dashscope.aliyuncs.com/api/v1/apps/${fetchedConfig.value.ali.appId}/completion`,
-				{
-					input: {
-						prompt: message,
-						...(conversationId ? { session_id: conversationId } : {}),
-						biz_params: {
-							customModelId: model.value.id,
-							conversationId,
-							userIdv1,
-						}
-					},
-					parameters: {
-						// model_id: model.value.id,
-					},
-					debug: {}
-				},
-				{
-					headers: {
-						"Authorization": `Bearer ${fetchedConfig.value.ali.key}`,
-						"Content-Type": "application/json",
-					}
-				}
-			);
+	const selected = getModelOption(modelKey);
+	if (!selected) {
+		return Promise.reject('暂无可用模型');
+	}
+	const conversationId = conversationIdByProvider[selected.provider];
 
-			const resData = res.data;
-			if (!conversationId) {
-				conversationId = resData.output.session_id;
-			}
-			let usageSum = 0;
-			const modelsPrice = fetchedConfig.value.ali.modelPrice || [];
-			for (const [usedModelIndex, _usedModel] of Object.entries(resData.usage.models || [])) {
-				const usedModel = _usedModel as any;
-				const multiplyerConfig = modelsPrice.find((modelPrice) =>
-					modelPrice.modelIdOrIndex === usedModel.model_id ||
-					modelPrice.modelIdOrIndex === usedModelIndex
-				);
-				if (multiplyerConfig) {
-					usageSum += usedModel.input_tokens * multiplyerConfig.inputMultiplyer + usedModel.output_tokens * multiplyerConfig.outputMultiplyer;
-				} else {
-					usageSum += usedModel.input_tokens + usedModel.output_tokens;
-				}
-			}
-			useQuota(usageSum);
-
-			return Promise.resolve({
-				content: resData.output.text,
-				expense: usageSum,
-			});
-		} catch (err) {
-			console.log(err);
-			if (err instanceof AxiosError) {
-				if (err.response?.data) {
-					const data = err.response.data;
-					if (data.code === 'App.AccessDenied') {
-						return Promise.reject(`模型提供商拒绝了请求，请联系 FFBox 作者或更新 FFBox 解决`);	// appId 错误
-					} else if (data.code === 'InvalidApiKey') {
-						return Promise.reject(`模型提供商拒绝了请求，请联系 FFBox 作者解决`);	// apiKey 错误
-					} else if (data.code === 'DataInspectionFailed') {
-						useQuota(500);	// 惩罚
-						return Promise.reject(fetchedConfig.value.invalidReply);
-					} else {
-						return Promise.reject(data.message);
-					}
-				} else {
-					return Promise.reject(`请求失败：${err.message}`);
-				}
-			}
-			return Promise.reject(`请求失败：未知原因`);
-		}
-	} else if (providerName.value === 'baidu') {
-		try {
-			const res = await axios.post(
-				`https://qianfan.baidubce.com/v2/app/conversation/runs`,
-				{
-					app_id: fetchedConfig.value.baidu.appId,
-					query: message,
-					conversationId,
-					stream: false,
-					parameters: {
-						customModelId: model.value.id,
+	if (!fetchedConfig.value?.chatUrl) return Promise.reject('AI configuration missing');
+	try {
+		const res = await axios.post(
+			fetchedConfig.value.chatUrl,
+			{
+				input: {
+					prompt: message,
+					...(conversationId ? { session_id: conversationId } : {}),
+					biz_params: {
+						customModelId: selected.modelId,
+						conversationId,
+						userIdv1,
 					},
 				},
-				{
-					headers: {
-						"Content-Type": "application/json",
-						"Authorization": `Bearer ${fetchedConfig.value.baidu.key}`,
-					}
-				}
-			);
-
-			const resData = res.data;
-			if (!conversationId) {
-				conversationId = resData.output.session_id;
+				parameters: {},
+				debug: {},
+			},
+			{
+				headers: {
+					'Content-Type': 'application/json',
+				},
 			}
-			// useQuota(resData.usage.models[0].input_tokens + resData.usage.models[0].output_tokens);
+		);
 
-			return Promise.resolve({
-				content: resData.output.text,
-				expense: 0,
-			});
-		} catch (err) {
-			console.log(err);
-			if (err instanceof AxiosError) {
-				return Promise.reject(`请求失败：${err.message}`);
-			}
-			return Promise.reject(`请求失败：未知原因`);
+		const resData = res.data;
+		if (!conversationId) {
+			conversationIdByProvider[selected.provider] = resData.output.session_id;
 		}
-	}
-}
-
-const statusAPI = async () => {
-	if (providerName.value === 'ali') {
-		if (fetchedConfig.value.ali.conversationStatusUrl) {
-			try {
-				const options = {
-					url: fetchedConfig.value.ali.conversationStatusUrl,
-					method: 'POST',
-					mode: 'cors',
-					data: JSON.stringify({ type: 'get', conversationId }),
-				}
-				const result = await axios(options);
-				return result.data;				
-			} catch (error) {
-				return undefined;
+		let usageSum = 0;
+		const modelsPrice = fetchedConfig.value.modelPrice || [];
+		for (const [usedModelIndex, usedModelRaw] of Object.entries(resData.usage?.models || {})) {
+			const usedModel = usedModelRaw as any;
+			const usedProvider = usedModel.provider || selected.provider;
+			const usedModelId = usedModel.model_id || usedModelIndex;
+			const usageModelKey = `${usedProvider}:${usedModelId}`;
+			const multiplierConfig = modelsPrice.find((modelPrice) => modelPrice.modelKey === usageModelKey);
+			if (multiplierConfig) {
+				usageSum += usedModel.input_tokens * multiplierConfig.inputMultiplyer + usedModel.output_tokens * multiplierConfig.outputMultiplyer;
+			} else {
+				usageSum += usedModel.input_tokens + usedModel.output_tokens;
 			}
 		}
+		useQuota(usageSum);
+
+		return Promise.resolve({
+			content: resData.output.text,
+			expense: usageSum,
+		});
+	} catch (err) {
+		console.log(err);
+		if (err instanceof AxiosError) {
+			if (err.response?.data) {
+				const data = err.response.data;
+				if (data.code === 'App.AccessDenied') {
+					return Promise.reject('模型提供商拒绝了请求，请联系 FFBox 作者或更新 FFBox 解决');	// appId 错误
+				} else if (data.code === 'InvalidApiKey') {
+					return Promise.reject('模型提供商拒绝了请求，请联系 FFBox 作者解决');	// apiKey 错误
+				} else if (data.code === 'DataInspectionFailed') {
+					useQuota(500);	// 惩罚
+					return Promise.reject(fetchedConfig.value.invalidReply);
+				} else {
+					return Promise.reject(data.message);
+				}
+			}
+			return Promise.reject(`请求失败：${err.message}`);
+		}
+		return Promise.reject('请求失败：未知原因');
 	}
-}
+};
+
+const statusAPI = async (modelKey?: string) => {
+	const selected = getModelOption(modelKey);
+	if (!selected) return undefined;
+	if (!fetchedConfig.value?.conversationStatusUrl) return undefined;
+
+	try {
+		const conversationId = conversationIdByProvider[selected.provider];
+		const options = {
+			url: fetchedConfig.value.conversationStatusUrl,
+			method: 'POST',
+			mode: 'cors',
+			data: JSON.stringify({ type: 'get', conversationId }),
+		};
+		const result = await axios(options);
+		return result.data;
+	} catch {
+		return undefined;
+	}
+};
 
 let inited = false;
 const init = async () => {
 	if (inited) return;
 
-	// 获取配置，失败则退出
 	try {
-		const encryptedConfig = await axios.get('https://ffbox.ttqf.tech/api/v1/FFBoxAIConfig/5.2')
-		const fixedCode = 'c934a34fc7823c4e';
-		const decrypted = CryptoJS.AES.decrypt(encryptedConfig.data, fixedCode).toString(CryptoJS.enc.Utf8);
-		fetchedConfig.value = JSON.parse(decrypted);
-		// fetchedConfig.value = JSON.parse(``);
-		console.log('AI 帮助配置加载成功');
-		// await new Promise((resolve) => setTimeout(() => resolve(0), 1000));
-		// fetchedConfig.value = defaultFetchedConfig;
+		const configResponse = await axios.post('http://api.ffbox.ttqf.tech/v2/FFBoxAIConfig/default', { platform: 'FFBox 5.3' });
+		const configData = typeof configResponse.data === 'string'
+			? JSON.parse(configResponse.data)
+			: configResponse.data;
+		fetchedConfig.value = configData as AISearchConfig;
+
+		modelOptions.value = fetchedConfig.value.modelOptions || [];
+
 		checkQuota();
 
-		// 初始化用户 ID
 		userIdv1 = await nodeBridge.localStorage.get('aiAssistant.userIdv1');
 		if (!userIdv1) {
 			const t = new Date();
-			userIdv1 = `${randomString()}｜${t.getFullYear()}-${(t.getMonth() + 1 + '').padStart(2, '0')}-${(t.getDate() + '').padStart(2, '0')}｜Client｜${version}｜${navigator.platform}｜${navigator.userAgent}`;
+			userIdv1 = `${randomString()}|${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}|Client|${version}|${navigator.platform}|${navigator.userAgent}`;
 			nodeBridge.localStorage.set('aiAssistant.userIdv1', userIdv1);
 		}
 
-		// 随机选择一个供应商和模型
-		const randomProviderValue = Math.random();
-		for (const _providerName of ['ali', 'baidu'] as const) {
-			const provider = fetchedConfig.value[_providerName];
-			if (provider.probabilitySum > randomProviderValue) {
-				providerName.value = _providerName;
-				const randomModelValue = Math.random();
-				for (const _model of provider.models) {
-					if (_model.probabilitySum > randomModelValue) {
-						model.value = _model;
-						break;
-					}
-				}
-				break;
-			}
-		}
 		inited = true;
 	} catch (error) {
-		console.log('AI 帮助配置加载失败');
+		console.log('AI 帮助配置加载失败', error);
 	}
-}
+};
 
 watch(() => appStore.frontendSettings.aiDisabled, () => {
 	if (!appStore.frontendSettings.aiDisabled) init();
@@ -337,7 +265,8 @@ onMounted(() => {
 	<AISearch v-if="!appStore.frontendSettings.aiDisabled"
 		:enabled="fetchedConfig ? true : false"
 		:chatAPI="chatAPI" :init="initWindow" :resetChat="resetChat" :statusAPI="statusAPI"
-		:titleName="fetchedConfig?.titleName" :modelName="model ? model.name : undefined"
+		:titleName="fetchedConfig?.titleName"
+		:modelOptions="modelOptions"
 		:initialPlaceholders="fetchedConfig?.initialPlaceholders" :initialPlaceholderInterval="fetchedConfig?.initialPlaceholderInterval"
 		:initSystemMessage="fetchedConfig?.initSystemMessage"
 		:requestKeywordSystemMessage="fetchedConfig?.requestKeywordSystemMessage" :responseKeywordSystemMessage="fetchedConfig?.responseKeywordSystemMessage"
