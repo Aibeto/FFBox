@@ -239,7 +239,7 @@ const init = async () => {
 		userIdv1 = await nodeBridge.localStorage.get('aiAssistant.userIdv1');
 		if (!userIdv1) {
 			const t = new Date();
-			userIdv1 = `${randomString()}|${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}|Client|${version}|${navigator.platform}|${navigator.userAgent}`;
+			userIdv1 = `${randomString()}｜${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}｜Client｜${version}｜${navigator.platform}｜${navigator.userAgent}`;
 			nodeBridge.localStorage.set('aiAssistant.userIdv1', userIdv1);
 		}
 

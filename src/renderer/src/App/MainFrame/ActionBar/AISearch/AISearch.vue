@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, computed, onMounted, watch } from 'vue';
+import { ref, nextTick, computed, watch } from 'vue';
 import gsap from 'gsap';
 import AISearchConfig, { AIChatMessage, AIModelOption } from './types';
 import { getTimeString } from '@common/utils';
@@ -7,6 +7,8 @@ import { useTooltip } from '@renderer/common/tooltipUtil';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { showActivateCodeGen } from './activateCodeGen';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
+import DropdownInput from '@renderer/components/DropdownInput/DropdownInput.vue';
+import type { MenuItem } from '@renderer/components/Menu/Menu';
 import GradientRect from './gradientRect.svg?skipsvgo';	// svgo 存在 bug 导致 svg 中的 id 跨 svg 产生重复，见 https://svgo.dev/docs/plugins/cleanupIds/
 import IconRefresh from './refresh.svg';
 import IconLoading from './loading.svg';
@@ -90,6 +92,21 @@ const roundsSvgPiePath = computed(() => {
 			A ${r},${r} 0 ${largeArcFlag},1 ${x2},${y2}
 			Z`;
 });
+
+// const modelDisplayEntries = computed(() => (props.modelOptions || []).map((item) => ({
+// 	key: item.key,
+// 	display: item.label,
+// })));
+const modelDropdownList = computed<MenuItem[]>(() => {
+	const entries = props.modelOptions || [];
+	if (!entries.length) {
+		return [];
+	}
+	const first = { type: 'normal' as const, value: entries[0].key, label: entries[0].label };
+	const rest = entries.slice(1).map((item) => ({ type: 'normal' as const, value: item.key, label: item.label }));
+	return rest.length ? [first, { type: 'separator' as const }, ...rest] : [first];
+});
+const selectedModelDisplayText = computed(() => selectedModelKey.value ? props.modelOptions.find((model) => model.key === selectedModelKey.value)?.key || '' : '');
 
 const openWindow = () => {
 	if (!defaultAnchorRef.value) return;
@@ -369,15 +386,14 @@ const handleActionButtonClick = (url: string) => {
 	}
 }
 
-const handleModelChange = (event: Event) => {
-	const nextModelKey = (event.target as HTMLSelectElement).value;
-	if (!nextModelKey || nextModelKey === selectedModelKey.value) {
+const handleModelChange = (value: string) => {
+	const newModel = props.modelOptions.find((model) => model.key === value);
+	const currentModel = props.modelOptions.find((model) => model.key === selectedModelKey.value);
+	if (!newModel || newModel === currentModel) {
 		return;
 	}
-	const currentOption = props.modelOptions.find((item) => item.key === selectedModelKey.value);
-	const nextOption = props.modelOptions.find((item) => item.key === nextModelKey);
-	selectedModelKey.value = nextModelKey;
-	if (currentOption && nextOption && currentOption.provider !== nextOption.provider) {
+	selectedModelKey.value = newModel.key;
+	if (newModel.provider !== currentModel.provider) {
 		resetChat();
 	}
 };
@@ -435,14 +451,14 @@ watch(() => messages.value.length, () => {
 						<div class="left">
 							<IconAI />
 							<h3>{{ props.titleName ?? 'FFBox AI 帮助' }}</h3>
-							<select
-								v-if="props.modelOptions.length"
+							<DropdownInput
+								v-if="modelDropdownList.length"
 								class="modelName"
-								:value="selectedModelKey"
-								@change="handleModelChange"
-							>
-								<option v-for="item in props.modelOptions" :key="item.key" :value="item.key">{{ item.label }}</option>
-							</select>
+								:readonly="true"
+								:text="selectedModelDisplayText"
+								:list="modelDropdownList"
+								:onChange="handleModelChange"
+							/>
 							<!-- Three Concentric Progress Rings (SVG only) -->
 							<div
 								v-if="props.quotaUsed"
@@ -761,16 +777,15 @@ watch(() => messages.value.length, () => {
 							font-weight: 500;
 						}
 						.modelName {
-							display: inline-block;
-							padding: 2px 4px;
 							margin-left: 4px;
-							font-size: 10px;
 							border: hwb(255 50% 0% / 0.5) 1px solid;
-							border-radius: 4px;
+							border-radius: 8px;
 							background-color: hwb(255 50% 0% / 0.2);
-							color: inherit;
-							outline: none;
-							max-width: 220px;
+							width: 180px;
+							// max-width: 220px;
+							:deep(input) {
+								font-size: 11px;
+							}
 						}
 						.usage {
 							display: flex;

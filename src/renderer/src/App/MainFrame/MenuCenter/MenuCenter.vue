@@ -53,6 +53,7 @@ const finalMenu = computed(() => {
 					{ type: 'normal', label: 'github 仓库', value: 'github 仓库', onClick: () => nodeBridge.jumpToUrl('https://github.com/ttqftech/FFBox') },
 					{ type: 'normal', label: 'gitee 仓库', value: 'gitee 仓库', onClick: () => nodeBridge.jumpToUrl('https://gitee.com/ttqf/FFBox') },
 				] },
+				{ type: 'normal', label: '访问帮助文档', value: '访问帮助文档', onClick: () => nodeBridge.jumpToUrl('https://ffbox.ttqf.tech/wiki') },
 				{ type: 'separator' },
 				{ type: 'normal', label: `退出 FFBox`, value: 'closeFFBox', onClick: () => handleCloseConfirm() },
 			],
