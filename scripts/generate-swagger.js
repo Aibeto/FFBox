@@ -42,7 +42,7 @@ const options = {
 		openapi: '3.0.0',
 		info: {
 			title: 'FFBox API',
-			version: '5.3.0',
+			version: '5.4.0',
 			description: 'FFBox 后端服务 API 文档',
 			contact: {
 				name: '滔滔清风',

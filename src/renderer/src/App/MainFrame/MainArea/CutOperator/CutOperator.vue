@@ -741,16 +741,15 @@ const updateKeyFrameCanvasSize = () => {
 };
 
 // 调用后端加载帧信息
-const fetchFrameInfo = async () => {
+const fetchFrameInfo = async (type?: 'fast' | 'full' | 'stop') => {
 	if (!selectedTasks.value.task || framesLoading.value) return;
 
 	const frames = allFrames.value;
-	framesLoading.value = false;
-	if (frames?.length > 0) return;  // 已有帧信息
+	if (frames?.length > 0 && !type) return;  // 已有帧信息且非手动触发（TODO 完整信息的用处暂未确定，因此触发逻辑也暂未确定）
 
 	framesLoading.value = true;
 	try {
-		await appStore.currentServer.entity.getMediaFrameInfo(selectedTasks.value.taskId, 0, 0);
+		await appStore.currentServer.entity.getMediaFrameInfo(selectedTasks.value.taskId, 0, 0, type || 'fast');
 	} catch (err) {
 		console.error('加载帧信息失败:', err);
 	} finally {
@@ -976,6 +975,10 @@ const handleShowSettings = (event: MouseEvent) => {
 			drawKeyFrames();
 		} },
 		{ type: 'checkbox', value: 'snapToKeyFrame', checked: snapToKeyFrame.value, label: '关键帧贴合', disabled: !showKeyFrameLabels.value, onClick: () => snapToKeyFrame.value = !snapToKeyFrame.value },
+		{ type: 'separator' },
+		{ type: 'checkbox', value: 'fullFrameScan', checked: false, label: '完整帧扫描', tooltip: '使用 ffmpeg 逐帧解码扫描\n包含 YUV 统计数据，速度较慢', onClick: () => {
+			fetchFrameInfo('full');
+		} },
 		{ type: 'separator' },
 		{ type: 'submenu', label: '预览画质', subMenu: [
 			{ type: 'radio', value: 'H', checked: previewQuality.value === 'H', label: '高', onClick: () => changeQuality('H') },

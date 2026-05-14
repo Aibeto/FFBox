@@ -52,7 +52,7 @@ export interface FFBoxServiceInterface {
 	deleteNotification(notificationId: number): Promise<void>;
 	setParameters(ids: number[], params: OutputParams[]): Promise<void>;
 	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void>;
-	getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number): Promise<void>;
+	getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<void>;
 }
 
 export interface FFBoxServiceEventParam {
@@ -149,7 +149,7 @@ export interface FFmpegFilterDetail {
 
 export interface Frame {
 	n: number;			// 帧号
-	pts: number;		// 时间戳
+	pts?: number;		// 时间戳（ffprobe 快速扫描不提供）
 	pts_time: number;	// 换算为秒的时间戳
 	// pos?: number;	// 字节偏移（使用 -map 的时候它会不存在）
 	// fmt?: string;	// 像素格式
@@ -160,8 +160,8 @@ export interface Frame {
 	type: 'I' | 'P' | 'B';	// 帧类型
 	// checksum?: string;
 	// plane_checksum?: string;
-	mean: number[];        // YUV 平均值（可能是 2 或 3 个数字）
-	stdev: number[];       // YUV 标准差（可能是 2 或 3 个数字）
+	mean?: number[];       // YUV 平均值（可能是 2 或 3 个数字，ffprobe 快速扫描不提供）
+	stdev?: number[];      // YUV 标准差（可能是 2 或 3 个数字，ffprobe 快速扫描不提供）
 }
 
 export interface StreamInfo {

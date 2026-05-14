@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 // import Tooltip from './Tooltip/Tooltip';
 // import Tooltip from '@renderer/components/Tooltip/Tooltip';
+import IconMenuButton from './menu_button.svg?component';
 
 import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
 
@@ -160,7 +161,7 @@ onMounted(() => {
 			@input="handleInput"
 			@keydown="handleKeydown"
 		>
-		<div class="combobox-selector-img"></div>
+		<IconMenuButton class="combobox-selector-img"></IconMenuButton>
 	</div>
 </template>
 
@@ -202,6 +203,5 @@ onMounted(() => {
 			top: 4px;
 			width: 16px;
 			height: 16px;
-			background: url(/src/assets/mainArea/paraBox/menu_button.svg) center/contain no-repeat;
 		}
 </style>

@@ -93,7 +93,7 @@ const Comp = defineComponent((props: P) => {
 			/>
 			<BoxedNormalInput
 				title="ffmpeg 路径" value={customFFmpegPathValue.value} onChange={(value: string) => customFFmpegPathValue.value = value} placeholder="建议留空，自动检测" long={true}
-				{ ...useTooltip('合法路径的规则受到操作系统影响。留空状态下，FFBox 将按操作系统自动检查 ffmpeg 位置', 't')}
+				{ ...useTooltip('可填入 ffmpeg 可执行文件的完整路径，或其所在的文件夹路径。\n- 若填入文件夹，FFBox 将自动查找其中的 ffmpeg 和 ffprobe；\n- 若填入完整路径，FFBox 将从同目录下查找 ffprobe。\n留空则自动检测。', 't')}
 			/>
 			<div style={{ margin: '12px' }}>
 				<Button onClick={() => showServerUserConfig(props.serverId)}>用户配置</Button>

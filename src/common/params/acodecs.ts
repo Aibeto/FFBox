@@ -665,8 +665,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 		subMenu: [
 			{
 				type: 'normal',
-				value: 'libvo_armwbenc',
-				label: '【默认】libvo_armwbenc',
+				value: 'libvo_amrwbenc',
+				label: '【默认】libvo_amrwbenc',
 				tooltip: '',
 				extra: {
 					rateControl: [
@@ -685,8 +685,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 		subMenu: [
 			{
 				type: 'normal',
-				value: 'libopencore_armnb',
-				label: '【默认】libopencore_armnb',
+				value: 'libopencore_amrnb',
+				label: '【默认】libopencore_amrnb',
 				tooltip: '',
 				extra: {
 					rateControl: [

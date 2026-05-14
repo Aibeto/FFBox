@@ -272,8 +272,8 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/stop`, { reason });
 	}
 
-	public getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number): Promise<void> {
-		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/frame-info`, { fileIndex, videoStreamIndex });
+	public getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<void> {
+		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/frame-info`, { fileIndex, videoStreamIndex, type });
 	}
 
 	// #endregion

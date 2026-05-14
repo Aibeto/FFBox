@@ -1099,7 +1099,7 @@ function getRouter(): Router {
 			ctx.body = { error: 'Missing request body' };
 			return;
 		}
-		const { fileIndex, videoStreamIndex } = ctx.request.body;
+		const { fileIndex, videoStreamIndex, type } = ctx.request.body;
 		if (fileIndex === undefined || videoStreamIndex === undefined) {
 			ctx.status = 400;
 			ctx.body = { error: 'Missing fileIndex or videoStreamIndex' };
@@ -1113,7 +1113,7 @@ function getRouter(): Router {
 		}
 
 		try {
-			await ffboxService!.getMediaFrameInfo(+ctx.params.id, fileIndex, videoStreamIndex);
+			await ffboxService!.getMediaFrameInfo(+ctx.params.id, fileIndex, videoStreamIndex, type);
 			ctx.body = { success: true };
 		} catch (errorCode) {
 			ctx.body = { status: 500, errorCode };

@@ -1,11 +1,12 @@
 import CryptoJS from 'crypto-js';
 import { EventEmitter } from 'events';
+import { spawn, ChildProcess } from 'child_process';
 import os from 'os';
 import fs from 'fs';
 import fsPromise from 'fs/promises';
 import { utimes } from 'utimes';
 import path from 'path';
-import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail, FFmpegDemuxerDetail } from '@common/types';
+import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail, FFmpegDemuxerDetail, StreamInfo } from '@common/types';
 import i11n from '@common/i11n/i11n';
 import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import localConfig from '@common/localConfig';
@@ -26,6 +27,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private latestTaskId = 0;
 	public workingStatus: WorkingStatus = WorkingStatus.idle;
 	public ffmpegPath = '';
+	public ffprobePath = '';
 	public ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0, muxersCount: 0, demuxersCount: 0 };
 	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; };
 	public ffmpegFormats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[]; };
@@ -39,10 +41,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private customFFmpegPath: string;
 	private preserveUnfinishedTasks = true;
 	private deleteFinishedTasks = false;
-	// 帧扫描状态跟踪：key = `${id}_${fileIndex}_${videoStreamIndex}_${filePath}`
+	// 帧扫描状态跟踪：key = `${id}_${fileIndex}_${videoStreamIndex}_${type}_${filePath}`
 	private frameScanStatus: Map<string, {
-		status: 'scanning' | 'completed';
+		status: 'scanning' | 'completed' | 'stopped';
+		type: 'fast' | 'full';
 		promise?: Promise<void>;
+		process?: ChildProcess;
 	}> = new Map();
 
 	constructor() {
@@ -111,9 +115,39 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits ffmpegInfo
 	 */
 	public async initFFmpeg(): Promise<void> {
+		function resolveFFmpegPaths(inputPath: string): { ffmpegPath: string; ffprobePath: string } {
+			const ext = process.platform === 'win32' ? '.exe' : '';
+			let isDir = false;
+			try {
+				isDir = fs.statSync(inputPath).isDirectory();
+			} catch {
+				if (!path.extname(inputPath) && fs.existsSync(inputPath + ext)) {
+					// 无扩展名但加上 .exe 后存在，则视为文件（Windows 的 spawn 会自动补全 .exe）
+					isDir = false;
+				} else {
+					// 路径不存在时，启发式判断：无扩展名则视为目录
+					isDir = !path.extname(inputPath);
+				}
+			}
+			if (isDir) {
+				return {
+					ffmpegPath: path.join(inputPath, `ffmpeg${ext}`),
+					ffprobePath: path.join(inputPath, `ffprobe${ext}`),
+				};
+			} else {
+				const ffmpegPath = path.extname(inputPath) ? inputPath : inputPath + ext;
+				return {
+					ffmpegPath,
+					ffprobePath: path.join(path.dirname(ffmpegPath), `ffprobe${ext}`),
+				};
+			}
+		}
+				
 		if (this.customFFmpegPath) {
 			log.info(`已手动指定 ffmpeg 路径为 ${this.customFFmpegPath}，检查版本。`);
-			this.ffmpegPath = this.customFFmpegPath;
+			const resolved = resolveFFmpegPaths(this.customFFmpegPath);
+			this.ffmpegPath = resolved.ffmpegPath;
+			this.ffprobePath = resolved.ffprobePath;
 		} else {
 			log.info('检查 FFmpeg 路径和版本。');
 			this.ffmpegPath = 'ffmpeg';
@@ -140,6 +174,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				// console.log('路径', process.execPath, process.cwd(), __dirname, this.ffmpegPath);
 				// this.ffmpegVersion = `路径 ${process.execPath}, ${process.cwd()}, ${__dirname}, ${this.ffmpegPath}`;
 			}
+			const resolved = resolveFFmpegPaths(this.ffmpegPath);
+			this.ffmpegPath = resolved.ffmpegPath;
+			this.ffprobePath = resolved.ffprobePath;
 		}
 		const ffmpeg = new FFmpeg(this.ffmpegPath, 1);
 		ffmpeg.on('version', async ({ content }) => {
@@ -1185,8 +1222,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @param id 任务 ID
 	 * @param fileIndex 输入文件索引（对应 Task.before[fileIndex]）
 	 * @param videoStreamIndex 视频流索引（第 n 个 type 为 video 的 stream）
+	 * @param type 扫描类型：'fast' 快速扫描（ffprobe）、'full' 完整扫描（ffmpeg）、'stop' 停止扫描
 	 */
-	public async getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number): Promise<void> {
+	public async getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type: 'fast' | 'full' | 'stop' = 'fast'): Promise<void> {
 		const task = this.tasklist[id];
 		if (!task) {
 			log.error(`[任务 ${id}] 获取帧信息：任务不存在！`);
@@ -1209,8 +1247,20 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			return;
 		}
 
+		// 停止扫描
+		if (type === 'stop') {
+			for (const [key, scan] of this.frameScanStatus) {
+				if (key.startsWith(`${id}_`) && scan.status === 'scanning') {
+					scan.status = 'stopped';
+					scan.process?.kill();
+					log.info(`[任务 ${id}] 停止帧扫描：${key}`);
+				}
+			}
+			return;
+		}
+
 		// 检查扫描状态
-		const scanKey = `${id}_${fileIndex}_${videoStreamIndex}_${filePath}`;
+		const scanKey = `${id}_${fileIndex}_${videoStreamIndex}_${type}_${filePath}`;
 		const existingScan = this.frameScanStatus.get(scanKey);
 		if (existingScan) {
 			if (existingScan.status === 'completed') {
@@ -1219,47 +1269,131 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			if (existingScan.status === 'scanning' && existingScan.promise) {
 				return existingScan.promise;	// 正在扫描，等待完成
 			}
+			if (existingScan.status === 'stopped') {
+				return;	// 正在停止，不启动新扫描
+			}
 		}
 
 		const realFilePath = task.remoteTask ? `${os.tmpdir()}/FFBoxUploadCache/${filePath}` : filePath;
 		const streamIndex = inputInfo.streams.indexOf(targetStream);	// 该 stream 在原始 streams 数组中的索引（用于 -map）
-		log.info(`[任务 ${id}] 开始扫描帧信息：${realFilePath}`);
 
-		// 构造 FFmpeg 命令
-		const ffmpeg = new FFmpeg(this.ffmpegPath, 6, [
-			'-hide_banner',
-			'-nostats',
-			'-hwaccel', 'auto',
-			'-i', realFilePath,
-			'-map', `0:${streamIndex}`,
-			'-vf', 'scale=h=160:w=-1:flags=neighbor,showinfo',
-			'-f', 'null',
-			'-'
-		]);
+		if (type === 'fast') {
+			// 快速扫描
+			log.info(`[任务 ${id}] 开始快速帧扫描：${realFilePath}`);
 
-		targetStream.frames = [];
-		ffmpeg.on('frameInfo', ({ frames }) => {
-			targetStream.frames = frames;
-			log.info(`[任务 ${id}] 帧扫描完成，共 ${frames.length} 帧。`);
-			this.emitTaskUpdate(id, task);
-		});
-
-		// 创建扫描 Promise 并记录状态
-		const scanPromise = new Promise<void>((resolve, reject) => {
-			ffmpeg.on('closed', (errorCode, runningResult) => {
-				if (errorCode || runningResult === 'failed') {
-					this.frameScanStatus.delete(scanKey); // 失败时删除状态，允许重试
-					log.error(`[任务 ${id}] 帧扫描失败。`);
-					this.setNotification(id, `任务「${task.taskName}」帧扫描失败`, NotificationLevel.error);
-					reject(errorCode);
-				} else {
-					this.frameScanStatus.set(scanKey, { status: 'completed' }); // 标记完成
-					resolve();
-				}
+			if (!this.ffprobePath) {
+				log.error(`[任务 ${id}] 快速帧扫描失败：ffprobe 路径未配置。`);
+				this.setNotification(id, `任务「${task.taskName}」快速帧扫描失败：ffprobe 未找到`, NotificationLevel.error);
+				return Promise.resolve();
+			}
+	
+			const process = spawn(this.ffprobePath, [
+				'-v', 'error',
+				'-show_packets',
+				'-select_streams', `${streamIndex}`,
+				'-show_entries', 'packet=pts_time,flags',
+				'-of', 'json',
+				realFilePath,
+			]);
+	
+			let stdout = '';
+			process.stdout!.on('data', (data) => { stdout += data.toString(); });
+			process.stderr!.on('data', (data) => { log.dev(`[任务 ${id}] ffprobe stderr:`, data.toString()); });
+	
+			targetStream.frames = [];
+	
+			const scanPromise = new Promise<void>((resolve, reject) => {
+				process.on('close', (code) => {
+					if (this.frameScanStatus.get(scanKey)?.status === 'stopped') {
+						this.frameScanStatus.delete(scanKey);
+						log.info(`[任务 ${id}] 快速帧扫描已停止。`);
+						resolve();
+						return;
+					}
+					if (code !== 0) {
+						this.frameScanStatus.delete(scanKey);
+						log.error(`[任务 ${id}] 快速帧扫描失败，退出码：${code}`);
+						this.setNotification(id, `任务「${task.taskName}」快速帧扫描失败`, NotificationLevel.error);
+						reject(code);
+						return;
+					}
+					try {
+						const output = JSON.parse(stdout);
+						const packets = output.packets as { flags: string; pts_time: string }[] | undefined;
+						if (!Array.isArray(packets)) {
+							log.error(`[任务 ${id}] ffprobe 输出格式异常：packets 不是数组`);
+							this.frameScanStatus.delete(scanKey);
+							reject(new Error('ffprobe output format error'));
+							return;
+						}
+						const frames = packets
+							.map((p, index) => ({
+								n: index,
+								pts_time: parseFloat(p.pts_time),
+								type: (p.flags?.[0] === 'K' ? 'I' : 'P') as 'I' | 'P',
+							}))
+							.filter((f) => !Number.isNaN(f.pts_time));
+						targetStream.frames = frames;
+						log.info(`[任务 ${id}] 快速帧扫描完成，共 ${frames.length} 帧。`);
+						this.emitTaskUpdate(id, task);
+						this.frameScanStatus.set(scanKey, { status: 'completed', type: 'fast' });
+						resolve();
+					} catch (e) {
+						this.frameScanStatus.delete(scanKey);
+						log.error(`[任务 ${id}] ffprobe JSON 解析失败: ${e}`);
+						reject(e);
+					}
+				});
 			});
-		});
+	
+			this.frameScanStatus.set(scanKey, { status: 'scanning', type: 'fast', promise: scanPromise, process });
+			return scanPromise;
+		} else {
+			// 完整扫描
+			log.info(`[任务 ${id}] 开始完整帧扫描：${realFilePath}`);
 
-		this.frameScanStatus.set(scanKey, { status: 'scanning', promise: scanPromise });
-		return scanPromise;
+			// 构造 FFmpeg 命令
+			const ffmpeg = new FFmpeg(this.ffmpegPath, 6, [
+				'-hide_banner',
+				'-nostats',
+				'-hwaccel', 'auto',
+				'-i', realFilePath,
+				'-map', `0:${streamIndex}`,
+				'-vf', 'scale=h=160:w=-1:flags=neighbor,showinfo',
+				'-f', 'null',
+				'-'
+			]);
+
+			targetStream.frames = [];
+			ffmpeg.on('frameInfo', ({ frames }) => {
+				targetStream.frames = frames;
+				log.info(`[任务 ${id}] 完整帧扫描完成，共 ${frames.length} 帧。`);
+				this.emitTaskUpdate(id, task);
+			});
+
+			// 创建扫描 Promise 并记录状态
+			const scanPromise = new Promise<void>((resolve, reject) => {
+				ffmpeg.on('closed', (errorCode, runningResult) => {
+					if (this.frameScanStatus.get(scanKey)?.status === 'stopped') {
+						this.frameScanStatus.delete(scanKey);
+						log.info(`[任务 ${id}] 完整帧扫描已停止。`);
+						resolve();
+						return;
+					}
+					if (errorCode || runningResult === 'failed') {
+						this.frameScanStatus.delete(scanKey); // 失败时删除状态，允许重试
+						log.error(`[任务 ${id}] 完整帧扫描失败。`);
+						this.setNotification(id, `任务「${task.taskName}」帧扫描失败`, NotificationLevel.error);
+						reject(errorCode);
+					} else {
+						this.frameScanStatus.set(scanKey, { status: 'completed', type: 'full' }); // 标记完成
+						resolve();
+					}
+				});
+			});
+
+			this.frameScanStatus.set(scanKey, { status: 'scanning', type: 'full', promise: scanPromise });
+			return scanPromise;
+		}
 	}
 }

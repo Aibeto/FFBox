@@ -226,7 +226,7 @@ const init = async () => {
 	if (inited) return;
 
 	try {
-		const configResponse = await axios.post('http://api.ffbox.ttqf.tech/v2/FFBoxAIConfig/default', { platform: 'FFBox 5.3' });
+		const configResponse = await axios.post('http://api.ffbox.ttqf.tech/v2/FFBoxAIConfig/default', { platform: 'FFBox 5.4' });
 		const configData = typeof configResponse.data === 'string'
 			? JSON.parse(configResponse.data)
 			: configResponse.data;
