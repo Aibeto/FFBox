@@ -158,7 +158,7 @@ onMounted(() => {
 		.opButton {
 			position: relative;
 			button {
-				width: 56px;
+				width: 60px;
 			}
 			&:hover {
 				.hiddenButton {

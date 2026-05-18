@@ -216,12 +216,12 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	 * 发送流式 HTTP 请求（用于视频预览等场景）
 	 * 返回原始 Response 对象，可通过 response.body.getReader() 控制读取节奏
 	 */
-	public fetchStream(path: string): Promise<Response> {
+	public fetchHttp(path: string, signal?: AbortSignal): Promise<Response> {
 		const headers: HeadersInit = {};
 		if (this.sessionId) {
 			headers['Authorization'] = `Bearer ${this.sessionId}`;
 		}
-		return fetch(`http://${this.ip}:${this.port}${path}`, { headers });
+		return fetch(`http://${this.ip}:${this.port}${path}`, { headers, signal });
 	}
 
 	// #endregion

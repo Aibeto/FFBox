@@ -926,6 +926,180 @@ watch(() => selectedTasks.value.task, async (newTask, oldTask) => {
 
 // #endregion
 
+// #region 缩略图
+
+const thumbnailVideoRef = ref<HTMLVideoElement>(null);
+
+const thumbnailVisible = ref(false);
+const thumbnailHoverTime = ref(0);
+const thumbnailAbortController = ref<AbortController | null>(null);
+const thumbnailIsBuffered = ref(false);	// 指示 UI 当前悬停时间是否在缓冲范围内
+const thumbnailBufferEnd = ref(0);
+
+// 计算缩略图渲染尺寸（最大 280x280，考虑 dpi 和视频宽高比）
+const computeThumbnailSize = (): { width: number; height: number } => {
+	const MAX_SIZE = 280;
+	const dpr = window.devicePixelRatio || 1;
+	const resolution = selectedTasks.value.task?.before?.[0]?.streams?.[0]?.resolution;
+	let aspectRatio = 16 / 9;  // 默认宽高比
+	if (resolution) {
+		const match = resolution.match(/^(\d+)x(\d+)$/);
+		if (match) {
+			aspectRatio = parseInt(match[1]) / parseInt(match[2]);
+		}
+	}
+	// 按宽高比在 MAX_SIZE 内计算渲染尺寸（逻辑像素）
+	let w: number, h: number;
+	if (aspectRatio >= 1) {
+		w = MAX_SIZE;
+		h = Math.round(MAX_SIZE / aspectRatio);
+	} else {
+		h = MAX_SIZE;
+		w = Math.round(MAX_SIZE * aspectRatio);
+	}
+	// 实际渲染给后端的物理像素尺寸
+	const physW = Math.round(w * dpr);
+	const physH = Math.round(h * dpr);
+	// 确保为偶数
+	return {
+		width: physW % 2 === 0 ? physW : physW - 1,
+		height: physH % 2 === 0 ? physH : physH - 1,
+	};
+};
+
+const initThumbnailStream = async () => {
+	thumbnailAbortController.value?.abort();
+
+	if (!thumbnailVideoRef.value || !selectedTasks.value.task) return;
+	const thumbnailVideo = thumbnailVideoRef.value;
+	const entity = appStore.currentServer?.entity as ServiceBridge;
+	if (!entity) return;
+	const taskId = [...appStore.selectedTask][0];
+
+	const abortController = new AbortController();
+	thumbnailAbortController.value = abortController;
+
+	const mediaSource = new MediaSource();
+	thumbnailVideo.src = URL.createObjectURL(mediaSource);
+
+	// 计算渲染分辨率并作为参数传给后端
+	const { width: thumbW, height: thumbH } = computeThumbnailSize();
+
+	mediaSource.addEventListener('sourceopen', async () => {
+		let sourceBuffer: SourceBuffer;
+		try {
+			sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+			sourceBuffer.mode = 'segments'; // fMP4 使用 segments 模式
+		} catch (e) {
+			return;
+		}
+
+		let response: Response;
+		try {
+			response = await entity.fetchHttp(`/api/v1/tasks/${taskId}/thumbnail-stream?width=${thumbW}&height=${thumbH}`, abortController.signal);
+		} catch (e) {
+			return;
+		}
+
+		const reader = response.body!.getReader();
+		const appendNext = async () => {
+			// 作为 updateend 的回调，首先根据上一次 appendBuffer 的结果计算当前已缓冲范围
+			const buffered = thumbnailVideo.buffered;
+			let bufferEnd = 0;
+			for (let i = 0; i < buffered.length; i++) {
+				if (buffered.start(i) <= bufferEnd) {
+					bufferEnd = Math.max(bufferEnd, buffered.end(i));
+				} else {
+					break;
+				}
+			}
+			thumbnailBufferEnd.value = bufferEnd;
+
+			let result: ReadableStreamReadResult<Uint8Array>;
+			try {
+				result = await reader.read();
+			} catch (e) {
+				return;
+			}
+			if (result.done) {
+				if (!sourceBuffer.updating && mediaSource.readyState === 'open') {
+					mediaSource.endOfStream();
+				}
+				return;
+			}
+			// await new Promise(resolve => setTimeout(resolve, 1000));
+			// console.log(result.value.length);
+			sourceBuffer.appendBuffer(result.value);
+		};
+		sourceBuffer.addEventListener('updateend', appendNext);
+		appendNext();
+	});
+};
+
+// thumbnailTooltip 使用相对定位（基于时间坐标比例），不使用固定像素 x
+const thumbnailTooltipPositionStyle = computed(() => {
+	const viewRange = viewEnd.value - viewBegin.value;
+	if (viewRange <= 0) return {};
+	const ratio = (thumbnailHoverTime.value - viewBegin.value) / viewRange;
+	// 限制在 0~100% 范围内，防止超出两端
+	const clampedRatio = Math.max(0, Math.min(1, ratio));
+	return {
+		left: `${clampedRatio * 100}%`,
+	};
+});
+
+// 监听任务变化，初始化/销毁解码器
+watch(() => selectedTasks.value.task, async (newTask, oldTask) => {
+	if (newTask) {
+		// 任务切换时延迟初始化解码器
+		setTimeout(() => {
+			initThumbnailStream();
+		}, 1000);
+	} else {
+		thumbnailAbortController.value?.abort();
+		thumbnailAbortController.value = null;
+	}
+}, { immediate: true });
+
+const handleScrollAreaMouseMove = (event: MouseEvent) => {
+	if (panState.value.active || isProgressDragging.value) return;
+	thumbnailVisible.value = true;
+	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+	const ratio = (event.clientX - rect.left) / rect.width;
+	const hoverTime = viewBegin.value + ratio * (viewEnd.value - viewBegin.value);
+	thumbnailHoverTime.value = Math.max(0, Math.min(duration.value, hoverTime));
+	if (thumbnailVideoRef.value) {
+		const video = thumbnailVideoRef.value;
+		const time = thumbnailHoverTime.value;
+
+		// 检查当前时间点是否在缓冲范围内
+		// let isBuffered = false;
+		// const buffered = video.buffered;
+		// for (let i = 0; i < buffered.length; i++) {
+		// 	if (time >= buffered.start(i) && time < buffered.end(i)) {
+		// 		isBuffered = true;
+		// 		break;
+		// 	}
+		// }
+
+		// thumbnailIsBuffered.value = isBuffered;
+		// if (isBuffered) {
+		if (time <= thumbnailBufferEnd.value) {
+			thumbnailIsBuffered.value = true;
+			video.currentTime = time;
+		} else {
+			thumbnailIsBuffered.value = false;
+			// video.pause();	// 超出缓冲范围，暂停（video 透明度通过 CSS 控制）
+		}
+	}
+};
+
+const handleScrollAreaMouseLeave = () => {
+	thumbnailVisible.value = false;
+};
+
+// #endregion
+
 // #region 帮助和设置
 
 // 设置状态
@@ -985,7 +1159,7 @@ const handleShowSettings = (event: MouseEvent) => {
 		} },
 		{ type: 'checkbox', value: 'snapToKeyFrame', checked: snapToKeyFrame.value, label: '关键帧贴合', disabled: !showKeyFrameLabels.value, onClick: () => snapToKeyFrame.value = !snapToKeyFrame.value },
 		{ type: 'separator' },
-		{ type: 'checkbox', value: 'fullFrameScan', checked: false, label: '完整帧扫描', tooltip: '使用 ffmpeg 逐帧解码扫描\n包含 YUV 统计数据，速度较慢', onClick: () => {
+		{ type: 'checkbox', value: 'fullFrameScan', checked: false, disabled: true, label: '完整帧扫描', tooltip: '使用 ffmpeg 逐帧解码扫描\n包含 YUV 统计数据，速度较慢\n此功能未有实际意义，暂未开放', onClick: () => {
 			fetchFrameInfo('full');
 		} },
 		{ type: 'separator' },
@@ -1061,6 +1235,8 @@ onUnmounted(async () => {
 		await previewDecoder.value.destroy();
 		previewDecoder.value = null;
 	}
+	thumbnailAbortController.value?.abort();
+	thumbnailAbortController.value = null;
 });
 
 </script>
@@ -1089,10 +1265,22 @@ onUnmounted(async () => {
 					@ended="handleVideoEnded"
 					class="previewVideo"
 				></video>
+				<!-- 顶部悬浮时间（thumbnailTooltip 显示时出现） -->
+				<div class="topTimeDisplay">
+					<Transition name="timeDisplayTrans">
+						<div class="timeDisplayWrapper" v-show="thumbnailVisible">
+							{{ formatTimeToFFmpegStyle(playbackPosition) }} (#{{ currentFrameIndex >= 0 ? currentFrameIndex : '-' }}) / {{ formatTimeToFFmpegStyle(duration) }}
+						</div>
+					</Transition>
+				</div>
 				<!-- 悬浮控件盒 -->
 				<div class="controlsOverlay">
 					<div class="timeDisplay">
-						{{ formatTimeToFFmpegStyle(playbackPosition) }} (#{{ currentFrameIndex >= 0 ? currentFrameIndex : '-' }}) / {{ formatTimeToFFmpegStyle(duration) }}
+						<Transition name="timeDisplayTrans">
+							<div class="timeDisplayWrapper" v-show="!thumbnailVisible">
+								{{ formatTimeToFFmpegStyle(playbackPosition) }} (#{{ currentFrameIndex >= 0 ? currentFrameIndex : '-' }}) / {{ formatTimeToFFmpegStyle(duration) }}
+							</div>
+						</Transition>
 					</div>
 					<div class="controlsBox">
 						<button class="controlBtn" v-bind="useTooltip(helpContent, 't')" title="帮助">
@@ -1126,7 +1314,7 @@ onUnmounted(async () => {
 			<div v-else style="flex: 1"></div>
 			<div class="timelineArea" v-if="selectedTasks.task">
 				<canvas ref="keyFramesCanvasRef"></canvas>
-				<div class="scrollArea" @wheel.prevent="handleScrollAreaWheel" @mousedown="handleScrollAreaMouseDown">
+				<div class="scrollArea" @wheel.prevent="handleScrollAreaWheel" @mousedown="handleScrollAreaMouseDown" @mousemove="handleScrollAreaMouseMove" @mouseleave="handleScrollAreaMouseLeave">
 					<!-- 进度指示器 -->
 					<div class="progressIndicator" :style="progressIndicatorStyle"></div>
 					<div class="rectInput" :style="rectEndsPosition.input" @mousedown="(e) => handleSelectionMouseDown(e, 'input')">
@@ -1137,6 +1325,14 @@ onUnmounted(async () => {
 						<div class="handle handle-left"></div>
 						<div class="handle handle-right"></div>
 					</div>
+					<!-- 缩略图 tooltip：相对定位在时间坐标上 -->
+					<Transition name="thumbnailTrans">
+						<div class="flowThumbnail" v-show="thumbnailVisible" :style="thumbnailTooltipPositionStyle">
+							<div class="thumbnailTime">{{ formatTimeToFFmpegStyle(thumbnailHoverTime) }}</div>
+							<div class="thumbnailLoadingText">缩略图加载中 {{ (thumbnailBufferEnd / duration * 100).toFixed(0) }}%</div>
+							<video ref="thumbnailVideoRef" muted preload="auto" :class="{ transparent: !thumbnailIsBuffered }"></video>
+						</div>
+					</Transition>
 				</div>
 			</div>
 			<div class="selectionInfo">
@@ -1312,6 +1508,30 @@ onUnmounted(async () => {
 					font-size: 14px;
 					pointer-events: none;
 				}
+				.topTimeDisplay {
+					position: absolute;
+					top: 8px;
+					left: 50%;
+					transform: translateX(-50%);
+					font-size: 14px;
+					color: hwb(0 100% 0% / 0.9);
+					font-family: Bahnschrift, 'SF Mono', 'Consolas', monospace;
+					text-shadow: 0 1px 3px hwb(0 0% 100% / 0.8);
+					letter-spacing: 0.5px;
+					pointer-events: none;
+				}
+				// topTimeDisplay 和 controlsOverlay timeDisplay 共用的 transition
+				.timeDisplayTrans-enter-active, .timeDisplayTrans-leave-active {
+					transition: opacity 0.3s ease, transform 0.3s ease;
+				}
+				.timeDisplayTrans-enter-from, .timeDisplayTrans-leave-to {
+					opacity: 0;
+					transform: translateY(-6px);
+				}
+				.timeDisplayTrans-enter-to, .timeDisplayTrans-leave-from {
+					opacity: 1;
+					transform: translateY(0);
+				}
 				.controlsOverlay {
 					position: absolute;
 					bottom: 0;
@@ -1405,7 +1625,7 @@ onUnmounted(async () => {
 				width: 100%;
 				position: relative;
 				background: hwb(var(--bg96));
-				overflow: hidden;
+				// overflow: hidden;
 				.scrollArea {
 					position: absolute;
 					top: 0;
@@ -1471,6 +1691,69 @@ onUnmounted(async () => {
 						}
 						&.handle-left { left: -10px; }
 						&.handle-right { right: -10px; }
+					}
+					.flowThumbnail {
+						position: absolute;
+						bottom: 100%;
+						transform: translateX(-50%);
+						pointer-events: none;
+						// z-index: 1000;
+						// display: flex;
+						// flex-direction: column;
+						// align-items: center;
+						// gap: 4px;
+						border-radius: 4px;
+						border: 1px solid rgba(255, 255, 255, 0.3);
+						background: hwb(0 15% 85% / 0.5);
+						backdrop-filter: contrast(1.25) blur(6px);
+						box-shadow: 0 4px 8px hwb(var(--hoverShadow) / 0.1);
+						isolation: isolate;
+						.thumbnailTime {
+							position: absolute;
+							top: 8px;
+							left: 50%;
+							font-size: 13px;
+							color: hwb(0 100% 0% / 0.9);
+							font-family: Bahnschrift, 'SF Mono', 'Consolas', monospace;
+							text-shadow: 0 1px 3px hwb(0 0% 100% / 0.8);
+							letter-spacing: 0.5px;
+							background: hwb(0 0% 100% / 0.5);
+							padding: 2px 8px;
+							border-radius: 4px;
+							transform: translateX(-50%);
+							z-index: 2;
+						}
+						.thumbnailLoadingText {
+							position: absolute;
+							width: 100%;
+							height: 100%;
+							display: flex;
+							justify-content: center;
+							align-items: center;
+							color: #FFF;
+							z-index: -1;
+						}
+						video {
+							display: block;
+							max-width: 280px;
+							max-height: 280px;
+							border-radius: 3px;
+							transition: opacity 0.2s ease;
+							&.transparent {
+								opacity: 0;
+							}
+						}
+					}
+					.thumbnailTrans-enter-active, .thumbnailTrans-leave-active {
+						transition: opacity 0.2s ease, transform 0.2s ease;
+					}
+					.thumbnailTrans-enter-from, .thumbnailTrans-leave-to {
+						opacity: 0;
+						transform: translateX(-50%) translateY(6px);
+					}
+					.thumbnailTrans-enter-to, .thumbnailTrans-leave-from {
+						opacity: 1;
+						transform: translateX(-50%) translateY(0);
 					}
 				}
 				canvas {
