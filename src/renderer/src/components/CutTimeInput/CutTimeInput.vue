@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { durationFixer, durationValidator } from '@renderer/components/validatorAndFixer';
-import Button from '@renderer/components/Button/Button'
+import Button, { ButtonType } from '@renderer/components/Button/Button'
 
 interface Props {
 	value?: [string, string];
@@ -84,7 +84,12 @@ onMounted(() => {
 			<div :style="selectorStyle"></div>
 		</div>
 		<input :disabled="props.disabled" v-model="inputText[0]" @blur="handleBlur(0)" @focus="handleFocus(0)" @input="handleInput($event, 0)" @keydown="handleKeydown" :placeholder="placeholder?.[0]">
-		<Button size="small" @click="onButtonClick">编✂️辑</Button>
+		<div class="opButton">
+			<div class="hiddenButton">
+				<Button size="small" :type="ButtonType.Danger" @click="props.onChange(['', ''])">清空</Button>
+			</div>
+			<Button size="small" @click="onButtonClick">编✂️辑</Button>
+		</div>
 		<input :disabled="props.disabled" v-model="inputText[1]" @blur="handleBlur(1)" @focus="handleFocus(1)" @input="handleInput($event, 1)" @keydown="handleKeydown" :placeholder="placeholder?.[1]">
 	</div>
 </template>
@@ -149,6 +154,29 @@ onMounted(() => {
 		}
 		&>button:not(:first-child) {
 			margin: 0;
+		}
+		.opButton {
+			position: relative;
+			button {
+				width: 56px;
+			}
+			&:hover {
+				.hiddenButton {
+					height: calc(24px + 22px);
+					transform: translateY(-22px);
+					opacity: 1;
+					// outline: red 1px solid;
+					transition: transform 0.4s cubic-bezier(0.2, 1.5, 0.3, 1);
+				}
+			}
+			.hiddenButton {
+				position: absolute;
+				opacity: 0;
+				transition: transform 0.4s, opacity 0.1s;
+				button {
+					height: 20px;
+				}
+			}
 		}
 	}
 </style>

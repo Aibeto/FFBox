@@ -52,7 +52,7 @@ export interface FFBoxServiceInterface {
 	deleteNotification(notificationId: number): Promise<void>;
 	setParameters(ids: number[], params: OutputParams[]): Promise<void>;
 	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void>;
-	getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<void>;
+	getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<Frame[]>;
 }
 
 export interface FFBoxServiceEventParam {
@@ -178,7 +178,7 @@ export interface StreamInfo {
 	fps?: number;
 	sampleRate?: number;
 	channel?: string;
-	frames?: Frame[];	// 帧信息数组（仅 video 类型使用）
+	// frames?: Frame[];	// 帧信息数组（仅 video 类型使用）（因性能原因考虑已独立出去）
 }
 export interface ChapterInfo {
 	infoText?: string;	// 原文

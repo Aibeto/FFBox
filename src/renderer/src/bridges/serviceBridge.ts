@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import CryptoJS from 'crypto-js';
 import { TypedEventEmitter } from '@common/utils';
-import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Notification, OutputParams, Task } from '@common/types';
+import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, Notification, OutputParams, Task } from '@common/types';
 
 export interface ServeiceBridgeEvent {
 	connected: () => void;
@@ -272,8 +272,8 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/stop`, { reason });
 	}
 
-	public getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<void> {
-		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/frame-info`, { fileIndex, videoStreamIndex, type });
+	public getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<Frame[]> {
+		return this.httpRequest<Frame[]>('POST', `/api/v1/tasks/${id}/frame-info`, { fileIndex, videoStreamIndex, type });
 	}
 
 	// #endregion

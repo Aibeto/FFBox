@@ -725,7 +725,7 @@ function getRouter(): Router {
 	 *           application/json:
 	 *             schema:
 	 *               $ref: '#/components/schemas/Task'
-	 *       404:
+	 *       400:
 	 *         description: 任务未找到
 	 *         content:
 	 *           application/json:
@@ -735,7 +735,7 @@ function getRouter(): Router {
 	router.get('/api/v1/tasks/:id', optionalAuth, async function (ctx) {
 		const task = ffboxService!.tasklist[+ctx.params.id];
 		if (!task) {
-			ctx.status = 404;
+			ctx.status = 400;
 			ctx.body = { error: 'Task not found' };
 			return;
 		}
@@ -1058,7 +1058,7 @@ function getRouter(): Router {
 	 * /api/v1/tasks/{id}/frame-info:
 	 *   post:
 	 *     summary: 扫描视频帧信息
-	 *     description: 使用 FFmpeg showinfo 滤镜扫描指定视频流的帧信息，等待扫描完成后返回，结果存储在 StreamInfo.frames 中
+	 *     description: 扫描指定视频流的帧信息，等待扫描完成后返回帧数据数组
 	 *     security:
 	 *       - bearerAuth: []
 	 *     parameters:
@@ -1080,18 +1080,46 @@ function getRouter(): Router {
 	 *               videoStreamIndex:
 	 *                 type: integer
 	 *                 description: 视频流索引（第 n 个 type 为 video 的 stream）
+	 *               type:
+	 *                 type: string
+	 *                 enum: [fast, full, stop]
+	 *                 default: fast
+	 *                 description: 扫描类型
 	 *     responses:
 	 *       200:
-	 *         description: 帧扫描完成
+	 *         description: 帧扫描完成，返回帧数据数组
 	 *         content:
 	 *           application/json:
 	 *             schema:
-	 *               type: object
-	 *               properties:
-	 *                 success:
-	 *                   type: boolean
-	 *       404:
-	 *         description: 任务或输入文件不存在
+	 *               type: array
+	 *               items:
+	 *                 type: object
+	 *                 properties:
+	 *                   n:
+	 *                     type: integer
+	 *                     description: 帧号
+	 *                   pts:
+	 *                     type: number
+	 *                     description: 时间戳（ffprobe 快速扫描不提供）
+	 *                   pts_time:
+	 *                     type: number
+	 *                     description: 换算为秒的时间戳
+	 *                   type:
+	 *                     type: string
+	 *                     enum: [I, P, B]
+	 *                     description: 帧类型
+	 *                   mean:
+	 *                     type: array
+	 *                     items:
+	 *                       type: number
+	 *                     description: YUV 平均值（可能是 2 或 3 个数字，ffprobe 快速扫描不提供）
+	 *                   stdev:
+	 *                     type: array
+	 *                     items:
+	 *                       type: number
+	 *                     description: YUV 标准差（可能是 2 或 3 个数字，ffprobe 快速扫描不提供）
+	 *       400:
+	 *         description: 请求参数缺失/任务或输入文件不存在
 	 */
 	router.post('/api/v1/tasks/:id/frame-info', optionalAuth, async function (ctx) {
 		if (!ctx.request.body) {
@@ -1107,19 +1135,18 @@ function getRouter(): Router {
 		}
 		const task = ffboxService!.tasklist[+ctx.params.id];
 		if (!task) {
-			ctx.status = 404;
+			ctx.status = 400;
 			ctx.body = { error: 'Task not found' };
 			return;
 		}
 
 		try {
-			await ffboxService!.getMediaFrameInfo(+ctx.params.id, fileIndex, videoStreamIndex, type);
-			ctx.body = { success: true };
+			const frames = await ffboxService!.getMediaFrameInfo(+ctx.params.id, fileIndex, videoStreamIndex, type);
+			ctx.body = frames;
 		} catch (errorCode) {
 			ctx.body = { status: 500, errorCode };
 		}
 	});
-
 
 	// #endregion
 

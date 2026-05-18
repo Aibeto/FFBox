@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, StyleValue } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
-import { NotificationLevel } from '@common/types';
+import { Frame } from '@common/types';
 import { formatTimeToFFmpegStyle, parseTimeString } from '@common/utils';
 import { PreviewStreamDecoder, PreviewDecoderConfig, BufferInfo } from '@renderer/App/MainFrame/MainArea/CutOperator/PreviewStreamDecoder';
 import { ServiceBridge } from '@renderer/bridges/serviceBridge';
@@ -16,18 +16,13 @@ import IconNextFrame from './NextFrame.svg?component';
 import IconNextKeyFrame from './NextKeyFrame.svg?component';
 import IconHelp from './Help.svg?component';
 import IconSettings from './Settings.svg?component';
+import IconX from '@renderer/assets/×.svg?component';
 
 const appStore = useAppStore();
 const selectedTasks = computed(() => appStore.selectedTask.size === 0
 	? { task: undefined, taskId: undefined, count: 0 }
 	: { task: appStore.currentServer.data.tasks[[...appStore.selectedTask][0]], taskId: [...appStore.selectedTask][0], count: appStore.selectedTask.size }
 );
-const selectedStream = computed(() => {
-	if (selectedTasks.value.task?.after.input.files.length >= 1 && appStore.globalParams.outputs.length >= 1) {
-		const videoStreams = selectedTasks.value.task?.before[0].streams.filter((s) => s.type === 'Video');
-		return videoStreams[0];
-	}
-});
 const params = computed(() => ({
 	input: appStore.globalParams.input.files[0],
 	mux: appStore.globalParams.outputs[0].mux,
@@ -226,7 +221,8 @@ const currentFrameIndex = ref(-1);  // 当前帧索引（-1 表示无帧信息�
 const isProgressDragging = ref(false);  // 左键拖拽进度状态
 
 // 帧数据
-const allFrames = computed(() => selectedStream.value?.frames || []);
+const frameData = ref<Frame[]>([]);
+const allFrames = computed(() => frameData.value);
 
 // 是否为视频（有帧信息）
 const isVideo = computed(() => allFrames.value.length > 0);
@@ -749,7 +745,8 @@ const fetchFrameInfo = async (type?: 'fast' | 'full' | 'stop') => {
 
 	framesLoading.value = true;
 	try {
-		await appStore.currentServer.entity.getMediaFrameInfo(selectedTasks.value.taskId, 0, 0, type || 'fast');
+		const result = await appStore.currentServer.entity.getMediaFrameInfo(selectedTasks.value.taskId, 0, 0, type || 'fast');
+		frameData.value = result;
 	} catch (err) {
 		console.error('加载帧信息失败:', err);
 	} finally {
@@ -771,6 +768,12 @@ const handleInputEndChange = (value: string) => {
 	appStore.applyParameters();
 	updateSelectionFromParams();
 };
+const handleInputClear = () => {
+	params.value.input.begin = '';
+	params.value.input.end = '';
+	appStore.applyParameters();
+	updateSelectionFromParams();
+};
 const handleOutputBeginChange = (value: string) => {
 	params.value.mux.begin = value;
 	appStore.applyParameters();
@@ -778,6 +781,12 @@ const handleOutputBeginChange = (value: string) => {
 };
 const handleOutputEndChange = (value: string) => {
 	params.value.mux.end = value;
+	appStore.applyParameters();
+	updateSelectionFromParams();
+};
+const handleOutputClear = () => {
+	params.value.mux.begin = '';
+	params.value.mux.end = '';
 	appStore.applyParameters();
 	updateSelectionFromParams();
 };
@@ -1147,6 +1156,9 @@ onUnmounted(async () => {
 						:validator="durationValidator"
 						:inputFixer="durationFixer"
 					/>
+					<button class="clear" @click="handleInputClear">
+						<IconX />
+					</button>
 				</div>
 				<div class="selectionGroup">
 					<div class="selectionLabel">输出切割</div>
@@ -1164,6 +1176,9 @@ onUnmounted(async () => {
 						:validator="durationValidator"
 						:inputFixer="durationFixer"
 					/>
+					<button class="clear" @click="handleOutputClear">
+						<IconX />
+					</button>
 				</div>
 			</div>
 		</div>
@@ -1407,7 +1422,6 @@ onUnmounted(async () => {
 						background: #f44;
 						transform: translateX(-50%);
 						z-index: 10;
-
 						&::before {
 							content: '';
 							position: absolute;
@@ -1421,7 +1435,6 @@ onUnmounted(async () => {
 							opacity: 0;
 							transition: opacity 0.2s ease, transform 0.2s ease;
 						}
-
 						&:hover::before {
 							opacity: 1;
 							transform: translate(-50%, -50%) scale(1.5);
@@ -1475,7 +1488,7 @@ onUnmounted(async () => {
 				gap: 4px 32px;
 				border-top: 1px solid hwb(var(--bg90));
 				.selectionGroup {
-					padding: 0 24px;
+					padding: 0 16px 0 20px;
 					display: flex;
 					align-items: center;
 					gap: 12px;
@@ -1500,6 +1513,31 @@ onUnmounted(async () => {
 						font-size: 14px;
 						font-weight: 600;
 						color: var(--66);
+					}
+					.clear {
+						width: 24px;
+						height: 24px;
+						border: none;
+						outline: none;
+						background: none;
+						padding: 0;
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						opacity: 0.5;
+						border-radius: 4px;
+						&:hover {
+							box-shadow: 0 1px 4px hwb(var(--hoverShadow) / 0.2),
+										0 4px 2px -2px hwb(var(--highlight) / 0.5) inset;
+						}
+						&:active {
+							box-shadow: 0 0px 1px hwb(var(--hoverShadow) / 0.2),
+										0 15px 20px -10px hwb(var(--hoverShadow) / 0.15) inset;
+							transform: translateY(0.25px);
+						}
+						svg {
+							fill: var(--33);
+						}
 					}
 				}
 				@media only screen and (min-width: 761px) and (max-width: 940px) {
