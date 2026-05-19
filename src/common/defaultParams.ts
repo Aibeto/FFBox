@@ -5,7 +5,6 @@ export const defaultParams: OutputParams = {
 		files: [{
 			filePath: '[输入文件路径]',
 			demuxer: '自动',
-			hwaccel: '自动',
 		}],
 	},
 	filter: {

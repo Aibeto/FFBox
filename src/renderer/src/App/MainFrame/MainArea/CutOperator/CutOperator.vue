@@ -7,6 +7,7 @@ import { PreviewStreamDecoder, PreviewDecoderConfig, BufferInfo } from '@rendere
 import { ServiceBridge } from '@renderer/bridges/serviceBridge';
 import { durationValidator, durationFixer } from '@renderer/components/validatorAndFixer';
 import { useTooltip } from '@renderer/common/tooltipUtil';
+import useLowerDividerDrag from '../useLowerDevider';
 import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import IconUpArrow from '../ParaBox/uparrow.svg?component';
@@ -31,36 +32,7 @@ const params = computed(() => ({
 const duration = computed(() => selectedTasks.value?.task?.before[0].duration || 0);
 let resizeObserver: ResizeObserver | null = null;
 
-// #region divider
-
-const deviderRef = ref<Element>(null);
-const handleDragStart = (event: MouseEvent | TouchEvent) => {
-	// event.preventDefault();
-	const deviderRect = deviderRef.value.getBoundingClientRect();	// 列表元素的 rect
-	const mainAreaRect = (appStore.componentRefs['MainArea'] as Element).getBoundingClientRect();	// 列表元素的 rect
-	const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
-	// const inElementY = (event as MouseEvent).offsetY || (event as TouchEvent).touches[0].offsetY;	// 鼠标在元素内的 Y
-	const inElementY = mouseY - deviderRect.top;	// 不直接用 offsetY 的原因是，鼠标所在的元素不一定是 devider
-	// 添加鼠标事件捕获
-	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
-		const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
-		let listPercent = (mouseY - mainAreaRect.top - inElementY) / mainAreaRect.height;
-		listPercent = Math.min(Math.max(listPercent, 0), 1);
-		appStore.draggerPos = listPercent;
-	}
-	let handleMouseUp = () => {
-		window.removeEventListener('mousemove', handleMouseMove);
-		window.removeEventListener('touchmove', handleMouseMove);
-		window.removeEventListener('mouseup', handleMouseUp);
-		window.removeEventListener('touchend', handleMouseUp);
-	}
-	window.addEventListener('mousemove', handleMouseMove);
-	window.addEventListener('touchmove', handleMouseMove);
-	window.addEventListener('mouseup', handleMouseUp);
-	window.addEventListener('touchend', handleMouseUp);
-};
-
-// #endregion
+const { deviderRef, handleDeviderDragStart } = useLowerDividerDrag();
 
 // #region 进度区域——视区
 
@@ -929,45 +901,46 @@ watch(() => selectedTasks.value.task, async (newTask, oldTask) => {
 // #region 缩略图
 
 const thumbnailVideoRef = ref<HTMLVideoElement>(null);
+const thumbnailAbortController = ref<AbortController | null>(null);
 
 const thumbnailVisible = ref(false);
 const thumbnailHoverTime = ref(0);
-const thumbnailAbortController = ref<AbortController | null>(null);
+const thumbnailDensity = ref<'M' | 'H'>('M');
 const thumbnailIsBuffered = ref(false);	// 指示 UI 当前悬停时间是否在缓冲范围内
-const thumbnailBufferEnd = ref(0);
-
-// 计算缩略图渲染尺寸（最大 280x280，考虑 dpi 和视频宽高比）
-const computeThumbnailSize = (): { width: number; height: number } => {
-	const MAX_SIZE = 280;
-	const dpr = window.devicePixelRatio || 1;
-	const resolution = selectedTasks.value.task?.before?.[0]?.streams?.[0]?.resolution;
-	let aspectRatio = 16 / 9;  // 默认宽高比
-	if (resolution) {
-		const match = resolution.match(/^(\d+)x(\d+)$/);
-		if (match) {
-			aspectRatio = parseInt(match[1]) / parseInt(match[2]);
-		}
-	}
-	// 按宽高比在 MAX_SIZE 内计算渲染尺寸（逻辑像素）
-	let w: number, h: number;
-	if (aspectRatio >= 1) {
-		w = MAX_SIZE;
-		h = Math.round(MAX_SIZE / aspectRatio);
-	} else {
-		h = MAX_SIZE;
-		w = Math.round(MAX_SIZE * aspectRatio);
-	}
-	// 实际渲染给后端的物理像素尺寸
-	const physW = Math.round(w * dpr);
-	const physH = Math.round(h * dpr);
-	// 确保为偶数
-	return {
-		width: physW % 2 === 0 ? physW : physW - 1,
-		height: physH % 2 === 0 ? physH : physH - 1,
-	};
-};
+const thumbnailBufferEnd = ref(0);	// 指示 UI 缓冲区进度
 
 const initThumbnailStream = async () => {
+	// 计算缩略图渲染尺寸（最大 280x280，考虑 dpi 和视频宽高比）
+	const computeThumbnailSize = (): { width: number; height: number } => {
+		const MAX_SIZE = 280;
+		const dpr = window.devicePixelRatio || 1;
+		const resolution = selectedTasks.value.task?.before?.[0]?.streams?.[0]?.resolution;
+		let aspectRatio = 16 / 9;  // 默认宽高比
+		if (resolution) {
+			const match = resolution.match(/^(\d+)x(\d+)$/);
+			if (match) {
+				aspectRatio = parseInt(match[1]) / parseInt(match[2]);
+			}
+		}
+		// 按宽高比在 MAX_SIZE 内计算渲染尺寸（逻辑像素）
+		let w: number, h: number;
+		if (aspectRatio >= 1) {
+			w = MAX_SIZE;
+			h = Math.round(MAX_SIZE / aspectRatio);
+		} else {
+			h = MAX_SIZE;
+			w = Math.round(MAX_SIZE * aspectRatio);
+		}
+		// 实际渲染给后端的物理像素尺寸
+		const physW = Math.round(w * dpr);
+		const physH = Math.round(h * dpr);
+		// 确保为偶数
+		return {
+			width: physW % 2 === 0 ? physW : physW - 1,
+			height: physH % 2 === 0 ? physH : physH - 1,
+		};
+	};
+
 	thumbnailAbortController.value?.abort();
 
 	if (!thumbnailVideoRef.value || !selectedTasks.value.task) return;
@@ -996,7 +969,7 @@ const initThumbnailStream = async () => {
 
 		let response: Response;
 		try {
-			response = await entity.fetchHttp(`/api/v1/tasks/${taskId}/thumbnail-stream?width=${thumbW}&height=${thumbH}`, abortController.signal);
+			response = await entity.fetchHttp(`/api/v1/tasks/${taskId}/thumbnail-stream?width=${thumbW}&height=${thumbH}&density=${thumbnailDensity.value}`, abortController.signal);
 		} catch (e) {
 			return;
 		}
@@ -1127,9 +1100,6 @@ const helpContent = `\
 
 【切割位置可能跟实际略有偏差】：在 copy 编码时，切割会从关键帧位置开始。如果您要精确切割，请从关键帧开始，或重新编码。
 
-【画质选项】：预览画面中的图像并非由 FFBox 前端直接解码，而是从后端实时重编码而来。若预览卡顿，您可通过降低画质来缓解此现象。
-*此画质选项并不影响输出文件。*
-
 【缓冲】：时间轴的上方以黄色横条显示当前已缓冲的预览。缓冲区内拖动进度条能快速响应。
 有时会发生缓冲区尾部持续消除的现象。这是 chromium 内核的默认行为，FFBox 无法干预。您可降低画质以减轻这种现象。\
 `;
@@ -1144,6 +1114,10 @@ const handleShowSettings = (event: MouseEvent) => {
 		if (previewDecoder.value && selectedTasks.value.task) {
 			previewDecoder.value.restart(playbackPosition.value, undefined, newQuality);
 		}
+	}
+	const changeThumbnailDensity = (newDensity: 'H' | 'M') => {
+		thumbnailDensity.value = newDensity;
+		initThumbnailStream();
 	}
 	const menuItems: MenuItem[] = [
 		{ type: 'checkbox', value: 'showTimeScale', checked: showTimeScale.value, label: '显示时间坐标', onClick: () => {
@@ -1163,12 +1137,16 @@ const handleShowSettings = (event: MouseEvent) => {
 			fetchFrameInfo('full');
 		} },
 		{ type: 'separator' },
-		{ type: 'submenu', label: '预览画质', subMenu: [
+		{ type: 'submenu', label: '预览画质', tooltip: "预览画面中的图像并非由 FFBox 前端直接解码，而是从后端实时重编码而来。\n若预览卡顿，您可通过降低画质来缓解此现象。", subMenu: [
 			{ type: 'radio', value: 'H', checked: previewQuality.value === 'H', label: '高', onClick: () => changeQuality('H') },
 			{ type: 'radio', value: 'M', checked: previewQuality.value === 'M', label: '中', onClick: () => changeQuality('M') },
 			{ type: 'radio', value: 'L', checked: previewQuality.value === 'L', label: '低', onClick: () => changeQuality('L') },
 			{ type: 'radio', value: 'XL', checked: previewQuality.value === 'XL', label: '很低', tooltip: '分辨率减半\n（服务器编码性能较差时可选用）', onClick: () => changeQuality('XL') },
 			{ type: 'radio', value: 'XXL', checked: previewQuality.value === 'XXL', label: '超低', tooltip: '分辨率减至四分之一\n（服务器编码性能较差时可选用）', onClick: () => changeQuality('XXL') },
+		] },
+		{ type: 'submenu', label: '缩略图密度', tooltip: "密度越高，进度条预览的采样间隔就越短。\n2 倍采样密度对应最高 2 倍流量消耗，但对缩略图生成速度基本没有影响（因生成速度主要受 demuxer 影响）。", subMenu: [
+			{ type: 'radio', value: 'H', checked: thumbnailDensity.value === 'H', label: '2 倍', onClick: () => changeThumbnailDensity('H') },
+			{ type: 'radio', value: 'M', checked: thumbnailDensity.value === 'M', label: '默认', onClick: () => changeThumbnailDensity('M') },
 		] },
 	];
 
@@ -1249,7 +1227,7 @@ onUnmounted(async () => {
 					<IconUpArrow :style="{ transform: 'rotate(-90deg)' }" />
 					<span>任务参数</span>
 				</button>
-				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
+				<div class="buttons" @mousedown="handleDeviderDragStart" @touchstart="handleDeviderDragStart">
 					<h2>切割</h2>
 				</div>
 			</div>

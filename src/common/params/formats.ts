@@ -14,10 +14,6 @@ export interface Muxer {
 	parameters?: Parameter[];
 }
 
-export interface Hwaccel {
-	hwaccel: string;
-}
-
 export const builtInDemuxers: MenuItem[] = [
 	{
 		type: 'normal',
@@ -277,21 +273,64 @@ export const builtInMuxers: MenuItem<Muxer>[] = [
 
 export const allMuxers: MenuItem<Muxer>[] = [];
 
-export const hwaccels: MenuItem<Hwaccel>[] = [
+export const skipFrame: MenuItem[] = [
 	{
 		type: 'normal',
-		value: '不使用',
+		value: '',
+		label: '默认',
+		tooltip: '仅跳过无效帧。',
+	},
+	{ type: 'separator' },
+	{
+		type: 'normal',
+		value: 'none',
+		label: 'none',
+		tooltip: '不跳过任何帧。',
+	},
+	{
+		type: 'normal',
+		value: 'noref',
+		label: 'noref',
+		tooltip: '跳过非参考帧（通常是 B 帧 + 部分 P 帧）。',
+	},
+	{
+		type: 'normal',
+		value: 'bidir',
+		label: 'bidir',
+		tooltip: '跳过双向帧（B 帧）。',
+	},
+	{
+		type: 'normal',
+		value: 'nokey',
+		label: 'nokey',
+		tooltip: '跳过非关键帧。\n（只保留关键帧）',
+	},
+	{
+		type: 'normal',
+		value: 'nointra',
+		label: 'nointra',
+		tooltip: '跳过非 I 帧。\n（只保留 I 帧）',
+	},
+	{
+		type: 'normal',
+		value: 'all',
+		label: 'all',
+		tooltip: '跳过所有帧。',
+	},
+]
+
+export const hwaccels: MenuItem[] = [
+	{
+		type: 'normal',
+		value: '',
 		label: '不使用',
 		tooltip: '不使用硬件解码。',
 	},
 	{
 		type: 'normal',
-		value: '自动',
+		value: 'auto',
 		label: '自动',
 		tooltip: '自动选择最合适的硬件解码方式。',
-		extra: {
-			hwaccel: 'auto',
-		},
 	},
 	{ type: 'separator' },
 	{
@@ -303,45 +342,30 @@ export const hwaccels: MenuItem<Hwaccel>[] = [
 				value: 'cuda',
 				label: 'cuda',
 				tooltip: '使用 NVIDIA CUDA 驱动进行硬件加速，通常用于预处理、解码协助等（非主要解码器）。',
-				extra: {
-					hwaccel: 'cuda',
-				},
 			},
 			{
 				type: 'normal',
 				value: 'cuvid',
 				label: 'cuvid',
 				tooltip: 'NVIDIA CUVID 视频解码器接口（旧版 API，已废弃但仍被部分 FFmpeg 编译保留）。',
-				extra: {
-					hwaccel: 'cuvid',
-				},
 			},
 			{
 				type: 'normal',
 				value: 'nvdec',
 				label: 'nvdec',
 				tooltip: 'NVDEC 硬件加速解码（属于 CUDA 家族；FFmpeg 会自动映射）。',
-				extra: {
-					hwaccel: 'nvdec',
-				},
 			},
 			{
 				type: 'normal',
 				value: 'qsv',
 				label: 'qsv',
 				tooltip: 'Intel Quick Sync Video 硬件解码（通过 Intel Media SDK 或 oneVPL）。',
-				extra: {
-					hwaccel: 'qsv',
-				},
 			},		
 			{
 				type: 'normal',
 				value: 'amf',
 				label: 'amf',
 				tooltip: 'AMD AMF（Advanced Media Framework）视频硬件解码与编码（依赖 AMD 驱动支持）。',
-				extra: {
-					hwaccel: 'amf',
-				},
 			},		
 		],
 	},
@@ -354,18 +378,12 @@ export const hwaccels: MenuItem<Hwaccel>[] = [
 				value: 'dxva2',
 				label: 'dxva2',
 				tooltip: '通过 DirectX Video Acceleration 2（DXVA2）进行硬件解码（Win7+）（解码所用的设备与您的主显示器连接的 GPU 有关）。',
-				extra: {
-					hwaccel: 'dxva2',
-				},
 			},
 			{
 				type: 'normal',
 				value: 'd3d11va',
 				label: 'd3d11va',
 				tooltip: '使用 Direct3D 11 Video Acceleration 进行硬解码（更现代，Win10 推荐）。',
-				extra: {
-					hwaccel: 'd3d11va',
-				},
 			},		
 		],
 	},
@@ -378,36 +396,24 @@ export const hwaccels: MenuItem<Hwaccel>[] = [
 				value: 'vaapi',
 				label: 'vaapi',
 				tooltip: 'VA-API（Video Acceleration API）硬件解码，Intel/AMD GPU 通用接口，也是 Linux 最常用。',
-				extra: {
-					hwaccel: 'vaapi',
-				},
 			},
 			{
 				type: 'normal',
 				value: 'vdpau',
 				label: 'vdpau',
 				tooltip: 'VDPAU（Video Decode and Presentation API for Unix），主要用于老 NVIDIA/AMD GPU。',
-				extra: {
-					hwaccel: 'vdpau',
-				},
 			},
 			{
 				type: 'normal',
 				value: 'drm',
 				label: 'drm',
 				tooltip: '通过 DRM（Direct Rendering Manager）方式导出硬件帧（常与 VAAPI 配合）。',
-				extra: {
-					hwaccel: 'drm',
-				},
 			},
 			{
 				type: 'normal',
 				value: 'vulkan',
 				label: 'vulkan',
 				tooltip: 'Vulkan 后端的硬件加速接口——通常用于加速处理，不是主要解码器。',
-				extra: {
-					hwaccel: 'vulkan',
-				},
 			},		
 		],
 	},
@@ -420,9 +426,6 @@ export const hwaccels: MenuItem<Hwaccel>[] = [
 				value: 'videotoolbox',
 				label: 'videotoolbox',
 				tooltip: 'Apple VideoToolbox 硬件解码（H.264 / HEVC / ProRes）—macOS/iOS 原生接口。',
-				extra: {
-					hwaccel: 'videotoolbox',
-				},
 			},
 		],
 	},
@@ -435,27 +438,18 @@ export const hwaccels: MenuItem<Hwaccel>[] = [
 				value: 'mediacodec',
 				label: 'mediacodec',
 				tooltip: 'Android MediaCodec 硬件解码（移动设备上的默认硬件 API）。',
-				extra: {
-					hwaccel: 'mediacodec',
-				},
 			},
 			{
 				type: 'normal',
 				value: 'omx',
 				label: 'omx',
 				tooltip: 'OpenMAX IL（旧 Android、树莓派旧系统使用）。',
-				extra: {
-					hwaccel: 'omx',
-				},
 			},
 			{
 				type: 'normal',
 				value: 'mmal',
 				label: 'mmal',
 				tooltip: 'Raspberry Pi 的 Mult-Media Abstraction Layer 硬解接口（已废弃，但旧版 FFmpeg 可能仍支持）。',
-				extra: {
-					hwaccel: 'mmal',
-				},
 			},
 		],
 	},
@@ -640,7 +634,8 @@ export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes 
 		end: '',
 		custom: '',
 		hwaccel: '',
-		realtime: false,
+		skipFrame: '',
+		readrate: '',
 	}];
 	for (const file of files) {
 		if (file.demuxer && file.demuxer !== '自动') {
@@ -654,13 +649,19 @@ export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes 
 		// hwaccel 参数
 		if (file.hwaccel && file.hwaccel !== '不使用') {
 			ret.push('-hwaccel');
-			let hwaccelItem = getMenuItemByValue(hwaccels, file.hwaccel) as any;
-			let hwaccel = hwaccelItem ? (hwaccelItem.extra as Hwaccel).hwaccel : file.hwaccel;
+			let hwaccel = file.hwaccel;
+			if (hwaccel === '自动') hwaccel = 'auto';	// 旧版兼容
 			ret.push(hwaccel);
 		}
-		// realtime 参数
-		if (file.realtime) {
-			ret.push('-re');
+		// skip_frame 参数
+		if (file.skipFrame) {
+			ret.push('-skip_frame');
+			ret.push(file.skipFrame);
+		}
+		// readrate 参数
+		if (file.readrate) {
+			ret.push('-readrate');
+			ret.push(file.readrate);
 		}
 		// 输入裁剪参数（放在 -i 前）
 		if (file.begin) {

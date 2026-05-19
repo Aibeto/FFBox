@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
+import useLowerDividerDrag from '../useLowerDevider';
 import MediaInfo from './MediaInfo.vue';
 import FFmpegLog from './FFmpegLog.vue';
 import ProgressLog from './ProgressLog.vue';
@@ -18,34 +19,8 @@ const sidebarColors = computed(() =>
 		: ['hwb(200 5% 5%)', 'hwb(225 50% 20%)', 'hwb(135 15% 25%)', 'hwb(25 5% 10%)']
 );
 
-const deviderRef = ref<Element>(null);
 const animationName = ref('animationLeft');
-
-const handleDragStart = (event: MouseEvent | TouchEvent) => {
-	// event.preventDefault();
-	const deviderRect = deviderRef.value.getBoundingClientRect();	// 列表元素的 rect
-	const mainAreaRect = (appStore.componentRefs['MainArea'] as Element).getBoundingClientRect();	// 列表元素的 rect
-	const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
-	// const inElementY = (event as MouseEvent).offsetY || (event as TouchEvent).touches[0].offsetY;	// 鼠标在元素内的 Y
-	const inElementY = mouseY - deviderRect.top;	// 不直接用 offsetY 的原因是，鼠标所在的元素不一定是 devider
-	// 添加鼠标事件捕获
-	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
-		const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
-		let listPercent = (mouseY - mainAreaRect.top - inElementY) / mainAreaRect.height;
-		listPercent = Math.min(Math.max(listPercent, 0), 1);
-		appStore.draggerPos = listPercent;
-	}
-	let handleMouseUp = () => {
-		window.removeEventListener('mousemove', handleMouseMove);
-		window.removeEventListener('touchmove', handleMouseMove);
-		window.removeEventListener('mouseup', handleMouseUp);
-		window.removeEventListener('touchend', handleMouseUp);
-	}
-	window.addEventListener('mousemove', handleMouseMove);
-	window.addEventListener('touchmove', handleMouseMove);
-	window.addEventListener('mouseup', handleMouseUp);
-	window.addEventListener('touchend', handleMouseUp);
-};
+const { deviderRef, handleDeviderDragStart } = useLowerDividerDrag();
 
 const handleParaButtonClicked = (index: any) => {
 	animationName.value = index < appStore.showTaskInfo[1] ? 'animationLeft' : 'animationRight';
@@ -64,7 +39,7 @@ const getButtonColorStyle = (index: number) => ({ color: appStore.showTaskInfo?.
 					<IconUpArrow :style="{ transform: 'rotate(-90deg)' }" />
 					<span>任务参数</span>
 				</button>
-				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
+				<div class="buttons" @mousedown="handleDeviderDragStart" @touchstart="handleDeviderDragStart">
 					<button v-for="index in [0, 1, 2]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="() => handleParaButtonClicked(index)">
 						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
 						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>

@@ -1175,6 +1175,13 @@ function getRouter(): Router {
 	 *           type: integer
 	 *           default: 768
 	 *         description: 缩略图高度（最大 768，会自动等比缩放）
+	 *       - in: query
+	 *         name: density
+	 *         schema:
+	 *           type: string
+	 *           enum: [M, H]
+	 *           default: M
+	 *         description: 缩略图间隔模式（'H' 高密度模式，'M' 中等密度模式）
 	 *     responses:
 	 *       200:
 	 *         description: MP4 视频流
@@ -1219,8 +1226,11 @@ function getRouter(): Router {
 		thumbW = thumbW % 2 === 0 ? thumbW : thumbW - 1;
 		thumbH = thumbH % 2 === 0 ? thumbH : thumbH - 1;
 
+		const density = ctx.query.density === 'H' ? 'H' : 'M';
 		const duration = task.before?.[0]?.duration || 0;
-		const interval = Math.max(duration * 0.005, 5);	// 最多生成 200 个缩略图帧，最小帧间隔 5s
+		const interval = density === 'H'
+			? Math.max(duration * 0.001, 1)	// 最多生成 1000 个缩略图帧，最小帧间隔 1s
+			: Math.max(duration * 0.002, 2);	// 最多生成 500 个缩略图帧，最小帧间隔 2s
 
 		const ffmpegArgs = [
 			'-skip_frame', 'nokey',

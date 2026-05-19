@@ -3,7 +3,7 @@ import { deleteNode } from '@common/params/filter';
 import { NotificationLevel } from '@common/types';
 import InputAutoSize from '@renderer/components/InputAutoSize/InputAutoSize.vue';
 import { durationFixer, durationValidator } from '../../../../components/validatorAndFixer';
-import { hwaccels, builtInDemuxers, allDemuxers, Demuxer } from '@common/params/formats'
+import { hwaccels, builtInDemuxers, allDemuxers, Demuxer, skipFrame } from '@common/params/formats'
 import { getMenuItemByValue } from '@common/menu';
 import { renderDetailParameters } from './utils';
 import { useAppStore } from '@renderer/stores/appStore';
@@ -50,7 +50,8 @@ const InputView = defineComponent((props: Props) => {
 			end: '',
 			custom: '',
 			hwaccel: '',
-			realtime: false,
+			skipFrame: '',
+			readrate: '',
 			detail: {},
 		})
 	));
@@ -110,7 +111,8 @@ const InputView = defineComponent((props: Props) => {
 			files[i].begin = files[index].begin;
 			files[i].end = files[index].end;
 			files[i].hwaccel = files[index].hwaccel;
-			files[i].realtime = files[index].realtime;
+			files[i].skipFrame = files[index].skipFrame;
+			files[i].readrate = files[index].readrate;
 			files[i].custom = files[index].custom;
 		}
 	};
@@ -128,8 +130,9 @@ const InputView = defineComponent((props: Props) => {
 					begin: '',
 					end: '',
 					custom: '',
-					hwaccel: '自动',
-					realtime: false,
+					hwaccel: '',
+					skipFrame: '',
+					readrate: '',
 					detail: {},
 				});
 				if (appStore.globalParams.filter.nodes.length) {
@@ -279,8 +282,9 @@ const InputView = defineComponent((props: Props) => {
 				begin: '',
 				end: '',
 				custom: '',
-				hwaccel: '自动',
-				realtime: false,
+				hwaccel: '',
+				skipFrame: '',
+				readrate: '',
 				detail: {},
 			});
 		}
@@ -358,13 +362,14 @@ const InputView = defineComponent((props: Props) => {
 			<div class={css.dragger} style={{ left: `${centerDraggerPos.value}%`}} onMousedown={handleCenterDraggerDragStart} onTouchstart={handleCenterDraggerDragStart} />
 			<div class={css.right} style={{ width: `${100 - centerDraggerPos.value}%`}}>
 				{editingInput.value ? (<>
-					<BoxedDropdownInput title="硬件解码" text={editingInput.value.hwaccel} list={hwaccels} onChange={(value: string) => handleParamChange('hwaccel', value)} />
+					<BoxedDropdownInput title="硬件解码" text={editingInput.value.hwaccel} placeholder="不使用" list={hwaccels} onChange={(value: string) => handleParamChange('hwaccel', value)} />
+					<BoxedDropdownInput title="跳过帧" text={editingInput.value.skipFrame} placeholder="默认" list={skipFrame} onChange={(value: string) => handleParamChange('skipFrame', value)} />
 					<BoxedCutTimeInput title="切割时间" value={[editingInput.value.begin, editingInput.value.end]} onChange={(value: [string, string]) => {
 						inputParams.value.files[editingIndex.value].begin = value[0];
 						inputParams.value.files[editingIndex.value].end = value[1];
 						appStore.applyParameters();
 					}} onButtonClick={() => appStore.openCutOperator('input')} />
-					<BoxedSwitch title="限制一倍速" checked={editingInput.value.realtime} onChange={(value: boolean) => handleParamChange('realtime', value)} />
+					<BoxedNormalInput title="限制解码倍速" value={editingInput.value.readrate} placeholder="不限制" onChange={(value: string) => handleParamChange('readrate', value)} />
 					<BoxedNormalInput title="自定义参数" value={editingInput.value.custom} onChange={(value: string) => handleParamChange('custom', value)} long={true} />
 					{(editingInputParams.value?.parameters || []).filter((parameter) => parameter.optional).length && (
 						<AutoSizeWrapper class={css.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>

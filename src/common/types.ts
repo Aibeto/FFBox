@@ -206,12 +206,13 @@ export interface InputInfo {
 
 export interface InputFile {
 	// type: 'url';	// 将来支持 lavfi
+	skipFrame?: string;
 	hwaccel?: string;
 	filePath?: string;		// 本地模式下直接是文件全路径，网络模式下 merge 之后获得的文件名填充到此处
 	demuxer?: string;
 	begin?: string;
 	end?: string;
-	realtime?: boolean;
+	readrate?: string;
 	detail?: Record<string, any>;
 	custom?: string;
 }

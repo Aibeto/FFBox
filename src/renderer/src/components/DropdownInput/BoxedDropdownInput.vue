@@ -11,6 +11,7 @@ interface Props {
 	list: MenuItem[];
 	readonly?: boolean;
 	disabled?: boolean;
+	placeholder?: string;
 	// deletable?: boolean;
 	validator?: (value: string) => string;
 	inputFixer?: (value: string) => string;

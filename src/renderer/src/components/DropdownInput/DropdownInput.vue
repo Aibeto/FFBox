@@ -11,6 +11,7 @@ interface Props {
 	list: MenuItem[];
 	readonly?: boolean;	// 不允许输入，但允许下拉选择
 	disabled?: boolean;	// 不允许更改
+	placeholder?: string;
 	// deletable?: boolean;
 	validator?: (value: string) => string;
 	inputFixer?: (value: string) => string;
@@ -160,6 +161,7 @@ onMounted(() => {
 			@focus="handleFocus"
 			@input="handleInput"
 			@keydown="handleKeydown"
+			:placeholder="placeholder"
 		>
 		<IconMenuButton class="combobox-selector-img"></IconMenuButton>
 	</div>

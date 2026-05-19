@@ -8,6 +8,8 @@ import EffectView from './EffectView';
 import VcodecView from './VcodecView';
 import AcodecView from './AcodecView';
 import MuxView from './MuxView';
+import DropdownInput from '@renderer/components/DropdownInput/DropdownInput.vue';
+import useLowerDividerDrag from '../useLowerDevider';
 import IconSidebarFavorite from './parabox_favorite.svg?component';
 import IconSidebarInput from './parabox_input.svg?component';
 import IconSidebarVideo from './parabox_video.svg?component';
@@ -15,7 +17,6 @@ import IconSidebarAudio from './parabox_audio.svg?component';
 import IconSidebarEffect from './parabox_effect.svg?component';
 import IconSidebarOutput from './parabox_output.svg?component';
 import IconUpArrow from './uparrow.svg?component';
-import DropdownInput from '@renderer/components/DropdownInput/DropdownInput.vue';
 
 const appStore = useAppStore();
 const sidebarIcons = [IconSidebarFavorite, IconSidebarInput, IconSidebarEffect, IconSidebarVideo, IconSidebarAudio, IconSidebarOutput];
@@ -25,7 +26,7 @@ const sidebarColors = computed(() =>
 		? ['hwb(45 0% 5%)', 'hwb(195 0% 10%)', 'hwb(315 10% 5%)', 'hwb(285 10% 0%)', 'hwb(120 0% 20%)', 'hwb(0 30% 0%)']
 		: ['hwb(45 0% 5%)', 'hwb(195 5% 5%)', 'hwb(315 20% 5%)', 'hwb(285 25% 0%)', 'hwb(120 0% 15%)', 'hwb(0 30% 0%)']
 );
-const deviderRef = ref<Element>(null);
+const { deviderRef, handleDeviderDragStart } = useLowerDividerDrag();
 const animationName = ref('animationLeft');
 const editingOutputIndex = ref(0);
 const showGlobalParams = ref(true);
@@ -45,32 +46,6 @@ const globalParamsText = computed(() => {
 		return '异常';
 	}
 });
-
-const handleDragStart = (event: MouseEvent | TouchEvent) => {
-	// event.preventDefault();
-	const deviderRect = deviderRef.value.getBoundingClientRect();	// 列表元素的 rect
-	const mainAreaRect = (appStore.componentRefs['MainArea'] as Element).getBoundingClientRect();	// 列表元素的 rect
-	const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
-	// const inElementY = (event as MouseEvent).offsetY || (event as TouchEvent).touches[0].offsetY;	// 鼠标在元素内的 Y
-	const inElementY = mouseY - deviderRect.top;	// 不直接用 offsetY 的原因是，鼠标所在的元素不一定是 devider
-	// 添加鼠标事件捕获
-	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
-		const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
-		let listPercent = (mouseY - mainAreaRect.top - inElementY) / mainAreaRect.height;
-		listPercent = Math.min(Math.max(listPercent, 0), 1);
-		appStore.draggerPos = listPercent;
-	}
-	let handleMouseUp = () => {
-		window.removeEventListener('mousemove', handleMouseMove);
-		window.removeEventListener('touchmove', handleMouseMove);
-		window.removeEventListener('mouseup', handleMouseUp);
-		window.removeEventListener('touchend', handleMouseUp);
-	}
-	window.addEventListener('mousemove', handleMouseMove);
-	window.addEventListener('touchmove', handleMouseMove);
-	window.addEventListener('mouseup', handleMouseUp);
-	window.addEventListener('touchend', handleMouseUp);
-};
 
 const handleParaButtonClicked = (index: number) => {
 	animationName.value = index < appStore.paraSelected ? 'animationLeft' : 'animationRight';
@@ -116,7 +91,7 @@ onUnmounted(() => {
 	<div class="parabox">
 		<div class="upper" :style="{ height: showGlobalParams ? '64px' : undefined }">
 			<div class="devider" :ref="(el) => deviderRef = el as Element">
-				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
+				<div class="buttons" @mousedown="handleDeviderDragStart" @touchstart="handleDeviderDragStart">
 					<button v-for="index in [0, 1, 2]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="handleParaButtonClicked(index)">
 						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
 						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>

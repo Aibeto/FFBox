@@ -5,6 +5,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { formatSize } from '@common/utils';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import nodeBridge from '@renderer/bridges/nodeBridge';
+import useLowerDividerDrag from '../useLowerDevider';
 import IconUpArrow from '../ParaBox/uparrow.svg?component';
 import IconDownload from './Download.svg';
 import IconUpload from './Upload.svg';
@@ -23,7 +24,7 @@ const sidebarColors = computed(() =>
 );
 const paraSelected = ref(0);
 
-const deviderRef = ref<Element>(null);
+const { deviderRef, handleDeviderDragStart } = useLowerDividerDrag();
 const centerDraggerPos = ref(50);
 const selectedFileIndex = ref(undefined);
 
@@ -66,32 +67,6 @@ const fileListStyle = computed(() => (
 	(paraSelected.value === 2 ? downloadFileList.value.length : 0)
 ) >= 11 ? "--itemHeight: 26px" : "--itemHeight: 34px");
 const chunkListStyle = computed(() => chunkList.value ? "--itemHeight: 26px" : "--itemHeight: 34px");
-
-const handleDragStart = (event: MouseEvent | TouchEvent) => {
-	// event.preventDefault();
-	const deviderRect = deviderRef.value.getBoundingClientRect();	// 列表元素的 rect
-	const mainAreaRect = (appStore.componentRefs['MainArea'] as Element).getBoundingClientRect();	// 列表元素的 rect
-	const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
-	// const inElementY = (event as MouseEvent).offsetY || (event as TouchEvent).touches[0].offsetY;	// 鼠标在元素内的 Y
-	const inElementY = mouseY - deviderRect.top;	// 不直接用 offsetY 的原因是，鼠标所在的元素不一定是 devider
-	// 添加鼠标事件捕获
-	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
-		const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
-		let listPercent = (mouseY - mainAreaRect.top - inElementY) / mainAreaRect.height;
-		listPercent = Math.min(Math.max(listPercent, 0), 1);
-		appStore.draggerPos = listPercent;
-	}
-	let handleMouseUp = () => {
-		window.removeEventListener('mousemove', handleMouseMove);
-		window.removeEventListener('touchmove', handleMouseMove);
-		window.removeEventListener('mouseup', handleMouseUp);
-		window.removeEventListener('touchend', handleMouseUp);
-	}
-	window.addEventListener('mousemove', handleMouseMove);
-	window.addEventListener('touchmove', handleMouseMove);
-	window.addEventListener('mouseup', handleMouseUp);
-	window.addEventListener('touchend', handleMouseUp);
-};
 
 const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 	const draggerRect = event.target.getBoundingClientRect();
@@ -141,7 +116,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 					<IconUpArrow :style="{ transform: 'rotate(-90deg)' }" />
 					<span>返回参数</span>
 				</button>
-				<div class="buttons" @mousedown="handleDragStart" @touchstart="handleDragStart">
+				<div class="buttons" @mousedown="handleDeviderDragStart" @touchstart="handleDeviderDragStart">
 					<button v-for="index in [0, 1, ...(nodeBridge.env === 'electron' ? [2] : [])]" :key="index" :aria-label="sidebarTexts[index] + '参数'" @click="paraSelected = index">
 						<component :is="sidebarIcons[index]" :style="getButtonColorStyle(index)" />
 						<span :style="getButtonColorStyle(index)">{{ sidebarTexts[index] }}</span>
