@@ -1164,6 +1164,16 @@ function getRouter(): Router {
 	 *           type: integer
 	 *         description: 任务 ID
 	 *       - in: query
+	 *         name: fileIndex
+	 *         schema:
+	 *           type: integer
+	 *         description: 输入文件索引
+	 *       - in: query
+	 *         name: videoStreamIndex
+	 *         schema:
+	 *           type: integer
+	 *         description: 视频流索引（第 n 个 type 为 video 的 stream）
+	 *       - in: query
 	 *         name: width
 	 *         schema:
 	 *           type: integer
@@ -1193,85 +1203,32 @@ function getRouter(): Router {
 	 *       400:
 	 *         description: 任务不存在或没有输入文件
 	 */
+
 	router.get('/api/v1/tasks/:id/thumbnail-stream', optionalAuth, async function (ctx) {
-		const task = ffboxService!.tasklist[+ctx.params.id];
-		if (!task) {
-			ctx.status = 400;
-			ctx.body = { error: 'Task not found' };
-			return;
-		}
-
-		const filePath = task.after.input.files[0]?.filePath;
-		if (!filePath) {
-			ctx.status = 400;
-			ctx.body = { error: 'No input file' };
-			return;
-		}
-
-		const realFilePath = task.remoteTask
-			? `${os.tmpdir()}/FFBoxUploadCache/${filePath}`
-			: filePath;
-
-		// 从前端获取渲染分辨率，后端仅做最大 768x768 限制
-		const MAX_DIM = 768;
-		let thumbW = parseInt(ctx.query.width as string) || MAX_DIM;
-		let thumbH = parseInt(ctx.query.height as string) || MAX_DIM;
-		// 确保不超过最大限制
-		if (thumbW > MAX_DIM || thumbH > MAX_DIM) {
-			const scale = Math.min(MAX_DIM / thumbW, MAX_DIM / thumbH);
-			thumbW = Math.round(thumbW * scale);
-			thumbH = Math.round(thumbH * scale);
-		}
-		// 确保为偶数（libx264 要求）
-		thumbW = thumbW % 2 === 0 ? thumbW : thumbW - 1;
-		thumbH = thumbH % 2 === 0 ? thumbH : thumbH - 1;
-
+		const width = parseInt(ctx.query.width as string) || undefined;
+		const height = parseInt(ctx.query.height as string) || undefined;
 		const density = ctx.query.density === 'H' ? 'H' : 'M';
-		const duration = task.before?.[0]?.duration || 0;
-		const interval = density === 'H'
-			? Math.max(duration * 0.001, 1)	// 最多生成 1000 个缩略图帧，最小帧间隔 1s
-			: Math.max(duration * 0.002, 2);	// 最多生成 500 个缩略图帧，最小帧间隔 2s
 
-		const ffmpegArgs = [
-			'-skip_frame', 'nokey',
-			'-i', realFilePath,
-			'-vf', `select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,${interval})',scale=${thumbW}:${thumbH}`,
-			'-vsync', 'vfr',
-			'-c:v', 'libx264',
-			'-preset', 'ultrafast',
-			// '-tune', 'zerolatency',
-			'-crf', '24',
-			'-g', '1',
-			'-an',
-			'-movflags', '+frag_keyframe+empty_moov+default_base_moof',
-			'-f', 'mp4',
-			'-',
-		];
-		log.dev(`[任务 ${ctx.params.id}] 缩略图流 ffmpeg 启动，分辨率 ${thumbW}×${thumbH}，最低帧间隔 ${interval}`, ffmpegArgs.join(' '));
+		try {
+			const { stream, contentType } = await ffboxService!.getThumbnailStream(+ctx.params.id, +ctx.query.fileIndex, +ctx.query.videoStreamIndex, width, height, density);
 
-		ctx.set('Content-Type', 'video/mp4');
-		ctx.set('Cache-Control', 'no-cache');
+			// 监听客户端断开连接事件
+			ctx.req.on('close', () => {
+				if (stream && !stream.destroyed) {
+					stream.destroy();
+				}
+			});
 
-		const passThrough = new PassThrough();
-		ctx.body = passThrough;
+			ctx.set('Content-Type', contentType);
+			// ctx.set('Cache-Control', 'no-cache');
+			ctx.body = stream;
 
-		const ffmpegProc = spawn(ffboxService!.ffmpegPath, ffmpegArgs);
-		ffmpegProc.stdout.pipe(passThrough);
-
-		ffmpegProc.on('error', (err: Error) => {
-			log.error('缩略图流 ffmpeg 错误', err);
-			passThrough.destroy();
-		});
-
-		ffmpegProc.on('close', () => {
-			passThrough.end();
-		});
-
-		ctx.req.on('close', () => {
-			ffmpegProc.kill();
-		});
+		} catch (error: any) {
+			log.error('缩略图流获取失败', error);
+			ctx.status = 500;
+			ctx.body = { error: error.message || 'Thumbnail generation failed' };
+		}
 	});
-
 	// #endregion
 
 	// #region 队列管理模块

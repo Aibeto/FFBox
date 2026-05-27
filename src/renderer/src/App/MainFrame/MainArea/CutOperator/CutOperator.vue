@@ -969,7 +969,7 @@ const initThumbnailStream = async () => {
 
 		let response: Response;
 		try {
-			response = await entity.fetchHttp(`/api/v1/tasks/${taskId}/thumbnail-stream?width=${thumbW}&height=${thumbH}&density=${thumbnailDensity.value}`, abortController.signal);
+			response = await entity.getThumbnailStream(taskId, 0, 0, thumbW, thumbH, thumbnailDensity.value, abortController.signal);
 		} catch (e) {
 			return;
 		}

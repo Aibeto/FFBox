@@ -503,7 +503,7 @@ export function replaceOutputParams(from: OutputParams, to: OutputParams, fullyR
 		toFile.begin = fromFile.begin;
 		toFile.end = fromFile.end;
 		toFile.hwaccel = fromFile.hwaccel;
-		toFile.realtime = fromFile.realtime;
+		toFile.readrate = fromFile.readrate;
 		toFile.custom = fromFile.custom;
 	}
 

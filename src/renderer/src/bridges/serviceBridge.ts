@@ -276,6 +276,10 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<Frame[]>('POST', `/api/v1/tasks/${id}/frame-info`, { fileIndex, videoStreamIndex, type });
 	}
 
+	public getThumbnailStream(id: number, fileIndex: number, videoStreamIndex: number, width: number, height: number, density: 'M' | 'H', abortSignal: AbortSignal): Promise<Response> {
+		return this.fetchHttp(`/api/v1/tasks/${id}/thumbnail-stream?fileIndex=${fileIndex}&videoStreamIndex=${videoStreamIndex}&width=${width}&height=${height}&density=${density}`, abortSignal);
+	}
+
 	// #endregion
 
 	// #region 队列管理

@@ -49,6 +49,19 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		process?: ChildProcess;
 		frames?: Frame[];
 	}> = new Map();
+	// 缩略图缓存跟踪：key = `${id}_${fileIndex}_${videoStreamIndex}_${filePath}`
+	private thumbnailCache: Map<string, {
+		status: 'generating' | 'completed' | 'stopped';
+		promise?: Promise<Buffer>;
+		process?: ChildProcess;
+		data?: Buffer;
+		contentType?: string;
+		params: {
+			width: number;
+			height: number;
+			density: 'H' | 'M';
+		};
+	}> = new Map();
 
 	constructor() {
 		super();
@@ -652,6 +665,16 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					scan.process?.kill();
 				}
 				this.frameScanStatus.delete(key);
+			}
+		}
+		// 清理缩略图缓存
+		for (const [key, cache] of this.thumbnailCache) {
+			if (key.startsWith(`${id}_`)) {
+				if (cache.status === 'generating') {
+					cache.status = 'stopped';
+					cache.process?.kill();
+				}
+				this.thumbnailCache.delete(key);
 			}
 		}
 
@@ -1404,5 +1427,176 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.frameScanStatus.set(scanKey, { status: 'scanning', type: 'full', promise: scanPromise });
 			return scanPromise;
 		}
+	}
+
+	/**
+	 * 获取缩略图视频流（缓存版本）
+	 * @param id 任务ID
+	 * @param width 请求宽度（可选，默认 768，最大 768）
+	 * @param height 请求高度（可选，默认 768，最大 768）
+	 * @param density 密度模式 'H' 或 'M'（可选，默认 'M'）
+	 * @returns 返回包含流和内容类型的对象
+	 */
+	public async getThumbnailStream(id: number, fileIndex: number, videoStreamIndex: number, width?: number, height?: number, density?: 'H' | 'M'): Promise<{ stream: import('stream').PassThrough; contentType: string }> {
+		const task = this.tasklist[id];
+		if (!task) {
+			throw new Error(`Task ${id} not found`);
+		}
+
+		const filePath = task.after.input.files[fileIndex]?.filePath;
+		if (!filePath) {
+			throw new Error('No input file');
+		}
+
+		const realFilePath = task.remoteTask
+			? `${os.tmpdir()}/FFBoxUploadCache/${filePath}`
+			: filePath;
+
+		// 参数处理（与 uiBridge.ts 保持一致）
+		const MAX_DIM = 768;
+		let thumbW = width || MAX_DIM;
+		let thumbH = height || MAX_DIM;
+		// 确保不超过最大限制
+		if (thumbW > MAX_DIM || thumbH > MAX_DIM) {
+			const scale = Math.min(MAX_DIM / thumbW, MAX_DIM / thumbH);
+			thumbW = Math.round(thumbW * scale);
+			thumbH = Math.round(thumbH * scale);
+		}
+		// 确保为偶数（libx264 要求）
+		thumbW = thumbW % 2 === 0 ? thumbW : thumbW - 1;
+		thumbH = thumbH % 2 === 0 ? thumbH : thumbH - 1;
+
+		const thumbDensity = density || 'M';
+		const duration = task.before?.[0]?.duration || 0;
+		const interval = thumbDensity === 'H'
+			? Math.max(duration * 0.001, 1)	// 最多生成 1000 个缩略图帧，最小帧间隔 1s
+			: Math.max(duration * 0.002, 2);	// 最多生成 500 个缩略图帧，最小帧间隔 2s
+
+		const cacheKey = `${id}_${fileIndex}_${videoStreamIndex}_${filePath}`;
+		let matchedCache = this.thumbnailCache.get(cacheKey);
+
+		// 检查参数是否匹配：请求参数 ≤ 缓存参数
+		if (
+			matchedCache &&
+			thumbW <= matchedCache.params.width &&
+			thumbH <= matchedCache.params.height &&
+			(thumbDensity === 'M' || matchedCache.params.density === 'H')
+		) {} else {
+			matchedCache = null;
+		}
+
+		if (matchedCache) {
+			if (matchedCache.status === 'completed' && matchedCache.data) {
+				// 返回缓存数据
+				const stream = new (require('stream').PassThrough)();
+				stream.end(matchedCache.data);
+				return {
+					stream,
+					contentType: matchedCache.contentType || 'video/mp4'
+				};
+			} else if (matchedCache.status === 'generating' && matchedCache.promise) {
+				// 正在生成中，等待完成
+				let data: Buffer<ArrayBufferLike>;
+				const stream = new (require('stream').PassThrough)();
+				try {
+					data = await matchedCache.promise;
+					stream.end(data);
+				} catch (e) {}
+				return {
+					stream,
+					contentType: matchedCache.contentType || 'video/mp4'
+				};
+			}
+			// stopped 状态或其他情况，继续重新生成
+		}
+
+		// 开始新的生成
+		const ffmpegArgs = [
+			'-skip_frame', 'nokey',
+			'-i', realFilePath,
+			'-vf', `select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,${interval})',scale=${thumbW}:${thumbH}`,
+			'-vsync', 'vfr',
+			'-c:v', 'libx264',
+			'-preset', 'ultrafast',
+			'-crf', '24',
+			'-g', '1',
+			'-an',
+			'-movflags', '+frag_keyframe+empty_moov+default_base_moof',
+			'-f', 'mp4',
+			'-',
+		];
+		log.dev(`[任务 ${id}] 缩略图流 ffmpeg 启动，分辨率 ${thumbW}×${thumbH}，最低帧间隔 ${interval}`, ffmpegArgs.join(' '));
+
+		// 创建流收集器
+		const PassThrough = require('stream').PassThrough;
+		const passThrough = new PassThrough();
+		const chunks: Buffer[] = [];
+
+		passThrough.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+		// 启动 FFmpeg 进程
+		const ffmpegProc = spawn(this.ffmpegPath, ffmpegArgs);
+
+		// 设置缓存项
+		const cacheItem = {
+			status: 'generating',
+			data: null,
+			params: {
+				width: thumbW,
+				height: thumbH,
+				density: thumbDensity,
+			},
+			contentType: 'video/mp4'
+		} as any;
+
+		// 创建 Promise
+		const generationPromise = new Promise<Buffer>((resolve, reject) => {
+			ffmpegProc.stdout.pipe(passThrough);
+
+			ffmpegProc.on('error', (err: Error) => {
+				log.error(`[任务 ${id}] 缩略图流 ffmpeg 错误`, err);
+				this.thumbnailCache.delete(cacheKey);
+				resolve(null);
+			});
+
+			ffmpegProc.on('close', (code: number) => {
+				if (code === 0) {
+					// 生成成功，缓存数据
+					const finalData = Buffer.concat(chunks);
+					cacheItem.data = finalData;
+					cacheItem.status = 'completed';
+					log.info(`[任务 ${id}] 缩略图生成完成，大小 ${finalData.length} 字节`);
+					resolve(finalData);
+				} else {
+					// 生成失败
+					log.warn(`[任务 ${id}] 缩略图生成中断，退出码 ${code}`);
+					this.thumbnailCache.delete(cacheKey);
+					resolve(null);
+				}
+			});
+
+			passThrough.on('close', () => {
+				// 客户端断开连接
+				if (ffmpegProc.exitCode === null) {
+					log.info(`[任务 ${id}] 缩略图生成中断或结束`);
+					// FFmpeg 仍在运行，杀死进程
+					ffmpegProc.kill();
+					cacheItem.status = 'stopped';
+				}
+			});
+		});
+
+		// 存储到缓存
+		this.thumbnailCache.set(cacheKey, {
+			...cacheItem,
+			promise: generationPromise,
+			process: ffmpegProc
+		});
+
+		// 返回流供客户端使用
+		return {
+			stream: passThrough,
+			contentType: 'video/mp4'
+		};
 	}
 }
