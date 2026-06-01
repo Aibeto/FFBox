@@ -1925,7 +1925,8 @@ export function getVideoFFmpegParam(videoParams: OutputParams_video) {
 				ret.push(flags);
 			}
 		}
-	} // 如果编码为自动，则不设置 vcodec 参数，返回空 Array
+	}
+	// 如果编码为自动，则不设置 vcodec 参数，返回空 Array
 	if (videoParams.custom) {
 		ret.push(...videoParams.custom.split(' '));
 	}

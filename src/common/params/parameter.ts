@@ -1,6 +1,5 @@
 import { NarrowedMenuItem } from "@common/menu";
 
-export type strict2 = { strict2?: true };
 export interface TextOptions {
 	type?: 'int' | 'float' | 'color' | 'duration' | 'image_size' | 'rational';
 	default?: string;

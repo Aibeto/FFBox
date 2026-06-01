@@ -1,6 +1,6 @@
 import { getMenuItemByValue, MenuItem, NarrowedMenuItem } from "@common/menu";
 import { OutputParams_audio } from "../types";
-import { strict2, SliderOptions, Parameter, RateControl } from './parameter';
+import { SliderOptions, Parameter, RateControl } from './parameter';
 
 const VALUE = Symbol()
 
@@ -81,8 +81,8 @@ const q100slider: SliderOptions = {
 // #region 预置音频采样率
 
 const [ sr_96000 ,  sr_88200 ,  sr_64000 ,  sr_48000 ,  sr_44100 ,  sr_32000 ,  sr_24000 ,  sr_22050 ,  sr_16000 ,  sr_12000 ,  sr_11025 ,  sr_8000 ,  sr_7350 ] =
-	  ['sr_96000', 'sr_88200', 'sr_64000', 'sr_48000', 'sr_44100', 'sr_32000', 'sr_24000', 'sr_22050', 'sr_16000', 'sr_12000', 'sr_11025', 'sr_8000', 'sr_7350'].map((n) => ({
-		type: 'normal' as const, 
+	  [    96000 ,     88200 ,     64000 ,     48000 ,     44100 ,     32000 ,     24000 ,     22050 ,     16000 ,     12000 ,     11025 ,     8000 ,     7350 ].map((n) => ({
+		type: 'normal' as const,
 		value: n, label: `${n} Hz`,
 		tooltip: '',
 	  }));
@@ -170,7 +170,6 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
@@ -200,6 +199,9 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 						{
 							mode: "combo", parameter: "ar", display: "采样频率",
 							items: [ 自动, sr_48000, sr_24000, sr_16000, sr_12000, sr_8000 ],
+						},
+						{
+							mode: "text", parameter: "channel_layout", display: "声道布局",
 						},
 					],
 					strict2: true,
@@ -272,7 +274,14 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
-					parameters: [],
+					parameters: [
+						{
+							mode: "text", parameter: "ar", display: "采样频率",
+						},
+						{
+							mode: "text", parameter: "channel_layout", display: "声道布局",
+						},
+					],
 					strict2: true,
 				},
 			},
@@ -286,7 +295,14 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
-					parameters: [],
+					parameters: [
+						{
+							mode: "text", parameter: "ar", display: "采样频率",
+						},
+						{
+							mode: "text", parameter: "channel_layout", display: "声道布局",
+						},
+					],
 					strict2: true,
 				},
 			},
@@ -315,7 +331,7 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 						{
 							mode: "combo", parameter: "channel_layout", display: "声道布局",
 							items: [ 自动, lo_mono, lo_stereo ],
-						},	
+						},
 					],
 				},
 			},
@@ -326,7 +342,6 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
@@ -337,7 +352,7 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 						{
 							mode: "combo", parameter: "channel_layout", display: "声道布局",
 							items: [ 自动, lo_mono, lo_stereo ],
-						},	
+						},
 					],
 				},
 			},
@@ -355,7 +370,6 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
@@ -377,7 +391,6 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
@@ -454,10 +467,13 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000, sr_44100, sr_32000 ],
+						},
 						{
 							mode: "combo", parameter: "channel_layout", display: "声道布局",
 							items: [
@@ -498,10 +514,13 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
+						{
+							mode: "combo", parameter: "ar", display: "采样频率",
+							items: [ 自动, sr_48000, sr_44100, sr_32000 ],
+						},
 						{
 							mode: "combo", parameter: "channel_layout", display: "声道布局",
 							items: [
@@ -548,11 +567,15 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				label: '【默认】flac',
 				tooltip: '',
 				extra: {
-					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...CBR_ABR(abitrateSlider) },
+					rateControl: [],
+					parameters: [
+						{
+							mode: "text", parameter: "ar", display: "采样频率",
+						},
+						{
+							mode: "text", parameter: "channel_layout", display: "声道布局",
+						},
 					],
-					parameters: [],
 					strict2: true,
 				},
 			},
@@ -569,17 +592,16 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				label: '【默认】alac',
 				tooltip: '',
 				extra: {
-					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...CBR_ABR(abitrateSlider) },
-					],
+					rateControl: [],
 					parameters: [
+						{
+							mode: "text", parameter: "ar", display: "采样频率",
+						},
 						{
 							mode: "combo", parameter: "channel_layout", display: "声道布局",
 							items: [ 自动, lo_mono, lo_stereo, lo_3_0, lo_4_0, lo_5_0, lo_5_1, lo_6_1_back, lo_7_1_wide ],
-						},	
+						},
 					],
-					strict2: true,
 				},
 			},
 		],
@@ -596,10 +618,16 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
-					parameters: [],
+					parameters: [
+						{
+							mode: "text", parameter: "ar", display: "采样频率",
+						},
+						{
+							mode: "text", parameter: "channel_layout", display: "声道布局",
+						},
+					],
 				},
 			},
 		],
@@ -616,10 +644,12 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
+						{
+							mode: "text", parameter: "ar", display: "采样频率",
+						},
 						{
 							mode: "combo", parameter: "channel_layout", display: "声道布局",
 							items: [ 自动, lo_mono, lo_stereo, lo_3_0, lo_4_0, lo_5_0, lo_5_1, lo_6_1_back, lo_7_1_wide ],
@@ -641,7 +671,6 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
 					parameters: [
@@ -649,11 +678,12 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 							mode: "combo", parameter: "ar", display: "采样频率",
 							items: [ 自动, sr_48000, sr_44100, sr_32000, sr_24000, sr_22050, sr_16000, sr_12000, sr_11025, sr_8000 ],
 						},
-								{
+						{
 							mode: "combo", parameter: "channel_layout", display: "声道布局",
 							items: [ 自动, lo_mono, lo_stereo, lo_quad_side, lo_5_0_side, lo_5_1_side ],
 						},
 					],
+					strict2: true,
 				},
 			},
 		],
@@ -670,10 +700,16 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
-					parameters: [],
+					parameters: [
+						{
+							mode: "text", parameter: "ar", display: "采样频率",
+						},
+						{
+							mode: "text", parameter: "channel_layout", display: "声道布局",
+						},
+					],
 				},
 			},
 		],
@@ -690,10 +726,16 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
 						{ ...CBR_ABR(abitrateSlider) },
 					],
-					parameters: [],
+					parameters: [
+						{
+							mode: "text", parameter: "ar", display: "采样频率",
+						},
+						{
+							mode: "text", parameter: "channel_layout", display: "声道布局",
+						},
+					],
 				},
 			},
 		],
@@ -754,6 +796,16 @@ export const getAudioFFmpegParam = function (audioParams: OutputParams_audio) {
 					}
 				}
 			}
+			// 回退处理：当编码器 parameters 中没有定义 ar/channel_layout 时，仍可从 detail 中输出
+			const definedParams = (acodecDetail.parameters || []).map(p => p.parameter);
+			if (!definedParams.includes('ar') && audioParams.detail?.ar !== '自动') {
+				ret.push('-ar');
+				ret.push(audioParams.detail.ar);
+			}
+			if (!definedParams.includes('channel_layout') && audioParams.detail?.channel_layout !== '自动') {
+				ret.push('-channel_layout');
+				ret.push(audioParams.detail.channel_layout);
+			}
 			const ratecontrolItem = (acodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === audioParams.ratecontrol) as any;
 			if (ratecontrolItem) {
 				const ratecontrol = ratecontrolItem.extra as RateControl;
@@ -774,13 +826,15 @@ export const getAudioFFmpegParam = function (audioParams: OutputParams_audio) {
 				ret.push('-2');
 			}
 		}
-	} // 如果编码为自动，则不设置 acodec 参数，返回空 Array
-	if (audioParams.acodec !== '禁用' && audioParams.acodec !== 'copy') {
-		if (audioParams.vol && audioParams.vol !== 0) {
-			ret.push('-vol');
-			ret.push(volSlider.valueToParam(audioParams.vol));
-		}
 	}
+	// deprecated
+	// if (audioParams.acodec !== '禁用' && audioParams.acodec !== 'copy') {
+	// 	if (audioParams.vol && audioParams.vol !== 0) {
+	// 		ret.push('-vol');
+	// 		ret.push(volSlider.valueToParam(audioParams.vol));
+	// 	}
+	// }
+	// 如果编码为自动，则不设置 acodec 参数，返回空 Array
 	if (audioParams.custom) {
 		ret.push(...audioParams.custom.split(' '));
 	}

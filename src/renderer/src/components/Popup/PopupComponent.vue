@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, Fragment, h, onMounted, ref, watch } from 'vue';
-import { useAppStore } from '@renderer/stores/appStore';
+import { computed, Fragment, h, inject, onMounted, ref, watch } from 'vue';
+import { colorThemeKey } from '../injectionKeys';
 import IconX from '@renderer/assets/×.svg?component';
 
-const appStore = useAppStore();
+const colorTheme = inject(colorThemeKey, ref('themeLight'));
 
 interface Props {
     message: string;
@@ -106,7 +106,7 @@ watch(() => props.verticalOffset, (newValue) => {
 
 <template>
 	<div
-		:data-color_theme="appStore.frontendSettings.colorTheme"
+		:data-color_theme="colorTheme"
 		class="popup"
 		@mouseenter="mouseIn = true"
 		@mouseleave="mouseIn = false"

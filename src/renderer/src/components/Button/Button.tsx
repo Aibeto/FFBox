@@ -1,5 +1,5 @@
-import { FunctionalComponent, h } from "vue";
-import { useAppStore } from '@renderer/stores/appStore';
+import { FunctionalComponent, h, inject, ref } from "vue";
+import { colorThemeKey } from '../injectionKeys';
 import css from './Button.module.less';
 
 export interface ButtonProps {
@@ -38,10 +38,10 @@ const getButtonClass = (type?: ButtonType, disabled?: boolean, size?: ButtonProp
 
 const ButtonComponent: FunctionalComponent<ButtonProps> = (props, ctx) => {
 	const { type, disabled, size, onClick, ...restProps } = props;
-	const appStore = useAppStore();
+	const colorTheme = inject(colorThemeKey, ref('themeLight'));
 	return (
 		<button
-			data-color_theme={appStore.frontendSettings.colorTheme}
+			data-color_theme={colorTheme.value}
 			class={getButtonClass(type, disabled, size)}
 			disabled={disabled}
 			onClick={(event) => { (onClick || (() => {}))(event); event.stopImmediatePropagation() } }

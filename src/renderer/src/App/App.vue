@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // 以下这句对全局有效
 /// <reference types="vite-svg-loader" />
-import { onMounted } from 'vue'
+import { computed, onMounted, provide } from 'vue'
 import { useAppStore } from '@renderer/stores/appStore';
+import { colorThemeKey, useIECKey } from '@renderer/components/injectionKeys';
 import { handleCloseConfirm } from '@renderer/logic/eventsHandler';
 import { Server } from '@renderer/types';
 import { buildNumber, version } from '@common/constants';
@@ -12,6 +13,9 @@ import nodeBridge from '@renderer/bridges/nodeBridge';
 import MainFrame from './MainFrame/MainFrame.vue';
 
 const appStore = useAppStore();
+
+provide(colorThemeKey, computed(() => appStore.frontendSettings.colorTheme));
+provide(useIECKey, computed(() => appStore.frontendSettings.useIEC));
 
 onMounted(async () => {
 	// 挂载调试变量

@@ -117,7 +117,7 @@ const AcodecView = defineComponent((props: Props) => {
 		const slider = item.extra as RateControl;
 		let title;
 		switch (item.value) {
-			case 'CBR/ABR':
+			case 'CBR':
 				title = '码率'
 				break;
 			case 'Q':
@@ -179,7 +179,7 @@ const AcodecView = defineComponent((props: Props) => {
 						/>
 					)}
 					{renderDetailParameters(acodec.value?.parameters, audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
-					<BoxedSlider
+					{/* <BoxedSlider
 						title="音量"
 						description='请注意新版 ffmpeg 不再支持 -vol 参数，请换用滤镜进行音量处理'
 						value={audioParams.value.vol}
@@ -189,7 +189,23 @@ const AcodecView = defineComponent((props: Props) => {
 						valueToDisplay={volSlider.valueToDisplay}
 						adsorption={volSlider.adsorption}
 						onChange={(value: number) => handleChange('vol', value)}
-					/>
+					/> */}
+					{!(acodec.value?.parameters || []).some(p => p.parameter === 'ar') && (
+						<BoxedNormalInput
+							title="采样频率"
+							placeholder="自动"
+							value={audioParams.value.detail?.ar}
+							onChange={(value: string) => handleDetailChange('ar', value)}
+						/>
+					)}
+					{!(acodec.value?.parameters || []).some(p => p.parameter === 'channel_layout') && (
+						<BoxedNormalInput
+							title="声道布局"
+							placeholder="自动"
+							value={audioParams.value.detail?.channel_layout}
+							onChange={(value: string) => handleDetailChange('channel_layout', value)}
+						/>
+					)}
 				</>
 			)}
 			<BoxedNormalInput title="自定义参数" value={audioParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />

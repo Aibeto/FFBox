@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, VNodeRef, watch } from 'vue';
+import { computed, inject, ref, VNodeRef, watch } from 'vue';
 import type { SliderOptions } from '@common/params/parameter';
-import { useAppStore } from '@renderer/stores/appStore';
+import { colorThemeKey, useIECKey } from '../injectionKeys';
 
-const appStore = useAppStore();
+const colorTheme = inject(colorThemeKey, ref('themeLight'));
+const useIEC = inject(useIECKey, ref(false));
 
 interface Props {
 	value?: number | string;
@@ -54,7 +55,7 @@ const valueToDisplayConverter = (setting?: Props['valueToDisplay']) => {
 	} else if (setting) {
 		if (setting.type === 'bitrate') {
 			const bps = Math.round((setting.base ?? 0) * 2 ** (props.value as number));
-			if (window.frontendSettings.useIEC) {
+			if (useIEC.value) {
 				if (bps >= 10 * 1024 ** 2) {
 					return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
 				} else {
@@ -199,7 +200,7 @@ const handleKeypress = (event: KeyboardEvent) => {
 </script>
 
 <template>
-	<div class="slider" :data-color_theme="appStore.frontendSettings.colorTheme">
+	<div class="slider" :data-color_theme="colorTheme">
 		<div class="slider-module" @mousedown="handleDragStart">
 			<div class="slider-module-track"></div>
 			<div class="slider-module-track-background" :style="{ width: Math.max(0, (limitedValue ?? 0) * 100) + '%' }"></div>
