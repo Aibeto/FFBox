@@ -18,14 +18,13 @@ export const defaultParams: OutputParams = {
 				resolution: '不改变',
 				framerate: '不改变',
 				ratecontrol: 'CRF',
-				ratevalue: 27,
-				detail: {},
+				detail: {
+					crf: 24,
+				},
 			},
 			audio: {
 				acodec: 'copy',
-				ratecontrol: 'CBR/ABR',
-				ratevalue: 4,
-				vol: 0,
+				ratecontrol: 'CBR',
 				detail: {},
 			},
 			mux: {

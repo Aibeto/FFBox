@@ -2,7 +2,65 @@ import { getMenuItemByValue, MenuItem, NarrowedMenuItem } from "@common/menu";
 import { OutputParams_audio } from "../types";
 import { SliderOptions, Parameter, RateControl } from './parameter';
 
-const VALUE = Symbol()
+// 通用 RateControl 构造函数
+// function makeRC(defaultCmd: (string | Symbol)[], sliderOpts: any): RateControl {
+// 	const cmdDef = sliderOpts.cmd || defaultCmd;
+// 	const paramName = (() => {
+// 		for (let i = 0; i < cmdDef.length; i++) {
+// 			if (cmdDef[i] === VALUE && i > 0) {
+// 				return (cmdDef[i - 1] as string).replace(/^-/, '');
+// 			}
+// 		}
+// 		return '';
+// 	})();
+// 	const paramToFFmpegArg: (v: number | string) => string | number = sliderOpts.paramToFFmpegArg ?? ((v) => v as number);
+
+// 	return {
+// 		detailToSlider: (detail) => {
+// 			const v = detail[paramName];
+// 			return v !== undefined ? sliderOpts.paramToSlider(Number(v)) : sliderOpts.paramToSlider(sliderOpts.default ?? 0);
+// 		},
+// 		sliderToDetail: (sliderValue) => {
+// 			return [paramName, sliderOpts.valueToParam(sliderValue)];
+// 		},
+// 		getFFmpegArgs: (detail) => {
+// 			const v = detail[paramName];
+// 			if (v === undefined || v === '') return [];
+// 			const args: (string | number)[] = [];
+// 			for (const item of cmdDef) {
+// 				if (item === VALUE) args.push(paramToFFmpegArg(Number(v)));
+// 				else args.push(item as string);
+// 			}
+// 			return args;
+// 		},
+// 		getParamNames: () => [paramName],
+// 		getDefaultDetail: () => ({ [paramName]: sliderOpts.valueToParam ? sliderOpts.valueToParam(sliderOpts.paramToSlider(sliderOpts.default ?? 0)) : (sliderOpts.default ?? 0) }),
+// 		min: sliderOpts.min,
+// 		max: sliderOpts.max,
+// 		tags: sliderOpts.tags,
+// 		arrowKeyStep: sliderOpts.arrowKeyStep,
+// 		adsorption: sliderOpts.adsorption,
+// 		valueToDisplay: sliderOpts.valueToDisplay,
+// 	};
+// }
+
+const AUTO_RATECONTROLs = [
+	{
+		type: 'normal',
+		value: '自动',
+		label: '自动',
+		tooltip: '不指定码率控制，由编码器自行决定',
+		extra: {
+			detailToSliderValue: () => undefined,
+			sliderParamToDetail: () => ['', 0],
+			paramNames: [],
+			defaultDetail: {},
+			min: 0, max: 1,
+			valueToDisplay: { type: 'integer' },
+		},
+	},
+	{ type: 'separator' },
+] satisfies MenuItem<RateControl>[];
 
 export interface ACodecDetail {
 	rateControl: MenuItem<RateControl>[];
@@ -19,62 +77,74 @@ const 自动: NarrowedMenuItem = {
 
 // #region 预置码率控制模式 combo
 
-const Q = (extra: any) => ({
-	type: 'normal' as const,
+const Q = {
+	type: 'normal',
 	value: 'Q',
 	label: 'Q',
 	tooltip: '指定音频质量',
 	extra: {
-		cmd: ['-q:a', VALUE],
-		...extra,
+		min: 0,
+		max: 100,
+		tags: new Map([
+			[0, '0'],
+			[100, '100'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const qa = detail['q:a'];
+			return Number.isFinite(+qa) ? +qa : undefined;
+		},
+		valueToDisplay: { type: 'integer' },
+		valueToParam: (value) => value,
+		sliderParamToDetail: (sliderValue) => ({
+			'q:a': sliderValue,
+		}),
+		paramNames: ['q:a'],
+		defaultDetail: {
+			'q:a': 50,
+		},
 	},
-});
-const CBR_ABR = (extra: any) => ({
-	type: 'normal' as const,
+} satisfies MenuItem<RateControl>;
+
+const CBR_ABR = {
+	type: 'normal',
 	value: 'CBR',
 	label: 'CBR',
 	tooltip: '指定预期码率大小',
 	extra: {
-		cmd: ['-b:a', VALUE],
-		...extra,
+		min: 0,
+		max: 6,
+		arrowKeyStep: 18,
+		tags: new Map([
+			[0, '8 Kbps'],
+			[1, '16 Kbps'],
+			[2, '32 Kbps'],
+			[3, '64 Kbps'],
+			[4, '128 Kbps'],
+			[5, '256 Kbps'],
+			[6, '512 Kbps']
+		]),
+		detailToSliderValue: (detail) => {
+			const bitrate = detail['b:a'];
+			return Number.isFinite(+bitrate) ? Math.log(+bitrate / 8000) / Math.log(2) : undefined;
+		},
+		valueToDisplay: { base: 8000, type: 'bitrate' },
+		valueToParam: (value) => {
+			return Math.round(8000 * Math.pow(2, +value));
+		},
+		sliderParamToDetail: (sliderValue) => ({
+			'b:a': Math.round(8000 * Math.pow(2, +sliderValue)),
+		}),
+		paramNames: ['b:a'],
+		defaultDetail: {
+			'b:a': 128000,
+		},
 	},
-});
+} satisfies MenuItem<RateControl>;
 
 // #endregion
 
 // #region 预置 slider
-
-const abitrateSlider: SliderOptions = {
-	max: 6,
-	arrowKeyStep: 18,
-	tags: new Map([
-		[0, '8 Kbps'],
-		[1, '16 Kbps'],
-		[2, '32 Kbps'],
-		[3, '64 Kbps'],
-		[4, '128 Kbps'],
-		[5, '256 Kbps'],
-		[6, '512 Kbps']
-	]),
-	default: 4,
-	valueToDisplay: { base: 8000, type: 'bitrate' },
-	valueToParam: (value: number) => {
-		return Math.round(8 * Math.pow(2, value)) + "k"
-	}
-}
-const q100slider: SliderOptions = {
-	max: 100,
-	tags: new Map([
-		[0, '0'],
-		[100, '100'],
-	]),
-	default: 50,
-	valueToDisplay: { type: 'integer' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return (value).toFixed(0);
-	},
-}
 
 // #endregion
 
@@ -129,33 +199,6 @@ const [lo_mono, lo_stereo, lo_2_1, lo_3_0, lo_3_0_back, lo_4_0, lo_quad, lo_quad
 
 // #endregion
 
-export const volSlider: SliderOptions = {
-	min: -48,
-	max: 48,
-	tags: new Map([
-		[-48, '-48 dB'],
-		[-36, '-36 dB'],
-		[-24, '-24 dB'],
-		[-12, '-12 dB'],
-		[0, '0 dB'],
-		[12, '+12 dB'],
-		[24, '+24 dB'],
-		[36, '+36 dB'],
-		[48, '+48 dB'],
-	]),
-	default: 0,
-	valueToDisplay: (value: number) => {
-		if (value > 0) {
-			return '+ ' + value + ' dB';
-		} else {
-			return value + ' dB';
-		}
-	},
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return Math.round(256 * Math.pow(10, (value) / 20));
-	}
-}
 
 export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 	{
@@ -170,7 +213,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -192,8 +236,9 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q },
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -221,8 +266,9 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q },
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -271,8 +317,9 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q },
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -292,8 +339,9 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q },
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -320,8 +368,9 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q },
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -342,7 +391,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -370,7 +420,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -391,7 +442,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -412,8 +464,9 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q },
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -467,7 +520,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -514,7 +568,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -618,7 +673,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -644,7 +700,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -671,7 +728,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -700,7 +758,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -726,7 +785,8 @@ export const builtInAcodecs: MenuItem<ACodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CBR_ABR(abitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CBR_ABR },
 					],
 					parameters: [
 						{
@@ -790,7 +850,7 @@ export const getAudioFFmpegParam = function (audioParams: OutputParams_audio) {
 						ret.push(audioParams.detail[parameter.parameter]);
 					}
 				} else if (parameter.mode === 'text') {
-					if (audioParams.detail[parameter.parameter] && audioParams.detail[parameter.parameter] != '默认' && audioParams.detail[parameter.parameter] != '自动') {
+					if ([undefined, '', '默认', '自动'].indexOf(audioParams.detail[parameter.parameter]) === -1) {
 						ret.push('-' + parameter.parameter);
 						ret.push(audioParams.detail[parameter.parameter]);
 					}
@@ -806,18 +866,15 @@ export const getAudioFFmpegParam = function (audioParams: OutputParams_audio) {
 				ret.push('-channel_layout');
 				ret.push(audioParams.detail.channel_layout);
 			}
+			// 完成编码器详细设定转 ffmpeg 参数后，检查 ratecontrol。如果此前没有指定参数，那么在此处指定
 			const ratecontrolItem = (acodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === audioParams.ratecontrol) as any;
 			if (ratecontrolItem) {
-				const ratecontrol = ratecontrolItem.extra as RateControl;
-				// 计算值
-				const floatValue = audioParams.ratevalue;
-				const value = ratecontrol.valueToParam(floatValue);
-				// 将值插入参数列表中
-				for (const item of ratecontrol.cmd) {
-					if (item === VALUE) {
-						ret.push(value);
-					} else {
-						ret.push(item);
+				const rc = ratecontrolItem.extra as RateControl;
+				const defined = ret.some((param) => rc.paramNames.some((paramName) => '-' + paramName === param));
+				if (!defined) {
+					for (const paramName of rc.paramNames) {
+						ret.push('-' + paramName);
+						ret.push(audioParams.detail[paramName]);
 					}
 				}
 			}
@@ -855,42 +912,32 @@ export const getAudioRateControlParam = function (audioParams: OutputParams_audi
 		if (!acodecDetail || !acodecDetail.rateControl?.length) {
 			return ret;
 		}
-		// 找到 ratecontrol 参数
 		const ratecontrolItem = acodecDetail.rateControl.find((item) => {
 			return item.type === 'normal' && item.value == audioParams.ratecontrol;
 		}) as any;
 		if (ratecontrolItem) {
-			const ratecontrol = ratecontrolItem.extra as RateControl;
-			// 计算值
-			const floatValue = audioParams.ratevalue;
-			const value = (() => {
-				const vtt = ratecontrol.valueToDisplay;
-				if (vtt instanceof Function) {
-					return vtt(floatValue);
-				} else {
-					if (vtt.type === 'bitrate') {
-						const bps = Math.round(vtt.base * 2 ** (floatValue as number));
-						if (window.frontendSettings.useIEC) {
-							if (bps >= 10 * 1024 ** 2) {
-								return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
-							} else {
-								return (bps / 1024).toFixed(0) + ' kibps';
-							}
-						} else {
-							if (bps >= 10 * 1000 ** 2) {
-								return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
-							} else {
-								return (bps / 1000).toFixed(0) + ' kbps';
-							}
-						}
-					} else if (vtt.type === 'integer') {
-						return floatValue + '';
-					} else if (vtt.type === 'revertInteger') {
-						return ratecontrol.max - +floatValue + '';
+			const rc = ratecontrolItem.extra as RateControl;
+			const sliderValue = rc.detailToSliderValue(audioParams.detail);
+			const displayValue = (() => {
+				if (sliderValue === undefined) return '';
+
+				const vtt = rc.valueToDisplay;
+				if (vtt instanceof Function) return vtt(sliderValue);
+				if (vtt?.type === 'bitrate') {
+					const bps = Math.round((vtt.base ?? 0) * 2 ** sliderValue);
+					if (window.frontendSettings?.useIEC) {
+						if (bps >= 10 * 1024 ** 2) return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
+						else return (bps / 1024).toFixed(0) + ' kibps';
+					} else {
+						if (bps >= 10 * 1000 ** 2) return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
+						else return (bps / 1000).toFixed(0) + ' kbps';
 					}
 				}
+				if (vtt?.type === 'revertInteger') return ((rc.max ?? 0) - sliderValue).toFixed(0);
+				if (vtt?.type === 'integer') return sliderValue.toFixed(0);
+				return sliderValue + '';
 			})();
-			ret = { mode: ratecontrolItem.value, value };
+			ret = { mode: ratecontrolItem.value, value: displayValue };
 		}
 		return ret;
 	}

@@ -12,6 +12,7 @@ import { getMenuItemByValue } from '@common/menu';
 import { allVcodecs, builtInVcodecs } from '@common/params/vcodecs';
 import { allAcodecs, builtInAcodecs } from '@common/params/acodecs';
 import { allMuxers, builtInMuxers } from '@common/params/formats';
+import { RateControl } from '@common/params/parameter';
 import path from '@common/path';
 import i11n from '@common/i11n/i11n';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
@@ -492,7 +493,16 @@ export const useAppStore = defineStore('app', {
 			const 这 = useAppStore();
 			if (who.video) {
 				const v = 这.globalParams.outputs[outputIndex].video;
-				const vcodec = getMenuItemByValue(builtInVcodecs, v.vcodec) ?? getMenuItemByValue(allVcodecs, v.vcodec)
+				const vcodec = getMenuItemByValue(builtInVcodecs, v.vcodec) ?? getMenuItemByValue(allVcodecs, v.vcodec);
+				// 清理所有码率控制参数
+				const rcList = ((vcodec as any)?.extra?.rateControl || []) as any[];
+				for (const item of rcList) {
+					if (item.type !== 'normal' || item.value === '自动' || !item.extra) continue;
+					for (const name of (item.extra as RateControl).paramNames) {
+						delete v.detail[name];
+					}
+				}
+				// 设置 detail 默认值
 				for (const parameter of ((vcodec as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
 						continue;	// 默认不启用可选参数。在勾选后才读取默认值
@@ -507,10 +517,25 @@ export const useAppStore = defineStore('app', {
 						v.detail[parameter.parameter] = defaultValue;
 					}
 				}
+				// 设置码率控制默认值
+				const firstRC = rcList.find((item: any) => item.type === 'normal' && item.value !== '自动');
+				v.ratecontrol = firstRC?.value ?? undefined;
+				if (firstRC?.extra) {
+					Object.assign(v.detail, (firstRC.extra as RateControl).defaultDetail);
+				}
 			}
 			if (who.audio) {
 				const a = 这.globalParams.outputs[outputIndex].audio;
-				const acodec = getMenuItemByValue(builtInAcodecs, a.acodec) ?? getMenuItemByValue(allAcodecs, a.acodec)
+				const acodec = getMenuItemByValue(builtInAcodecs, a.acodec) ?? getMenuItemByValue(allAcodecs, a.acodec);
+				// 清理所有码率控制参数
+				const rcList = ((acodec as any)?.extra?.rateControl || []) as any[];
+				for (const item of rcList) {
+					if (item.type !== 'normal' || item.value === '自动' || !item.extra) continue;
+					for (const name of (item.extra as RateControl).paramNames) {
+						delete a.detail[name];
+					}
+				}
+				// 设置 detail 默认值
 				for (const parameter of ((acodec as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
 						continue;	// 默认不启用可选参数。在勾选后才读取默认值
@@ -524,6 +549,12 @@ export const useAppStore = defineStore('app', {
 						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
 						a.detail[parameter.parameter] = defaultValue;
 					}
+				}
+				// 设置码率控制默认值
+				const firstRC = rcList.find((item: any) => item.type === 'normal' && item.value !== '自动');
+				a.ratecontrol = firstRC?.value ?? undefined;
+				if (firstRC?.extra) {
+					Object.assign(a.detail, (firstRC.extra as RateControl).defaultDetail);
 				}
 			}
 			if (who.mux) {

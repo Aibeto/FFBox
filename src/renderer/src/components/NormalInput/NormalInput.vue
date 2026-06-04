@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 interface Props {
-	value?: string;
+	value?: string | number;
 	type?: 'text' | 'password';
 	disabled?: boolean;
 	placeholder?: string;
@@ -16,7 +16,7 @@ const props = defineProps<Props>();
 
 const focused = ref(false);
 const inputText = ref('-');
-const invalidMsg = ref<string>(undefined);
+const invalidMsg = ref<string | undefined>(undefined);
 
 const selectorStyle = computed(() => {
 	const ret: any = {};
@@ -53,9 +53,9 @@ const handleFocus = (event: FocusEvent) => {
 	event.target!.selectionEnd = event.target!.selectionStart;
 	focused.value = true;
 };
-const handleInput = (event: KeyboardEvent) => {
+const handleInput = (event: Event) => {
 	if (props.inputFixer) {
-		inputText.value = props.inputFixer(event.target.value);
+		inputText.value = props.inputFixer(event.target!.value);
 	}
 	(props.onChange || (() => {}))(inputText.value ?? '');	// 使用输入法时会出现 inputText 为空的现象
 };
@@ -67,18 +67,18 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 // 监听 props 中的 text，并在其更新时依此更新 data 中的 inputText（与输入框双向绑定）
 watch(() => props.value, (newValue, oldValue) => {
-	inputText.value = newValue;
+	inputText.value = (newValue ?? '') + '';
 });
 watch(inputText, (newValue, oldValue) => {
 	if (props.validator) {
-		invalidMsg.value = props.validator(newValue ?? '');
+		invalidMsg.value = props.validator((newValue ?? '') + '');
 	} else {
 		invalidMsg.value = undefined;
 	}
 }, { immediate: true });
 
 onMounted(() => {
-	inputText.value = props.value;
+	inputText.value = (props.value ?? '') + '';
 });
 
 </script>

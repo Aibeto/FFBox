@@ -1,5 +1,5 @@
 import { computed, defineComponent, ref } from 'vue';
-import { builtInAcodecs, volSlider, ACodecDetail, allAcodecs } from '@common/params/acodecs';
+import { builtInAcodecs, ACodecDetail, allAcodecs } from '@common/params/acodecs';
 import { RateControl } from '@common/params/parameter';
 import { allMuxers, builtInMuxers } from '@common/params/formats';
 import { getMenuItemByValue } from '@common/menu';
@@ -114,8 +114,11 @@ const AcodecView = defineComponent((props: Props) => {
 			appStore.applyParameters();
 		}
 		const item = rList[index] as any;
-		const slider = item.extra as RateControl;
-		let title;
+		// 自动模式不显示滑块
+		if (item.value === '自动') return null;
+
+		const rc = item.extra as RateControl;
+		let title = '[质量滑块]';
 		switch (item.value) {
 			case 'CBR':
 				title = '码率'
@@ -126,15 +129,44 @@ const AcodecView = defineComponent((props: Props) => {
 		}
 		return {
 			title,
-			min: slider.min,
-			max: slider.max,
-			arrowKeyStep: slider.arrowKeyStep,
-			tags: slider.tags,
-			adsorption: slider.adsorption,
-			valueToDisplay: slider.valueToDisplay,
-			valueToParam: slider.valueToParam,
+			...rc,
 		};
 	});
+
+	// 码率控制模式切换时清理旧参数
+	const handleRateControlChange = (newMode: string) => {
+		function cleanupRateControlParams(detail: Record<string, any>, rateControlList: any[], oldMode?: string) {
+			// === 方式 1：遍历所有码率控制模式，删除所有相关参数 ===
+			// for (const item of rateControlList) {
+			// 	if (item.type !== 'normal' || item.value === '自动') continue;
+			// 	for (const name of (item.extra as RateControl).getParamNames()) {
+			// 		delete detail[name];
+			// 	}
+			// }
+
+			// === 方式 2：只删除旧模式的参数 ===
+			const oldRC = rateControlList.find((item: any) => item.type === 'normal' && item.value === oldMode);
+			if (oldRC?.extra) {
+				for (const name of (oldRC.extra as RateControl).paramNames) {
+					delete detail[name];
+				}
+			}
+		}
+
+		function setRateControlDefaults(detail: Record<string, any>, rateControlList: any[], newMode: string) {
+			const newRC = rateControlList.find((item: any) => item.type === 'normal' && item.value === newMode);
+			if (!newRC?.extra) return;
+			Object.assign(detail, (newRC.extra as RateControl).defaultDetail);
+		}
+
+		const oldMode = audioParams.value.ratecontrol;
+		if (oldMode !== newMode) {
+			cleanupRateControlParams(audioParams.value.detail, acodec.value!.rateControl, oldMode);
+			setRateControlDefaults(audioParams.value.detail, acodec.value!.rateControl, newMode);
+		}
+		audioParams.value.ratecontrol = newMode;
+		appStore.applyParameters();
+	};
 
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
@@ -163,22 +195,26 @@ const AcodecView = defineComponent((props: Props) => {
 			{['禁用', 'copy'].indexOf(audioParams.value.acodec) === -1 && (
 				<>
 					{(acodec.value?.rateControl || []).length ? (
-						<BoxedDropdownInput title="码率控制" text={audioParams.value.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
+						<BoxedDropdownInput title="码率控制" text={audioParams.value.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleRateControlChange(value)} />
 					) : null}
 					{rateControlSlider.value && (
 						<BoxedSlider
 							title={rateControlSlider.value.title}
-							value={audioParams.value.ratevalue}
+							value={rateControlSlider.value.detailToSliderValue(audioParams.value.detail)}
 							min={rateControlSlider.value.min}
 							max={rateControlSlider.value.max}
 							arrowKeyStep={rateControlSlider.value.arrowKeyStep}
 							tags={rateControlSlider.value.tags}
 							valueToDisplay={rateControlSlider.value.valueToDisplay}
 							adsorption={rateControlSlider.value.adsorption}
-							onChange={(value: number) => handleChange('ratevalue', value)}
+							onChange={(sliderValue) => {
+								const records = rateControlSlider.value!.sliderParamToDetail(+sliderValue);
+								Object.assign(audioParams.value.detail, records);
+								appStore.applyParameters();
+							}}
 						/>
 					)}
-					{renderDetailParameters(acodec.value?.parameters, audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
+					{renderDetailParameters(acodec.value!.parameters, audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
 					{/* <BoxedSlider
 						title="音量"
 						description='请注意新版 ffmpeg 不再支持 -vol 参数，请换用滤镜进行音量处理'
@@ -206,6 +242,27 @@ const AcodecView = defineComponent((props: Props) => {
 							onChange={(value: string) => handleDetailChange('channel_layout', value)}
 						/>
 					)}
+					{/* {(() => {
+						const definedParams = (acodec.value?.parameters || []).map(p => p.parameter);
+						const orphanedKeys = Object.keys(audioParams.value.detail || {}).filter(
+							key => !definedParams.includes(key) && key !== 'ar' && key !== 'channel_layout'
+						);
+						return orphanedKeys.map(key => (
+							<BoxedNormalInput
+								key={key}
+								title={key}
+								value={String(audioParams.value.detail[key] ?? '')}
+								onChange={(value: string) => {
+									if (value === '') {
+										delete audioParams.value.detail[key];
+									} else {
+										audioParams.value.detail[key] = value;
+									}
+									appStore.applyParameters();
+								}}
+							/>
+						));
+					})()} */}
 				</>
 			)}
 			<BoxedNormalInput title="自定义参数" value={audioParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
@@ -214,7 +271,7 @@ const AcodecView = defineComponent((props: Props) => {
 					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>
-					{renderDetailParameters(acodec.value?.parameters, audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
+					{renderDetailParameters(acodec.value!.parameters, audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
 					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>

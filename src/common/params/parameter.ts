@@ -31,4 +31,9 @@ export type Parameter = BasicParameter & (
 	({ mode: 'combo' } & ComboOptions) |
 	({ mode: 'slider' } & SliderOptions)
 );
-export type RateControl = { cmd: (string | Symbol)[] } & SliderOptions;
+export type RateControl = {
+	detailToSliderValue: (detail: Record<string, any>) => number | undefined;	// detail KV ➡️ 滑块值 → display
+	sliderParamToDetail: (sliderValue: number) => Record<string, any>;	// 滑块值 → valueToParam ➡️ detailKV
+	paramNames: string[];	// 获取参数名列表（用于清理 detail 中的旧参数）
+	defaultDetail: Record<string, number | string>;
+} & Pick<SliderOptions, 'min' | 'max' | 'tags' | 'arrowKeyStep' | 'adsorption' | 'valueToDisplay' | 'valueToParam'>;

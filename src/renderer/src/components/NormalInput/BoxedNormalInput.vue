@@ -6,14 +6,14 @@ interface Props {
 	title: string;
 	description?: string;
 	long?: boolean;
-	value?: string;
+	value?: string | number;
 	optionalDefault?: any;
 	type?: 'text' | 'password';
 	disabled?: boolean;
 	placeholder?: string;
 	validator?: (value: string) => string;
 	inputFixer?: (value: string) => string;
-	onChange?: (value: string) => any;
+	onChange?: (value: string | undefined) => any;
 	onEnter?: () => any;
 }
 

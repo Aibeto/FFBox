@@ -115,8 +115,11 @@ const VcodecView = defineComponent((props: Props) => {
 			appStore.applyParameters();
 		}
 		const item = rList[index] as any;
-		const slider = item.extra as RateControl;
-		let title;
+		// 自动模式不显示滑块
+		if (item.value === '自动') return null;
+
+		const rc = item.extra as RateControl;
+		let title = '[质量滑块]';
 		switch (item.value) {
 			case 'CRF':
 				title = 'CRF'
@@ -133,15 +136,44 @@ const VcodecView = defineComponent((props: Props) => {
 		}
 		return {
 			title,
-			min: slider.min,
-			max: slider.max,
-			arrowKeyStep: slider.arrowKeyStep,
-			tags: slider.tags,
-			adsorption: slider.adsorption,
-			valueToDisplay: slider.valueToDisplay,
-			valueToParam: slider.valueToParam,
+			...rc,
 		};
 	});
+
+	// 码率控制模式切换时清理旧参数
+	const handleRateControlChange = (newMode: string) => {
+		function cleanupRateControlParams(detail: Record<string, any>, rateControlList: any[], oldMode?: string) {
+			// === 方式 1：遍历所有码率控制模式，删除所有相关参数 ===
+			// for (const item of rateControlList) {
+			// 	if (item.type !== 'normal' || item.value === '自动') continue;
+			// 	for (const name of (item.extra as RateControl).getParamNames()) {
+			// 		delete detail[name];
+			// 	}
+			// }
+		
+			// === 方式 2：只删除旧模式的参数 ===
+			const oldRC = rateControlList.find((item: any) => item.type === 'normal' && item.value === oldMode);
+			if (oldRC?.extra) {
+				for (const name of (oldRC.extra as RateControl).paramNames) {
+					delete detail[name];
+				}
+			}
+		}
+		
+		function setRateControlDefaults(detail: Record<string, any>, rateControlList: any[], newMode: string) {
+			const newRC = rateControlList.find((item: any) => item.type === 'normal' && item.value === newMode);
+			if (!newRC?.extra) return;
+			Object.assign(detail, (newRC.extra as RateControl).defaultDetail);
+		}
+
+		const oldMode = videoParams.value.ratecontrol;
+		if (oldMode !== newMode) {
+			cleanupRateControlParams(videoParams.value.detail, vcodec.value!.rateControl, oldMode);
+			setRateControlDefaults(videoParams.value.detail, vcodec.value!.rateControl, newMode);
+		}
+		videoParams.value.ratecontrol = newMode;
+		appStore.applyParameters();
+	};
 
 	const handleChange = (sName: string, value: any) => {
 		// @ts-ignore
@@ -173,22 +205,47 @@ const VcodecView = defineComponent((props: Props) => {
 					<BoxedDropdownInput title="分辨率" text={videoParams.value.resolution} list={resolution} onChange={(value: string) => handleChange('resolution', value)} />
 					<BoxedDropdownInput title="输出帧速" text={videoParams.value.framerate} list={framerate} validator={framerateValidator} onChange={(value: string) => handleChange('framerate', value)} />
 					{(vcodec.value?.rateControl || []).length ? (
-						<BoxedDropdownInput title="码率控制" text={videoParams.value.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleChange('ratecontrol', value)} />
+						<BoxedDropdownInput title="码率控制" text={videoParams.value.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleRateControlChange(value)} />
 					) : null}
 					{rateControlSlider.value && (
 						<BoxedSlider
 							title={rateControlSlider.value.title}
-							value={videoParams.value.ratevalue}
+							value={rateControlSlider.value.detailToSliderValue(videoParams.value.detail)}
 							min={rateControlSlider.value.min}
 							max={rateControlSlider.value.max}
 							arrowKeyStep={rateControlSlider.value.arrowKeyStep}
 							tags={rateControlSlider.value.tags}
 							valueToDisplay={rateControlSlider.value.valueToDisplay}
 							adsorption={rateControlSlider.value.adsorption}
-							onChange={(value: number) => handleChange('ratevalue', value)}
+							onChange={(sliderValue) => {
+								const records = rateControlSlider.value!.sliderParamToDetail(+sliderValue);
+								Object.assign(videoParams.value.detail, records);
+								appStore.applyParameters();
+							}}
 						/>
 					)}
-					{renderDetailParameters(vcodec.value?.parameters, videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
+					{renderDetailParameters(vcodec.value!.parameters, videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
+					{/* {(() => {
+						const definedParams = (vcodec.value?.parameters || []).map(p => p.parameter);
+						const orphanedKeys = Object.keys(videoParams.value.detail || {}).filter(
+							key => !definedParams.includes(key)
+						);
+						return orphanedKeys.map(key => (
+							<BoxedNormalInput
+								key={key}
+								title={key}
+								value={String(videoParams.value.detail[key] ?? '')}
+								onChange={(value: string) => {
+									if (value === '') {
+										delete videoParams.value.detail[key];
+									} else {
+										videoParams.value.detail[key] = value;
+									}
+									appStore.applyParameters();
+								}}
+							/>
+						));
+					})()} */}
 				</>
 			)}
 			<BoxedNormalInput title="自定义参数" value={videoParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />

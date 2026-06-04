@@ -2,7 +2,65 @@ import { OutputParams_video } from "../types";
 import { SliderOptions, Parameter, RateControl } from './parameter';
 import { getMenuItemByValue, MenuItem, NarrowedMenuItem } from '@common/menu';
 
-const VALUE = Symbol()
+// 通用 RateControl 构造函数
+// function makeRC(defaultCmd: (string | Symbol)[], sliderOpts: any): RateControl {
+// 	const cmdDef = sliderOpts.cmd || defaultCmd;
+// 	const paramName = (() => {
+// 		for (let i = 0; i < cmdDef.length; i++) {
+// 			if (cmdDef[i] === VALUE && i > 0) {
+// 				return (cmdDef[i - 1] as string).replace(/^-/, '');
+// 			}
+// 		}
+// 		return '';
+// 	})();
+// 	const paramToFFmpegArg: (v: number | string) => string | number = sliderOpts.paramToFFmpegArg ?? ((v) => v as number);
+
+// 	return {
+// 		detailToSlider: (detail) => {
+// 			const v = detail[paramName];
+// 			return v !== undefined ? sliderOpts.paramToSlider(Number(v)) : sliderOpts.paramToSlider(sliderOpts.default ?? 0);
+// 		},
+// 		sliderToDetail: (sliderValue) => {
+// 			return [paramName, sliderOpts.valueToParam(sliderValue)];
+// 		},
+// 		getFFmpegArgs: (detail) => {
+// 			const v = detail[paramName];
+// 			if (v === undefined || v === '') return [];
+// 			const args: (string | number)[] = [];
+// 			for (const item of cmdDef) {
+// 				if (item === VALUE) args.push(paramToFFmpegArg(Number(v)));
+// 				else args.push(item as string);
+// 			}
+// 			return args;
+// 		},
+// 		getParamNames: () => [paramName],
+// 		getDefaultDetail: () => ({ [paramName]: sliderOpts.valueToParam ? sliderOpts.valueToParam(sliderOpts.paramToSlider(sliderOpts.default ?? 0)) : (sliderOpts.default ?? 0) }),
+// 		min: sliderOpts.min,
+// 		max: sliderOpts.max,
+// 		tags: sliderOpts.tags,
+// 		arrowKeyStep: sliderOpts.arrowKeyStep,
+// 		adsorption: sliderOpts.adsorption,
+// 		valueToDisplay: sliderOpts.valueToDisplay,
+// 	};
+// }
+
+const AUTO_RATECONTROLs = [
+	{
+		type: 'normal',
+		value: '自动',
+		label: '自动',
+		tooltip: '不指定码率控制，由编码器自行决定',
+		extra: {
+			detailToSliderValue: () => undefined,
+			sliderParamToDetail: () => ['', 0],
+			paramNames: [],
+			defaultDetail: {},
+			min: 0, max: 1,
+			valueToDisplay: { type: 'integer' },
+		},
+	},
+	{ type: 'separator' },
+] satisfies MenuItem<RateControl>[];
 
 export interface VCodecDetail {
 	rateControl: MenuItem<RateControl>[];
@@ -19,76 +77,490 @@ const 自动: NarrowedMenuItem = {
 
 // #region 预置码率控制模式 combo
 
-const CRF = (extra: any) => ({
-	type: 'normal' as const,
+const CRF51 = {
+	type: 'normal',
 	value: 'CRF',
 	label: '恒定质量 CRF',
 	tooltip: 'Constant Rate Factor - 恒定速率因子\n指定视觉画质，而码率因画面内容而异，性价比最高。\n如果您对输出文件大小没有明确的目标，使用此项可获得视觉上最稳定的画质。相较于 CQP，CRF 会考虑帧间的动态关系，在人眼更容易捕捉的静态画面分配更低的 QP，从而节省码率并且获得更好的视觉效果。',
 	extra: {
-		cmd: ['-crf', VALUE],
-		...extra,
+		min: 0,
+		max: 51,
+		tags: new Map([
+			[0, '51（最低画质）'],
+			[15, '36（很低画质）'],
+			[21, '30（低画质）'],
+			[27, '24（中画质）'],
+			[33, '18（高画质）'],
+			[39, '12（肉眼无损）'],
+			[51, '0（最高画质）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const crf = detail['crf'];
+			return Number.isFinite(+crf) ? 51 - crf : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 51 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'crf': 51 - sliderValue,
+		}),
+		paramNames: ['crf'],
+		defaultDetail: {
+			'crf': 24,
+		},
 	},
-});
-const CQP = (extra: any) => ({
-	type: 'normal' as const,
+} satisfies MenuItem<RateControl>;
+const CRF63unknown = {
+	type: 'normal',
+	value: 'CRF',
+	label: '恒定质量 CRF',
+	tooltip: 'Constant Rate Factor - 恒定速率因子\n指定视觉画质，而码率因画面内容而异，性价比最高。\n如果您对输出文件大小没有明确的目标，使用此项可获得视觉上最稳定的画质。相较于 CQP，CRF 会考虑帧间的动态关系，在人眼更容易捕捉的静态画面分配更低的 QP，从而节省码率并且获得更好的视觉效果。',
+	extra: {
+		min: 0,
+		max: 63,
+		tags: new Map([
+			[0, '63（最低画质）'],
+			[63, '0（最高画质）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const crf = detail['crf'];
+			return Number.isFinite(+crf) ? 63 - crf : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 63 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'crf': 63 - sliderValue,
+		}),
+		paramNames: ['crf'],
+		defaultDetail: {
+			'crf': 30,
+		},
+	},
+} satisfies MenuItem<RateControl>;
+const CRF63libsvtav1 = {
+	type: 'normal',
+	value: 'CRF',
+	label: '恒定质量 CRF',
+	tooltip: 'Constant Rate Factor - 恒定速率因子\n指定视觉画质，而码率因画面内容而异，性价比最高。\n如果您对输出文件大小没有明确的目标，使用此项可获得视觉上最稳定的画质。相较于 CQP，CRF 会考虑帧间的动态关系，在人眼更容易捕捉的静态画面分配更低的 QP，从而节省码率并且获得更好的视觉效果。',
+	extra: {
+		min: 0,
+		max: 63,
+		tags: new Map([
+			[0, '63（最低画质）'],
+			[13, '50（低画质）'],
+			[27, '36（中画质）'],
+			[41, '22（高画质）'],
+			[62, '1（最高画质）'],
+			[63, '0（自动）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const crf = detail['crf'];
+			return Number.isFinite(+crf) ? 63 - crf : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 63 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'crf': 63 - sliderValue,
+		}),
+		paramNames: ['crf'],
+		defaultDetail: {
+			'crf': 30,
+		},
+	},
+} satisfies MenuItem<RateControl>;
+const QP70libx264x265 = {
+	type: 'normal',
 	value: 'CQP',
 	label: '恒定量化 CQP',
 	tooltip: 'Constant Quantization Parameter - 恒定量化参数\n指定每帧的画质，而码率因画面内容而异，可作为 CRF 的备选方案。\n如果您对输出文件大小没有明确的目标，使用此项可获得最稳定的画质。相较于 CRF，CQP 的 QP 是恒定的，每帧的画质相同，因此相同码率下视觉画质较 CRF 低，一般仅在显卡编码时使用。',
 	extra: {
-		cmd: ['-qp', VALUE],
-		...extra,
+		min: 0,
+		max: 70,
+		tags: new Map([
+			[0, '70（最低画质）'],
+			[70, '0（最高画质）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const qp = detail['qp'];
+			return Number.isFinite(+qp) ? 70 - qp : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 70 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'qp': 70 - sliderValue,
+		}),
+		paramNames: ['qp'],
+		defaultDetail: {
+			'qp': 30,
+		},
 	},
-});
-const CBR = (extra: any) => ({
-	type: 'normal' as const,
-	value: 'CBR',
-	label: '固定码率 CBR',
-	tooltip: 'Constant Bit Rate - 恒定码率\n将码率恒定在指定值，仅允许极小或没有波动，性价比最低，一般仅应用于直播等需要数据速率稳定的场景。',
+} satisfies MenuItem<RateControl>;
+const QP63libsvtav1 = {
+	type: 'normal',
+	value: 'CQP',
+	label: '恒定量化 CQP',
+	tooltip: 'Constant Quantization Parameter - 恒定量化参数\n指定每帧的画质，而码率因画面内容而异，可作为 CRF 的备选方案。\n如果您对输出文件大小没有明确的目标，使用此项可获得最稳定的画质。相较于 CRF，CQP 的 QP 是恒定的，每帧的画质相同，因此相同码率下视觉画质较 CRF 低，一般仅在显卡编码时使用。',
 	extra: {
-		cmd: ['-b:v', VALUE],
-		...extra,
+		min: 0,
+		max: 63,
+		tags: new Map([
+			[0, '63（最低画质）'],
+			[3, '60（很低画质）'],
+			[15, '48（低画质）'],
+			[27, '36（中画质）'],
+			[41, '22（高画质）'],
+			[62, '1（最高画质）'],
+			[63, '0（自动）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const qp = detail['qp'];
+			return Number.isFinite(+qp) ? 63 - qp : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 63 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'qp': 63 - sliderValue,
+		}),
+		paramNames: ['qp'],
+		defaultDetail: {
+			'qp': 30,
+		},
 	},
-});
-const ABR = (extra: any) => ({
-	type: 'normal' as const,
-	value: 'ABR',
-	label: '平均码率 ABR',
-	tooltip: 'Average Bit Rate - 平均码率\n将码率控制在指定值左右，一般应用于限定文件大小但又不希望像 CBR 那样死板的场景。',
+} satisfies MenuItem<RateControl>;
+const QP51nvenc = {
+	type: 'normal',
+	value: 'CQP',
+	label: '恒定量化 CQP',
+	tooltip: 'Constant Quantization Parameter - 恒定量化参数\n指定每帧的画质，而码率因画面内容而异，可作为 CRF 的备选方案。\n如果您对输出文件大小没有明确的目标，使用此项可获得最稳定的画质。相较于 CRF，CQP 的 QP 是恒定的，每帧的画质相同，因此相同码率下视觉画质较 CRF 低，一般仅在显卡编码时使用。',
 	extra: {
-		cmd: ['-b:v', VALUE],
-		...extra,
+		min: 0,
+		max: 51,
+		tags: new Map([
+			[0, '51（最低画质）'],
+			[9, '42（很低画质）'],
+			[15, '36（低画质）'],
+			[23, '28（中画质）'],
+			[41, '10（高画质）'],
+			[51, '0（自动）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const qp = detail['qp'];
+			return Number.isFinite(+qp) ? 51 - qp : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 51 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'qp': 51 - sliderValue,
+		}),
+		paramNames: ['qp'],
+		defaultDetail: {
+			'qp': 28,
+		},
 	},
-});
-const VBR = (extra: any) => ({
-	type: 'normal' as const,
+} satisfies MenuItem<RateControl>;
+const QP51amf = {
+	type: 'normal',
+	value: 'CQP',
+	label: '恒定量化 CQP',
+	tooltip: 'Constant Quantization Parameter - 恒定量化参数\n指定每帧的画质，而码率因画面内容而异，可作为 CRF 的备选方案。\n如果您对输出文件大小没有明确的目标，使用此项可获得最稳定的画质。相较于 CRF，CQP 的 QP 是恒定的，每帧的画质相同，因此相同码率下视觉画质较 CRF 低，一般仅在显卡编码时使用。',
+	extra: {
+		min: 0,
+		max: 51,
+		tags: new Map([
+			[0, '51（最低画质）'],
+			[51, '0（最高画质）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const qp = detail['qp_i'] || detail['qp_p'] || detail['qp'];
+			return Number.isFinite(+qp) ? 51 - qp : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 51 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'qp_i': 51 - sliderValue,
+			'qp_p': 51 - sliderValue,
+		}),
+		paramNames: ['qp'],
+		defaultDetail: {
+			'qp_i': 28,
+			'qp_p': 28,
+		},
+	},
+} satisfies MenuItem<RateControl>;
+const VBRnvenc = {
+	type: 'normal',
 	value: 'VBR',
 	label: '动态码率 VBR',
 	tooltip: 'Variable Bit Rate - 可变码率\n指定比特率或画质参数，并控制比特率范围。',
 	extra: {
-		cmd: ['-rc', 'vbr', '-cq', VALUE],
-		...extra,
+		min: 0,
+		max: 51,
+		tags: new Map([
+			[0, '51（最低画质）'],
+			[9, '42（很低画质）'],
+			[15, '36（低画质）'],
+			[23, '28（中画质）'],
+			[41, '10（高画质）'],
+			[51, '0（自动）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const cq = detail['cq'];
+			return Number.isFinite(+cq) ? 51 - cq : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 51 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'rc': 'vbr',
+			'cq': 51 - sliderValue,
+		}),
+		paramNames: ['cq', 'rc'],
+		defaultDetail: {
+			'rc': 'vbr',
+			'cq': 28,
+		},
 	},
-});
-const VBR_HQ = (extra: any) => ({
-	type: 'normal' as const,
+} satisfies MenuItem<RateControl>;
+const VBRnvencHQ = {
+	type: 'normal',
 	value: 'VBR_HQ',
 	label: '动态码率 VBR_HQ',
 	tooltip: 'Variable Bit Rate - 可变码率\n指定比特率或画质参数，并控制比特率范围。该项是 NVIDIA 特有选项，在编码时间几乎不变的情况下略微提高质量。',
 	extra: {
-		cmd: ['-rc', 'vbr_hq', '-cq', VALUE],
-		...extra,
+		min: 0,
+		max: 51,
+		tags: new Map([
+			[0, '51（最低画质）'],
+			[9, '42（很低画质）'],
+			[15, '36（低画质）'],
+			[23, '28（中画质）'],
+			[41, '10（高画质）'],
+			[51, '0（自动）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const cq = detail['cq'];
+			return Number.isFinite(+cq) ? 51 - cq : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 51 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'rc': 'vbr_hq',
+			'cq': 51 - sliderValue,
+		}),
+		paramNames: ['cq', 'rc'],
+		defaultDetail: {
+			'rc': 'vbr_hq',
+			'cq': 28,
+		},
 	},
-});
-const Q = (extra: any) => ({
-	type: 'normal' as const,
+} satisfies MenuItem<RateControl>;
+const Qav1qsv = {
+	type: 'normal',
 	value: 'Q',
 	label: '指定质量 Q',
 	tooltip: 'Q - 质量\n指定画质，具体值对应的画质由具体编码器决定。',
 	extra: {
-		cmd: ['-q:v', VALUE],
-		...extra,
+		min: 0,
+		max: 255,
+		tags: new Map([
+			[0, '255（最低画质）'],
+			[79, '176（很低画质）'],
+			[123, '132（低画质）'],
+			[167, '88（中画质）'],
+			[211, '44（高画质）'],
+			[255, '0（最高画质）'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const q = detail['q'];
+			return Number.isFinite(+q) ? 255 - q : undefined;
+		},
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 255 - +value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'q': 255 - sliderValue,
+		}),
+		paramNames: ['q'],
+		defaultDetail: {
+			'q': 88,
+		},
 	},
-});
+} satisfies MenuItem<RateControl>;
+const Q100 = {
+	type: 'normal',
+	value: 'Q',
+	label: '指定质量 Q',
+	tooltip: 'Q - 质量\n指定画质，具体值对应的画质由具体编码器决定。',
+	extra: {
+		min: 0,
+		max: 100,
+		tags: new Map([
+			[0, '0'],
+			[100, '100'],
+		]),
+		adsorption: 'int',
+		detailToSliderValue: (detail) => {
+			const q = detail['q'];
+			return Number.isFinite(+q) ? 100 - q : undefined;
+		},
+		valueToParam: (value) => value + '',
+		sliderParamToDetail: (sliderValue) => ({
+			'q': sliderValue,
+		}),
+		paramNames: ['q'],
+		defaultDetail: {
+			'q': 50,
+		},
+	},
+} satisfies MenuItem<RateControl>;
+const ABR = {
+	type: 'normal',
+	value: 'ABR',
+	label: '平均码率 ABR',
+	tooltip: 'Average Bit Rate - 平均码率\n将码率控制在指定值左右，一般应用于限定文件大小但又不希望像 CBR 那样死板的场景。',
+	extra: {
+		min: 0,
+		max: 12,
+		arrowKeyStep: 24,
+		tags: new Map([
+			[0, '62.5 Kbps'],
+			[3, '500 Kbps'],
+			[6, '4 Mbps'],
+			[9, '32 Mbps'],
+			[12, '256 Mbps'],
+		]),
+		detailToSliderValue: (detail) => {
+			const bitrate = detail['b:v'];
+			return Number.isFinite(+bitrate) ? Math.log(+bitrate / 62500) / Math.log(2) : undefined;
+		},
+		valueToDisplay: { base: 62500, type: 'bitrate' },
+		valueToParam: (value) => {
+			return Math.round(62500 * Math.pow(2, +value));
+		},
+		sliderParamToDetail: (sliderValue) => ({
+			'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
+		}),
+		paramNames: ['b:v'],
+		defaultDetail: {
+			'b:v': 4000000,
+		},
+	},
+} satisfies MenuItem<RateControl>;
+const CBRnvenc = {
+	type: 'normal',
+	value: 'CBR',
+	label: '固定码率 CBR',
+	tooltip: 'Constant Bit Rate - 恒定码率\n将码率恒定在指定值，仅允许极小或没有波动，性价比最低，一般仅应用于直播等需要数据速率稳定的场景。',
+	extra: {
+		min: 0,
+		max: 12,
+		arrowKeyStep: 24,
+		tags: new Map([
+			[0, '62.5 Kbps'],
+			[3, '500 Kbps'],
+			[6, '4 Mbps'],
+			[9, '32 Mbps'],
+			[12, '256 Mbps'],
+		]),
+		detailToSliderValue: (detail) => {
+			const bitrate = detail['b:v'];
+			return Number.isFinite(+bitrate) ? Math.log(+bitrate / 62500) / Math.log(2) : undefined;
+		},
+		valueToDisplay: { base: 62500, type: 'bitrate' },
+		valueToParam: (value) => {
+			return Math.round(62500 * Math.pow(2, +value));
+		},
+		sliderParamToDetail: (sliderValue) => ({
+			'cbr': 'true',
+			'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
+		}),
+		paramNames: ['cbr', 'b:v'],
+		defaultDetail: {
+			'cbr': 'true',
+			'b:v': 4000000,
+		},
+	},
+} satisfies MenuItem<RateControl>;
+const CBRlibx264x265 = {
+	type: 'normal',
+	value: 'CBR',
+	label: '固定码率 CBR',
+	tooltip: 'Constant Bit Rate - 恒定码率\n将码率恒定在指定值，仅允许极小或没有波动，性价比最低，一般仅应用于直播等需要数据速率稳定的场景。',
+	extra: {
+		min: 0,
+		max: 12,
+		arrowKeyStep: 24,
+		tags: new Map([
+			[0, '62.5 Kbps'],
+			[3, '500 Kbps'],
+			[6, '4 Mbps'],
+			[9, '32 Mbps'],
+			[12, '256 Mbps'],
+		]),
+		detailToSliderValue: (detail) => {
+			const bitrate = detail['b:v'];
+			return Number.isFinite(+bitrate) ? Math.log(+bitrate / 62500) / Math.log(2) : undefined;
+		},
+		valueToDisplay: { base: 62500, type: 'bitrate' },
+		valueToParam: (value) => {
+			return Math.round(62500 * Math.pow(2, +value));
+		},
+		sliderParamToDetail: (sliderValue) => ({
+			'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
+			'minrate': Math.round(62500 * Math.pow(2, +sliderValue)),
+			'maxrate': Math.round(62500 * Math.pow(2, +sliderValue)),
+		}),
+		paramNames: ['b:v', 'minrate', 'maxrate'],
+		defaultDetail: {
+			'b:v': 4000000,
+			'minrate': 4000000,
+			'maxrate': 4000000,
+		},
+	},
+} satisfies MenuItem<RateControl>;
+const CBRamf = {
+	type: 'normal',
+	value: 'CBR',
+	label: '固定码率 CBR',
+	tooltip: 'Constant Bit Rate - 恒定码率\n将码率恒定在指定值，仅允许极小或没有波动，性价比最低，一般仅应用于直播等需要数据速率稳定的场景。',
+	extra: {
+		min: 0,
+		max: 12,
+		arrowKeyStep: 24,
+		tags: new Map([
+			[0, '62.5 Kbps'],
+			[3, '500 Kbps'],
+			[6, '4 Mbps'],
+			[9, '32 Mbps'],
+			[12, '256 Mbps'],
+		]),
+		detailToSliderValue: (detail) => {
+			const bitrate = detail['b:v'];
+			return Number.isFinite(+bitrate) ? Math.log(+bitrate / 62500) / Math.log(2) : undefined;
+		},
+		valueToDisplay: { base: 62500, type: 'bitrate' },
+		valueToParam: (value) => {
+			return Math.round(62500 * Math.pow(2, +value));
+		},
+		sliderParamToDetail: (sliderValue) => ({
+			'rc': 'vbr',
+			'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
+		}),
+		paramNames: ['rc', 'b:v'],
+		defaultDetail: {
+			'rc': 'vbr',
+			'b:v': 4000000,
+		},
+	},
+} satisfies MenuItem<RateControl>;
+
 
 // #endregion
 
@@ -96,189 +568,6 @@ const Q = (extra: any) => ({
 
 // valueToText：显示在滑杆旁边的文字　　valueProcess：进行吸附、整数化处理　　valueToParam：输出到 ffmpeg 参数的文字
 
-const crf63slider: SliderOptions = {
-	max: 63,
-	tags: new Map([
-		[0, '63（最低画质）'],
-		[63, '0（最高画质）'],
-	]),
-	default: 40, // 60 - 23
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 63 - Math.round(value);
-	},
-}
-const libx264x265crfSlider: SliderOptions = {
-	max: 51,
-	tags: new Map([
-		[0, '51（最低画质）'],
-		[15, '36（很低画质）'],
-		[21, '30（低画质）'],
-		[27, '24（中画质）'],
-		[33, '18（高画质）'],
-		[39, '12（肉眼无损）'],
-		[51, '0（最高画质）'],
-	]),
-	default: 28,	// 51 - 23
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 51 - Math.round(value);
-	},
-}
-const libaomav1CRFslider: SliderOptions = {
-	max: 63,
-	tags: new Map([
-		[0, '63（最低画质）'],
-		[13, '50（低画质）'],
-		[27, '36（中画质）'],
-		[41, '22（高画质）'],
-		[63, '0（最高画质）'],
-	]),
-	default: 27, // 60 - 36
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 63 - Math.round(value);
-	},
-}
-const qp70slider: SliderOptions = {
-	max: 70,
-	tags: new Map([
-		[0, '70（最低画质）'],
-		[70, '0（最高画质）'],
-	]),
-	default: 40, // 70 - 30
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 70 - Math.round(value);
-	},
-}
-const qp63slider: SliderOptions = {
-	max: 63,
-	tags: new Map([
-		[0, '63（最低画质）'],
-		[63, '0（最高画质）'],
-	]),
-	default: 39, // 63 - 24
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 63 - Math.round(value);
-	},
-}
-const libsvtav1QPslider: SliderOptions = {
-	max: 63,
-	tags: new Map([
-		[0, '63（最低画质）'],
-		[3, '60（很低画质）'],
-		[15, '48（低画质）'],
-		[27, '36（中画质）'],
-		[41, '22（高画质）'],
-		[63, '0（最高画质）'],
-	]),
-	default: 27, // 63 - 36
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 63 - Math.round(value);
-	},
-}
-const qp51slider: SliderOptions = {
-	max: 51,
-	tags: new Map([
-		[0, '51（最低画质）'],
-		[51, '0（最高画质）'],
-	]),
-	default: 28, // 51 - 23
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 51 - Math.round(value);
-	},
-}
-const nvencQPslider: SliderOptions = {
-	max: 51,
-	tags: new Map([
-		[0, '51（最低画质）'],
-		[13, '38（很低画质）'],
-		[19, '32（低画质）'],
-		[25, '26（中画质）'],
-		[31, '20（高画质）'],
-		[51, '0（最高画质）'],
-	]),
-	default: 28, // 51 - 23
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 51 - Math.round(value);
-	},
-}
-const nvencVBRslider: SliderOptions = {
-	max: 51,
-	tags: new Map([
-		[0, '51（最低画质）'],
-		[9, '42（很低画质）'],
-		[15, '36（低画质）'],
-		[23, '28（中画质）'],
-		[41, '10（高画质）'],
-		[51, '0（自动）'],
-	]),
-	default: 23,	// 51 - 28
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 51 - Math.round(value);
-	},
-}
-const av1qsvQslider: SliderOptions = {
-	max: 255,
-	tags: new Map([
-		[0, '255（最低画质）'],
-		[79, '176（很低画质）'],
-		[123, '132（低画质）'],
-		[167, '88（中画质）'],
-		[211, '44（高画质）'],
-		[255, '0（最高画质）'],
-	]),
-	default: 88,
-	valueToDisplay: { type: 'revertInteger' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return 255 - Math.round(value);
-	},
-}
-const vbitrateSlider: SliderOptions = {
-	max: 12,
-	arrowKeyStep: 24,
-	tags: new Map([
-		[0, '62.5 Kbps'],
-		[3, '500 Kbps'],
-		[6, '4 Mbps'],
-		[9, '32 Mbps'],
-		[12, '256 Mbps'],
-	]),
-	default: 6,
-	valueToDisplay: { base: 62500, type: 'bitrate' },
-	valueToParam: (value: number) => {
-		return Math.round(62.5 * Math.pow(2, value)) + "k"
-	},
-}
-const q100slider: SliderOptions = {
-	max: 100,
-	tags: new Map([
-		[0, '0'],
-		[100, '100'],
-	]),
-	default: 50,
-	valueToDisplay: { type: 'integer' },
-	adsorption: 'int',
-	valueToParam: (value: number) => {
-		return (value).toFixed(0);
-	},
-}
 const H264265presetSlider: SliderOptions = {
 	max: 9,
 	tags: new Map([
@@ -823,8 +1112,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CRF(libaomav1CRFslider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CRF63unknown },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -841,8 +1131,8 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 								default: 0,
 								valueToDisplay: { type: 'revertInteger' },
 								adsorption: 'int',
-								valueToParam: (value: number) => {
-									return 8 - Math.round(value);
+								valueToParam: (value) => {
+									return 8 - Math.round(+value);
 								},
 						},
 					],
@@ -855,9 +1145,10 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CQP(libsvtav1QPslider) },
-						{ ...CRF(crf63slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CRF63libsvtav1 },
+						{ ...QP63libsvtav1 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -874,8 +1165,8 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 								default: 6, // 13 - 7
 								valueToDisplay: { type: 'revertInteger' },
 								adsorption: 'int',
-								valueToParam: (value: number) => {
-									return 13 - Math.round(value);
+								valueToParam: (value) => {
+									return 13 - Math.round(+value);
 								},
 						},
 					],
@@ -888,8 +1179,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: 'Intel 硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...Q(av1qsvQslider) },	// 255 以上的数值依然有效，但影响甚微
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Qav1qsv },	// 255 以上的数值依然有效，但影响甚微
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -917,9 +1209,11 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CRF(libx264x265crfSlider) },
-						{ ...CQP(qp70slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CRF51 },
+						{ ...QP70libx264x265 },
+						{ ...ABR },
+						{ ...CBRlibx264x265 },
 					],
 					parameters: [
 						{
@@ -948,8 +1242,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: 'Intel 硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...Q(qp63slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Qav1qsv },	// 应该是 qp63，但目前暂未验证
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -974,10 +1269,12 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: 'NVIDIA 硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...VBR(nvencVBRslider) },
-						{ ...VBR_HQ(nvencVBRslider) },
-						{ ...CQP(nvencQPslider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...VBRnvencHQ },
+						{ ...VBRnvenc },
+						{ ...CBRnvenc },
+						{ ...QP51nvenc },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1010,9 +1307,10 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: 'AMD 硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...CQP({ ...qp51slider, cmd: ['-qp_i', VALUE, '-qp_p', VALUE] }) },
-						{ ...CBR({ ...vbitrateSlider, cmd: ['-rc', 'cbr', '-b:v', VALUE] }) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...QP51amf },
+						{ ...CBRamf },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1073,8 +1371,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '苹果硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1102,10 +1401,11 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CRF(libx264x265crfSlider) },
-						{ ...CQP(qp70slider) },
-						{ ...CBR({ ...vbitrateSlider, cmd: ['-b:v', VALUE, '-minrate', VALUE, '-maxrate', VALUE] }) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CRF51 },
+						{ ...QP70libx264x265 },
+						{ ...ABR },
+						{ ...CBRlibx264x265 },
 					],
 					parameters: [
 						{
@@ -1138,10 +1438,11 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CRF(libx264x265crfSlider) },
-						{ ...CQP(qp70slider) },
-						{ ...CBR({ ...vbitrateSlider, cmd: ['-b:v', VALUE, '-minrate', VALUE, '-maxrate', VALUE] }) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CRF51 },
+						{ ...QP70libx264x265 },
+						{ ...CBRlibx264x265 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1170,8 +1471,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: 'Intel 硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1196,11 +1498,12 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: 'NVIDIA 硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...VBR(nvencVBRslider) },
-						{ ...VBR_HQ(nvencVBRslider) },
-						{ ...CQP(nvencQPslider) },
-						{ ...CBR({ ...vbitrateSlider, cmd: ['-cbr', 'true', '-b:v', VALUE] }) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...VBRnvencHQ },
+						{ ...VBRnvenc },
+						{ ...QP51nvenc },
+						{ ...CBRnvenc },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1233,9 +1536,10 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: 'AMD 硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...CQP({ ...qp51slider, cmd: ['-qp_i', VALUE, '-qp_p', VALUE] }) },
-						{ ...CBR({ ...vbitrateSlider, cmd: ['-rc', 'cbr', '-b:v', VALUE] }) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...QP51amf },
+						{ ...CBRamf },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1295,8 +1599,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '苹果硬件加速编码器',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1328,8 +1633,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CRF(crf63slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CRF63unknown },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1365,8 +1671,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...CRF(crf63slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...CRF63unknown },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1402,8 +1709,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1420,8 +1728,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1445,8 +1754,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1463,8 +1773,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1496,8 +1807,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1521,8 +1833,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1539,7 +1852,8 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1563,8 +1877,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1583,13 +1898,14 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 		subMenu: [
 			{
 				type: 'normal',
-				value: 'wmv2',
-				label: '【默认】wmv2',
+				value: 'wmv1',
+				label: '【默认】wmv1',
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1613,8 +1929,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1638,8 +1955,9 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				tooltip: '',
 				extra: {
 					rateControl: [
-						{ ...Q(q100slider) },
-						{ ...ABR(vbitrateSlider) },
+						...AUTO_RATECONTROLs,
+						{ ...Q100 },
+						{ ...ABR },
 					],
 					parameters: [
 						{
@@ -1875,7 +2193,7 @@ export function getVideoFFmpegParam(videoParams: OutputParams_video) {
 						ret.push(videoParams.detail[parameter.parameter]);
 					}
 				} else if (parameter.mode === 'text') {
-					if (videoParams.detail[parameter.parameter] && videoParams.detail[parameter.parameter] != '默认' && videoParams.detail[parameter.parameter] != '自动') {
+					if ([undefined, '', '默认', '自动'].indexOf(videoParams.detail[parameter.parameter]) === -1) {
 						ret.push('-' + parameter.parameter);
 						ret.push(videoParams.detail[parameter.parameter]);
 					}
@@ -1885,18 +2203,15 @@ export function getVideoFFmpegParam(videoParams: OutputParams_video) {
 							// ret.push('-threads')
 							// ret.push('1')
 							// 调试用↑
+			// 完成编码器详细设定转 ffmpeg 参数后，检查 ratecontrol。如果此前没有指定参数，那么在此处指定
 			const ratecontrolItem = (vcodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === videoParams.ratecontrol) as any;
 			if (ratecontrolItem) {
-				const ratecontrol = ratecontrolItem.extra as RateControl;
-				// 计算值
-				const floatValue = videoParams.ratevalue;
-				const value = ratecontrol.valueToParam(floatValue);
-				// 将值插入参数列表中
-				for (const item of ratecontrol.cmd) {
-					if (item === VALUE) {
-						ret.push(value);
-					} else {
-						ret.push(item);
+				const rc = ratecontrolItem.extra as RateControl;
+				const defined = ret.some((param) => rc.paramNames.some((paramName) => '-' + paramName === param));
+				if (!defined) {
+					for (const paramName of rc.paramNames) {
+						ret.push('-' + paramName);
+						ret.push(videoParams.detail[paramName]);
 					}
 				}
 			}
@@ -1911,7 +2226,7 @@ export function getVideoFFmpegParam(videoParams: OutputParams_video) {
 			}
 			if (videoParams.framerate && videoParams.framerate !== '不改变') {
 				if (videoParams.framerate.includes('i') && videoParams.framerate.match(/^\d+(.\d+)?i?$/)) {
-					const fieldrate = Number(videoParams.framerate.match(/^(\d+(.\d+)?)/)[0]);
+					const fieldrate = Number(videoParams.framerate.match(/^(\d+(.\d+)?)/)![0]);
 					ret.push('-r');
 					ret.push(fieldrate / 2);	
 					flags += '+ilme+ildct';
@@ -1947,42 +2262,32 @@ export function getVideoRateControlParam(videoParams: OutputParams_video) {
 		if (!vcodecDetail || !vcodecDetail.rateControl?.length) {
 			return ret;
 		}
-		// 找到 ratecontrol 参数
 		const ratecontrolItem = vcodecDetail.rateControl.find((item) => {
 			return item.type === 'normal' && item.value == videoParams.ratecontrol;
 		}) as any;
 		if (ratecontrolItem) {
-			const ratecontrol = ratecontrolItem.extra as RateControl;
-			// 计算值
-			const floatValue = videoParams.ratevalue;
-			const value = (() => {
-				const vtt = ratecontrol.valueToDisplay;
-				if (vtt instanceof Function) {
-					return vtt(floatValue);
-				} else {
-					if (vtt.type === 'bitrate') {
-						const bps = Math.round(vtt.base * 2 ** (floatValue as number));
-						if (window.frontendSettings.useIEC) {
-							if (bps >= 10 * 1024 ** 2) {
-								return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
-							} else {
-								return (bps / 1024).toFixed(0) + ' kibps';
-							}
-						} else {
-							if (bps >= 10 * 1000 ** 2) {
-								return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
-							} else {
-								return (bps / 1000).toFixed(0) + ' kbps';
-							}
-						}
-					} else if (vtt.type === 'integer') {
-						return floatValue + '';
-					} else if (vtt.type === 'revertInteger') {
-						return ratecontrol.max - +floatValue + '';
+			const rc = ratecontrolItem.extra as RateControl;
+			const sliderValue = rc.detailToSliderValue(videoParams.detail);
+			const displayValue = (() => {
+				if (sliderValue === undefined) return '';
+
+				const vtt = rc.valueToDisplay;
+				if (vtt instanceof Function) return vtt(sliderValue);
+				if (vtt?.type === 'bitrate') {
+					const bps = Math.round((vtt.base ?? 0) * 2 ** sliderValue);
+					if (window.frontendSettings?.useIEC) {
+						if (bps >= 10 * 1024 ** 2) return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
+						else return (bps / 1024).toFixed(0) + ' kibps';
+					} else {
+						if (bps >= 10 * 1000 ** 2) return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
+						else return (bps / 1000).toFixed(0) + ' kbps';
 					}
 				}
+				if (vtt?.type === 'revertInteger') return ((rc.max ?? 0) - sliderValue).toFixed(0);
+				if (vtt?.type === 'integer') return sliderValue.toFixed(0);
+				return sliderValue + '';
 			})();
-			ret = { mode: ratecontrolItem.value, value };
+			ret = { mode: ratecontrolItem.value, value: displayValue };
 		}
 		return ret;
 	}
