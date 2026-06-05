@@ -265,6 +265,111 @@ const nodeBridge = {
 		return window.jsb?.ipcRenderer?.invoke('showOpenDialog', options);
 	},
 
+	showSaveDialog(options?: Electron.SaveDialogOptions): Promise<string> {
+		return window.jsb?.ipcRenderer?.invoke('showSaveDialog', options);
+	},
+
+	/**
+	 * 保存文件到本地
+	 * electron 环境使用 showSaveDialog + 主进程写入
+	 * web 环境使用浏览器下载
+	 */
+	saveFile(data: any, defaultFileName: string): Promise<boolean> {
+		return new Promise((resolve) => {
+			const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+			const blob = new Blob([content], { type: 'application/json' });
+
+			if (window.jsb) {
+				// electron 环境
+				window.jsb?.ipcRenderer.invoke('showSaveDialog', {
+					title: '保存文件',
+					defaultPath: defaultFileName,
+					filters: [{ name: 'JSON 文件', extensions: ['json'] }],
+				}).then((filePath: string) => {
+					if (filePath) {
+						// 通过主进程写入文件
+						window.jsb?.ipcRenderer.invoke('writeFile', filePath, content).then(() => {
+							resolve(true);
+						}).catch(() => {
+							resolve(false);
+						});
+					} else {
+						resolve(false);
+					}
+				}).catch(() => {
+					resolve(false);
+				});
+			} else {
+				// web 环境
+				const url = URL.createObjectURL(blob);
+				const link = document.createElement('a');
+				link.href = url;
+				link.download = defaultFileName;
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				URL.revokeObjectURL(url);
+				resolve(true);
+			}
+		});
+	},
+
+	/**
+	 * 从本地读取文件
+	 * electron 环境使用 showOpenDialog + 主进程读取
+	 * web 环境使用文件选择器
+	 */
+	readFile(): Promise<string | null> {
+		return new Promise((resolve) => {
+			if (window.jsb) {
+				// electron 环境
+				window.jsb?.ipcRenderer.invoke('showOpenDialog', {
+					title: '选择文件',
+					filters: [{ name: 'JSON 文件', extensions: ['json'] }],
+					properties: ['openFile'],
+				}).then((filePaths: string[]) => {
+					if (filePaths && filePaths.length > 0) {
+						window.jsb?.ipcRenderer.invoke('readFile', filePaths[0]).then((content: string) => {
+							resolve(content);
+						}).catch(() => {
+							resolve(null);
+						});
+					} else {
+						resolve(null);
+					}
+				}).catch(() => {
+					resolve(null);
+				});
+			} else {
+				// web 环境
+				const input = document.createElement('input');
+				input.type = 'file';
+				input.accept = '.json';
+				input.style.display = 'none';
+				document.body.appendChild(input);
+				input.addEventListener('change', (e) => {
+					const file = (e.target as HTMLInputElement).files?.[0];
+					if (file) {
+						const reader = new FileReader();
+						reader.onload = () => {
+							resolve(reader.result as string);
+							input.remove();
+						};
+						reader.onerror = () => {
+							resolve(null);
+							input.remove();
+						};
+						reader.readAsText(file);
+					} else {
+						resolve(null);
+						input.remove();
+					}
+				});
+				input.click();
+			}
+		});
+	},
+
 	zoomPage(type: 'in' | 'out' | 'reset') {
 		if (window.jsb) {
 			const webFrame = window.jsb.webFrame;

@@ -494,6 +494,22 @@ class ElectronApp {
 			const result = await dialog.showOpenDialog(this.mainWindow, options);
 			return result.canceled ? [] : result.filePaths;
 		});
+
+		// 打开“另存为”对话框
+		ipcMain.handle('showSaveDialog', async (event, options: Electron.SaveDialogOptions) => {
+			const result = await dialog.showSaveDialog(this.mainWindow, options);
+			return result.canceled ? '' : result.filePath;
+		});
+
+		// 写入文件
+		ipcMain.handle('writeFile', async (event, filePath: string, content: string) => {
+			await fs.writeFile(filePath, content, 'utf-8');
+		});
+
+		// 读取文件
+		ipcMain.handle('readFile', async (event, filePath: string) => {
+			return await fs.readFile(filePath, 'utf-8');
+		});
 		  
 		// 读取 LICENSE 文件
 		ipcMain.handle('readLicense', () => {
