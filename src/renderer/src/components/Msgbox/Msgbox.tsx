@@ -6,7 +6,7 @@ export interface MsgboxOptions {
 	container?: HTMLElement;	// 指定外侧容器，如不指定则默认全屏展示
 	image?: VNode;	// 弹窗图片
 	title?: string;
-	content?: string | VNode;
+	content?: string | VNode | (() => VNode);	// 支持返回 VNode 的函数，用于响应式内容
 	buttons?: Button[];
 };
 export interface Button {

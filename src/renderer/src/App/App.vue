@@ -98,7 +98,7 @@ onMounted(async () => {
 		const storedBuildNumber = await nodeBridge.localStorage.get('version.buildNumber');
 		if (!storedBuildNumber || storedBuildNumber != buildNumber) {
 			Popup({
-				message: `欢迎使用 FFBox ${version}！`,
+				message: `欢迎使用 FFBox ${version}！` + (storedBuildNumber != buildNumber ? '\nℹ️检测到版本已变化，如果您发现此前保存的预设不能正常工作，您可使用“快捷”面板的导入导出功能进行修复！' : ''),
 				level: 0,
 			});
 			nodeBridge.localStorage.set('version.buildNumber', buildNumber);

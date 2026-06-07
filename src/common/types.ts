@@ -202,7 +202,7 @@ export interface InputInfo {
 
 // #endregion
 
-// #region 输出参数
+// #region 输出参数、预设
 
 export interface InputFile {
 	// type: 'url';	// 将来支持 lavfi
@@ -298,6 +298,17 @@ export type OutputParams_mux = {
 
 export type OutputParams_extra = {
 	presetName?: string;
+}
+
+export interface PresetFileJSON {
+	FFBoxPresetVersion: string;
+	createdAt: string;
+	systemDescription: string;
+	customDescription: string;
+	presets: {
+		name: string;
+		params: any;
+	}[];
 }
 
 // #endregion

@@ -21,7 +21,7 @@
 ; 点击 license 打开的网页连接
 #define MyAppLkLicenseURL 'http://ffbox.ttqf.tech/LICENSE'
 ; 安装目录至少需要的空间
-#define MyAppNeedSpaceByte 322000000
+#define MyAppNeedSpaceByte 323000000
 ; 外部程序调用本安装程序时，会向外部传安装进度的 window api Message ID 
 #define WM_MY_INSTALL_PROGRESS 6364
 

@@ -85,20 +85,10 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			// 5.3 版本大量改用 HTTP request，并且版本接口新增 /api/v1 前缀
 
 			// 1. 检查服务器版本
-			console.log(`serviceBridge: 正在检查服务器版本 http://${this.ip}:${this.port}/api/v1/system/version 或 /version`);
-			const requestOK1 = await new Promise<boolean>((resolve, reject) => {
-				// 并行发送两个请求，取其中一个成功结果
-				const newVersionRequest = fetch(`http://${this.ip}:${this.port}/api/v1/system/version`, { method: 'get' })
-					.then(() => true)
-					.catch(() => false);
-				const oldVersionRequest = fetch(`http://${this.ip}:${this.port}/version`, { method: 'get' })
-					.then(() => true)
-					.catch(() => false);
-				
-				Promise.all([newVersionRequest, oldVersionRequest]).then(([newResult, oldResult]) => {
-					resolve(newResult || oldResult);
-				});
-			});
+			console.log(`serviceBridge: 正在检查服务器版本 http://${this.ip}:${this.port}/api/v1/system/version`);
+			const requestOK1 = await fetch(`http://${this.ip}:${this.port}/api/v1/system/version`, { method: 'get' })
+				.then(() => true)
+				.catch(() => false);
 			if (!requestOK1) {
 				this.emit('error', '连接失败：获取服务器版本失败（可能是前端与后端版本不匹配，或网络完全不通所致）');
 				connectResult(false);
