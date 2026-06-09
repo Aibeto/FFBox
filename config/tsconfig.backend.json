@@ -1,0 +1,13 @@
+{
+	"extends": "./tsconfig.base.json",
+	"include": [
+		"../src/backend/**/*",
+		"../src/common/**/*"
+	],
+	"compilerOptions": {
+		"paths": {
+			"@backend/*": ["../src/backend/*"],
+			"@common/*": ["../src/common/*"]
+		}
+	}
+}

@@ -34,6 +34,7 @@ const serverStyle = computed(() => {
 watch(
 	[() => appStore.currentServer?.data?.progress, () => appStore.currentServer?.data?.workingStatus],
 	() => {
+		if (!appStore.currentServer) { debugger; throw 'ub'; }
 		const serverData = appStore.currentServer.data;
 		const hasUndoneWork = serverData.workingStatus === WorkingStatus.running || serverData.tasks.some((task) => [TaskStatus.idle_queued, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running, TaskStatus.stopping, TaskStatus.finishing].includes(task.status));
 		const mode = (() => {
@@ -67,9 +68,9 @@ const handleTabMouseUp = (server: Server, event: MouseEvent) => {
 }
 
 const handleTabContextMenu = (event: MouseEvent, server: Server) => {
-	let tabElem = event.target;
+	let tabElem = event.target as HTMLElement;
 	while (tabElem.className.includes('tab')) {
-		tabElem = tabElem.parentElement;
+		tabElem = tabElem.parentElement!;
 	}
 	const rect = tabElem.getBoundingClientRect();
 	showMenu({

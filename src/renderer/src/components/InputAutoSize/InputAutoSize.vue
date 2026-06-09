@@ -7,7 +7,7 @@ interface Props {
 	value?: string;
 	focusOnMounted?: boolean;
 	onInput?: (event: Event) => void | false;
-	onKeyDown?: (event: Event) => void | false;
+	onKeyDown?: (event: KeyboardEvent) => void | false;
 	onPressEnter?: (value: string) => void;
 	onChange?: (value: string) => void;
 	onBlur?: (value: string) => void;
@@ -33,7 +33,7 @@ const refreshSize = () => {
 
 const handleInput = (event: Event) => {
 	if (!props.onInput || props.onInput(event) !== false) {
-		text.value = event.target.value;
+		text.value = (event.target as HTMLInputElement).value;
 	}
 	// nextTick(refreshSize); 已在 ResizeObserver 处理
 };
@@ -42,7 +42,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
 		return;
 	}
 	if (event.key === 'Enter') {
-		(props.onPressEnter || (() => {}))(event.target.value);
+		props.onPressEnter?.((event.target as HTMLInputElement).value);
 	}
 };
 
@@ -51,13 +51,13 @@ onMounted(() => {
 	ro.value = new ResizeObserver((entries) => {
 		refreshSize();
 	});
-	ro.value.observe(divRef.value);
-	props.focusOnMounted && inputRef.value.focus();
-	divRef.value.style.fontFamily = getComputedStyle(inputRef.value).fontFamily;
+	ro.value.observe(divRef.value!);
+	props.focusOnMounted && inputRef.value!.focus();
+	divRef.value!.style.fontFamily = getComputedStyle(inputRef.value as HTMLElement).fontFamily;
 	// nextTick(refreshSize); 已在 ResizeObserver 处理
 });
 onBeforeUnmount(() => {
-	ro.value.disconnect();
+	ro.value!.disconnect();
 });
 
 watch(() => props.value, (a, b) => {
@@ -75,8 +75,8 @@ watch(() => props.value, (a, b) => {
 			type="text"
 			@keydown="handleKeyDown"
 			@input="handleInput"
-			@blur="event => (props.onBlur || (() => {}))(event.target.value)"
-			@change="event => (props.onChange || (() => {}))(event.target.value)"
+			@blur="event => props.onBlur?.((event.target as HTMLInputElement).value)"
+			@change="event => props.onChange?.((event.target as HTMLInputElement).value)"
 			:value="text"
 		/>
 		<div class="hiddenDiv" :style="props.style" ref="divRef">

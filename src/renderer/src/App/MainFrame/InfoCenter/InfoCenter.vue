@@ -9,6 +9,7 @@ import IconInfo from './info.svg?component';
 import IconTick from './tick.svg?component';
 import IconWarning from './warning.svg?component';
 import IconError from './error.svg?component';
+import { debug } from 'console';
 
 interface NotificationGroup {
 	name: string,
@@ -44,9 +45,10 @@ const notificationGroups = computed(() => {
 		return ret;
 });
 
-const handleDelete = (serverId: string, notificationId: number) => {
+const handleDelete = (serverId: string | undefined, notificationId: number) => {
 	if (serverId) {
 		const server = appStore.servers.find((server) => server.data.id === serverId);
+		if (!server) { debugger; throw 'ub'; }
 		server.entity.deleteNotification(notificationId);
 	} else {
 		delete appStore.notifications[notificationId];

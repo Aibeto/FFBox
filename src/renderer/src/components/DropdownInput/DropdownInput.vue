@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-// import Tooltip from './Tooltip/Tooltip';
-// import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import IconMenuButton from './menu_button.svg?component';
 
 import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
@@ -13,7 +11,7 @@ interface Props {
 	disabled?: boolean;	// 不允许更改
 	placeholder?: string;
 	// deletable?: boolean;
-	validator?: (value: string) => string;
+	validator?: (value: string) => string | undefined;
 	inputFixer?: (value: string) => string;
 	onChange?: (value: string) => any;
 	onEnter?: () => any;
@@ -25,10 +23,10 @@ const props = defineProps<Props>();
 const focused = ref(false);
 const comboOpened = ref(false);
 const inputText = ref('-');
-const invalidMsg = ref<string>(undefined);
+const invalidMsg = ref<string | undefined>(undefined);
 
-const selectorRef = ref<Element>(null);
-const menuRef = ref<ReturnType<typeof showMenu>>(null);
+const selectorRef = ref<HTMLDivElement | null>(null);
+const menuRef = ref<ReturnType<typeof showMenu> | null>(null);
 
 const selectorStyle = computed(() => {
 	const ret: any = {};
@@ -60,7 +58,7 @@ const openMenu = () => {
 	if (props.disabled) {
 		return;
 	}
-	const selectorRect = selectorRef.value.getBoundingClientRect();
+	const selectorRect = selectorRef.value!.getBoundingClientRect();
 	menuRef.value = showMenu({
 		menu: props.list,
 		type: 'select',
@@ -68,31 +66,31 @@ const openMenu = () => {
 		triggerRect: { xMin: selectorRect.x, yMin: selectorRect.y, xMax: selectorRect.x + selectorRect.width, yMax: selectorRect.y + selectorRect.height },
 		onSelect: (event, value, checked) => {
 			inputText.value = value;
-			props.onChange(value);
-			menuRef.value.setSelectedValue(value);	// 更改值后主动反馈至菜单
+			props.onChange?.(value);
+			menuRef.value!.setSelectedValue(value);	// 更改值后主动反馈至菜单
 		},
 		onClose: () => {
 			comboOpened.value = false;
 			menuRef.value = null;
 		},
 		returnFocus: (e) => {
-			selectorRef.value.firstElementChild!.focus();
+			selectorRef.value!.firstElementChild!.focus();
 		},
 		onKeyDown: (e) => {
 			if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
-				let selPos = (selectorRef.value.firstChild as HTMLInputElement).selectionStart;
+				let selPos = (selectorRef.value!.firstChild as HTMLInputElement).selectionStart || 0;
 				if (e.key === 'ArrowLeft') {
 					selPos--;
 				} else if (e.key === 'ArrowRight') {
 					selPos++;
 				}
-				(selectorRef.value.firstChild as HTMLInputElement).selectionStart = selPos;
-				(selectorRef.value.firstChild as HTMLInputElement).selectionEnd = selPos;
+				(selectorRef.value!.firstChild as HTMLInputElement).selectionStart = selPos;
+				(selectorRef.value!.firstChild as HTMLInputElement).selectionEnd = selPos;
 			}
 		},
 	});
 
-	selectorRef.value.firstElementChild!.focus();
+	selectorRef.value!.firstElementChild!.focus();
 	comboOpened.value = true;
 };
 
@@ -105,13 +103,13 @@ const handleFocus = (event: FocusEvent) => {
 	focused.value = true;
 };
 
-const handleInput = (event: InputEvent) => {
+const handleInput = (event: Event) => {
 	if (props.inputFixer) {
-		inputText.value = props.inputFixer(event.target.value);
+		inputText.value = props.inputFixer((event.target as HTMLInputElement).value);
 	}
 	let newValue = (event.target as HTMLInputElement).value;
 	menuRef.value?.setSelectedValue(newValue);
-	(props.onChange || (() => {}))(newValue);
+	props.onChange?.(newValue);
 };
 
 const handleKeydown = (event: KeyboardEvent) => {

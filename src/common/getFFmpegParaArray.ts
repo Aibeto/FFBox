@@ -47,8 +47,8 @@ export function getFFmpegParaArray(params: { outputParams: OutputParams, withQuo
 		for (let outputIndex = 0; outputIndex < outputNodes.length; outputIndex++) {
 			const outputNode = outputNodes[outputIndex];
 			// 一个 outputNode 是一个输出文件，可以由多个输入共同组成，因此这里要遍历 lines（对应 ffmpeg 中括号内的字符串）
-			for (let outputNodeIndex = 0; outputNodeIndex < outputNode.prevs?.length; outputNodeIndex++) {
-				const line = outputNode.prevs[outputNodeIndex];
+			for (let outputNodeIndex = 0; outputNodeIndex < outputNode.prevs!.length; outputNodeIndex++) {
+				const line = outputNode.prevs![outputNodeIndex];
 				if (line) {
 					ret.push('-map');
 					ret.push(line.name.match(/^\d+(:[vasdt])?(:\d+)?$/) ? line.name : `[${line.name}]`);
@@ -58,13 +58,13 @@ export function getFFmpegParaArray(params: { outputParams: OutputParams, withQuo
 				// 至少需要有连线才能输出
 				ret.push(...getVideoFFmpegParam(outputParams.outputs[outputIndex].video));
 				ret.push(...getAudioFFmpegParam(outputParams.outputs[outputIndex].audio));
-				ret.push(...getMuxFFmpegParam(outputParams.outputs[outputIndex].mux, outputDir, outputFileName, withQuotes, overrideFilePaths?.[outputIndex]));
+				ret.push(...getMuxFFmpegParam(outputParams.outputs[outputIndex].mux, outputDir, outputFileName, withQuotes, overrideFilePaths![outputIndex]));
 			}
 		}
 	} else {
 		ret.push(...getVideoFFmpegParam(outputParams.outputs[0].video));
 		ret.push(...getAudioFFmpegParam(outputParams.outputs[0].audio));
-		ret.push(...getMuxFFmpegParam(outputParams.outputs[0].mux, outputDir, outputFileName, withQuotes, overrideFilePaths?.[0]));
+		ret.push(...getMuxFFmpegParam(outputParams.outputs[0].mux, outputDir, outputFileName, withQuotes, overrideFilePaths![0]));
 	}
 	ret.push('-y');
 	return ret;

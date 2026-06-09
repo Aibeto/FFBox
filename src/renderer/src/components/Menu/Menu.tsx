@@ -1,4 +1,4 @@
-import { AppContext, createVNode, render, VNode } from 'vue';
+import { createVNode, render } from 'vue';
 import { MenuItem } from '@common/menu';
 import MenuUI from './MenuComponent.vue';
 
@@ -21,13 +21,13 @@ export interface MenuOptions {
 	returnFocus?: (event: Event) => void;	// 定义该项后，菜单组件不监听全局键盘事件，若被 focus 则调用此函数用于归还焦点
 };
 
-const showMenu = function (options?: MenuOptions) {
+const showMenu = function (options: MenuOptions) {
 	const type = options.type || 'action';
 	let unmounted = false;
 	const handleClose = () => {
 		// 同一次 render 内第二次调用 handleClose 时，需判断是否已经被卸载
 		if (!unmounted) {
-			vnode.component.exposed.preClose();
+			vnode.component?.exposed?.preClose();
 			(options.onClose || (() => {}))();
 			unmounted = true;
 			setTimeout(() => {
@@ -76,10 +76,10 @@ const showMenu = function (options?: MenuOptions) {
 		return result;
 	}
 	const handleKeyboardEvent = (event: KeyboardEvent) => {
-		vnode.component.exposed.triggerKeyboardEvent(event);
+		vnode.component?.exposed?.triggerKeyboardEvent(event);
 	}
 	const setSelectedValue = (value: any) => {
-		vnode.component.exposed.setSelectedValue(value);
+		vnode.component?.exposed?.setSelectedValue(value);
 	}
 	const _options = {
 		...options,

@@ -4,10 +4,10 @@ import { useAppStore } from '@renderer/stores/appStore';
 export default function useLowerDividerDrag() {
 	const appStore = useAppStore();
 
-	const deviderRef = ref<Element>(null);
+	const deviderRef = ref<Element | null>(null);
 	const handleDeviderDragStart = (event: MouseEvent | TouchEvent) => {
 		// event.preventDefault();
-		const deviderRect = deviderRef.value.getBoundingClientRect();	// 列表元素的 rect
+		const deviderRect = deviderRef.value!.getBoundingClientRect();	// 列表元素的 rect
 		const mainAreaRect = (appStore.componentRefs['MainArea'] as Element).getBoundingClientRect();	// 列表元素的 rect
 		const mouseY = (event as MouseEvent).pageY || (event as TouchEvent).touches[0].pageY;	// 鼠标在窗口内的 Y
 		// const inElementY = (event as MouseEvent).offsetY || (event as TouchEvent).touches[0].offsetY;	// 鼠标在元素内的 Y

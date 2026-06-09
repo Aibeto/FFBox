@@ -19,7 +19,7 @@ provide(useIECKey, computed(() => appStore.frontendSettings.useIEC));
 
 onMounted(async () => {
 	// 挂载调试变量
-	if (buildInfo.isDev) {
+	if (buildInfo?.isDev) {
 		(window as any).appStore = appStore;
 		(window as any).nodeBridge = nodeBridge;
 	}
@@ -47,6 +47,7 @@ onMounted(async () => {
 	nodeBridge.ipcRenderer?.on("downloadStatusChange", (event, params: { url: string, status: 'started' | 'interrupted' | 'completed' | 'cancelled', finalFilePath?: string }) => {
 		const serverId = appStore.downloadMap.get(params.url);
 		const server = appStore.servers.find((server) => server.data.id === serverId);
+		if (!server) { debugger; throw 'ub'; }
 		const downloadFile = server.data.downloadFiles.find((downloadFile) => downloadFile.url === params.url);
 		if (params.status === 'started' && !downloadFile) {
 			server.data.downloadFiles.push({
@@ -57,7 +58,7 @@ onMounted(async () => {
 			});
 		} else if (params.status === 'cancelled') {
 			const downloadFile = server.data.downloadFiles.find((downloadFile) => downloadFile.url === params.url);
-			downloadFile.status = 'error';
+			downloadFile!.status = 'error';
 		}
 		if (params.finalFilePath && downloadFile) {
 			downloadFile.finalFilePath = params.finalFilePath;
@@ -66,6 +67,7 @@ onMounted(async () => {
 	nodeBridge.ipcRenderer?.on("downloadProgress", (event, params: { url: string, loaded: number, total: number }) => {
 		const serverId = appStore.downloadMap.get(params.url);
 		const server = appStore.servers.find((server) => server.data.id === serverId);
+		if (!server) { debugger; throw 'ub'; }
 		const downloadFile = server.data.downloadFiles.find((downloadFile) => downloadFile.url === params.url);
 		if (downloadFile) {
 			downloadFile.transferred = params.loaded;

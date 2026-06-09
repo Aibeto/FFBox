@@ -1,6 +1,6 @@
 {
   "name": "FFBox",
-  "version": "5.4.0",
+  "version": "5.5.0-alpha",
   "description": "",
   "main": "app/main/index.cjs",
   "scripts": {
@@ -36,6 +36,7 @@
     "@types/node": "^18.11.13",
     "@types/parse-path": "^7.0.0",
     "@types/path-browserify": "^1.0.0",
+    "@types/web": "^0.0.350",
     "@types/ws": "^8.5.5",
     "@vitejs/plugin-vue": "^6.0.5",
     "@vitejs/plugin-vue-jsx": "^3.0.0",
@@ -48,7 +49,7 @@
     "swagger-jsdoc": "^6.2.8",
     "ts-json-schema-generator": "^2.9.0",
     "ts-loader": "^9.4.2",
-    "typescript": "^4.9.4",
+    "typescript": "^6",
     "vite": "^8.0.3",
     "vite-plugin-vue-type-imports": "^0.2.4",
     "vite-svg-loader": "^4.0.0",

@@ -20,7 +20,7 @@ import IconSettings from './Settings.svg?component';
 import IconX from '@renderer/assets/×.svg?component';
 
 const appStore = useAppStore();
-const selectedTasks = computed(() => appStore.selectedTask.size === 0
+const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appStore.currentServer
 	? { task: undefined, taskId: undefined, count: 0 }
 	: { task: appStore.currentServer.data.tasks[[...appStore.selectedTask][0]], taskId: [...appStore.selectedTask][0], count: appStore.selectedTask.size }
 );
@@ -36,7 +36,7 @@ const { deviderRef, handleDeviderDragStart } = useLowerDividerDrag();
 
 // #region 进度区域——视区
 
-const keyFramesCanvasRef = ref<HTMLCanvasElement>(null);
+const keyFramesCanvasRef = ref<HTMLCanvasElement | null>(null);
 
 // 视区控制常量
 const MIN_VIEW_RANGE = 1;  // 最小视区范围（秒）
@@ -576,7 +576,7 @@ const drawKeyFrames = () => {
 	const canvas = keyFramesCanvasRef.value;
 	if (!canvas || keyFramesCanvasWidth.value <= 0 || keyFramesCanvasHeight.value <= 0) return;
 
-	const ctx = canvas.getContext('2d');
+	const ctx = canvas.getContext('2d')!;
 
 	// 清空画布
 	ctx.clearRect(0, 0, keyFramesCanvasWidth.value, keyFramesCanvasHeight.value);
@@ -693,7 +693,7 @@ const updateKeyFrameCanvasSize = () => {
 	if (!canvas) return;
 
 	const container = canvas.parentElement;
-	const rect = container.getBoundingClientRect();
+	const rect = container!.getBoundingClientRect();
 
 	keyFramesCanvasWidth.value = rect.width;
 	keyFramesCanvasHeight.value = rect.height;
@@ -703,7 +703,7 @@ const updateKeyFrameCanvasSize = () => {
 	canvas.width = keyFramesCanvasWidth.value * dpr;
 	canvas.height = keyFramesCanvasHeight.value * dpr;
 	canvas.style.zoom = `${1 / dpr}`;
-	canvas.getContext('2d').scale(dpr, dpr);
+	canvas.getContext('2d')!.scale(dpr, dpr);
 
 	drawKeyFrames();
 };
@@ -717,7 +717,7 @@ const fetchFrameInfo = async (type?: 'fast' | 'full' | 'stop') => {
 
 	framesLoading.value = true;
 	try {
-		const result = await appStore.currentServer.entity.getMediaFrameInfo(selectedTasks.value.taskId, 0, 0, type || 'fast');
+		const result = await appStore.currentServer?.entity.getMediaFrameInfo(selectedTasks.value.taskId, 0, 0, type || 'fast')!;
 		frameData.value = result;
 	} catch (err) {
 		console.error('加载帧信息失败:', err);
@@ -767,7 +767,7 @@ const handleOutputClear = () => {
 
 // #region 视频预览解码器
 
-const videoRef = ref<HTMLVideoElement>(null);
+const videoRef = ref<HTMLVideoElement | null>(null);
 const previewDecoder = ref<PreviewStreamDecoder | null>(null);
 const videoPlaying = ref(false);
 const videoCurrentTime = ref(0);
@@ -900,7 +900,7 @@ watch(() => selectedTasks.value.task, async (newTask, oldTask) => {
 
 // #region 缩略图
 
-const thumbnailVideoRef = ref<HTMLVideoElement>(null);
+const thumbnailVideoRef = ref<HTMLVideoElement | null>(null);
 const thumbnailAbortController = ref<AbortController | null>(null);
 
 const thumbnailVisible = ref(false);
@@ -1002,7 +1002,7 @@ const initThumbnailStream = async () => {
 			}
 			// await new Promise(resolve => setTimeout(resolve, 1000));
 			// console.log(result.value.length);
-			sourceBuffer.appendBuffer(result.value);
+			sourceBuffer.appendBuffer(result.value as any);
 		};
 		sourceBuffer.addEventListener('updateend', appendNext);
 		appendNext();
@@ -1164,10 +1164,10 @@ const handleShowSettings = (event: MouseEvent) => {
 const updateSelectionFromParams = () => {
 	if (!selectedTasks.value.task) return;
 
-	let ib = parseTimeString(params.value?.input.begin);
-	let ie = parseTimeString(params.value?.input.end === '' ? duration.value + '' : params.value?.input.end);
-	let ob = parseTimeString(params.value?.mux.begin);
-	let oe = parseTimeString(params.value?.mux.end === '' ? duration.value + '' : params.value?.mux.end);
+	let ib = parseTimeString(params.value?.input.begin || '');
+	let ie = parseTimeString(params.value?.input.end === '' ? duration.value + '' : params.value?.input.end || '');
+	let ob = parseTimeString(params.value?.mux.begin || '');
+	let oe = parseTimeString(params.value?.mux.end === '' ? duration.value + '' : params.value?.mux.end || '');
 
 	ib = Math.max(0, Math.min(ib, duration.value));
 	ie = Math.max(ib, Math.min(ie, duration.value));
@@ -1233,7 +1233,7 @@ onUnmounted(async () => {
 			</div>
 		</div>
 		<div class="lower">
-			<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task.taskName }}</div>
+			<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task!.taskName }}</div>
 			<div class="previewArea" v-if="selectedTasks.task">
 				<video ref="videoRef"
 					@timeupdate="handleVideoTimeUpdate"
@@ -1319,14 +1319,14 @@ onUnmounted(async () => {
 					<BoxedNormalInput
 						title="起点"
 						:value="params.input.begin"
-						:onChange="(value: string) => handleInputBeginChange(value)"
+						:onChange="(value) => handleInputBeginChange(value!)"
 						:validator="durationValidator"
 						:inputFixer="durationFixer"
 					/>
 					<BoxedNormalInput
 						title="终点"
 						:value="params.input.end"
-						:onChange="(value: string) => handleInputEndChange(value)"
+						:onChange="(value) => handleInputEndChange(value!)"
 						:validator="durationValidator"
 						:inputFixer="durationFixer"
 					/>
@@ -1339,14 +1339,14 @@ onUnmounted(async () => {
 					<BoxedNormalInput
 						title="起点"
 						:value="params.mux.begin"
-						:onChange="(value: string) => handleOutputBeginChange(value)"
+						:onChange="(value) => handleOutputBeginChange(value!)"
 						:validator="durationValidator"
 						:inputFixer="durationFixer"
 					/>
 					<BoxedNormalInput
 						title="终点"
 						:value="params.mux.end"
-						:onChange="(value: string) => handleOutputEndChange(value)"
+						:onChange="(value) => handleOutputEndChange(value!)"
 						:validator="durationValidator"
 						:inputFixer="durationFixer"
 					/>

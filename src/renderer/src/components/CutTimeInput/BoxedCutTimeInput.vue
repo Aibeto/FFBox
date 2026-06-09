@@ -5,11 +5,11 @@ import CutTimeInput from './CutTimeInput.vue';
 interface Props {
 	title: string;
 	description?: string;
-	value?: [string, string];
+	value: [string | undefined, string | undefined];
 	optionalDefault?: any;
 	disabled?: boolean;
 	placeholder?: [string, string];
-	onChange?: (value: [string, string]) => any;
+	onChange?: (value: [string | undefined, string | undefined]) => any;
 	onButtonClick?: () => any;
 	onEnter?: () => any;
 }
@@ -17,9 +17,9 @@ interface Props {
 const props = defineProps<Props>();
 const handleEnabledChange = (checked: boolean) => {
 	if (checked) {
-		props.onChange && props.onChange(props.optionalDefault);
+		props.onChange?.(props.optionalDefault);
 	} else {
-		props.onChange && props.onChange(undefined);
+		props.onChange?.([undefined, undefined]);
 	}
 };
 

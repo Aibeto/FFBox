@@ -13,9 +13,9 @@ interface Props {
 	disabled?: boolean;
 	placeholder?: string;
 	// deletable?: boolean;
-	validator?: (value: string) => string;
+	validator?: (value: string) => string | undefined;
 	inputFixer?: (value: string) => string;
-	onChange?: (value: string) => any;
+	onChange?: (value: string | undefined) => any;
 	onEnter?: () => any;
 	onDelete?: (index: number) => any;
 }
@@ -23,9 +23,9 @@ interface Props {
 const props = defineProps<Props>();
 const handleEnabledChange = (checked: boolean) => {
 	if (checked) {
-		props.onChange && props.onChange(props.optionalDefault);
+		props.onChange?.(props.optionalDefault);
 	} else {
-		props.onChange && props.onChange(undefined);
+		props.onChange?.(undefined);
 	}
 };
 

@@ -1,4 +1,4 @@
-import { AppContext, createVNode, nextTick, render, VNode } from 'vue';
+import { createVNode, nextTick, render, VNode } from 'vue';
 import PopupUI from './PopupComponent.vue';
 
 export interface PopupOptions {
@@ -61,9 +61,9 @@ function handleOnWillClose(id: number, isUserInteraction?: boolean) {
 function reCalcVerticalOffset() {
 	for (let i = 0, totalHeight = 0; i < instances.length; i++) {
 		let instance = instances[i];
-		instance.vnode.component.props.index = i;
-		instance.vnode.component.props.verticalOffset = totalHeight;
-		totalHeight += instances[i].DOM.firstElementChild.clientHeight + 16;
+		instance.vnode.component!.props.index = i;
+		instance.vnode.component!.props.verticalOffset = totalHeight;
+		totalHeight += instances[i].DOM.firstElementChild!.clientHeight + 16;
 	}		
 }
 

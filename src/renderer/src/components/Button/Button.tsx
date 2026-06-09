@@ -47,7 +47,7 @@ const ButtonComponent: FunctionalComponent<ButtonProps> = (props, ctx) => {
 			onClick={(event) => { (onClick || (() => {}))(event); event.stopImmediatePropagation() } }
 			{...restProps}
 		>
-			{ h(ctx.slots.default) }
+			{ ctx.slots.default && h(ctx.slots.default) }
 		</button>
 	)
 }

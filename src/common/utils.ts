@@ -26,7 +26,7 @@ export function parseTimeString(timeString: string): number {
 	if (timeString === 'N/A') {
 		return -1;
 	}
-	let exp: RegExpExecArray;
+	let exp: RegExpExecArray | null;
 	if (exp = /^(\d+):([0-5]?[0-9]):([0-5]?[0-9])(.\d+)?$/.exec(timeString)) {
 		// (时):(分):(秒)(.小)
 		const hour = Number(exp[1]);
@@ -424,26 +424,26 @@ export function getOutputFileTime(task: Task, index: number) {
 
 	if (mux.keepFileTime === 'original') {
 	} else {
-		const startTime1 = parseTimeString(task.after.input.files[0].begin);
-		const startTime2 = parseTimeString(mux.begin);
+		const startTime1 = parseTimeString(task.after.input.files[0].begin || '');
+		const startTime2 = parseTimeString(mux.begin || '');
 		const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
 		const duration = (getOutputDuration(task) || 0) * 1000; // 假设 getOutputDuration 可接收 index
 		if (mux.keepFileTime === 'autoShift') {
 			// 复制修正后的文件时间（依创建时间）。输出文件的创建时间、修改时间将以创建时间为基准，按照剪裁位置自动调整后进行修改
-			const newCreateTime = createTime + startTime;
-			const newModifyTime = createTime + startTime + duration;
+			const newCreateTime = (createTime || 0) + startTime;
+			const newModifyTime = (createTime || 0) + startTime + duration;
 			[createTime, modifyTime] = [newCreateTime, newModifyTime];
-		} else if (mux.keepFileTime === 'fixCTbyMTandShift' && originalDuration > 0) {
+		} else if (mux.keepFileTime === 'fixCTbyMTandShift' && (originalDuration || 0) > 0) {
 			// 复制修正后的文件时间（依修改时间）。输出文件的创建时间、修改时间将以修改时间为基准，按照剪裁位置自动调整后进行修改，用于修复拷贝后创建时间丢失的问题
-			const newCreateTime = modifyTime - originalDuration * 1000 + startTime;
-			const newModifyTime = modifyTime - originalDuration * 1000 + startTime + duration;
+			const newCreateTime = (modifyTime || 0) - (originalDuration || 0) * 1000 + startTime;
+			const newModifyTime = (modifyTime || 0) - (originalDuration || 0) * 1000 + startTime + duration;
 			[createTime, modifyTime] = [newCreateTime, newModifyTime];
 		} else if (mux.keepFileTime === 'fixByFilenameAndShift') {
 			const originalFilePath = task.after.input.files[0]?.filePath;
 			// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
 			const regExp1 = /(\d\d\d\d).?([01]\d).?([0123]\d).?([012]\d).?([0-5]\d).?([0-5]\d)?/;
 			const regExp2 = /(\d\d\d\d) ?年? ?([01]?\d) ?月? ?([0123]?\d) ?日? ?([012]?\d) ?时? ?([0-5]?\d) ?分? ?([0-5]?\d)? ?秒? ?/;
-			const r = originalFilePath.match(regExp1) || originalFilePath.match(regExp2);
+			const r = (originalFilePath || '').match(regExp1) || (originalFilePath || '').match(regExp2);
 			if (r) {
 				const oldCreateTime = new Date(`${r[1]}-${r[2]}-${r[3]} ${r[4]}:${r[5]}:${r[6] || 0}`);
 				if (!isNaN(oldCreateTime.getTime())) {

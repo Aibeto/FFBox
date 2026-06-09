@@ -8,19 +8,19 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const slipperRef = ref<VNodeRef>(null);
+const slipperRef = ref<VNodeRef | null>(null);
 
 const handleDragStart = (event: MouseEvent | TouchEvent) => {
 	event.preventDefault();
 	const beforeChecked = props.checked;
 	let mouseDownX = (event as MouseEvent).pageX || (event as TouchEvent).touches[0].pageX;	// 鼠标在页面（窗口）内的坐标
 	let sliderLeft: number, sliderWidth: number;
-	if (event.target! === slipperRef.value) {
-		sliderLeft = event.target!.parentElement!.getBoundingClientRect().left;
-		sliderWidth = event.target!.parentElement!.offsetWidth;
+	if (event.target === slipperRef.value) {
+		sliderLeft = (event.target as HTMLElement).parentElement!.getBoundingClientRect().left;
+		sliderWidth = (event.target as HTMLElement).parentElement!.offsetWidth;
 	} else {
-		sliderLeft = event.target!.getBoundingClientRect().left;
-		sliderWidth = event.target!.offsetWidth;
+		sliderLeft = (event.target as HTMLElement).getBoundingClientRect().left;
+		sliderWidth = (event.target as HTMLElement).offsetWidth;
 	}
 	// 添加鼠标事件捕获，将其独立为一个函数，以便于 mouseDown 直接触发 mouseMove
 	const handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
@@ -31,7 +31,7 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 			valueX = true;
 		}
 		if (valueX !== lastValue) {
-			(props.onChange || (() => {}))(valueX);
+			props.onChange?.(valueX);
 			lastValue = valueX;
 		}
 	}
@@ -39,9 +39,9 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 		// 处理只点一下没有动的情况
 		if (Math.abs(mouseDownX - Math.floor((event as MouseEvent).pageX || (event as TouchEvent).touches[0].pageX)) <= 3) {
 			if (props.checked && beforeChecked) {
-				(props.onChange || (() => {}))(false);
+				props.onChange?.(false);
 			} else if (!props.checked && !beforeChecked) {
-				(props.onChange || (() => {}))(true);
+				props.onChange?.(true);
 			}
 		}
 		document.removeEventListener('mousemove', handleMouseMove);
@@ -55,14 +55,14 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 
 const handleKeydown = (event: KeyboardEvent) => {
 	if (event.key == 'ArrowLeft') {
-		(props.onChange || (() => {}))(false);
+		props.onChange?.(false);
 	} else if (event.key == 'ArrowRight') {
-		(props.onChange || (() => {}))(true);
+		props.onChange?.(true);
 	}
 };
 const handleKeyup = (event: KeyboardEvent) => {
 	if (event.key == ' ' || event.key == 'Enter') {
-		(props.onChange || (() => {}))(!props.checked);
+		props.onChange?.(!props.checked);
 	}
 };
 

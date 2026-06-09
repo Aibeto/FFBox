@@ -26,7 +26,7 @@ const paraSelected = ref(0);
 
 const { deviderRef, handleDeviderDragStart } = useLowerDividerDrag();
 const centerDraggerPos = ref(50);
-const selectedFileIndex = ref(undefined);
+const selectedFileIndex = ref<number | undefined>(undefined);
 
 const uploadFileList = computed(() => {
 	// const tasks = appStore.currentServer?.data.tasks || [];
@@ -38,14 +38,14 @@ const uploadFileList = computed(() => {
 		status: serverUploadFile.status,
 		chunks: serverUploadFile.chunks,
 		size: serverUploadFile.size,
-		readProgress: serverUploadFile.chunks.reduce((prev, curr) => prev + curr.size, 0) / serverUploadFile.size,
-		hashProgress: serverUploadFile.chunks.reduce((prev, curr) => prev + (curr.hash ? curr.size : 0), 0) / serverUploadFile.size,
-		uploadProgress: serverUploadFile.chunks.reduce((prev, curr) => prev + curr.transferred, 0) / serverUploadFile.size,
+		readProgress: serverUploadFile.chunks.reduce((prev, curr) => prev + curr.size, 0) / serverUploadFile.size!,
+		hashProgress: serverUploadFile.chunks.reduce((prev, curr) => prev + (curr.hash ? curr.size : 0), 0) / serverUploadFile.size!,
+		uploadProgress: serverUploadFile.chunks.reduce((prev, curr) => prev + curr.transferred, 0) / serverUploadFile.size!,
 	}));
 });
 
 const chunkList = computed(() => {
-	const serverUploadFile = uploadFileList.value[selectedFileIndex.value];
+	const serverUploadFile = uploadFileList.value[selectedFileIndex.value || -1];
 	return (serverUploadFile?.chunks || []).map((chunk) => ({
 		hash: chunk.hash,
 		status: chunk.status,
@@ -56,7 +56,7 @@ const chunkList = computed(() => {
 const downloadFileList = computed(() => appStore.currentServer?.data.downloadFiles || []);
 
 const selectedTaskName = computed(() => 
-	appStore.selectedTask.size === 0 ? '您未选择任务' : 
+	appStore.selectedTask.size === 0 || !appStore.currentServer ? '您未选择任务' : 
 	appStore.selectedTask.size === 1 ? `任务「${appStore.currentServer.data.tasks[[...appStore.selectedTask][0]].taskName}」上传文件` : 
 	`${appStore.selectedTask.size} 个任务的上传文件`
 );
@@ -69,8 +69,8 @@ const fileListStyle = computed(() => (
 const chunkListStyle = computed(() => chunkList.value ? "--itemHeight: 26px" : "--itemHeight: 34px");
 
 const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
-	const draggerRect = event.target.getBoundingClientRect();
-	const mainAreaRect = event.target.parentElement.getBoundingClientRect();
+	const draggerRect = (event.target as HTMLElement).getBoundingClientRect();
+	const mainAreaRect = (event.target as HTMLElement).parentElement!.getBoundingClientRect();
 	const inElementX = ((event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX) - draggerRect.x;	// 鼠标在元素内的 X
 	// 添加鼠标事件捕获
 	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
@@ -93,7 +93,7 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 
 const handleFileClick = (file: UploadFile, index: number) => {
 	selectedFileIndex.value = index;
-	appStore.selectedTask = appStore.currentServer.data.tasks[file.taskId] ? new Set([file.taskId]) : new Set();
+	appStore.selectedTask = appStore.currentServer?.data.tasks[file.taskId] ? new Set([file.taskId]) : new Set();
 	appStore.taskSelectionModified = false;
 	appStore.applySelectedTask();
 };
@@ -101,6 +101,7 @@ const handleFileClick = (file: UploadFile, index: number) => {
 const getButtonColorStyle = (index: number) => ({ color: paraSelected.value === index ? sidebarColors.value[index] : 'hwb(0 50% 50%)' });
 
 watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
+	// @ts-ignore
 	if (selectedFileIndex.value >= (appStore.currentServer?.data.uploadFiles || []).length - 1) {
 		selectedFileIndex.value = undefined;
 	}
@@ -136,7 +137,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						class="listItem" :class="selectedFileIndex === index ? 'listItemSelected' : undefined"
 						:style="file.isCurrentTask ? {} : (paraSelected == 0 ? { opacity: 0.6 } : { display: 'none' })"
 						@click="handleFileClick(file as any, index)"
-						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${formatSize(file.size, appStore.frontendSettings.useIEC)}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`, 'mtl')"
+						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${formatSize(file.size!, appStore.frontendSettings.useIEC)}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`, 'mtl')"
 					>
 						<div :class="`progress ${file.status === 'error' ? 'progressError' : ''}`">
 							<div :style="{

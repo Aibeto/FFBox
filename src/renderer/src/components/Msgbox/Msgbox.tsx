@@ -1,4 +1,4 @@
-import { AppContext, createVNode, render, VNode } from 'vue';
+import { createVNode, render, VNode } from 'vue';
 import { ButtonType as ButtonType } from '../Button/Button';
 import MsgboxUI from './MsgboxComponent';
 

@@ -73,8 +73,8 @@ const InputView = defineComponent((props: Props) => {
 	const listContainerStyle = computed(() => extendedFiles.value.length >= 11 ? "--itemHeight: 26px" : "--itemHeight: 34px")
 
 	const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
-		const draggerRect = event.target.getBoundingClientRect();
-		const mainAreaRect = event.target.parentElement.getBoundingClientRect();
+		const draggerRect = (event.target as HTMLElement).getBoundingClientRect();
+		const mainAreaRect = (event.target as HTMLElement).parentElement!.getBoundingClientRect();
 		const inElementX = ((event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX) - draggerRect.x;	// 鼠标在元素内的 X
 		// 添加鼠标事件捕获
 		let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
@@ -174,6 +174,7 @@ const InputView = defineComponent((props: Props) => {
 			}
 		} else if (event.key === 'Delete' && event.altKey) {
 			handleFileDelete(event as any, editingIndex.value);
+			// @ts-ignore
 			editingIndex.value = undefined;	// 不取消选择会触发奇怪的 bug，比如 InputAutoSize 会出现 resizeOvserver 已卸载、有 TransitionGroup 时一次性清空列表等等
 		}
 	};
@@ -184,7 +185,7 @@ const InputView = defineComponent((props: Props) => {
 			const nodes = appStore.globalParams.filter.nodes;
 			const lines = appStore.globalParams.filter.lines;
 			const node = nodes.find((node) => node.name === `in_${index}`);
-			deleteNode(nodes, lines, node);
+			deleteNode(nodes, lines, node!);
 		}
 		appStore.applyParameters();
 	};
@@ -234,7 +235,7 @@ const InputView = defineComponent((props: Props) => {
 		event.preventDefault();
 		draggingStatus.value = undefined;
 		const urls = [];
-		if (event.dataTransfer?.files?.length) {
+		if (event.dataTransfer?.files?.length && appStore.currentServer) {
 			if (appStore.currentServer.entity.ip === 'localhost') {
 				for (const file of event.dataTransfer?.files) {
 					file.path && urls.push(file.path);
@@ -362,21 +363,21 @@ const InputView = defineComponent((props: Props) => {
 			<div class={css.dragger} style={{ left: `${centerDraggerPos.value}%`}} onMousedown={handleCenterDraggerDragStart} onTouchstart={handleCenterDraggerDragStart} />
 			<div class={css.right} style={{ width: `${100 - centerDraggerPos.value}%`}}>
 				{editingInput.value ? (<>
-					<BoxedDropdownInput title="硬件解码" text={editingInput.value.hwaccel} placeholder="不使用" list={hwaccels} onChange={(value: string) => handleParamChange('hwaccel', value)} />
-					<BoxedDropdownInput title="跳过帧" text={editingInput.value.skipFrame} placeholder="默认" list={skipFrame} onChange={(value: string) => handleParamChange('skipFrame', value)} />
-					<BoxedCutTimeInput title="切割时间" value={[editingInput.value.begin, editingInput.value.end]} onChange={(value: [string, string]) => {
+					<BoxedDropdownInput title="硬件解码" text={editingInput.value.hwaccel} placeholder="不使用" list={hwaccels} onChange={(value) => handleParamChange('hwaccel', value)} />
+					<BoxedDropdownInput title="跳过帧" text={editingInput.value.skipFrame} placeholder="默认" list={skipFrame} onChange={(value) => handleParamChange('skipFrame', value)} />
+					<BoxedCutTimeInput title="切割时间" value={[editingInput.value.begin, editingInput.value.end]} onChange={(value) => {
 						inputParams.value.files[editingIndex.value].begin = value[0];
 						inputParams.value.files[editingIndex.value].end = value[1];
 						appStore.applyParameters();
 					}} onButtonClick={() => appStore.openCutOperator('input')} />
-					<BoxedNormalInput title="限制解码倍速" value={editingInput.value.readrate} placeholder="不限制" onChange={(value: string) => handleParamChange('readrate', value)} />
-					<BoxedNormalInput title="自定义参数" value={editingInput.value.custom} onChange={(value: string) => handleParamChange('custom', value)} long={true} />
+					<BoxedNormalInput title="限制解码倍速" value={editingInput.value.readrate} placeholder="不限制" onChange={(value) => handleParamChange('readrate', value)} />
+					<BoxedNormalInput title="自定义参数" value={editingInput.value.custom} onChange={(value) => handleParamChange('custom', value)} long={true} />
 					{(editingInputParams.value?.parameters || []).filter((parameter) => parameter.optional).length && (
 						<AutoSizeWrapper class={css.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
 							<div class={css.bar}>
 								<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 							</div>
-							{renderDetailParameters(editingInputParams.value?.parameters, inputParams.value.files[editingIndex.value].detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
+							{renderDetailParameters(editingInputParams.value?.parameters || [], inputParams.value.files[editingIndex.value].detail!, (parameter, value) => handleDetailChange(parameter.parameter, value), true)}
 							<div class={css.bar}>
 								<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 							</div>

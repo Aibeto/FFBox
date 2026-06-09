@@ -4,10 +4,10 @@ import { durationFixer, durationValidator } from '@renderer/components/validator
 import Button, { ButtonType } from '@renderer/components/Button/Button'
 
 interface Props {
-	value?: [string, string];
+	value: [string | undefined, string | undefined];
 	disabled?: boolean;
 	placeholder?: [string, string];
-	onChange?: (value: [string, string]) => any;
+	onChange?: (value: [string | undefined, string | undefined]) => any;
 	onButtonClick?: () => any;
 	onEnter?: () => any;
 	onDoubleClick?: () => any;  // 作为临时的功能
@@ -16,8 +16,8 @@ interface Props {
 const props = defineProps<Props>();
 
 const focused = ref([false, false]);
-const inputText = ref<[string, string]>(['-', '-']);
-const invalidMsg = ref<string>(undefined);
+const inputText = ref<[string | undefined, string | undefined]>([undefined, undefined]);
+const invalidMsg = ref<string | undefined>(undefined);
 
 const selectorStyle = computed(() => {
 	const ret: any = {};
@@ -55,7 +55,7 @@ const handleFocus = (index: number) => {
 	focused.value[index] = true;
 };
 const handleInput = (event: Event, index: number) => {
-	inputText.value[index] = durationFixer(event.target.value);
+	inputText.value[index] = durationFixer((event.target as HTMLInputElement).value);
 	(props.onChange || (() => {}))(inputText.value);	// 使用输入法时会出现 inputText 为空的现象
 };
 const handleKeydown = (event: KeyboardEvent) => {
@@ -86,7 +86,7 @@ onMounted(() => {
 		<input :disabled="props.disabled" v-model="inputText[0]" @blur="handleBlur(0)" @focus="handleFocus(0)" @input="handleInput($event, 0)" @keydown="handleKeydown" :placeholder="placeholder?.[0]">
 		<div class="opButton">
 			<div class="hiddenButton">
-				<Button size="small" :type="ButtonType.Danger" @click="props.onChange(['', ''])">清空</Button>
+				<Button size="small" :type="ButtonType.Danger" @click="props.onChange?.(['', ''])">清空</Button>
 			</div>
 			<Button size="small" @click="onButtonClick">编✂️辑</Button>
 		</div>

@@ -187,61 +187,12 @@
       },
       "channel": {
         "type": "string"
-      },
-      "frames": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/Frame"
-        }
       }
     },
     "required": [
       "type",
       "metadata",
       "sidedata"
-    ],
-    "additionalProperties": false
-  },
-  "Frame": {
-    "type": "object",
-    "properties": {
-      "n": {
-        "type": "number"
-      },
-      "pts": {
-        "type": "number"
-      },
-      "pts_time": {
-        "type": "number"
-      },
-      "type": {
-        "type": "string",
-        "enum": [
-          "I",
-          "P",
-          "B"
-        ]
-      },
-      "mean": {
-        "type": "array",
-        "items": {
-          "type": "number"
-        }
-      },
-      "stdev": {
-        "type": "array",
-        "items": {
-          "type": "number"
-        }
-      }
-    },
-    "required": [
-      "n",
-      "pts",
-      "pts_time",
-      "type",
-      "mean",
-      "stdev"
     ],
     "additionalProperties": false
   },
@@ -333,6 +284,9 @@
   "InputFile": {
     "type": "object",
     "properties": {
+      "skipFrame": {
+        "type": "string"
+      },
       "hwaccel": {
         "type": "string"
       },
@@ -348,8 +302,8 @@
       "end": {
         "type": "string"
       },
-      "realtime": {
-        "type": "boolean"
+      "readrate": {
+        "type": "string"
       },
       "detail": {
         "type": "object"
@@ -602,12 +556,6 @@
       "ratecontrol": {
         "type": "string"
       },
-      "ratevalue": {
-        "type": [
-          "number",
-          "string"
-        ]
-      },
       "detail": {
         "type": "object"
       },
@@ -629,15 +577,6 @@
       },
       "ratecontrol": {
         "type": "string"
-      },
-      "ratevalue": {
-        "type": [
-          "number",
-          "string"
-        ]
-      },
-      "vol": {
-        "type": "number"
       },
       "detail": {
         "type": "object"

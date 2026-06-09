@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, ref, VNodeRef, watch } from 'vue';
-import type { SliderOptions } from '@common/params/parameter';
+import { computed, inject, ref, VNodeRef } from 'vue';
 import { colorThemeKey, useIECKey } from '../injectionKeys';
 
 const colorTheme = inject(colorThemeKey, ref('themeLight'));
@@ -14,8 +13,8 @@ interface Props {
 	mode?: 'number' | 'string';	// 决定了 onChange 返回时的值类型、tags 是否用于列表选项
 	arrowKeyStep?: number;	// 键盘方向键，不指定时按整数进行调整，指定时按步长倒数进行调整
 	adsorption?: 'int' | 'tags' | ((value: number) => number);	// 鼠标或触屏调整时吸附值，不指定时自动选择 tags
-	valueToDisplay?: { base?: number, type?: 'bitrate' | 'integer' | 'revertInteger' } | ((value: number | string) => string);	// 仅在 mode 为 number 时有效，指定显示在滑块旁边的结果
-	onChange?: (value: number | string) => any;
+	valueToDisplay?: { base?: number, type?: 'bitrate' | 'integer' | 'revertInteger' } | ((value: number | string | undefined) => string);	// 仅在 mode 为 number 时有效，指定显示在滑块旁边的结果
+	onChange?: (value: number | string | undefined) => any;
 }
 
 const props = defineProps<Props>();
@@ -47,7 +46,7 @@ const limitedValue = computed(() => {
 	}
 });
 
-const slipperRef = ref<VNodeRef>(null);
+const slipperRef = ref<VNodeRef | null>(null);
 
 const valueToDisplayConverter = (setting?: Props['valueToDisplay']) => {
 	if (setting instanceof Function) {
@@ -99,7 +98,7 @@ const emitNewValue = (realValue: number | string) => {
 			return realValue;
 		}
 	})();
-	(props.onChange || (() => {}))(emitValue);
+	props.onChange?.(emitValue);
 };
 
 const handleDragStart = (event: MouseEvent | TouchEvent) => {
@@ -108,13 +107,13 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 	let slipper = event.target! === slipperRef.value ? true : false;
 	let sliderLeft: number, sliderWidth: number, slipperOffsetX: number;
 	if (slipper) {
-		sliderLeft = event.target!.parentElement!.getBoundingClientRect().left;
-		sliderWidth = event.target!.parentElement!.offsetWidth;
-		slipperOffsetX = (event as MouseEvent).offsetX - event.target!.offsetWidth / 2;
-		event.target!.focus();
+		sliderLeft = (event.target as HTMLElement).parentElement!.getBoundingClientRect().left;
+		sliderWidth = (event.target as HTMLElement).parentElement!.offsetWidth;
+		slipperOffsetX = (event as MouseEvent).offsetX - (event.target as HTMLElement).offsetWidth / 2;
+		(event.target as HTMLElement).focus();
 	} else {
-		sliderLeft = event.target!.getBoundingClientRect().left;
-		sliderWidth = event.target!.offsetWidth;
+		sliderLeft = (event.target as HTMLElement).getBoundingClientRect().left;
+		sliderWidth = (event.target as HTMLElement).offsetWidth;
 		slipperOffsetX = 0;
 	}
 	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
@@ -136,7 +135,7 @@ const handleDragStart = (event: MouseEvent | TouchEvent) => {
 		} else if (props.mode === 'string') {
 			// 如果是字符串模式，吸附到 tags 上
 			if (sortedTags.value?.length) {
-				let minTag = [Number.MAX_VALUE, undefined];	// 距离，值
+				let minTag = [Number.MAX_VALUE, undefined] as [number, any];	// 距离，值
 				for (const tag of sortedTags.value) {
 					if (Math.abs(realValue - tag[0]) <= minTag[0]) {
 						minTag = [Math.abs(realValue - tag[0]), tag[0]];
@@ -211,7 +210,7 @@ const handleKeypress = (event: KeyboardEvent) => {
 			>
 				{{ tag[1] }}
 			</span>
-			<button v-if="props.value !== undefined" class="slider-module-slipper" v-bind:style="{ left: limitedValue * 100 + '%' }" ref="slipperRef" @keydown="handleKeypress" aria-label="滑块"></button>
+			<button v-if="props.value !== undefined" class="slider-module-slipper" v-bind:style="{ left: limitedValue! * 100 + '%' }" ref="slipperRef" @keydown="handleKeypress" aria-label="滑块"></button>
 		</div>
 		<div class="slider-text">{{ valueToDisplayConverter(props.valueToDisplay) }}</div>
 	</div>

@@ -19,7 +19,7 @@ export function showAddTaskPrompt(initialValue?: string) {
     Msgbox({
 		container: document.body,
 		title: '添加任务',
-		content: <Comp exportFunctions={(fs) => compFuncs = fs} initialValue={initialValue} />,
+		content: <Comp exportFunctions={(fs) => compFuncs = fs} initialValue={initialValue || ''} />,
 		buttons: [
 			{ text: '批量添加为多个任务', role: 'confirm', type: ButtonType.Primary, callback: async () => {
 				const result = await compFuncs.exportData();
@@ -33,12 +33,11 @@ export function showAddTaskPrompt(initialValue?: string) {
 		]
 	});
 }
-interface P {
+interface Props {
 	initialValue: string;
     exportFunctions: (fs: any) => void;
 }
-const Comp = defineComponent((props: P) => {
-	const appStore = useAppStore();
+const Comp = defineComponent((props: Props) => {
 	const text = ref('');
 	const computing = ref(0);	// 0：空闲　负随机数：正在计算　正整数：等待下一次触发计算的计时器序号
 	const confirming = ref(false);
@@ -47,9 +46,9 @@ const Comp = defineComponent((props: P) => {
 		localDirsCount: 0,
 		remotesCount: 0,
 		unknownsCount: 0,
-		lineResults: [],
+		lineResults: [] as ("lf" | "ld" | "r" | "u")[],
 	});
-	const inputRef = ref<HTMLTextAreaElement>();
+	const inputRef = ref<HTMLTextAreaElement | null>();
 
 	const statsText = computed(() => {
 		if (confirming.value) {
@@ -83,7 +82,7 @@ const Comp = defineComponent((props: P) => {
 				text.value += '\n'	;
 			}
 			text.value += newPaths.join('\n');
-			inputRef.value.value = text.value;
+			inputRef.value!.value = text.value;
 			handleTextInputAndCategorize();
 		});
 	};
@@ -98,7 +97,7 @@ const Comp = defineComponent((props: P) => {
 		}
 		computing.value = -Math.random();
 		if (event) {
-			text.value = event.target.value;
+			text.value = (event.target as HTMLTextAreaElement).value;
 		}
 		nodeBridge.getPathsCategorized(text.value).then((result) => {
 			categorized.value.localFilesCount = result.localFilesCount;
@@ -136,13 +135,13 @@ const Comp = defineComponent((props: P) => {
 			text.value += '\n'	;
 		}
 		text.value += newPaths.join('\n');
-		inputRef.value.value = text.value;
+		inputRef.value!.value = text.value;
 		handleTextInputAndCategorize();
 	};
 
 	const exports = {
 		exportData: async () => {
-			inputRef.value.disabled = true;
+			inputRef.value!.disabled = true;
 			confirming.value = true;
 			while (computing.value) {
 				// console.log('等待统计');
@@ -166,7 +165,7 @@ const Comp = defineComponent((props: P) => {
 
     onMounted(() => {
 		text.value = (props.initialValue ?? '').replaceAll('\r\n', '\n');
-		inputRef.value.value = text.value;
+		inputRef.value!.value = text.value;
 		handleTextInputAndCategorize();
         props.exportFunctions(exports);
     });
@@ -189,8 +188,6 @@ const Comp = defineComponent((props: P) => {
 
 export function showOpenFilePrompt() {
 	return new Promise<FileList>((resolve, reject) => {
-		const appStore = useAppStore();
-
 		const elem = document.createElement('input');
 		elem.type = 'file';
 		elem.multiple = true;
@@ -200,7 +197,7 @@ export function showOpenFilePrompt() {
 		elem.dispatchEvent(ev);
 		document.body.removeChild(elem);
 		elem.onchange = () => {
-			resolve(elem.files);
+			resolve(elem.files!);
 		};
 	});
 }

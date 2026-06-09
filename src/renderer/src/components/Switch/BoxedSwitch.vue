@@ -7,7 +7,7 @@ interface Props {
 	description?: string;
 	checked?: boolean;
 	optionalDefault?: any;
-	onChange?: (value: boolean) => any;
+	onChange?: (value: boolean | undefined) => any;
 }
 
 const props = defineProps<Props>();

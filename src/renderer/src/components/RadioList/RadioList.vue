@@ -34,7 +34,7 @@ const getButtonStyle = (item: Props['list'][number]) => {
 
 const handleItemClick = (item: Props['list'][number], index: number) => {
 	if (item.value !== props.value) {
-		props.onChange(item.value, index);
+		props.onChange?.(item.value, index);
 	}
 };
 const handleLabelClick = (item: Props['list'][number], index: number) => {
@@ -44,7 +44,7 @@ const handleLabelClick = (item: Props['list'][number], index: number) => {
 }
 const handleConfirm = (item: Props['list'][number], value: string, index: number) => {
 	editingIndex.value = undefined;
-	props.onEdit(`${item.value}`, value, index);
+	props.onEdit?.(`${item.value}`, value, index);
 }
 </script>
 

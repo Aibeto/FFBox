@@ -64,7 +64,7 @@ const handleOutputSelectionListChange = (value: string) => {
 
 const handleForceRefresh = () => {
 	const current = appStore.paraSelected;
-	appStore.paraSelected = undefined;
+	appStore.paraSelected = undefined as any;
 	setTimeout(() => {
 		appStore.paraSelected = current;
 	}, 120);

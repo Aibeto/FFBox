@@ -5,7 +5,7 @@ import css from './tooltipUtil.module.less';
 export function useTooltip(content: string, position?: 'br' | 'r' | 't' | 'tl' | 'tr' | 'mtl', styleName: 'small' | 'large' = 'small') {
 	return {
 		onMouseenter: (e: MouseEvent) => {
-			const rect = e.target.getBoundingClientRect();
+			const rect = (e.target as HTMLElement).getBoundingClientRect();
 			let style: StyleValue;
 			switch (position) {
 				case 'mtl':	// 鼠标左上方
@@ -28,7 +28,7 @@ export function useTooltip(content: string, position?: 'br' | 'r' | 't' | 'tl' |
 					style = { top: `${rect.top + rect.height}px`, right: `${window.innerWidth - rect.right}px` };
 					break;
 			}
-			Tooltip.show({ content, style, class: styleName === 'small' && css.smallTip });
+			Tooltip.show({ content, style, class: styleName === 'small' ? css.smallTip : undefined });
 		},
 		onMouseleave: (e: MouseEvent) => {
 			Tooltip.hide();

@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, CSSProperties, onMounted, ref, watch, toRaw, onUnmounted } from 'vue';
 import type { MenuOptions, MenuItem } from './Menu';
-// @ts-ignore
-import { MenuItem as v_MenuItem, MenuOptions as v_MenuOptions } from './Menu.tsx';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import Checkbox from '@renderer/components/Checkbox/Checkbox.vue';
 import Radio from '@renderer/components/Radio/Radio.vue';
@@ -14,20 +12,17 @@ interface InnerMenu {
 	parent: InnerMenu | null;
 };
 
-type v_Props = v_MenuOptions & {
-	onSelect?: (event: Event, menuItem: MenuItem) => void | boolean;
-}
 type Props = MenuOptions & {
 	onSelect?: (event: Event, menuItem: MenuItem) => void | boolean;
 }
 
-const props = defineProps<v_Props>() as any as Props;
+const props = defineProps<Props>();
 
-const menuElemRefs = ref([]);
+const menuElemRefs = ref<HTMLDivElement[]>([]);
 const openedSubMenus = ref<number[]>([]);
 const openedSubMenuItemPos = ref<{[key: number]: { xMin: number, yMin: number, xMax: number, yMax: number, preferDirection: 'l' | 'r' }}>({});	// key：menuIndex / key　value：menuItem 的位置　preferDirection：子菜单倾向向哪个方向打开
-const currentHoveredItem = ref<MenuItem>(undefined);
-const currentSelectedItem = ref<MenuItem>(undefined);
+const currentHoveredItem = ref<MenuItem | undefined>(undefined);
+const currentSelectedItem = ref<MenuItem | undefined>(undefined);
 
 // 将所有子菜单打平，这样就能使用一个 v-for 渲染所有菜单
 const flattenedMenus = computed(() => {
@@ -96,7 +91,7 @@ const getMenuItemClassName = (menuItem: MenuItem) => {
 			}
 			// 若子菜单被打开，则进入子菜单的对应项也要显示悬浮
 			if (menuItem.type === 'submenu') {
-				if (openedSubMenus.value.includes(menuItem.key)) {
+				if (openedSubMenus.value.includes(menuItem.key!)) {
 					retStr.push('menuItemHovered');
 				}
 			}
@@ -133,7 +128,7 @@ const getMenuPosition = (menu: InnerMenu) => {
 	const canvas = document.createElement('canvas');
 	canvas.style.position = 'fixed';
 	canvas.style.top = '150px';
-	const context = canvas.getContext('2d');
+	const context = canvas.getContext('2d')!;
 	context.font = getComputedStyle(document.body).font.replace(/\d+px/, '14px');
 	const listWidth2 = menu.menu.reduce((prev, curr) => {
 		if ('label' in curr) {
@@ -257,7 +252,7 @@ const calcSubMenuPosition = (menuIndex: number) => {
 const showTooltip = (menuItem: MenuItem) => {
 	// 计算 tooltip 打开位置
 	if (menuItem.type !== 'separator' && menuItem.tooltip) {
-		const { menu, indexInFlattened, indexInMenu } = getMenuByItem(menuItem);
+		const { menu, indexInFlattened, indexInMenu } = getMenuByItem(menuItem)!;
 		let position = {};
 		const menuElem = menuElemRefs.value[indexInFlattened] as HTMLDivElement;
 		if (!menuElem) {
@@ -307,7 +302,7 @@ const showTooltip = (menuItem: MenuItem) => {
 const handleSelect = (e: MouseEvent | KeyboardEvent, menuItem: MenuItem) => {
 	e.stopPropagation();	// 防止触发 mask 的 onCancel
 	if ('value' in menuItem) {
-		props.onSelect(e, menuItem);
+		props.onSelect?.(e, menuItem);
 	}
 };
 
@@ -320,14 +315,14 @@ const handleMenuItemMouseLeave = () => {
 
 const handleMenuItemFocused = (e: FocusEvent, menuItem: MenuItem) => {
 	currentHoveredItem.value = menuItem;
-	(props.returnFocus || (() => {}))(e);
+	props.returnFocus?.(e);
 };
 
 // 根据当前 hover 项确定子菜单的打开状态、tooltip 的显隐
 watch(currentHoveredItem, (newItem, oldItem) => {
 	// console.log('currentHoveredItem', newItem);
 	if (newItem !== undefined) {
-		const { menu, indexInFlattened, indexInMenu } = getMenuByItem(toRaw(newItem));
+		const { menu, indexInFlattened, indexInMenu } = getMenuByItem(toRaw(newItem))!;
 		const newOpenedKeys = [menu.menuIndex];
 		let current = menu;
 		// 打开的菜单为 [...所有父亲, 当前菜单]
@@ -337,16 +332,16 @@ watch(currentHoveredItem, (newItem, oldItem) => {
 		}
 		if (newItem.type === 'submenu') {
 			// 打开的菜单为 [...所有父亲, 当前菜单, 子菜单]
-			newOpenedKeys.push(newItem.key);
+			newOpenedKeys.push(newItem.key!);
 			// 记录子菜单项的位置
 			const menuElem = menuElemRefs.value[indexInFlattened] as HTMLDivElement;
 			const menuItemElem = menuElem.children[indexInMenu];
 			const menuItemElemRect = menuItemElem.getBoundingClientRect();
-			// openedSubMenuItemPos.value[newItem.key] = { xMin: menuItemElemRect.x, yMin: menuItemElemRect.y, xMax: menuItemElemRect.x + menuItemElemRect.width, yMax: menuItemElemRect.y + menuItemElemRect.height };
+			// openedSubMenuItemPos.value[newItem.key!] = { xMin: menuItemElemRect.x, yMin: menuItemElemRect.y, xMax: menuItemElemRect.x + menuItemElemRect.width, yMax: menuItemElemRect.y + menuItemElemRect.height };
 			const menu = flattenedMenus.value[indexInFlattened];
 			// const parentMenu = menu.parent;
 			const currentPreferDirection = menu ? (openedSubMenuItemPos.value[menu.menuIndex]?.preferDirection || 'r') : 'r';
-			openedSubMenuItemPos.value[newItem.key] = {
+			openedSubMenuItemPos.value[newItem.key!] = {
 				xMin: menuItemElemRect.x,
 				yMin: menuItemElemRect.y,
 				xMax: menuItemElemRect.x + menuItemElemRect.width,
@@ -381,7 +376,7 @@ watch(currentHoveredItem, (newItem, oldItem) => {
 const keydownListener = (e: KeyboardEvent) => {
 	// 关闭菜单
 	if (e.key === 'Escape') {
-		props.onCancel(e);
+		props.onCancel?.(e);
 	}
 	let menuItem = toRaw(currentHoveredItem.value);
 	// 动作
@@ -398,14 +393,14 @@ const keydownListener = (e: KeyboardEvent) => {
 			menuItem = flattenedMenus.value[0].menu[0];
 		} else {
 			// 其他按键冒泡到上层
-			(props.onKeyDown || (() => {}))(e);
+			props.onKeyDown?.(e);
 		}
 	}
 	if (!menuItem) {
 		return;
 	}
 	// 检测上下方向，切换菜单项焦点
-	const { menu, indexInFlattened, indexInMenu } = getMenuByItem(menuItem);
+	const { menu, indexInFlattened, indexInMenu } = getMenuByItem(menuItem)!;
 	if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
 		// 找到菜单 DOM
 		const menuElem = menuElemRefs.value[indexInFlattened] as HTMLDivElement;
@@ -439,16 +434,16 @@ const keydownListener = (e: KeyboardEvent) => {
 	if (e.key === 'ArrowLeft') {
 		if (menu.parent) {
 			// 焦点回到父级的进入子菜单的项
-			const parentDOM = menuElemRefs.value[menu.parent.menuIndex] as HTMLDivElement;
+			const parentDOM = menuElemRefs.value[menu.parent.menuIndex];
 			const menuItemIndex = menu.parent.menu.findIndex((menuItem) => menuItem.type === 'submenu' && menuItem.key === menu.menuIndex)
 			parentDOM.children[menuItemIndex].focus();
 		} else {
-			(props.onKeyDown || (() => {}))(e);
+			props.onKeyDown?.(e);
 		}
 	} else if (e.key === 'ArrowRight') {
 		if (menuItem.type === 'submenu') {
 			// 焦点进入子菜单的 props 选中项或第一项
-			const childDOM = menuElemRefs.value[menuItem.key];
+			const childDOM = menuElemRefs.value[menuItem.key!];
 			const activeIndex = menuItem.subMenu.findIndex((menuItem) => 'value' in menuItem && menuItem.value === currentSelectedItem.value);
 			const finalIndex = activeIndex !== -1 ? activeIndex : 0;
 			childDOM.children[finalIndex].focus();
@@ -456,7 +451,7 @@ const keydownListener = (e: KeyboardEvent) => {
 				handleSelect(e, menuItem.subMenu[finalIndex]);
 			}
 		} else {
-			(props.onKeyDown || (() => {}))(e);
+			props.onKeyDown?.(e);
 		}
 	}
 }
@@ -491,7 +486,7 @@ onMounted(() => {
 		setTimeout(() => {
 			calcSubMenuPosition(menu.menuIndex);
 			// 激活对应项以自动滚动到该位置
-			const { indexInFlattened, indexInMenu } = getMenuByItem(menuItem);
+			const { indexInFlattened, indexInMenu } = getMenuByItem(menuItem)!;
 			const menuElem = menuElemRefs.value[indexInFlattened] as HTMLDivElement;
 			const menuItemElem = menuElem.children[indexInMenu];
 			menuItemElem.focus();
@@ -521,14 +516,14 @@ defineExpose({
 </script>
 
 <template>
-	<div class="mask" ref="menuRef" @click="props.onCancel($event)">
+	<div class="mask" ref="menuRef" @click="props.onCancel?.($event)">
 		<TransitionGroup name="menuAnimate">
 			<menu
 				v-for="menu in Object.values(flattenedMenusFiltered)"
 				:key="menu.menuIndex"
 				class="menu"
 				:style="getMenuPosition(menu)"
-				:ref="(el) => menuElemRefs[menu.menuIndex] = el"
+				:ref="(el) => menuElemRefs[menu.menuIndex] = el as HTMLDivElement"
 				@mouseup="$event.stopPropagation()"
 			>
 				<div
@@ -552,7 +547,7 @@ defineExpose({
 						<component :is="menuItem.icon" />
 					</div>
 					<div v-if="menuItem.type === 'submenu'" class="iconRightArea">
-						<IconRight :style="openedSubMenuItemPos[menuItem.key]?.preferDirection === 'l' ? { transform: 'rotate(180deg)' } : undefined" />
+						<IconRight :style="openedSubMenuItemPos[menuItem.key || -1]?.preferDirection === 'l' ? { transform: 'rotate(180deg)' } : undefined" />
 					</div>
 				</div>
 			</menu>

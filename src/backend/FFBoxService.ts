@@ -29,16 +29,16 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	public ffmpegPath = '';
 	public ffprobePath = '';
 	public ffmpegInfo: FFmpegInfo = { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, filtersCount: 0, muxersCount: 0, demuxersCount: 0 };
-	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; };
-	public ffmpegFormats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[]; };
+	public ffmpegCodecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[]; } | null = null;
+	public ffmpegFormats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[]; } | null = null;
 	public ffmpegFilters: FFmpegFilterDetail[] = [];
 	public notifications: Notification[] = [];
 	private latestNotificationId = 0;
 	public functionLevel = 20;
-	public machineId: string;
+	public machineId: string | undefined;
 	// 设置部分
 	private maxThreads = 1;
-	private customFFmpegPath: string;
+	private customFFmpegPath: string | undefined = undefined;
 	private preserveUnfinishedTasks = true;
 	private deleteFinishedTasks = false;
 	// 帧扫描状态跟踪：key = `${id}_${fileIndex}_${videoStreamIndex}_${filePath}`
@@ -248,6 +248,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			// 获取 codecs
 			const ffmpeg = new FFmpeg(this.ffmpegPath, 3, ['-codecs']);
 			ffmpeg.on('codecs', async (codecsResult) => {
+				if (!codecsResult) { debugger; throw 'ub'; }
 				log.info(`编码器概览扫描完成，支持视频编码 ${codecsResult.videoCodecs.length} 个、音频编码 ${codecsResult.audioCodecs.length} 个。即将扫描详细信息。`);
 				console.log(codecsResult);
 				const videoFinalResult: FFmpegCodecDetail[] = [];
@@ -264,7 +265,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 							const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
 							ffmpeg2.on('codecs', (_, codecResult) => {
 								// console.log(codecResult);
-								encoderDetails.push({ name: encoderName, ...codecResult });
+								encoderDetails.push({ name: encoderName, ...codecResult! });
 								resolve(0);
 							});
 						});
@@ -288,7 +289,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 							const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
 							ffmpeg2.on('codecs', (_, codecResult) => {
 								// console.log(codecResult);
-								encoderDetails.push({ name: encoderName, ...codecResult });
+								encoderDetails.push({ name: encoderName, ...codecResult! });
 								resolve(0);
 							});
 						});
@@ -311,6 +312,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			// 获取 muxers/demuxers
 			const ffmpeg = new FFmpeg(this.ffmpegPath, 4, ['-formats']);
 			ffmpeg.on('formats', async (formatsResult) => {
+				if (!formatsResult) { debugger; throw 'ub'; }
 				log.info(`格式概览扫描完成，支持复用器 ${formatsResult.muxers.length} 个、解复用器 ${formatsResult.demuxers.length} 个。即将扫描详细信息。`);
 				console.log(formatsResult);
 				const muxerFinalResult: FFmpegMuxerDetail[] = [];
@@ -320,10 +322,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					await new Promise((resolve, _) => {
 						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 4, ['-hide_banner', '-h', `muxer=${muxer.name}`]);
 						ffmpeg2.on('formats', (_, formatResult) => {
+							if (!formatResult) { debugger; throw 'ub'; }
 							muxerFinalResult.push({
 								name: muxer.name,
 								description: muxer.description,
-								extensions: formatResult.commonExtensions,
+								extensions: formatResult.commonExtensions || [],
 								defaultVideoCodec: formatResult.defaultVideoCodec,
 								defaultAudioCodec: formatResult.defaultAudioCodec,
 								options: formatResult.options,
@@ -340,10 +343,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					await new Promise((resolve, _) => {
 						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 4, ['-hide_banner', '-h', `demuxer=${demuxer.name}`]);
 						ffmpeg2.on('formats', (_, formatResult) => {
+							if (!formatResult) { debugger; throw 'ub'; }
 							demuxerFinalResult.push({
 								name: demuxer.name,
 								description: demuxer.description,
-								extensions: formatResult.commonExtensions,
+								extensions: formatResult.commonExtensions || [],
 								isDevice: demuxer.isDevice,
 								options: formatResult.options,
 							});
@@ -363,6 +367,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			// 获取 filters
 			const ffmpeg = new FFmpeg(this.ffmpegPath, 5, ['-filters']);
 			ffmpeg.on('filters', async (filtersResult) => {
+				if (!filtersResult) { debugger; throw 'ub'; }
 				log.info(`滤镜概览扫描完成，支持滤镜 ${filtersResult.length} 个。即将扫描详细信息。`);
 				console.log(filtersResult);
 				const result: FFmpegFilterDetail[] = [];
@@ -371,6 +376,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					await new Promise((resolve, _) => {
 						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 5, ['-hide_banner', '-h', `filter=${filter.name}`]);
 						ffmpeg2.on('filters', (_, codecResult) => {
+							if (!codecResult) { debugger; throw 'ub'; }
 							result.push({
 								name: filter.name,
 								description: filter.description,
@@ -397,10 +403,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			muxersCount: this.ffmpegInfo.muxersCount,
 			demuxersCount: this.ffmpegInfo.demuxersCount,
 			filtersCount: this.ffmpegInfo.filtersCount,
-			videoCodecs: JSON.stringify(this.ffmpegCodecs.video),
-			audioCodecs: JSON.stringify(this.ffmpegCodecs.audio),
-			muxers: JSON.stringify(this.ffmpegFormats.muxer),
-			demuxers: JSON.stringify(this.ffmpegFormats.demuxer),
+			videoCodecs: JSON.stringify(this.ffmpegCodecs!.video),
+			audioCodecs: JSON.stringify(this.ffmpegCodecs!.audio),
+			muxers: JSON.stringify(this.ffmpegFormats!.muxer),
+			demuxers: JSON.stringify(this.ffmpegFormats!.demuxer),
 			filters: JSON.stringify(this.ffmpegFilters),
 		});
 	}
@@ -490,6 +496,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		log.info(`[任务 ${id}] 读取输入媒体信息。`);
 		const filePromises = (task.after.input.files || []).map((file, inputIndex) => {
 			const filePath = file.filePath;
+			if (!filePath) return Promise.resolve(0);
 			const realFilePath = task.remoteTask ? `${os.tmpdir()}/FFBoxUploadCache/${filePath}` : filePath;
 			const promise1 = new Promise((resolve) => {
 				const ffmpeg = new FFmpeg(this.ffmpegPath, 2, ['-hide_banner', '-i', realFilePath, '-f', 'null']);
@@ -519,7 +526,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	
 			});
 			return new Promise((resolve) => {
-				Promise.allSettled([promise1, promise2]).then(() => resolve([promise1, promise2]));
+				Promise.allSettled([promise1, promise2]).then(() => resolve(0));
 			})
 		});
 
@@ -763,7 +770,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 								// 如果输入文件不可读取，或者 utimes 失败，或者 FFBox 无法正确计算文件时间，都会产生 hasTimeError
 								const { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, i);
 								if (ok) {
-									log.info(`[任务 ${id}] 将按照首个输入文件的时间修改任务时间。新创建时间 ${new Date(createTime).toISOString()}；新修改时间 ${new Date(modifyTime).toISOString()}；新访问时间 ${new Date(accessTime).toISOString()}。`);
+									log.info(`[任务 ${id}] 将按照首个输入文件的时间修改任务时间。新创建时间 ${new Date(createTime || 0).toISOString()}；新修改时间 ${new Date(modifyTime || 0).toISOString()}；新访问时间 ${new Date(accessTime || 0).toISOString()}。`);
 									await utimes(outputFilePath, { btime: createTime, mtime: modifyTime, atime: accessTime });
 								} else {
 									hasTimeError.push(i + 1 + '');
@@ -1225,6 +1232,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.trailLimit_stopTranscoding(id, 'working');
 			return true;
 		}
+		return false;
 	}
 
 	public async trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend = false): Promise<void> {
@@ -1239,7 +1247,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		} else if ([TaskStatus.paused, TaskStatus.paused_queued].includes(task.status)) {
 			this.setNotification(
 				id,
-				i11n.service.功能限制_不能继续(task.taskName, byFrontend, reason, task.ffmpeg.process.pid),
+				i11n.service.功能限制_不能继续(task.taskName, byFrontend, reason, task.ffmpeg!.process!.pid!),
 				NotificationLevel.warning,
 			);
 		}
@@ -1482,7 +1490,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			thumbH <= matchedCache.params.height &&
 			(thumbDensity === 'M' || matchedCache.params.density === 'H')
 		) {} else {
-			matchedCache = null;
+			matchedCache = undefined;
 		}
 
 		if (matchedCache) {

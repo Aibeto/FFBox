@@ -1,4 +1,4 @@
-import { AppContext, createVNode, VNode, render, StyleValue } from 'vue';
+import { createVNode, VNode, render, StyleValue } from 'vue';
 import TooltipUI from './TooltipComponent.vue';
 
 export interface TooltipOptions {
@@ -27,14 +27,14 @@ const Tooltip = function () {
 };
 
 Tooltip.show = function (options: TooltipOptions) {
-	vnode.component.props.content = options.content;
-	vnode.component.props.style = options.style;
-	vnode.component.props.class = options.class;
-	vnode.component.props.show = true;
+	vnode.component!.props.content = options.content;
+	vnode.component!.props.style = options.style;
+	vnode.component!.props.class = options.class;
+	vnode.component!.props.show = true;
 }
 
 Tooltip.hide = function () {
-	vnode.component.props.show = false;
+	vnode.component!.props.show = false;
 }
 
 export default Tooltip;

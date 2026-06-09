@@ -6,7 +6,6 @@ import Button from '@renderer/components/Button/Button';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import Popup from "../Popup/Popup";
 import Msgbox from "../Msgbox/Msgbox";
-import IconLoading from '@renderer/assets/loading.svg?component';
 import { useTooltip } from "@renderer/common/tooltipUtil";
 
 interface ConverterItem {
@@ -76,9 +75,9 @@ const Comp = defineComponent((props: Props) => {
 			const FFBoxNVersion = 'FFBox ' + version;
 			converters.value = list.filter((c) => {
 				if (props.direction === 'export') {
-					return buildInfo.isDev ? FFBoxNVersion.includes(c.from) : c.from === FFBoxNVersion;
+					return buildInfo?.isDev ? FFBoxNVersion.includes(c.from) : c.from === FFBoxNVersion;
 				} else if (props.direction === 'import') {
-					return buildInfo.isDev ? FFBoxNVersion.includes(c.to) : c.to === FFBoxNVersion;
+					return buildInfo?.isDev ? FFBoxNVersion.includes(c.to) : c.to === FFBoxNVersion;
 				}
 			});
 

@@ -15,7 +15,7 @@ const MsgboxComponent: FunctionalComponent<Props> = (props) => {
 
 	setTimeout(() => {
 		show.value = true;
-		dialogRef.value.addEventListener('keydown', handleKeyPress);
+		dialogRef.value!.addEventListener('keydown', handleKeyPress);
 	}, 0);
 
 	const mouseDownTransformStyle = computed(() => (
@@ -23,17 +23,17 @@ const MsgboxComponent: FunctionalComponent<Props> = (props) => {
 	);
 
 	const handleKeyPress = (e: KeyboardEvent) => {
-		if (props.buttons.length === 1 && (e.key === 'Escape' || e.key === 'Enter')) {
+		if (props.buttons?.length === 1 && (e.key === 'Escape' || e.key === 'Enter')) {
 			handleButtonClick(props.buttons[0]);
 			e.stopPropagation();
 		} else if (e.key === 'Escape') {
-			const button = props.buttons.find((button) => button.role === 'cancel');
+			const button = (props.buttons || []).find((button) => button.role === 'cancel');
 			if (button) {
 				handleButtonClick(button);
 				e.stopPropagation();
 			}
 		} else if (e.key === 'Enter') {
-			const button = props.buttons.find((button) => button.role === 'confirm');
+			const button = (props.buttons || []).find((button) => button.role === 'confirm');
 			if (button) {
 				handleButtonClick(button);
 				e.stopPropagation();
@@ -41,7 +41,7 @@ const MsgboxComponent: FunctionalComponent<Props> = (props) => {
 		}
 	}
 
-	const handleButtonClick = (button: MsgboxOptions['buttons'][number]) => {
+	const handleButtonClick = (button: NonNullable<MsgboxOptions['buttons']>[number]) => {
 		if (button.callback) {
 			disable.value = true;
 			const ret = button.callback();

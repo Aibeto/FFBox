@@ -24,7 +24,8 @@ const nodeBridge = {
 						let storedValue;
 						try {
 							// key 中的第一项指示需要从 localStorage 读出的字符串
-							storedValue = JSON.parse(localStorage.getItem(keys.shift()));
+							const firstKey = keys.shift()!;
+							storedValue = JSON.parse(localStorage.getItem(firstKey) ?? 'null');
 						} catch (error) {}
 						if (storedValue == undefined) {
 							storedValue = {};
@@ -32,16 +33,16 @@ const nodeBridge = {
 						let obj = storedValue;
 						// obj 指示最深一层对象，而非最深一层对象的值，因此保留 1 的深度
 						while (keys.length > 1) {
-							const currentKey = keys.shift();
+							const currentKey = keys.shift()!;
 							if (obj[currentKey] == undefined) {
 								obj[currentKey] = {};
 							}
 							obj = obj[currentKey]; // 进入深一层
 						}
-						resolve(obj[keys.shift()]);
+						resolve(obj[keys.shift()!]);
 					} else {
 						try {
-							const value = JSON.parse(localStorage.getItem(key));
+							const value = JSON.parse(localStorage.getItem(key) ?? 'null');
 							resolve(value);
 						} catch (error) {
 							resolve(localStorage.getItem(key));
@@ -59,7 +60,8 @@ const nodeBridge = {
 						let storedValue;
 						try {
 							// key 中的第一项指示需要从 localStorage 读出的字符串
-							storedValue = JSON.parse(localStorage.getItem(keys.shift()));
+							const firstKey = keys.shift()!;
+							storedValue = JSON.parse(localStorage.getItem(firstKey) ?? 'null');
 						} catch (error) {}
 						if (storedValue == undefined) {
 							storedValue = {};
@@ -67,13 +69,13 @@ const nodeBridge = {
 						let obj = storedValue;
 						// obj 指示最深一层对象，而非最深一层对象的值，因此保留 1 的深度
 						while (keys.length > 1) {
-							const currentKey = keys.shift();
+							const currentKey = keys.shift()!;
 							if (obj[currentKey] == undefined) {
 								obj[currentKey] = {};
 							}
 							obj = obj[currentKey]; // 进入深一层
 						}
-						obj[keys.shift()] = typeof value === 'object' ? JSON.parse(JSON.stringify(value)) : value; // 对于对象，需先将其 Proxy 解开
+						obj[keys.shift()!] = typeof value === 'object' ? JSON.parse(JSON.stringify(value)) : value; // 对于对象，需先将其 Proxy 解开
 						resolve(localStorage.setItem(keyInLS, JSON.stringify(storedValue)));
 					} else {
 						resolve(localStorage.setItem(key, JSON.stringify(value)))
@@ -89,7 +91,8 @@ const nodeBridge = {
 						let storedValue;
 						try {
 							// key 中的第一项指示需要从 localStorage 读出的字符串
-							storedValue = JSON.parse(localStorage.getItem(keys.shift()));
+							const firstKey = keys.shift()!;
+							storedValue = JSON.parse(localStorage.getItem(firstKey) ?? 'null');
 						} catch (error) {}
 						if (storedValue == undefined) {
 							storedValue = {};
@@ -97,13 +100,13 @@ const nodeBridge = {
 						let obj = storedValue;
 						// obj 指示最深一层对象，而非最深一层对象的值，因此保留 1 的深度
 						while (keys.length > 1) {
-							const currentKey = keys.shift();
+							const currentKey = keys.shift()!;
 							if (obj[currentKey] == undefined) {
 								obj[currentKey] = {};
 							}
 							obj = obj[currentKey]; // 进入深一层
 						}
-						delete obj[keys.shift()];
+						delete obj[keys.shift()!];
 						resolve(localStorage.setItem(keyInLS, JSON.stringify(storedValue)));
 					} else {
 						resolve(localStorage.removeItem(key))
@@ -125,48 +128,6 @@ const nodeBridge = {
 	// get exec(): (...args: any) => ChildProcess | undefined {
 	// 	return window.jsb?.exec;
 	// },
-
-	get os(): 'Windows' | 'Linux' | 'MacOS' | 'Unix' | 'Android' | 'iPadOS' | 'iOS' | 'unknown' {
-		// TODO this.isElectron 不可用
-		if (this.isElectron) {
-			// electron 环境
-			let platform : NodeJS.Platform = process.platform
-			switch (platform) {
-				case 'win32':
-					return 'Windows';
-				case 'linux':
-					return 'Linux';
-				case 'darwin':
-					return 'MacOS';
-				default:
-					return 'unknown';
-			}
-		} else {
-			// web 环境（有新的 navigator.userAgentData 可以代替 platform）
-			if (navigator.userAgent.match(/(Android)\s+([\d.]+)/)) {
-				return 'Android';
-			}
-			if (navigator.userAgent.match(/(iPad).*OS\s([\d_]+)/)) {
-				return 'iPadOS';
-			}
-			if (navigator.userAgent.match(/(iPhone\sOS)\s([\d_]+)/)) {
-				return 'iOS';
-			}
-			if (navigator.platform.indexOf('Win') >= 0) {
-				return 'Windows';
-			}
-			if (navigator.platform.indexOf('Mac') >= 0) {
-				return 'MacOS';
-			}
-			if (navigator.platform.indexOf('Linux') >= 0) {
-				return 'Linux';
-			}
-			if (navigator.platform.indexOf('X11') >= 0) {
-				return 'Unix';
-			}
-			return 'unknown';
-		}
-	},
 
 	jumpToUrl(url: string): void {
 		if (window.jsb?.ipcRenderer) {
@@ -229,7 +190,7 @@ const nodeBridge = {
 		window.jsb?.ipcRenderer?.send('flashFrame', value);
 	},
 
-	setProgressBar(progress: number, options: Electron.ProgressBarOptions | undefined): void {
+	setProgressBar(progress: number, options: Electron.ProgressBarOptions): void {
 		window.jsb?.ipcRenderer?.send('setProgressBar', progress, options);
 	},
 

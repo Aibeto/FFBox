@@ -117,7 +117,7 @@ const handleTaskClicked = (event: MouseEvent, id: number, index: number) => {
 		} else {							// 之前没选东西，现在选第一个
 			currentSelection = new Set([id]);
 		}
-	} else if (event.ctrlKey == true || nodeBridge.os === 'MacOS' && event.metaKey == true) {
+	} else if (event.ctrlKey == true || navigator.platform.indexOf('Mac') >= 0 && event.metaKey == true) {
 		if (currentSelection.has(id)) {
 			currentSelection.delete(id);
 		} else {
@@ -140,26 +140,28 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 			{ type: 'separator',  },
 			{ type: 'normal', icon: <span>▶️</span>, label: '立即开始', value: '立即开始选中任务', tooltip: '马上启动所选任务的编码（仅对未启动、排队开始、排队继续任务有效）', onClick: () => {
 				for (const taskId of appStore.selectedTask) {
-					appStore.currentServer.entity.taskStart(taskId);
+					appStore.currentServer?.entity.taskStart(taskId);
 				}
 			} },
 			{ type: 'normal', icon: <span>⏳</span>, label: '排队开始', value: '排队开始选中任务', tooltip: '将所选任务置入准备状态（对未启动任务置入排队开始状态，对已暂停任务置入排队继续状态）', onClick: () => {
 				for (const taskId of appStore.selectedTask) {
-					appStore.currentServer.entity.taskReady(taskId);
+					appStore.currentServer?.entity.taskReady(taskId);
 				}
 			} },
 			{ type: 'normal', icon: <span>⏹️</span>, label: '停止或重置', value: '停止或重置选中任务', tooltip: '对正在运行任务进行软停止，对正在停止任务进行硬停止，对已停止、已完成、出错任务置入未开始状态', onClick: () => {
 				for (const taskId of appStore.selectedTask) {
-					appStore.currentServer.entity.taskReset(taskId);
+					appStore.currentServer?.entity.taskReset(taskId);
 				}
 			} },
 			{ type: 'normal', icon: <span>🗑️</span>, label: '删除', value: '删除选中任务', tooltip: '对未开始、上传中任务进行删除操作（对其他状态任务无效）', onClick: () => {
 				appStore.deleteTasks([...appStore.selectedTask]);
 			} },
-			...(appStore.currentServer.entity.ip !== 'localhost' ? [
+			...(appStore.currentServer?.entity.ip !== 'localhost' ? [
 				{ type: 'normal' as const, icon: <span>⬇️</span>, label: '下载输出文件', value: '下载输出文件', tooltip: '将所有已完成任务输出文件下载到指定文件夹', onClick: () => {
+					if (!appStore.currentServer) { debugger; throw 'ub'; }
 					const entity = appStore.currentServer.entity;
-					const tasks = [...appStore.selectedTask].map((taskId) => appStore.currentServer.data.tasks[taskId]);
+					const data = appStore.currentServer.data;
+					const tasks = [...appStore.selectedTask].map((taskId) => data.tasks[taskId]);
 					if (nodeBridge.env === 'electron') {
 						const downloadList = [];
 						for (const task of tasks) {
@@ -174,7 +176,7 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 									fileTime = { accessTime, createTime, modifyTime };
 								}
 								downloadList.push({ url, finalFileBaseName: newFileBaseName, fileTime });
-								appStore.downloadMap.set(url, appStore.currentServer.data.id);
+								appStore.downloadMap.set(url, data.id);
 							}							
 						}
 						nodeBridge.ipcRenderer?.send('downloadFiles', { sessionId: entity.sessionId, files: downloadList });
@@ -204,7 +206,7 @@ const handleDownloadFFmpegClicked = () => {
 // 新任务加入，滚动到底
 watch(() => tasks.value.length, (newValue, oldValue) => {
 	if (newValue > oldValue) {
-		const elem = taskListRef.value.parentElement;
+		const elem = taskListRef.value!.parentElement!;
 		const elemHeight = elem.getBoundingClientRect().height;
 		if (elem.scrollTop + elemHeight > elem.scrollHeight - elemHeight * 1) {
 			elem.scrollTop = elem.scrollHeight - elem.getBoundingClientRect().height;
@@ -224,13 +226,13 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 		<div class="tasklist" ref="taskListRef">
 			<TransitionGroup name="tasklistTrans">
 				<TaskItem
-					v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? appStore.currentServer.data.tasks : []).map(Number)"
+					v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? appStore.currentServer!.data.tasks : []).map(Number)"
 					v-intersect="intersectProps"
 					:key="id"
-					:task="appStore.currentServer.data.tasks[id]"
+					:task="appStore.currentServer!.data.tasks[id]"
 					:id="id"
 					:index="index"
-					:show="isVisible.get(index - 2) || isVisible.get(index + 2) || isVisible.get(index)"
+					:show="isVisible.get(index - 2) || isVisible.get(index + 2) || isVisible.get(index) || false"
 					:ref="bindItemRef"
 					:selected="appStore.selectedTask.has(id)"
 					:should-handle-hover="true"
@@ -238,9 +240,9 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 					@batchContextMenu="handleTaskBatchContextMenu"
 				/>
 				<TaskItem
-					v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? [] : appStore.currentServer.data.tasks).map(Number)"
+					v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? [] : appStore.currentServer!.data.tasks).map(Number)"
 					:key="id"
-					:task="appStore.currentServer.data.tasks[id]"
+					:task="appStore.currentServer!.data.tasks[id]"
 					:id="id"
 					:index="index"
 					:show="true"
@@ -267,13 +269,13 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 					<h2>FFmpeg 依赖缺失</h2>
 					<p class="smallTip">请按以下步骤解决问题：</p>
 					<div style="height: 12px" />
-					<p>1. 在<a @click="handleDownloadFFmpegClicked"> FFmpeg 官网</a>下载适用于 <span>{{ appStore.currentServer.data.os || '对应操作系统' }}</span> 的程序</p>
-					<p v-if="['Windows', 'unknown'].includes(appStore.currentServer.data.os)">　　2.1. 选择一：将 ffmpeg 可执行文件所在路径放至于环境变量中</p>
-					<p v-if="['MacOS', 'Linux'].includes(appStore.currentServer.data.os)">　　2.1. 选择一：将 ffmpeg 可执行文件放入 /usr/local/bin</p>
-					<p v-if="['Windows', 'Linux', 'unknown'].includes(appStore.currentServer.data.os)">　　2.2. 选择二：将 ffmpeg 可执行文件放入 FFBox 可执行程序相同目录</p>
-					<p v-if="appStore.currentServer.data.os === 'MacOS'">　　2.2. 选择二：将 ffmpeg 可执行文件放入 {{ appStore.currentServer.data.isSandboxed ? 'FFBox.app/Contents/Resources' : 'FFBoxService 可执行程序相同目录' }}</p>
+					<p>1. 在<a @click="handleDownloadFFmpegClicked"> FFmpeg 官网</a>下载适用于 <span>{{ appStore.currentServer?.data.os || '对应操作系统' }}</span> 的程序</p>
+					<p v-if="['Windows', 'unknown'].includes(appStore.currentServer?.data.os!)">　　2.1. 选择一：将 ffmpeg 可执行文件所在路径放至于环境变量中</p>
+					<p v-if="['MacOS', 'Linux'].includes(appStore.currentServer?.data.os!)">　　2.1. 选择一：将 ffmpeg 可执行文件放入 /usr/local/bin</p>
+					<p v-if="['Windows', 'Linux', 'unknown'].includes(appStore.currentServer?.data.os!)">　　2.2. 选择二：将 ffmpeg 可执行文件放入 FFBox 可执行程序相同目录</p>
+					<p v-if="appStore.currentServer?.data.os === 'MacOS'">　　2.2. 选择二：将 ffmpeg 可执行文件放入 {{ appStore.currentServer?.data.isSandboxed ? 'FFBox.app/Contents/Resources' : 'FFBoxService 可执行程序相同目录' }}</p>
 					<div style="height: 4px" />
-					<p>完成以上操作后，重启{{ appStore.currentServer.entity.ip === 'localhost' ? '本软件' : ' FFBoxService ' }}即可开始使用</p>
+					<p>完成以上操作后，重启{{ appStore.currentServer?.entity.ip === 'localhost' ? '本软件' : ' FFBoxService ' }}即可开始使用</p>
 					<div style="height: 12px" />
 				</div>
 			</div>

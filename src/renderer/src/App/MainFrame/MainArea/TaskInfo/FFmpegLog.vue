@@ -3,12 +3,12 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 
 const appStore = useAppStore();
-const selectedTasks = computed(() => appStore.selectedTask.size === 0
+const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appStore.currentServer
 	? { task: undefined, count: 0 }
 	: { task: appStore.currentServer.data.tasks[[...appStore.selectedTask][0]], count: appStore.selectedTask.size }
 );
 
-const cmdRef = ref<HTMLTextAreaElement>(null);
+const cmdRef = ref<HTMLTextAreaElement | null>(null);
 watch(() => selectedTasks.value.task?.cmdData, () => {
 	const elem = cmdRef.value;
 	if (elem) {
@@ -34,7 +34,7 @@ onMounted(() => {
 
 <template>
 	<div class="ffmpegLog">
-		<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task.taskName }}</div>
+		<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task!.taskName }}</div>
 		<div class="code">
 			<textarea
 				aria-label="任务命令行"

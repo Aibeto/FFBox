@@ -25,7 +25,7 @@ const popupAnimateName = ref('popupanimate');	// 用户主动关闭时换一个�
 
 const newLinedMessage = computed(() => h(
 	Fragment,
-	props.message.split('\n').reduce((prev, curr) => prev.concat(curr, h('br')), [])
+	props.message.split('\n').reduce((prev, curr) => prev.concat(curr, h('br')), [] as any[])
 ));
 
 const bgClass = computed(() => {

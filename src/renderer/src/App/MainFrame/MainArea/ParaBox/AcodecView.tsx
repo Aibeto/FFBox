@@ -31,7 +31,7 @@ const AcodecView = defineComponent((props: Props) => {
 				muxerItem = getMenuItemByValue(allMuxers, muxParam.format);
 			}
 			if (muxerItem) {
-				const audioMatch = muxerItem.tooltip.match(/默认音频编码器：(.+)/);
+				const audioMatch = muxerItem.tooltip?.match(/默认音频编码器：(.+)/);
 				return audioMatch?.[1] ? { muxer: muxParam.format, vcodec: audioMatch[1] } : undefined;
 			}
 		}
@@ -41,7 +41,7 @@ const AcodecView = defineComponent((props: Props) => {
 		// 如果启用了滤镜，那么需要找到对应输出节点，并且有连线；否则默认输出一个文件
 		if (appStore.globalParams.filter.nodes.length) {
 			const outputNode = appStore.globalParams.filter.nodes.find((node) => node.name === `out_${props.editingOutputIndex}`);
-			return outputNode?.prevs.length ? true : false;
+			return outputNode?.prevs?.length ? true : false;
 		} else {
 			return true;
 		}
@@ -88,7 +88,7 @@ const AcodecView = defineComponent((props: Props) => {
 	});
 	const rateControlList = computed(() => {
 		return [
-			...acodec.value.rateControl,
+			...(acodec.value?.rateControl || []),
 			// { type: 'separator' as const },
 			// {
 			// 	type: 'normal' as const,
@@ -191,11 +191,11 @@ const AcodecView = defineComponent((props: Props) => {
 
 	return () => audioParams.value && audioContainsInOutput.value ? (
 		<div class={css.container}>
-			<BoxedDropdownInput title="音频编码器" text={audioParams.value.acodec} list={combinedVcodecsList.value} onChange={(value: string) => handleChange('acodec', value)} />
+			<BoxedDropdownInput title="音频编码器" text={audioParams.value.acodec} list={combinedVcodecsList.value} onChange={(value) => handleChange('acodec', value)} />
 			{['禁用', 'copy'].indexOf(audioParams.value.acodec) === -1 && (
 				<>
 					{(acodec.value?.rateControl || []).length ? (
-						<BoxedDropdownInput title="码率控制" text={audioParams.value.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleRateControlChange(value)} />
+						<BoxedDropdownInput title="码率控制" text={audioParams.value.ratecontrol} list={rateControlList.value} onChange={(value) => handleRateControlChange(value!)} />
 					) : null}
 					{rateControlSlider.value && (
 						<BoxedSlider
@@ -208,7 +208,7 @@ const AcodecView = defineComponent((props: Props) => {
 							valueToDisplay={rateControlSlider.value.valueToDisplay}
 							adsorption={rateControlSlider.value.adsorption}
 							onChange={(sliderValue) => {
-								const records = rateControlSlider.value!.sliderParamToDetail(+sliderValue);
+								const records = rateControlSlider.value!.sliderParamToDetail(+sliderValue!);
 								Object.assign(audioParams.value.detail, records);
 								appStore.applyParameters();
 							}}
@@ -231,7 +231,7 @@ const AcodecView = defineComponent((props: Props) => {
 							title="采样频率"
 							placeholder="自动"
 							value={audioParams.value.detail?.ar}
-							onChange={(value: string) => handleDetailChange('ar', value)}
+							onChange={(value) => handleDetailChange('ar', value)}
 						/>
 					)}
 					{!(acodec.value?.parameters || []).some(p => p.parameter === 'channel_layout') && (
@@ -239,7 +239,7 @@ const AcodecView = defineComponent((props: Props) => {
 							title="声道布局"
 							placeholder="自动"
 							value={audioParams.value.detail?.channel_layout}
-							onChange={(value: string) => handleDetailChange('channel_layout', value)}
+							onChange={(value) => handleDetailChange('channel_layout', value)}
 						/>
 					)}
 					{/* {(() => {
@@ -265,7 +265,7 @@ const AcodecView = defineComponent((props: Props) => {
 					})()} */}
 				</>
 			)}
-			<BoxedNormalInput title="自定义参数" value={audioParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			<BoxedNormalInput title="自定义参数" value={audioParams.value.custom} onChange={(value) => handleChange('custom', value)} long={true} />
 			{(acodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
 				<AutoSizeWrapper class={css.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
 					<div class={css.bar}>

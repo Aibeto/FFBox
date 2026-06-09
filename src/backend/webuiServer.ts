@@ -58,11 +58,11 @@ const webuiServer = {
 	},
 
     stop() {
-        server.close();
+        server?.close();
     },
 
     getStatus() {
-        return server.listening;
+        return server?.listening;
     },
 };
 

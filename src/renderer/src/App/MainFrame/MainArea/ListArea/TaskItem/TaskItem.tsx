@@ -55,7 +55,7 @@ export const TaskItem = defineComponent((props: Props) => {
 	// #region 预先计算以减少下方计算量
 
 	const outputDuration = computed(() => getOutputDuration(props.task));
-	const uploadFiles = computed(() => appStore.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === props.id));
+	const uploadFiles = computed(() => appStore.currentServer?.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === props.id) || []);
 	const uploadStatus = computed(() => {
 		if (uploadFiles.value.length > 0 && props.task.status === TaskStatus.initializing) {
 			if (uploadFiles.value.every((file) => file.status !== 'error')) {
@@ -94,7 +94,7 @@ export const TaskItem = defineComponent((props: Props) => {
 			return '读取中';
 		} else {
 			const bps = kbps * 1000;
-			if (window.frontendSettings.useIEC) {
+			if (appStore.frontendSettings.useIEC) {
 				if (bps >= 10 * 1024 ** 2) {
 					return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
 				} else {
@@ -116,8 +116,8 @@ export const TaskItem = defineComponent((props: Props) => {
 	const audioRateControlValue = computed(() => getAudioRateControlParam(props.task.after.outputs[0]?.audio)?.value);
 	const videoRateControl = computed(() => (videoRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.video.ratecontrol} ${videoRateControlValue.value}`));
 	const audioRateControl = computed(() => (audioRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.audio.ratecontrol} ${audioRateControlValue.value}`));
-	const videoInputBitrate = computed(() => defaultVideo.value?.bitrate > 0 ? `@${beforeBitrateFilter(defaultVideo.value?.bitrate)}` : '');
-	const audioInputBitrate = computed(() => defaultAudio.value?.bitrate > 0 ? `@${beforeBitrateFilter(defaultAudio.value?.bitrate)}` : '');
+	const videoInputBitrate = computed(() => defaultVideo.value?.bitrate && defaultVideo.value.bitrate > 0 ? `@${beforeBitrateFilter(defaultVideo.value?.bitrate)}` : '');
+	const audioInputBitrate = computed(() => defaultAudio.value?.bitrate && defaultAudio.value.bitrate > 0 ? `@${beforeBitrateFilter(defaultAudio.value?.bitrate)}` : '');
 
 	// #endregion
 
@@ -125,7 +125,7 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	const graphBitrateFilter = (kbps: number) => {
 		const bps = kbps * 1000;
-		if (window.frontendSettings.useIEC) {
+		if (appStore.frontendSettings.useIEC) {
 			if (bps >= 10 * 1024 ** 2) {
 				return (bps / 1024 ** 2).toFixed(1) + ' M';
 			} else {
@@ -171,10 +171,10 @@ export const TaskItem = defineComponent((props: Props) => {
 		}
 		return '-';
 	});
-	const graphSize = computed(() => formatSize(props.task.dashboard_smooth.size * 1000, window.frontendSettings.useIEC));
-	const graphUploadRead = computed(() => formatSize(transferInfo.value.totalRead, window.frontendSettings.useIEC));
-	const graphUploadHash = computed(() => formatSize(transferInfo.value.totalHash, window.frontendSettings.useIEC));
-	const graphUploadUpload = computed(() => formatSize(transferInfo.value.totalUpload, window.frontendSettings.useIEC));
+	const graphSize = computed(() => formatSize(props.task.dashboard_smooth.size * 1000, appStore.frontendSettings.useIEC));
+	const graphUploadRead = computed(() => formatSize(transferInfo.value.totalRead, appStore.frontendSettings.useIEC));
+	const graphUploadHash = computed(() => formatSize(transferInfo.value.totalHash, appStore.frontendSettings.useIEC));
+	const graphUploadUpload = computed(() => formatSize(transferInfo.value.totalUpload, appStore.frontendSettings.useIEC));
 
 	/** 圆环 style 部分
 	 *  计算方式：(log(数值) / log(底，即每增长多少倍数为一格) + 数值为 1 时偏移多少格) / 格数
@@ -304,7 +304,7 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	// #region 体验优化
 
-	const cmdRef = ref<HTMLTextAreaElement>(null);
+	const cmdRef = ref<HTMLTextAreaElement | null>(null);
 	function lastNLines(str: string, n: number) {
 		let count = 0;
 		let i = str.length - 1;
@@ -341,8 +341,8 @@ export const TaskItem = defineComponent((props: Props) => {
 		}
 	})
 
-	const taskNameRef = ref<HTMLDivElement>(null);
-	const paramAreaRef = ref<HTMLDivElement>(null);
+	const taskNameRef = ref<HTMLDivElement | null>(null);
+	const paramAreaRef = ref<HTMLDivElement | null>(null);
 	const isFirstRender = ref(true);
 	// 监听窗口宽度变化
 	const windowWidth = ref(0);
@@ -364,8 +364,8 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	// #region 操作响应
 
-	const openFile = (filePath: string, outputIndex?: number) => {
-		const entity = appStore.currentServer.entity;
+	const openFile = (filePath: string, outputIndex: number) => {
+		const entity = appStore.currentServer!.entity;
 		if (entity.ip === 'localhost') {
 			nodeBridge.openFile(`"${filePath}"`);
 		} else {
@@ -381,7 +381,7 @@ export const TaskItem = defineComponent((props: Props) => {
 					fileTime = { accessTime, createTime, modifyTime };
 				}
 				nodeBridge.ipcRenderer?.send('downloadFile', { url, sessionId: entity.sessionId, finalFileBaseName: newFileBaseName, fileTime });
-				appStore.downloadMap.set(url, appStore.currentServer.data.id);
+				appStore.downloadMap.set(url, appStore.currentServer!.data.id);
 			} else {
 				const elem = document.createElement('a');
 				elem.href = `${url}?fileBaseName=${newFileBaseName}`;	// 目前只对浏览器环境添加此参数控制响应的 header。electron 环境会涉及 encodeURI 的操作，因此较方便的做法是分开处理
@@ -408,7 +408,8 @@ export const TaskItem = defineComponent((props: Props) => {
 			(props.onBatchContextMenu || (() => {}))(event);
 			return;
 		}
-		const hasQueuedTask = appStore.currentServer.data.tasks.some((task) => [TaskStatus.idle_queued, TaskStatus.paused_queued].includes(task.status));	// 暂停或停止某个任务可能会导致另一任务启动，此时给予侧面提示
+		const entity = appStore.currentServer!.entity;
+		const hasQueuedTask = appStore.currentServer!.data.tasks.some((task) => [TaskStatus.idle_queued, TaskStatus.paused_queued].includes(task.status));	// 暂停或停止某个任务可能会导致另一任务启动，此时给予侧面提示
 		showMenu({
 			menu: [
 				{ type: 'normal', label: props.task.taskName, value: '状态', disabled: true,
@@ -421,31 +422,30 @@ export const TaskItem = defineComponent((props: Props) => {
 				},
 				{ type: 'separator' },
 				...([TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.idle ? '开始转码' : '立即开始转码', value: '开始', onClick: () => { appStore.currentServer.entity.taskStart(props.id) } },
+					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.idle ? '开始转码' : '立即开始转码', value: '开始', onClick: () => { entity.taskStart(props.id) } },
 				] : []),
 				...([TaskStatus.paused, TaskStatus.paused_queued].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.paused ? '继续转码' : '立即继续转码', value: '继续', onClick: () => { appStore.currentServer.entity.taskResume(props.id) } },
+					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.paused ? '继续转码' : '立即继续转码', value: '继续', onClick: () => { entity.taskResume(props.id) } },
 				] : []),
 				...([TaskStatus.idle, TaskStatus.paused].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>⏳</span>, label: props.task.status === TaskStatus.idle ? '准备转码（排队）' : '准备继续转码（排队）', value: '准备', onClick: () => { appStore.currentServer.entity.taskReady(props.id) } },
+					{ type: 'normal' as const, icon: <span>⏳</span>, label: props.task.status === TaskStatus.idle ? '准备转码（排队）' : '准备继续转码（排队）', value: '准备', onClick: () => { entity.taskReady(props.id) } },
 				] : []),
 				...([TaskStatus.running, TaskStatus.paused_queued].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>⏸️</span>, label: props.task.status === TaskStatus.running ? '暂停转码' : '保持暂停（取消排队）', value: '暂停', onClick: () => { appStore.currentServer.entity.taskPause(props.id) }, tooltip: hasQueuedTask ? '暂停当前任务\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : undefined },
+					{ type: 'normal' as const, icon: <span>⏸️</span>, label: props.task.status === TaskStatus.running ? '暂停转码' : '保持暂停（取消排队）', value: '暂停', onClick: () => { entity.taskPause(props.id) }, tooltip: hasQueuedTask ? '暂停当前任务\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : undefined },
 				] : []),
 				...([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>⏹️</span>, label: '软停止转码', value: '停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) }, tooltip: `中止解码，完成收尾工作并停止${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
+					{ type: 'normal' as const, icon: <span>⏹️</span>, label: '软停止转码', value: '停止', onClick: () => { entity.taskReset(props.id) }, tooltip: `中止解码，完成收尾工作并停止${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
 				] : []),
 				...([TaskStatus.stopping].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>🛑</span>, label: '硬停止转码', value: '硬停止', onClick: () => { appStore.currentServer.entity.taskReset(props.id) }, tooltip: `调用系统级 kill 立即结束 ffmpeg，可能会导致输出文件无法播放${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
+					{ type: 'normal' as const, icon: <span>🛑</span>, label: '硬停止转码', value: '硬停止', onClick: () => { entity.taskReset(props.id) }, tooltip: `调用系统级 kill 立即结束 ffmpeg，可能会导致输出文件无法播放${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
 				] : []),
 				...([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>🔙</span>, label: props.task.status === TaskStatus.idle_queued ? '重置任务（取消排队）' : '重置任务', value: '重置', onClick: () => { appStore.currentServer.entity.taskReset(props.id) } },
+					{ type: 'normal' as const, icon: <span>🔙</span>, label: props.task.status === TaskStatus.idle_queued ? '重置任务（取消排队）' : '重置任务', value: '重置', onClick: () => { entity.taskReset(props.id) } },
 				] : []),
 				...([TaskStatus.initializing, TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
 					{ type: 'normal' as const, icon: <span>🗑️</span>, label: '删除任务', value: '停止', onClick: () => { appStore.deleteTasks([props.id]) } },
 				] : []),
 				{ type: 'normal' as const, icon: <span>➕</span>, label: '复制任务', value: '复制任务', onClick: () => {
-					const entity = appStore.currentServer.entity;
 					if (entity?.status === ServiceBridgeStatus.Connected) {
 						entity.taskAdd(props.task.taskName, props.task.after);
 					}
@@ -454,7 +454,7 @@ export const TaskItem = defineComponent((props: Props) => {
 				{ type: 'normal' as const, icon: <span>📈</span>, label: '查看任务信息', value: '查看任务信息', onClick: () => appStore.showTaskInfo = [props.id, 0] },
 				...(props.task.outputFiles?.length && [TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
 					{ type: 'separator' as const },
-					{ type: 'submenu' as const, label: appStore.currentServer.entity.ip === 'localhost' ? '打开输出文件' : '下载输出文件', subMenu: props.task.outputFiles.map((file, index) => ({
+					{ type: 'submenu' as const, label: entity.ip === 'localhost' ? '打开输出文件' : '下载输出文件', subMenu: props.task.outputFiles.map((file, index) => ({
 						type: 'normal' as const, label: file, value: file, onClick: () => openFile(file, index)
 					})) },
 				] : []),
@@ -466,7 +466,7 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	const handlePauseNremove = (event: MouseEvent) => {
 		event.stopPropagation();
-		const entity = appStore.currentServer.entity;
+		const entity = appStore.currentServer!.entity;
 		let task = props.task;
 		if ([TaskStatus.running, TaskStatus.paused_queued].includes(task.status)) {
 			entity.taskPause(props.id);
@@ -478,7 +478,7 @@ export const TaskItem = defineComponent((props: Props) => {
 	};
 
 	const handleParaAreaMouseEnter = (event: MouseEvent) => {
-		const paramAreaPos = paramAreaRef.value.getBoundingClientRect();
+		const paramAreaPos = paramAreaRef.value!.getBoundingClientRect();
 		const position = window.innerWidth >= 920 ? { right: `${Math.min(window.innerWidth - event.pageX, window.innerWidth - 400)}px`, top: `${paramAreaPos.top}px` } : { right: '48px', top: `${paramAreaPos.top}px` };
 		const firstOutput = props.task.after.outputs[0];
 		Tooltip.show({
@@ -496,7 +496,7 @@ export const TaskItem = defineComponent((props: Props) => {
 	};
 
 	const handleTaskNameMouseEnter = (event: MouseEvent) => {
-		const taskNamePos = taskNameRef.value.getBoundingClientRect();
+		const taskNamePos = taskNameRef.value!.getBoundingClientRect();
 		const position = { left: `44px`, top: `${taskNamePos.top}px`, maxWidth: `calc(100% - 88px)` };
 		Tooltip.show({
 			content: props.task.taskName ?? '读取中',
@@ -511,7 +511,7 @@ export const TaskItem = defineComponent((props: Props) => {
 		// console.log('render', props.task.taskName);
 		if (!props.show) return (<div style={{ height: `${taskHeight.value}px`, marginBottom: '2px' }} data-index={props.index} data-id={props.id} />)
 		return (
-		<div class={`${css.taskWrapper} ${isFirstRender.value ? css.firstRender : ''}`} style={{ '--height': `${taskHeight.value}px` }} data-color_theme={appStore.frontendSettings.colorTheme} data-index={props.index} data-id={props.id} onClick={(event) => props.onClick(event, props.id, props.index)}>
+		<div class={`${css.taskWrapper} ${isFirstRender.value ? css.firstRender : ''}`} style={{ '--height': `${taskHeight.value}px` }} data-color_theme={appStore.frontendSettings.colorTheme} data-index={props.index} data-id={props.id} onClick={(event) => props.onClick?.(event, props.id, props.index)}>
 			<div class={`${css.taskBackground} ${isFirstRender.value ? css.firstRender : ''}`}>
 				<div class={css.backgroundWhite} style={taskBackgroundStyle.value} />
 				<div class={css.backgroundProgress}>

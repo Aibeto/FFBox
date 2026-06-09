@@ -62,15 +62,15 @@ const RenameLinePanel = defineComponent((props: { line: FilterLine, isInput: boo
 					{ type: 'normal', value: 'd', label: '辅助数据（如章节、元数据）' },
 					{ type: 'normal', value: 't', label: '附件（常用于字体、封面图）' }
 				]}
-				validator={(value) => ['v', 'a', 's', 'd', 't'].includes(value) ? undefined : '错误' }
-				onChange={(value) => mediaTypeValue.value = value}
+				validator={(value: string) => ['v', 'a', 's', 'd', 't'].includes(value) ? undefined : '错误' }
+				onChange={(value: string) => mediaTypeValue.value = value}
 				{...useTooltip('此处填入的值用于向 ffmpeg 指定需要取输入文件的哪个流\nFFBox 滤镜图功能仅将其视作名称，不作功能性判断', 't')}
 			/>
-			<NormalInput value={mediaIndexValue.value} onChange={(value) => mediaIndexValue.value = value} validator={numberValidator.integerEmptyable} placeholder="流编号（不填则代表第一个）" />
+			<NormalInput value={mediaIndexValue.value} onChange={(value: string) => mediaIndexValue.value = value} validator={numberValidator.integerEmptyable} placeholder="流编号（不填则代表第一个）" />
 		</div>
 	) : (
 		<div class={css.renamePanel}>
-			<NormalInput value={inputValue.value} onChange={(value) => inputValue.value = value} />
+			<NormalInput value={inputValue.value} onChange={(value: string) => inputValue.value = value} />
 		</div>
 	)
 }, {
@@ -173,7 +173,7 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 
 		// 实用函数：提取文本内容，忽略 <a> 标签等
 		function extractText(children: (ITag | IText)[]): string {
-			return children
+			return (children ?? [])
 				.map((child) => {
 					if ('value' in child) return child.value;
 					if ('body' in child && Array.isArray(child.body)) {
@@ -194,7 +194,7 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 			while (i < body.length) {
 				const el = body[i];
 				if ('name' in el && el.name === 'p') {
-					desc.push(extractText(el.body));
+					desc.push(extractText(el.body ?? []));
 				} else if ('name' in el && (el.name === 'dl' || el.name === 'span')) {	// 遇到参数或者下一个滤镜的时候跳出
 					break;
 				}
@@ -206,7 +206,7 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 		// 提取参数和其下可选值
 		function parseParams(dl: ITag): FilterParam[] {
 			const params: FilterParam[] = [];
-			const body = dl.body;
+			const body = dl.body || [];
 			for (let i = 0; i < body.length; i++) {
 				const dt = body[i];
 				if ('name' in dt && dt.name === 'dt') {
@@ -217,20 +217,20 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 						const descs: string[] = [];
 						let options: FilterOption[] | undefined;
 				
-						for (let j = 0; j < dd.body.length; j++) {
-							const el = dd.body[j];
+						for (let j = 0; j < (dd.body ?? []).length; j++) {
+							const el = dd.body![j];
 							if ('name' in el && el.name === 'p') {
-								descs.push(...extractText(el.body).split('\n'));
+								descs.push(...extractText(el.body ?? []).split('\n'));
 							} else if ('name' in el && el.name === 'dl') {
 								// options
 								options = [];
-								for (let k = 0; k < el.body.length; k++) {
-									const optDt = el.body[k];
+								for (let k = 0; k < (el.body ?? []).length; k++) {
+									const optDt = el.body![k];
 									if ('name' in optDt && optDt.name === 'dt') {
 										const optSamp = ((optDt.body?.[1] as ITag)?.body?.[0] as IText) ?? ((optDt.body?.[0] as ITag)?.body?.[0] as IText);
 										const optName = optSamp?.value ?? '';
-										const optDd = el.body[k + 2] as ITag;
-										const optDesc = optDd?.name === 'dd' ? extractText(optDd.body) : '';	// 选项有可能没说明，这时候 dt 紧跟 IText 然后没了
+										const optDd = el.body![k + 2] as ITag;
+										const optDesc = optDd?.name === 'dd' ? extractText(optDd.body ?? []) : '';	// 选项有可能没说明，这时候 dt 紧跟 IText 然后没了
 										options.push({ name: optName, description: [optDesc] });
 									}
 								}
@@ -252,9 +252,9 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 			while (i < body.length) {
 				const el = body[i];
 				if ('name' in el && el.name === 'ul') {
-					for (const li of el.body) {
+					for (const li of (el.body ?? [])) {
 						if ('name' in li && li.name === 'li') {
-							const title = extractText(li.body.slice(0, -2));	// 最后两个分别是 example 和 IText
+							const title = extractText((li.body ?? []).slice(0, -2));	// 最后两个分别是 example 和 IText
 							const pre = ((li.body?.slice(-2)[0] as ITag)?.body?.[1] as ITag)?.body?.[0] as IText;
 							examples.push({ title, code: pre?.value ?? '' });
 						}
@@ -267,44 +267,46 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 		}
 
 		console.time('extract');
-		const wrapper = ((ast[2] as ITag).body[3] as ITag).body[1] as ITag;
-		const pageContentInset = (wrapper.body[3] as ITag).body[3] as ITag;
+		const wrapper = ((ast[2] as ITag).body![3] as ITag).body![1] as ITag;
+		const pageContentInset = (wrapper.body![3] as ITag).body![3] as ITag;
 		const filters: Record<string, FilterItem[]> = {};
-		let mode: string;
+		let mode: string | undefined;
 
-		for (let i = 0; i < pageContentInset.body.length; i++) {
-			const el = pageContentInset.body[i];
+		for (let i = 0; i < (pageContentInset.body ?? []).length; i++) {
+			const el = pageContentInset.body![i];
 
 			// 根据 h2 判断当前在读取什么滤镜
-			if ('name' in el && el.name === 'h2' && el.attributes.find((attr) => attr.name.value === 'class')?.value.value === 'chapter') {
-				const prevEl = pageContentInset.body[i - 1] as ITag;
-				mode = prevEl.attributes.find((attr) => attr.name.value === 'id')?.value.value;
-				filters[mode] = [];
+			if ('name' in el && el.name === 'h2' && el.attributes?.find((attr) => attr.name.value === 'class')?.value?.value === 'chapter') {
+				const prevEl = pageContentInset.body![i - 1] as ITag;
+				mode = prevEl.attributes?.find((attr) => attr.name.value === 'id')?.value?.value;
+				if (mode) {
+					filters[mode] = [];
+				}
 			}
 			if (!mode) {
 				continue;
 			}
 
 			// 滤镜入口
-			if ('name' in el && el.name === 'h3' && el.attributes.find((attr) => attr.name.value === 'class')?.value.value === 'section') {
-				const name = extractText(el.body);
+			if ('name' in el && el.name === 'h3' && el.attributes?.find((attr) => attr.name.value === 'class')?.value?.value === 'section') {
+				const name = extractText(el.body ?? []);
 				const filter: FilterItem = { name, description: [] };
 
-				const [desc, descEnd] = parseDescription(i + 1, pageContentInset.body);
+				const [desc, descEnd] = parseDescription(i + 1, pageContentInset.body ?? []);
 				filter.description = desc;
 
-				let nextEl = pageContentInset.body[descEnd];
+				let nextEl = pageContentInset.body![descEnd];
 				if ('name' in nextEl && nextEl.name === 'dl') {
 					filter.params = parseParams(nextEl);
 					i = descEnd + 2;
-					nextEl = pageContentInset.body[i];
+					nextEl = pageContentInset.body![i];
 				} else {
 					i = descEnd;
 				}
 
 				// 示例
-				if ('name' in nextEl && nextEl.name === 'span' && nextEl.attributes.find((attr) => attr.name.value === 'id')?.value.value.toLocaleLowerCase().includes('example')) {
-					const [examples, newI] = parseExamples(i + 2, pageContentInset.body);
+				if ('name' in nextEl && nextEl.name === 'span' && nextEl.attributes?.find((attr) => attr.name.value === 'id')?.value?.value?.toLocaleLowerCase().includes('example')) {
+					const [examples, newI] = parseExamples(i + 2, pageContentInset.body ?? []);
 					filter.examples = examples;
 					i = newI;
 				}
@@ -386,8 +388,8 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 							))}
 							<p class={css.ioDesc}>
 								{(() => {
-									const inputType = FFBoxFilterDetail.value.inputType;
-									const outputType = FFBoxFilterDetail.value.outputType;
+									const inputType = FFBoxFilterDetail.value?.inputType ?? '';
+									const outputType = FFBoxFilterDetail.value?.outputType ?? '';
 									const inputStr = inputType.length ? `输入${['U', 'N'].includes(inputType[0]) ? '多个流' : ` ${inputType.length} 个${['视频', '音频'][['V', 'A'].indexOf(inputType[0])]}流`}` : '';
 									const outputStr = outputType.length ? `输出${['U', 'N'].includes(outputType[0]) ? '多个流' : ` ${outputType.length} 个${['视频', '音频'][['V', 'A'].indexOf(outputType[0])]}流`}` : '';
 									return `本滤镜可${inputStr}${inputStr.length ? '，' : ''}${outputStr}`;
@@ -398,16 +400,16 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 					{currentTab.value === 1 ? (
 						<table>
 							<tbody>
-								{docFilterDetail.value.params.map((param) => (
+								{(docFilterDetail.value.params ?? []).map((param) => (
 									<tr>
 										<td>{param.name}</td>
 										<td>
 											{(() => {
-												const defaultValue = param.description.slice(-1)[0].includes('efault') ? param.description.slice(-1)[0].match(/.+is(.+)$/)[1] : undefined;
+												const defaultValue = param.description.slice(-1)[0]?.includes('efault') ? param.description.slice(-1)[0].match(/.+is(.+)$/)?.[1] : undefined;
 												const descriptions = defaultValue === undefined ? param.description : param.description.slice(0, -1);
 												return (
 													<>
-														{descriptions.reduce((prev, curr) => [...prev, curr, <br />], [])}
+														{descriptions.reduce((prev: any[], curr) => [...prev, curr, <br />], [])}
 														{param.options?.length ? (
 															<table>
 																<tbody>
@@ -420,7 +422,7 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 																</tbody>
 															</table>
 														) : null}
-														{defaultValue !== undefined ? <i>默认值 {param.description.slice(-1)[0].match(/.+is(.+)$/)[1]}</i> : null}
+														{defaultValue !== undefined ? <i>默认值 {param.description.slice(-1)[0]?.match(/.+is(.+)$/)?.[1]}</i> : null}
 													</>
 												)
 											})()}
@@ -432,7 +434,7 @@ const OnlineDocPanel = defineComponent((props: { filterName: string, onClose: ()
 					) : null}
 					{currentTab.value === 2 ? (
 						<div>
-							{docFilterDetail.value.examples.map((example) => (
+							{(docFilterDetail.value.examples ?? []).map((example) => (
 								<>
 									<p>{example.title}</p>
 									<pre>{example.code.replaceAll('&quot;', '"')}</pre>
@@ -484,7 +486,7 @@ const EffectView = defineComponent((props: Props) => {
 	const canvasScale = ref(1);
 	const canvasRef = ref<HTMLDivElement>();
 	const creatingLine = ref<Partial<FilterLine>>();
-	const creatingFilter = ref<[FFmpegFilterDetail, number, number]>([undefined, undefined, undefined]);	// 滤镜, pageX, pageY
+	const creatingFilter = ref<[FFmpegFilterDetail | undefined, number | undefined, number | undefined]>([undefined, undefined, undefined]);	// 滤镜, pageX, pageY
 	const selectedNode = ref<FilterNode>();
 	const showingDoc = ref<string>();
 
@@ -493,7 +495,7 @@ const EffectView = defineComponent((props: Props) => {
 	const nodes = computed(() => filterParams.value.nodes);
 
 	const lines = computed(() => {
-		return [...filterParams.value.lines, creatingLine.value].filter(o => o);
+		return [...filterParams.value.lines, creatingLine.value].filter((o): o is FilterLine => !!o);
 	});
 
 	// 重置为初始节点
@@ -529,7 +531,7 @@ const EffectView = defineComponent((props: Props) => {
 	};
 
 	const showHelp = (event: MouseEvent) => {
-		const rect = event.target.getBoundingClientRect();
+		const rect = (event.target as HTMLElement).getBoundingClientRect();
 		showMenu({
 			menu: [
 				{ type: 'normal', label: '🤔 FFBox 滤镜功能使用指南', value: 'FFBox 滤镜功能使用指南', onClick: () => showLocalLibrary('FFBox 滤镜功能使用指南') },
@@ -575,8 +577,8 @@ const EffectView = defineComponent((props: Props) => {
 
 	// 分割器
 	const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent, n: 1 | 2) => {
-		const draggerRect = event.target.getBoundingClientRect();
-		const mainAreaRect = event.target.parentElement.getBoundingClientRect();
+		const draggerRect = (event.target as HTMLElement).getBoundingClientRect();
+		const mainAreaRect = (event.target as HTMLElement).parentElement!.getBoundingClientRect();
 		const inElementX = ((event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX) - draggerRect.x;	// 鼠标在元素内的 X
 		// 添加鼠标事件捕获
 		let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
@@ -611,9 +613,9 @@ const EffectView = defineComponent((props: Props) => {
 		if (!canvasRef.value) {
 			return;
 		}
-		const canvasRect = canvasRef.value.parentElement.getBoundingClientRect();
+		const canvasRect = canvasRef.value!.parentElement!.getBoundingClientRect();
 		const [_, x, y] = creatingFilter.value;
-		if (x > canvasRect.left && x < canvasRect.left + canvasRect.width && y > canvasRect.top && y < canvasRect.top + canvasRect.height) {
+		if (x != null && y != null && x > canvasRect.left && x < canvasRect.left + canvasRect.width && y > canvasRect.top && y < canvasRect.top + canvasRect.height) {
 			const logicalXY = convertPageXYtoLogicalXY(x, y);
 			return [
 				Math.round(logicalXY[0] / 30) * 30,
@@ -662,7 +664,7 @@ const EffectView = defineComponent((props: Props) => {
 		// 获取鼠标按下点显示位置
 		let [mouseDownX, mouseDownY] = getPageXYfromEvent(event);
 		let dragged = false;
-		const container = (event.target.parentElement as HTMLDivElement);
+		const container = ((event.target as HTMLElement).parentElement as HTMLDivElement);
 		let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
 			// 获取鼠标按下点显示位置
 			const [pageX, pageY] = getPageXYfromEvent(event as any);
@@ -815,7 +817,7 @@ const EffectView = defineComponent((props: Props) => {
 	// #region 坐标转换函数
 
 	const convertPageXYtoLogicalXY = (pageX: number, pageY: number) => {
-		const canvasRect = canvasRef.value.parentElement.getBoundingClientRect();
+		const canvasRect = canvasRef.value!.parentElement!.getBoundingClientRect();
 
 		// 获取所在点显示位置（以画布 DOM 元素中心为原点）
 		const mouseX = (pageX - canvasRect.left) - canvasRect.width / 2;
@@ -827,7 +829,7 @@ const EffectView = defineComponent((props: Props) => {
 
 		return [offsetToOriginX, offsetToOriginY] as [number, number];
 	};
-	let [lastTouchPageX, lastTouchPageY]: [number, number] = [undefined, undefined];
+	let [lastTouchPageX, lastTouchPageY]: [number, number] = [0, 0];
 	const getPageXYfromEvent = (event: MouseEvent | TouchEvent) => {
 		if (event instanceof MouseEvent) {
 			return [event.pageX, event.pageY];
@@ -1001,10 +1003,10 @@ const EffectView = defineComponent((props: Props) => {
 			}
 			appStore.applyParameters();
 		};
-		const inputNodeIndexStr = node.name.match(/^in_\d+$/) ? node.name.match(/^in_(\d+)$/)[1] : undefined;
+		const inputNodeIndexStr = node.name.match(/^in_\d+$/) ? node.name.match(/^in_(\d+)$/)![1] : undefined;
 		showMenu({
 			menu: [
-				{ type: 'normal' as const, label: inputNodeIndexStr ? appStore.globalParams.input.files[+inputNodeIndexStr]?.filePath : node.name, value: 'nodeName', disabled: true },
+				{ type: 'normal' as const, label: inputNodeIndexStr ? (appStore.globalParams.input.files[+inputNodeIndexStr]?.filePath ?? '') : node.name, value: 'nodeName', disabled: true },
 				{ type: 'separator' },
 				node.name.match(/^in_\d+$/)
 					? { type: 'normal' as const, label: '不可删除', value: '删除节点', tooltip: '请通过输入面板调整输入文件数量，滤镜面板中不可进行此操作', disabled: true }
@@ -1024,7 +1026,7 @@ const EffectView = defineComponent((props: Props) => {
 		}
 
 		const [mouseDownPageX, mouseDownPageY] = getPageXYfromEvent(event);
-		const portPosition = checkIsPointOnNode(mouseDownPageX, mouseDownPageY);
+		const portPosition = checkIsPointOnNode(mouseDownPageX, mouseDownPageY)!;
 		creatingLine.value = {
 			prevNodeId: type === 'output' ? node.id : undefined,
 			prevNodePortIndex: type === 'output' ? index : undefined,
@@ -1069,7 +1071,7 @@ const EffectView = defineComponent((props: Props) => {
 		const handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
 			const [currentPageX, currentPageY] = getPageXYfromEvent(event as any);
 			let currentlogicalX, currentlogicalY;
-			let invisiblePort: 'prev' | 'next';
+			let invisiblePort: 'prev' | 'next' | undefined;
 			const destPort = checkIsPointOnNode(currentPageX, currentPageY);
 			if (destPort && ((type === 'input' && destPort.type === 'output') || (type === 'output' && destPort.type === 'input'))) {
 				const lineType = checkType(destPort.node, destPort.index);
@@ -1081,11 +1083,11 @@ const EffectView = defineComponent((props: Props) => {
 				invisiblePort = type === 'input' ? 'prev' : 'next';
 			}
 			if (type === 'input') {
-				creatingLine.value.prevXY = [currentlogicalX, currentlogicalY];
+				creatingLine.value!.prevXY = [currentlogicalX!, currentlogicalY!];
 			} else {
-				creatingLine.value.nextXY = [currentlogicalX, currentlogicalY];
+				creatingLine.value!.nextXY = [currentlogicalX!, currentlogicalY!];
 			}
-			creatingLine.value.invisiblePort = invisiblePort;
+			creatingLine.value!.invisiblePort = invisiblePort;
 		};
 		const handleMouseUp = (event: Partial<MouseEvent | TouchEvent>) => {
 			window.removeEventListener('mousemove', handleMouseMove);
@@ -1106,8 +1108,8 @@ const EffectView = defineComponent((props: Props) => {
 				// name 处理：如果起点节点是输入节点，那么按终点节点的类型给名称，否则是随机值
 				let lineName = randomString(4);
 				if (isPrevNodeInput) {
-					const inputIndex = prevNode.name.match(/in_(\d+)/)[1];
-					const inputType = ['U', 'N'].includes(isValid) ? undefined : isValid.toLocaleLowerCase();
+					const inputIndex = prevNode.name.match(/in_(\d+)/)![1];
+					const inputType = isValid && ['U', 'N'].includes(isValid) ? undefined : isValid?.toLocaleLowerCase();
 					lineName = `${inputIndex}${inputType ? ':' + inputType : ''}`
 				}
 				const newLine = {
@@ -1116,8 +1118,8 @@ const EffectView = defineComponent((props: Props) => {
 					prevNodePortIndex,
 					nextNodeId: nextNode.id,
 					nextNodePortIndex,
-					prevXY: type === 'output' ? creatingLine.value.prevXY : [destPort.x, destPort.y] as [number, number],
-					nextXY: type === 'input' ? creatingLine.value.nextXY : [destPort.x, destPort.y] as [number, number],
+					prevXY: type === 'output' ? creatingLine.value!.prevXY : [destPort.x, destPort.y] as [number, number],
+					nextXY: type === 'input' ? creatingLine.value!.nextXY : [destPort.x, destPort.y] as [number, number],
 					type: isValid,
 				};
 				// 新增线段；节点添加线段引用
@@ -1135,10 +1137,10 @@ const EffectView = defineComponent((props: Props) => {
 					selectedNode.value = prevNode;
 				}, 0);
 				// 对于端口位置会变化的输入/输出节点，进行位置修正
-				if (isPrevNodeInput || ['U', 'N'].includes(prevNode.detail.outputType[0])) {
+				if (isPrevNodeInput || ['U', 'N'].includes(prevNode.detail?.outputType[0] ?? '')) {
 					fixNodePortPosition(prevNode);
 				}
-				if (isNextNodeOutput || ['U', 'N'].includes(nextNode.detail.inputType[0])) {
+				if (isNextNodeOutput || ['U', 'N'].includes(nextNode.detail?.inputType[0] ?? '')) {
 					fixNodePortPosition(nextNode);
 				}
 				// 如果输出直连输入，那么马上需要定义媒体类型
@@ -1171,19 +1173,19 @@ const EffectView = defineComponent((props: Props) => {
 	// 线段右键
 	const handleLineContextMenu = (event: MouseEvent, line: FilterLine) => {
 		const handleDeleteLine = () => {
-			const prevNode = nodes.value.find((node) => node.id === line.prevNodeId);
-			const nextNode = nodes.value.find((node) => node.id === line.nextNodeId);
-			prevNode.nexts.splice(line.prevNodePortIndex, 1);
-			nextNode.prevs.splice(line.nextNodePortIndex, 1);
+			const prevNode = nodes.value.find((node) => node.id === line.prevNodeId)!;
+			const nextNode = nodes.value.find((node) => node.id === line.nextNodeId)!;
+			prevNode.nexts!.splice(line.prevNodePortIndex, 1);
+			nextNode.prevs!.splice(line.nextNodePortIndex, 1);
 			// 端口清除后，在其后面的端口会往前挪一位。这会导致这个端口往后的所有【线段】所记录的 portIndex 都 -1
 			let [needToFixPrevNodePort, needToFixNextNodePort] =
-				[prevNode.name.match(/^in_\d+$/) || ['U', 'N'].includes(prevNode.detail.outputType[0]), nextNode.name.match(/^out_\d+$/) || ['U', 'N'].includes(nextNode.detail.inputType[0])];
-			for (let i = line.prevNodePortIndex; i < prevNode.nexts.length; i++) {
-				prevNode.nexts[i].prevNodePortIndex--;
+				[prevNode.name.match(/^in_\d+$/) || ['U', 'N'].includes(prevNode.detail?.outputType[0] ?? ''), nextNode.name.match(/^out_\d+$/) || ['U', 'N'].includes(nextNode.detail?.inputType[0] ?? '')];
+			for (let i = line.prevNodePortIndex; i < prevNode.nexts!.length; i++) {
+				prevNode.nexts![i].prevNodePortIndex--;
 				needToFixPrevNodePort = true;
 			}
-			for (let i = line.nextNodePortIndex; i < nextNode.prevs.length; i++) {
-				nextNode.prevs[i].nextNodePortIndex--;
+			for (let i = line.nextNodePortIndex; i < nextNode.prevs!.length; i++) {
+				nextNode.prevs![i].nextNodePortIndex--;
 				needToFixNextNodePort = true;
 			}
 			if (needToFixPrevNodePort) {
@@ -1217,8 +1219,8 @@ const EffectView = defineComponent((props: Props) => {
 				]	
 			});
 		};
-		const prevNode = nodes.value.find((node) => node.id === line.prevNodeId);
-		const inputNodeIndexStr = prevNode.name.match(/^in_\d+$/) ? prevNode.name.match(/^in_(\d+)$/)[1] : undefined;
+		const prevNode = nodes.value.find((node) => node.id === line.prevNodeId)!;
+		const inputNodeIndexStr = prevNode.name.match(/^in_\d+$/) ? prevNode.name.match(/^in_(\d+)$/)![1] : undefined;
 		showMenu({
 			menu: [
 				{
@@ -1263,7 +1265,7 @@ const EffectView = defineComponent((props: Props) => {
 	// #region 参数面板操作
 
 	const handleParamChange = (name: string, value: any) => {
-		selectedNode.value.params[name] = value;
+		selectedNode.value!.params[name] = value;
 		appStore.applyParameters();
 	};
 
@@ -1279,10 +1281,10 @@ const EffectView = defineComponent((props: Props) => {
 		try {
 			const getNodeTooltip = (node: FilterNode) => {
 				if (node.name.match(/^in_\d+$/)) {
-					const index = +node.name.match(/^in_(\d+)$/)[1];
+					const index = +node.name.match(/^in_(\d+)$/)![1];
 					return `输入文件 ${appStore.globalParams.input.files[index].filePath}`;
 				} else if (node.name.match(/^out_\d+$/)) {
-					const index = +node.name.match(/^out_(\d+)$/)[1];
+					const index = +node.name.match(/^out_(\d+)$/)![1];
 					return `输出文件 ${index}`;
 				} else {
 					const filterDetail = Object.entries(node.params).filter(([key, value]) => value !== undefined).map(([key, value]) => `\n${key}: ${value}`);
@@ -1352,8 +1354,8 @@ const EffectView = defineComponent((props: Props) => {
 									<stop offset="60%" stop-color="currentColor" stop-opacity="1"/>
 								</linearGradient>
 							</defs>
-							<line class={css.invisibleLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} />
-							<line class={css.svgLine} x1={line.prevXY[0]} y1={line.prevXY[1]} x2={line.nextXY[0]} y2={line.nextXY[1]} stroke-dasharray="24 4" stroke-dashoffset="0" filter={`url(#filterLineShadow_${index})`}>
+							<line class={css.invisibleLine} x1={line.prevXY![0]} y1={line.prevXY![1]} x2={line.nextXY![0]} y2={line.nextXY![1]} />
+							<line class={css.svgLine} x1={line.prevXY![0]} y1={line.prevXY![1]} x2={line.nextXY![0]} y2={line.nextXY![1]} stroke-dasharray="24 4" stroke-dashoffset="0" filter={`url(#filterLineShadow_${index})`}>
 								<animate
 									attributeName="stroke-dashoffset"
 									values="0;-28"
@@ -1362,29 +1364,29 @@ const EffectView = defineComponent((props: Props) => {
 								/>
 							</line>
 							{line.invisiblePort !== 'prev' && (
-								<circle cx={line.prevXY[0]} cy={line.prevXY[1]} r="5" fill={`url(#filterLineCircleFill_${index})`} filter={`url(#filterLineShadow_${index})`} />
+								<circle cx={line.prevXY![0]} cy={line.prevXY![1]} r="5" fill={`url(#filterLineCircleFill_${index})`} filter={`url(#filterLineShadow_${index})`} />
 							)}
 							{line.invisiblePort !== 'next' && (
-								<circle cx={line.nextXY[0]} cy={line.nextXY[1]} r="5" fill={`url(#filterLineCircleFill_${index})`} filter={`url(#filterLineShadow_${index})`} />
+								<circle cx={line.nextXY![0]} cy={line.nextXY![1]} r="5" fill={`url(#filterLineCircleFill_${index})`} filter={`url(#filterLineShadow_${index})`} />
 							)}
 							{line.name && (
 								<>
 									<rect
 										class={css.invisibleRect}
-										x={`${line.prevXY[0]}px`}
-										y={`${line.prevXY[1]}px`}
-										style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
+										x={`${line.prevXY![0]}px`}
+										y={`${line.prevXY![1]}px`}
+										style={{ transform: `rotate(${Math.atan((line.nextXY![1] - line.prevXY![1]) / (line.nextXY![0] - line.prevXY![0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY![0]}px ${line.prevXY![1]}px` }}
 									/>
 									<rect
 										class={css.rect}
-										x={`${line.prevXY[0]}px`}
-										y={`${line.prevXY[1]}px`}
-										style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
+										x={`${line.prevXY![0]}px`}
+										y={`${line.prevXY![1]}px`}
+										style={{ transform: `rotate(${Math.atan((line.nextXY![1] - line.prevXY![1]) / (line.nextXY![0] - line.prevXY![0])) * 180 / Math.PI}deg) translate(14px, -26px)`, transformOrigin: `${line.prevXY![0]}px ${line.prevXY![1]}px` }}
 									/>
 									<text
-										x={`${line.prevXY[0]}px`}
-										y={`${line.prevXY[1]}px`}
-										style={{ transform: `rotate(${Math.atan((line.nextXY[1] - line.prevXY[1]) / (line.nextXY[0] - line.prevXY[0])) * 180 / Math.PI}deg) translate(20px, -10px)`, transformOrigin: `${line.prevXY[0]}px ${line.prevXY[1]}px` }}
+										x={`${line.prevXY![0]}px`}
+										y={`${line.prevXY![1]}px`}
+										style={{ transform: `rotate(${Math.atan((line.nextXY![1] - line.prevXY![1]) / (line.nextXY![0] - line.prevXY![0])) * 180 / Math.PI}deg) translate(20px, -10px)`, transformOrigin: `${line.prevXY![0]}px ${line.prevXY![1]}px` }}
 										filter={`url(#filterLineTextFilter_${index})`}
 									>
 										{line.name}
@@ -1398,7 +1400,7 @@ const EffectView = defineComponent((props: Props) => {
 							class={`${css.node} ${css.nodeCreating}`}
 							style={{ left: `${creatingFilterInCanvas.value[0]}px`, top: `${creatingFilterInCanvas.value[1]}px`, height: `30px`, cursor: 'move' }}
 						>
-							<div class={css.name}>{creatingFilter.value[0].name}</div>
+							<div class={css.name}>{creatingFilter.value[0]?.name}</div>
 						</div>
 					)}
 				</div>
@@ -1412,20 +1414,20 @@ const EffectView = defineComponent((props: Props) => {
 		<>
 			<div class={css.title}>
 				<h3>
-					{!selectedNode.value.name.match(/^(in)|(out)_\d+/) && (
+					{!selectedNode.value!.name.match(/^(in)|(out)_\d+/) && (
 						<div class={css.floatBtn}>
-							<Button size="small" onClick={() => showingDoc.value = showingDoc.value ? '' : selectedNode.value.name}>
+							<Button size="small" onClick={() => showingDoc.value = showingDoc.value ? '' : selectedNode.value!.name}>
 								{showingDoc.value ? '🌐 关闭文档' : '🌐 在线文档'}
 							</Button>
 						</div>
 					)}
-					{selectedNode.value.name}
+					{selectedNode.value!.name}
 				</h3>
 			</div>
 			<div class={css.content}>
-				{(selectedNode.value.detail?.options ?? []).map((option) => {
+				{(selectedNode.value!.detail?.options ?? []).map((option) => {
 					const parameter = parseSingleOption(option);
-					const params = selectedNode.value.params;
+					const params = selectedNode.value!.params;
 					if (parameter.mode === 'slider') {
 						return (
 							<BoxedSlider
@@ -1440,7 +1442,7 @@ const EffectView = defineComponent((props: Props) => {
 								mode={parameter.sliderMode}
 								adsorption={parameter.adsorption}
 								valueToDisplay={parameter.valueToDisplay}
-								onChange={(value: number) => handleParamChange(parameter.parameter, value)}
+								onChange={(value: any) => handleParamChange(parameter.parameter, value)}
 							/>
 						);
 					} else if (parameter.mode === 'combo') {
@@ -1451,7 +1453,7 @@ const EffectView = defineComponent((props: Props) => {
 								text={params[parameter.parameter]}
 								optionalDefault={parameter.optional ? parameter.default : undefined}
 								list={parameter.items}
-								onChange={(value: string) => handleParamChange(parameter.parameter, value)}
+								onChange={(value: any) => handleParamChange(parameter.parameter, value)}
 							/>
 						);
 					} else if (parameter.mode === 'switch') {
@@ -1461,7 +1463,7 @@ const EffectView = defineComponent((props: Props) => {
 								description={parameter.description}
 								checked={params[parameter.parameter]}
 								optionalDefault={parameter.optional ? parameter.default : undefined}
-								onChange={(value: boolean) => handleParamChange(parameter.parameter, value)}
+								onChange={(value: any) => handleParamChange(parameter.parameter, value)}
 							/>
 						);
 					} else if (parameter.mode === 'text') {
@@ -1471,24 +1473,24 @@ const EffectView = defineComponent((props: Props) => {
 								description={parameter.description}
 								value={params[parameter.parameter]}
 								optionalDefault={parameter.optional ? parameter.default : undefined}
-								onChange={(value: string) => handleParamChange(parameter.parameter, value)}
-								validator={getValidator(parameter.type)}
+								onChange={(value: any) => handleParamChange(parameter.parameter, value)}
+								validator={getValidator(parameter.type ?? '')}
 							/>
 						);
 					}
 				})}
-				{selectedNode.value.detail?.options && (
+				{selectedNode.value!.detail?.options && (
 					<div class={css.belowDetail}>以上为滤镜参数配置</div>
 				)}
-				{selectedNode.value.name.match(/^in_\d+$/) && (
+				{selectedNode.value!.name.match(/^in_\d+$/) && (
 					<div class={css.noParams}>
-						输入文件：{appStore.globalParams.input.files[+selectedNode.value.name.match(/^in_(\d+)$/)[1]].filePath}<br />
+						输入文件：{appStore.globalParams.input.files[+selectedNode.value!.name.match(/^in_(\d+)$/)![1]].filePath}<br />
 						请在输入面板中编辑输入文件
 					</div>
 				)}
-				{selectedNode.value.name.match(/^out_\d+$/) && (() => {
-					const outputNodeIndex = +selectedNode.value.name.match(/^out_(\d+)$/)[1];
-					return !selectedNode.value.prevs?.length ? (
+				{selectedNode.value!.name.match(/^out_\d+$/) && (() => {
+					const outputNodeIndex = +selectedNode.value!.name.match(/^out_(\d+)$/)![1];
+					return !selectedNode.value!.prevs?.length ? (
 						<div style={{ width: 'calc(100% - 16px)' }}>
 							当前输出节点未连接任何线段，将不会有作用
 						</div>
@@ -1502,12 +1504,12 @@ const EffectView = defineComponent((props: Props) => {
 						</div>
 					)
 				})()}
-				{selectedNode.value.nexts?.length ? (
+				{selectedNode.value!.nexts?.length ? (
 					<div class={css.outputs}>
 						{(() => {
-							const node = selectedNode.value;
-							const inputNodeIndexStr = node.name.match(/^in_\d+$/) ? node.name.match(/^in_(\d+)$/)[1] : undefined;
-							return node.nexts.map((next, index) => (
+							const node = selectedNode.value!;
+							const inputNodeIndexStr = node.name.match(/^in_\d+$/) ? node.name.match(/^in_(\d+)$/)![1] : undefined;
+							return node.nexts!.map((next, index) => (
 								<div class={css.output}>
 									<div class={css.name}>
 										输出端口 {index}：<code>{next.name}</code>
@@ -1551,7 +1553,7 @@ const EffectView = defineComponent((props: Props) => {
 		<div class={css.container} data-color_theme={appStore.frontendSettings.colorTheme}>
 			<div class={css.toolBox} style={{ width: `${dragger1Pos.value}%`}}>
 				<div class={css.search}>
-					<NormalInput placeholder='输入滤镜名搜索' onChange={(value) => filterText.value = value} />
+					<NormalInput placeholder='输入滤镜名搜索' onChange={(value: string) => filterText.value = value} />
 				</div>
 				<div class={css.filtersList}>
 					<div class={css.items}>

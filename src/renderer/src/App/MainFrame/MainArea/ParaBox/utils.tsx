@@ -58,7 +58,7 @@ export const renderDetailParameters = (parameters: Parameter[], details: Record<
 					value={details[parameter.parameter]}
 					optionalDefault={parameter.optional ? parameter.default : undefined}
 					onChange={(value) => onChange(parameter, value)}
-					validator={getValidator(parameter.type)}
+					validator={getValidator(parameter.type!)}
 				/>
 			);
 		}

@@ -53,10 +53,10 @@ const Comp = defineComponent((props: { libName: string }) => {
 	
 	onMounted(() => {
 		// const myIframe = document.querySelector('#my-iframe');
-		iframeRef.value.addEventListener('load', () => {
+		iframeRef.value!.addEventListener('load', () => {
 			// applyHeadStylesToIframe(iframeRef.value);
 			// applyComputedStylesToIframe(iframeRef.value);
-			const iframeDoc = iframeRef.value.contentDocument || iframeRef.value.contentWindow.document;
+			const iframeDoc = iframeRef.value!.contentDocument || iframeRef.value!.contentWindow!.document;
 			iframeDoc.body.className = document.body.className;
 		});
 		console.log(props.libName);

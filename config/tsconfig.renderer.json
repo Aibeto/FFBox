@@ -1,0 +1,22 @@
+{
+	"extends": "./tsconfig.base.json",
+	"include": [
+		"./../src/renderer/**/*",
+		"../src/common/**/*"
+	],
+	"compilerOptions": {
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"lib": ["esnext", "dom"],
+		"types": ["web"],
+		// 若使用 "react"，ts 将检查 react 的相关依赖项，也将使用 react 的特定语法。而本项目使用的不是 react，故使用 "preserve"
+		// https://cn.vuejs.org/guide/extras/render-function.html#jsx-tsx
+		"jsx": "preserve",
+		"jsxImportSource": "vue",
+		"paths": {
+			"@renderer/*": ["../src/renderer/src/*"],
+			"@preload/*": ["../src/preload/*"],
+			"@common/*": ["../src/common/*"],
+		}
+	}
+}

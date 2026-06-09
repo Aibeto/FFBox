@@ -4,7 +4,7 @@ import { BrowserWindow } from 'electron';
 import { spawnInvoker } from '@common/spawnInvoker';
 
 let helper: ChildProcess | undefined = undefined;
-let pipeConnection: net.Socket;
+let pipeConnection: net.Socket | undefined = undefined;
 const pipeUrl = "\\\\.\\pipe\\FFBoxPipe";
 
 /**

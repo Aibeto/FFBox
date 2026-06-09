@@ -9,11 +9,11 @@ import RadioList, { Props as RadioListProps } from '@renderer/components/RadioLi
 type ChartType = 'progress' | 'size' | 'bitrate' | 'speed';
 
 const appStore = useAppStore();
-const selectedTasks = computed(() => appStore.selectedTask.size === 0
+const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appStore.currentServer
 	? { task: undefined, count: 0 }
 	: { task: appStore.currentServer.data.tasks[[...appStore.selectedTask][0]], count: appStore.selectedTask.size }
 );
-const chartType = computed(() => (appStore.showTaskInfo[2] ?? 'progress') as ChartType);
+const chartType = computed(() => (appStore.showTaskInfo?.[2] ?? 'progress') as ChartType);
 
 const canvasRef = ref<HTMLCanvasElement>();
 
@@ -37,7 +37,7 @@ const selectionList = computed(() => {
 });
 /** [转码时间, 媒体时间, 尺寸] */
 const dedupProgressLogSize = computed(() => {
-	const progressLog = selectedTasks.value.task.progressLog;
+	const progressLog = selectedTasks.value.task!.progressLog;
 	if (!progressLog.size.length) {
 		return [];
 	}
@@ -71,7 +71,7 @@ const bitrateGraphData = computed(() => {
 /** y 为 / progressLog.time[][0] 两点之间的 diff（转码这么多花费了多少实际时间，倒数就是速度），x 为 progressLog.time[][1] 两点的中间值 */
 const speedGraphData = computed(() => {
 	const data: [number, number][] = [];
-	const logTime = selectedTasks.value.task.progressLog.time;
+	const logTime = selectedTasks.value.task!.progressLog.time;
 	let maxYDiff = 0;
 	for (let i = 1; i < logTime.length; i++) {
 		const xDiff = logTime[i][1] - logTime[i - 1][1];	// 两记录点之间的媒体时间差
@@ -87,7 +87,7 @@ const speedGraphData = computed(() => {
 
 const graphSizeFilter = (kB: number) => {
 	const B = kB * 1000;
-	if (window.frontendSettings.useIEC) {
+	if (appStore.frontendSettings?.useIEC) {
 		if (B >= 10 * 1024 ** 3) {
 			return (B / 1024 ** 3).toFixed(1) + ' GiB';
 		} else if (B >= 1024 ** 3) {
@@ -118,7 +118,7 @@ const beforeBitrateFilter = (kbps: number) => {
 		return '读取中';
 	} else {
 		const bps = kbps * 1000;
-		if (window.frontendSettings.useIEC) {
+		if (appStore.frontendSettings?.useIEC) {
 			if (bps >= 10 * 1024 ** 2) {
 				return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
 			} else {
@@ -134,7 +134,7 @@ const beforeBitrateFilter = (kbps: number) => {
 	}
 };
 const transferrateFilter = (Bps: number) => {
-	if (window.frontendSettings.useIEC) {
+	if (appStore.frontendSettings?.useIEC) {
 		if (Bps >= 10 * 1024 ** 2) {
 			return (Bps / 1024 ** 2).toFixed(1) + ' MiBps';
 		} else {
@@ -165,7 +165,7 @@ const timeFilter = (value: number, withDecimal = true) => {
 // #endregion
 
 const getLastSpeedBitrate = () => {
-	const { progressLog, before, after } = selectedTasks.value.task;
+	const { progressLog, before, after } = selectedTasks.value.task!;
 	const { K: frameK, B: frameB, currentValue: currentFrame } = calcDashboard(progressLog.frame.slice(-5), 0);
 	const { K: timeK, B: timeB, currentValue: currentTime } = calcDashboard(progressLog.time.slice(-5), 0);
 	const { K: sizeK, B: sizeB, currentValue: currentSize } = calcDashboard(dedupProgressLogSize.value.slice(-5).map((value) => [value[1], value[2]]), 0);
@@ -179,7 +179,7 @@ const getLastSpeedBitrate = () => {
 /** 最大时间/尺寸的计算方法是：现在已经累积的转码时长/输出尺寸 + 根据最新速度和剩余任务时长算出的预计增量 */
 const getEstimatedMaxTimeSize = () => {
 	const lastSpeedBitrate = getLastSpeedBitrate();
-	const { progressLog, status } = selectedTasks.value.task;
+	const { progressLog, status } = selectedTasks.value.task!;
 	const elapsedTime = progressLog.elapsed + (status === TaskStatus.running ? new Date().getTime() / 1000 - progressLog.lastStarted : 0);
 	// 任务最新进度的时间和大小
 	const currentTime = progressLog.time.length > 0 ? progressLog.time[progressLog.time.length - 1][1] : 0;
@@ -209,9 +209,9 @@ const getScaleUnit = (total: number, viewWidth: number, isClockUnit = false, thr
 };
 
 const render = () => {
-	const canvasWidth = canvasRef.value.width / window.devicePixelRatio;
-	const canvasHeight = canvasRef.value.height / window.devicePixelRatio;
-	const context = canvasRef.value.getContext('2d');
+	const canvasWidth = canvasRef.value!.width / window.devicePixelRatio;
+	const canvasHeight = canvasRef.value!.height / window.devicePixelRatio;
+	const context = canvasRef.value!.getContext('2d')!;
 
 	const task = selectedTasks.value.task;
 	if (!task) {
@@ -357,15 +357,16 @@ const render = () => {
 let resizeObserver: ResizeObserver | null = null;
 const updateSize = () => {
 	if (!canvasRef.value) return;
-	const bounding = canvasRef.value.parentElement.getBoundingClientRect();
+	const bounding = canvasRef.value.parentElement!.getBoundingClientRect();
 	canvasRef.value.width = bounding.width * window.devicePixelRatio;
 	canvasRef.value.height = bounding.height * window.devicePixelRatio;
-	canvasRef.value.getContext('2d').scale(window.devicePixelRatio, window.devicePixelRatio);
+	canvasRef.value.getContext('2d')!.scale(window.devicePixelRatio, window.devicePixelRatio);
 	render();
 };
 
 onMounted(async () => {
 	// 如果打开弹窗时已经有足够数据，那么马上算一下预计转码耗时，否则保持 10s、1000B 的初始大小
+	// @ts-ignore
 	if (selectedTasks.value.task?.progressLog.frame.length >= 5 && selectedTasks.value.task?.progressLog.size.length >= 2) {
 		const latestMaxTimeSize = getEstimatedMaxTimeSize();
 		totalTime_smooth.value = latestMaxTimeSize.time;
@@ -377,7 +378,7 @@ onMounted(async () => {
 	updateSize();
 	if (canvasRef.value) {
 		resizeObserver = new ResizeObserver(() => updateSize());
-		resizeObserver.observe(canvasRef.value.parentElement);
+		resizeObserver.observe(canvasRef.value.parentElement!);
 	}
 	// resizeListener.value = () => {
 	// 	const bounding = canvasRef.value.parentElement.getBoundingClientRect();
@@ -396,7 +397,7 @@ onBeforeUnmount(() => {
 	clearInterval(refreshTimer);
 	// window.removeEventListener('resize', resizeListener.value);
 	if (resizeObserver && canvasRef.value) {
-		resizeObserver.unobserve(canvasRef.value.parentElement);
+		resizeObserver.unobserve(canvasRef.value.parentElement!);
 	}
 })
 
@@ -404,12 +405,12 @@ onBeforeUnmount(() => {
 
 <template>
 	<div class="ffmpegLog">
-		<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task.taskName }}</div>
+		<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task!.taskName }}</div>
 		<div class="container">
 			<div class="canvasContainer">
 				<canvas ref="canvasRef" />
 			</div>
-			<RadioList class="radioList" :list="selectionList" :value="chartType" @change="(value: any) => appStore.showTaskInfo[2] = value" />
+			<RadioList class="radioList" :list="selectionList" :value="chartType" @change="(value) => appStore.showTaskInfo![2] = value" />
 		</div>
 	</div>
 </template>

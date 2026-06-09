@@ -1,5 +1,4 @@
 import { VNode } from 'vue';
-import { strict2 } from './params/parameter';
 
 export type MenuItem<E = any> = {
     type: 'normal';
@@ -28,7 +27,7 @@ export type MenuItem<E = any> = {
 	disabled?: boolean;
 	onClick?: (event: Event, checked: boolean) => boolean | void;	// true 值用于关闭菜单面板（但返回值似乎还没用到
 };
-export type NarrowedMenuItem = Extract<MenuItem, { type: 'normal' }> & strict2;
+export type NarrowedMenuItem = Extract<MenuItem, { type: 'normal' }>;
 
 // 深度优先搜索，根据 value 获取第一个搜索到的 MenuItem
 export function getMenuItemByValue<E>(menu: MenuItem<E>[], value: any, compareFunc?: (itemValue: any, yourValue: any) => boolean) {

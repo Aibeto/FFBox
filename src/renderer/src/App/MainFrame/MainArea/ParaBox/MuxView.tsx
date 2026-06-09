@@ -28,7 +28,7 @@ const MuxView = defineComponent((props: Props) => {
 		// 如果启用了滤镜，那么需要找到对应输出节点，并且有连线；否则默认输出一个文件
 		if (appStore.globalParams.filter.nodes.length) {
 			const outputNode = appStore.globalParams.filter.nodes.find((node) => node.name === `out_${props.editingOutputIndex}`);
-			return outputNode?.prevs.length ? true : false;
+			return outputNode?.prevs?.length ? true : false;
 		} else {
 			return true;
 		}
@@ -78,9 +78,9 @@ const MuxView = defineComponent((props: Props) => {
 
 	return () => muxParams.value && muxContainsInOutput.value ? (
 		<div class={css.container}>
-			<BoxedDropdownInput title="容器/格式" text={muxParams.value.format} list={combinedMuxersList.value} onChange={(value: string) => handleChange('format', value)} />
+			<BoxedDropdownInput title="容器/格式" text={muxParams.value.format} list={combinedMuxersList.value} onChange={(value) => handleChange('format', value)} />
 			{/* <BoxedSwitch title="元数据前移" checked={muxParams.value.moveflags} onChange={(value: boolean) => handleChange('moveflags', value)} /> */}
-			<BoxedCutTimeInput title="切割时间" value={[muxParams.value.begin, muxParams.value.end]} onChange={(value: [string, string]) => {
+			<BoxedCutTimeInput title="切割时间" value={[muxParams.value.begin, muxParams.value.end]} onChange={(value) => {
 				muxParams.value.begin = value[0];
 				muxParams.value.end = value[1];
 				appStore.applyParameters();
@@ -89,16 +89,16 @@ const MuxView = defineComponent((props: Props) => {
 				<>
 					<BoxedDropdownInput title="元数据保留" text={muxParams.value.keepMetadata || '无'} list={keepMeatadataList} onChange={(value: any) => handleChange('keepMetadata', value)} />
 					<BoxedDropdownInput title="文件时间保留" description='FFBox 特色功能，对产出文件进行文件时间修改。对远程服务器任务暂不生效' text={muxParams.value.keepFileTime || '无'} list={keepFileTimeList} onChange={(value: any) => handleChange('keepFileTime', value)} />
-					<BoxedNormalInput title="输出路径" value={muxParams.value.filePath} onChange={(value: string) => handleChange('filePath', value)} long={true} placeholder="[filedir]：文件所在目录；[filename]：文件基础名；[fileext]：文件扩展名" validator={notEmptyValidator} />
+					<BoxedNormalInput title="输出路径" value={muxParams.value.filePath} onChange={(value) => handleChange('filePath', value)} long={true} placeholder="[filedir]：文件所在目录；[filename]：文件基础名；[fileext]：文件扩展名" validator={notEmptyValidator} />
 				</>
 			)}
-			<BoxedNormalInput title="自定义参数" value={muxParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			<BoxedNormalInput title="自定义参数" value={muxParams.value.custom} onChange={(value) => handleChange('custom', value)} long={true} />
 			{muxParams.value.format !== '无' && (
 				<AutoSizeWrapper class={css.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
 					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>
-					{renderDetailParameters(muxer.value?.parameters, muxParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
+					{renderDetailParameters(muxer.value?.parameters || [], muxParams.value.detail, (parameter, value) => handleDetailChange(parameter.parameter, value), true)}
 					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>

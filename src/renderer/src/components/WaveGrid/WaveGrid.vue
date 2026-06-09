@@ -2,13 +2,13 @@
 import { ref, reactive, onMounted } from 'vue';
 import { gsap } from 'gsap';
 
-const container = ref<HTMLDivElement>(null);
-const dots = reactive([]);
+const container = ref<HTMLDivElement | null>(null);
+const dots = reactive<{ x: number, y: number, distance: number, scale: number, color: string, opacity: number, boxShadow: string }[]>([]);
 
 // 初始化点阵
 const initDots = () => {
 	const spacing = 24;
-	const rect = container.value.getBoundingClientRect();
+	const rect = container.value!.getBoundingClientRect();
 	const cols = Math.floor(rect.width / spacing);
 	const rows = Math.floor(rect.height / spacing);
 	const initX = (rect.width - (cols - 1) * spacing) / 2 - 3;	// 算头算尾再减去原点本身半径

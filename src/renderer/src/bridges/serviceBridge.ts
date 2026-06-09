@@ -20,10 +20,10 @@ export enum ServiceBridgeStatus {
 
 export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & ServeiceBridgeEvent>) implements FFBoxServiceInterface {
 	private ws: WebSocket | null = null;
-	public ip: string;
-	public port: number;
-	public username: string;
-	public password: string;
+	public ip: string | undefined;
+	public port: number | undefined;
+	public username: string | undefined;
+	public password: string | undefined;
 	public status = ServiceBridgeStatus.Idle;
 	public sessionId?: string;
 	public functionLevel: number = NaN;

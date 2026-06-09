@@ -23,8 +23,8 @@ const animationName = ref('animationLeft');
 const { deviderRef, handleDeviderDragStart } = useLowerDividerDrag();
 
 const handleParaButtonClicked = (index: any) => {
-	animationName.value = index < appStore.showTaskInfo[1] ? 'animationLeft' : 'animationRight';
-	appStore.showTaskInfo[1] = index;
+	animationName.value = index < appStore.showTaskInfo![1] ? 'animationLeft' : 'animationRight';
+	appStore.showTaskInfo![1] = index;
 }
 
 const getButtonColorStyle = (index: number) => ({ color: appStore.showTaskInfo?.[1] === index ? sidebarColors.value[index] : 'hwb(0 50% 50%)' });

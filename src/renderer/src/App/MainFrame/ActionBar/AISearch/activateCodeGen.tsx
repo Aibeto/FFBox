@@ -26,7 +26,7 @@ export function showActivateCodeGen(functionLevel: number) {
 const Comp = defineComponent((props: { functionLevel: number }) => {
 	const store = useAppStore();
 	const machineCode = ref<string>();
-	const activationCode = ref<string>();
+	const activationCode = ref<string>('');
 
 	const handleCodeGen = () => {
 		const fixedCode = 'd324c697ebfc42b7';

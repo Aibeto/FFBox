@@ -16,7 +16,7 @@ interface Props {}
 
 const ShortcutView: FunctionalComponent<Props> = (props) => {
 	const appStore = useAppStore();
-	const containerRef = ref<VNodeRef>(null);
+	const containerRef = ref<VNodeRef | null>(null);
 
 	const radioListList = computed(() => [
 		{ value: '默认配置' },
@@ -94,7 +94,7 @@ const ShortcutView: FunctionalComponent<Props> = (props) => {
 		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
 		showMenu({
 			menu: [
-				{ type: 'normal', label: '导入自同版本 FFBox', value: 'same', tooltip: '原样导入配置，不作任何修改', onClick: async () => {
+				{ type: 'normal', label: '导入自同版本 FFBox', value: 'same', tooltip: '原样导入配置，不作任何修改', onClick: (async () => {
 					let content: string | null;
 					try {
 						content = await nodeBridge.readFile();
@@ -113,8 +113,8 @@ const ShortcutView: FunctionalComponent<Props> = (props) => {
 					} catch {
 						Popup({ message: '文件格式无效', level: NotificationLevel.error });
 					}
-				} },
-				{ type: 'normal', label: '导入自不同版本或第三方软件', value: 'cross', tooltip: '从 FFBox 官网获取配置转换插件，导入转换后的配置', icon: <span>🌐</span>, onClick: async () => {
+				}) as any },
+				{ type: 'normal', label: '导入自不同版本或第三方软件', value: 'cross', tooltip: '从 FFBox 官网获取配置转换插件，导入转换后的配置', icon: <span>🌐</span>, onClick: (async () => {
 					try {
 						const convertedData = await showPresetConverterDialog('import');
 						if (!convertedData?.presets || !Array.isArray(convertedData.presets)) {
@@ -125,7 +125,7 @@ const ShortcutView: FunctionalComponent<Props> = (props) => {
 					} catch {
 						// 用户关闭弹窗或转换失败，无需处理
 					}
-				} },
+				}) as any },
 			],
 			type: 'action',
 			triggerRect: { xMin: rect.left, xMax: rect.right, yMin: rect.top, yMax: rect.bottom },
@@ -233,7 +233,7 @@ const ShortcutView: FunctionalComponent<Props> = (props) => {
 			<div class={css.presets}>
 				<RadioList
 					list={radioListList.value}
-					value={appStore.presetName.replaceAll('．', '.')}
+					value={appStore.presetName?.replaceAll('．', '.')}
 					placeholder="未保存设定"
 					onChange={(value) => appStore.loadPreset(`${value}`)}
 					onDelete={(value) => appStore.deletePreset(`${value}`)}

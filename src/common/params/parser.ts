@@ -43,7 +43,7 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 			description: option.description,
 			optional: true,
 			mode: 'combo',
-			items: option.options.map((option) => ({
+			items: (option.options || []).map((option) => ({
 				type: 'normal',
 				value: option.value as string,
 				label: option.value as string,
@@ -74,7 +74,12 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 					optional: true,
 					mode: 'slider',
 					min, max,
-					tags: new Map([[min, min + ''], [max, max + ''], [+option.default, '默认值'], ...options.map((option) => [+option.value, option.name] as [number, string])]),
+					tags: new Map([
+						[min, min + ''],
+						[max, max + ''],
+						...(option.default != null && typeof option.default !== 'boolean' ? [[+option.default, '默认值'] as [number, string]] : []),
+						...options.map((option) => [+option.value, option.name] as [number, string])
+					]),
 					sliderMode: 'number',
 					default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
 					adsorption: 'int',
@@ -96,7 +101,7 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 				});
 			}
 		} else {
-			if (Math.abs(option.max - option.min) < 1000) {
+			if (Math.abs(option.max! - option.min!) < 1000) {
 				return ({
 					parameter: option.name,
 					display: option.name,
@@ -105,7 +110,11 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 					mode: 'slider',
 					min: option.min,
 					max: option.max,
-					tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
+					tags: new Map([
+						[option.min!, option.min + ''],
+						[option.max!, option.max + ''],
+						...(option.default != null && typeof option.default !== 'boolean' ? [[+option.default, '默认值'] as [number, string]] : []),
+					]),
 					sliderMode: 'number',
 					default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
 					adsorption: 'int',
@@ -123,7 +132,7 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 			}
 		}
 	} else if (['float', 'double'].includes(option.type)) {
-		if (Math.abs(option.max - option.min) < 1000) {
+		if (Math.abs(option.max! - option.min!) < 1000) {
 			return ({
 				parameter: option.name,
 				display: option.name,
@@ -132,8 +141,12 @@ export function parseSingleOption(option: EncoderDetail['options'][number]): Par
 				mode: 'slider',
 				min: option.min,
 				max: option.max,
-				arrowKeyStep: (Math.abs(option.max - option.min)) / (10 ** (Math.round(Math.log10(Math.abs(option.max - option.min) / 2)) - 2)),	// 控制步长方便操作
-				tags: new Map([[option.min, option.min + ''], [option.max, option.max + ''], [+option.default, '默认值']]),
+				arrowKeyStep: (Math.abs(option.max! - option.min!)) / (10 ** (Math.round(Math.log10(Math.abs(option.max! - option.min!) / 2)) - 2)),	// 控制步长方便操作
+				tags: new Map([
+					[option.min!, option.min + ''],
+					[option.max!, option.max + ''],
+					...(option.default != null && typeof option.default !== 'boolean' ? [[+option.default, '默认值'] as [number, string]] : []),
+				]),
 				sliderMode: 'number',
 				default: option.default as number,	// 已在 FFmpegInvoke 将字符串表示的默认值匹配到对应数字
 			});

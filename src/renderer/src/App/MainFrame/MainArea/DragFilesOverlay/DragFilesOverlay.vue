@@ -16,7 +16,7 @@ const largeAreaHue = computed(() => multiInputMode.value ? 220 : 200);
 
 const handleDragOver = (event: DragEvent) => {
 	event.preventDefault();
-	const rect = event.target.getBoundingClientRect();
+	const rect = (event.target as HTMLElement).getBoundingClientRect();
 	const xPos = event.offsetX / rect.width;
 	const yPos = event.offsetY / rect.height;
 	if (xPos >= 0.05 && xPos <= 0.25 && yPos >= 0.8 && yPos <= 0.95) {
@@ -65,7 +65,9 @@ const handleDrop = (event: DragEvent) => {
 		if (fastStartMode.value) {
 			addTasksPromise.then((taskIds: number[]) => {
 				const server = appStore.currentServer;
-				if (server.data.uploadFiles.length) {
+				if (!server) { debugger; throw 'ub'; }
+				const data = server.data;
+				if (data.uploadFiles.length) {
 					// 轮询检查是否所有文件都上传好了（暂时没给上传完成设监听机制，所以轮询）
 					const checkStatusHandler = () => {
 						const isOKList = server.data.uploadFiles.map((uploadFile) => !uploadFile.readTask && !uploadFile.hashTask && !uploadFile.uploadTask);

@@ -32,7 +32,7 @@ const VcodecView = defineComponent((props: Props) => {
 				muxerItem = getMenuItemByValue(allMuxers, muxParam.format);
 			}
 			if (muxerItem) {
-				const videoMatch = muxerItem.tooltip.match(/默认视频编码器：(.+)/);
+				const videoMatch = muxerItem.tooltip?.match(/默认视频编码器：(.+)/);
 				return videoMatch?.[1] ? { muxer: muxParam.format, vcodec: videoMatch[1] } : undefined;
 			}
 		}
@@ -42,7 +42,7 @@ const VcodecView = defineComponent((props: Props) => {
 		// 如果启用了滤镜，那么需要找到对应输出节点，并且有连线；否则默认输出一个文件
 		if (appStore.globalParams.filter.nodes.length) {
 			const outputNode = appStore.globalParams.filter.nodes.find((node) => node.name === `out_${props.editingOutputIndex}`);
-			return outputNode?.prevs.length ? true : false;
+			return outputNode?.prevs?.length ? true : false;
 		} else {
 			return true;
 		}
@@ -89,7 +89,7 @@ const VcodecView = defineComponent((props: Props) => {
 	});
 	const rateControlList = computed(() => {
 		return [
-			...vcodec.value.rateControl,
+			...(vcodec.value?.rateControl || []),
 			{ type: 'separator' as const },
 			{
 				type: 'normal' as const,
@@ -199,13 +199,13 @@ const VcodecView = defineComponent((props: Props) => {
 	// console.log(vcodec.value?.parameters);
 	return () => videoParams.value && videoContainsInOutput.value ? (
 		<div class={css.container}>
-			<BoxedDropdownInput title="视频编码器" text={videoParams.value.vcodec} list={combinedVcodecsList.value} onChange={(value: string) => handleChange('vcodec', value)} />
+			<BoxedDropdownInput title="视频编码器" text={videoParams.value.vcodec} list={combinedVcodecsList.value} onChange={(value) => handleChange('vcodec', value)} />
 			{['禁用', 'copy'].indexOf(videoParams.value.vcodec) === -1 && (
 				<>
-					<BoxedDropdownInput title="分辨率" text={videoParams.value.resolution} list={resolution} onChange={(value: string) => handleChange('resolution', value)} />
-					<BoxedDropdownInput title="输出帧速" text={videoParams.value.framerate} list={framerate} validator={framerateValidator} onChange={(value: string) => handleChange('framerate', value)} />
+					<BoxedDropdownInput title="分辨率" text={videoParams.value.resolution} list={resolution} onChange={(value) => handleChange('resolution', value)} />
+					<BoxedDropdownInput title="输出帧速" text={videoParams.value.framerate} list={framerate} validator={framerateValidator} onChange={(value) => handleChange('framerate', value)} />
 					{(vcodec.value?.rateControl || []).length ? (
-						<BoxedDropdownInput title="码率控制" text={videoParams.value.ratecontrol} list={rateControlList.value} onChange={(value: string) => handleRateControlChange(value)} />
+						<BoxedDropdownInput title="码率控制" text={videoParams.value.ratecontrol} list={rateControlList.value} onChange={(value) => handleRateControlChange(value!)} />
 					) : null}
 					{rateControlSlider.value && (
 						<BoxedSlider
@@ -218,7 +218,7 @@ const VcodecView = defineComponent((props: Props) => {
 							valueToDisplay={rateControlSlider.value.valueToDisplay}
 							adsorption={rateControlSlider.value.adsorption}
 							onChange={(sliderValue) => {
-								const records = rateControlSlider.value!.sliderParamToDetail(+sliderValue);
+								const records = rateControlSlider.value!.sliderParamToDetail(+sliderValue!);
 								Object.assign(videoParams.value.detail, records);
 								appStore.applyParameters();
 							}}
@@ -248,13 +248,13 @@ const VcodecView = defineComponent((props: Props) => {
 					})()} */}
 				</>
 			)}
-			<BoxedNormalInput title="自定义参数" value={videoParams.value.custom} onChange={(value: string) => handleChange('custom', value)} long={true} />
+			<BoxedNormalInput title="自定义参数" value={videoParams.value.custom} onChange={(value) => handleChange('custom', value)} long={true} />
 			{(vcodec.value?.parameters || []).filter((parameter) => parameter.optional).length && (
 				<AutoSizeWrapper class={css.detailParameters} style={({ height }) => ({ height: showDetailParams.value ? `${height}px` : '42px' })} useResizeObserver={true}>
 					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>
-					{renderDetailParameters(vcodec.value?.parameters, videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
+					{renderDetailParameters(vcodec.value!.parameters || [], videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), true)}
 					<div class={css.bar}>
 						<Button type={ButtonType.NoBg} onClick={() => showDetailParams.value = !showDetailParams.value}>点击{showDetailParams.value ? '隐藏' : '显示'}·详细参数</Button>
 					</div>

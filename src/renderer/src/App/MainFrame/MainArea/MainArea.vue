@@ -40,9 +40,10 @@ const username = ref('');
 const password = ref('');
 const draggingCount = ref(0);
 
-const loginBoxVisible = computed(() => [ServiceBridgeStatus.Idle, ServiceBridgeStatus.Connecting].includes(appStore.currentServer?.entity.status));
-const isConnecting = computed(() => [ServiceBridgeStatus.Connecting, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status));
-const isDisconnected = computed(() => [ServiceBridgeStatus.Disconnected, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status));
+// 感觉这里 TS 的类型推断有问题，导致我必须加 !
+const loginBoxVisible = computed(() => [ServiceBridgeStatus.Idle, ServiceBridgeStatus.Connecting].includes(appStore.currentServer?.entity.status!));
+const isConnecting = computed(() => [ServiceBridgeStatus.Connecting, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status!));
+const isDisconnected = computed(() => [ServiceBridgeStatus.Disconnected, ServiceBridgeStatus.Reconnecting].includes(appStore.currentServer?.entity.status!));
 
 const serversList = ref<MenuItem<ServerInfo>[]>([]);
 
@@ -72,7 +73,7 @@ const refreshList = async () => {
 						{ ...menuItem, label: `删除 ${menuItem.value}`, onClick: () => {
 							console.log(menuItem);
 							const item = menuItem.extra;
-							const newServersInfo = serversList.value.map((server) => server.type === 'normal' && server.extra).filter((i) => i);
+							const newServersInfo = serversList.value.map((server) => server.type === 'normal' && server.extra).filter((i) => i) as any[];
 							let sameInfoIndex = newServersInfo.findIndex((info) => info.ip === item.ip && info.port === item.port && info.username === item.username);
 							if (sameInfoIndex >= 0) {
 								newServersInfo.splice(sameInfoIndex, 1);
@@ -95,8 +96,8 @@ const refreshList = async () => {
 }
 
 const ipInputFixer = (value: string) => {
-	// 非本地服务器标签页不可输入 localhost
-	if ((appStore.currentServer?.entity.ip || appStore.currentServer.entity.ip !== 'localhost') && value === 'localhost') {
+	// 非本地服务器标签页不可输入 localhost（TODO 但是能选）
+	if ((appStore.currentServer?.entity.ip || appStore.currentServer!.entity.ip !== 'localhost') && value === 'localhost') {
 		return '127.0.0.1';
 	} else {
 		return value;
@@ -107,10 +108,10 @@ const handleConnectClicked = () => {
 	if (!ip.value.length || isNaN(Number(port.value))) {
 		return;
 	}
-	appStore.initializeServer(appStore.currentServerId, ip.value, Number(port.value), username.value, password.value).then(() => {
+	appStore.initializeServer(appStore.currentServerId!, ip.value, Number(port.value), username.value, password.value).then(() => {
 		// 检查是否新增或修改
 		let changed = false;
-		const newServersInfo = serversList.value.map((server) => server.type === 'normal' && server.extra).filter((i) => i);
+		const newServersInfo = serversList.value.map((server) => server.type === 'normal' && server.extra).filter((i) => i) as any[];
 		let sameInfo = newServersInfo.find((info) => info.ip === ip.value && info.port === port.value && info.username === username.value);
 		if (sameInfo) {
 			if (sameInfo.password !== password.value) {
@@ -131,21 +132,21 @@ const handleConnectClicked = () => {
 	});
 };
 const handleReconnectClicked = async () => {
-	if (location.href.startsWith('file') && appStore.currentServer.entity.ip === 'localhost') {
+	if (location.href.startsWith('file') && appStore.currentServer!.entity.ip === 'localhost') {
 		nodeBridge.startService();
 	}
-	appStore.reConnectServer(appStore.currentServerId);
+	appStore.reConnectServer(appStore.currentServerId!);
 };
 
-const handleIpInputChange = (value: string) => {
-	ip.value = value;
+const handleIpInputChange = (value: string | undefined) => {
+	ip.value = value || '';
 	const item = serversList.value.find((server) => server.type === 'normal' && server.value === value) as Extract<MenuItem<ServerInfo>, { type: 'normal' }>;
 	if (item) {
 		setTimeout(() => {
-			ip.value = item.extra.ip;
-			port.value = item.extra.port;
-			username.value = item.extra.username;
-			password.value = item.extra.password;
+			ip.value = item.extra!.ip;
+			port.value = item.extra!.port;
+			username.value = item.extra!.username;
+			password.value = item.extra!.password;
 		}, 0);
 	}
 }
@@ -197,11 +198,11 @@ onMounted(() => {
 						<div class="box">
 							<div>
 								<BoxedDropdownInput title="IP" :text="ip" :disabled="ip === 'localhost'" :inputFixer="ipInputFixer" @change="handleIpInputChange" @enter="handleConnectClicked" :list="serversList" />
-								<BoxedNormalInput title="端口" :value="port" @change="port = $event" @enter="handleConnectClicked" />
+								<BoxedNormalInput title="端口" :value="port" @change="port = $event + ''" @enter="handleConnectClicked" />
 							</div>
 							<div>
-								<BoxedNormalInput title="用户名" :value="username" @change="username = $event" @enter="handleConnectClicked" />
-								<BoxedNormalInput title="密码" type="password" :value="password" @change="password = $event" @enter="handleConnectClicked" />
+								<BoxedNormalInput title="用户名" :value="username" @change="username = $event + ''" @enter="handleConnectClicked" />
+								<BoxedNormalInput title="密码" type="password" :value="password" @change="password = $event + ''" @enter="handleConnectClicked" />
 							</div>
 						</div>
 						<div class="buttonBox">

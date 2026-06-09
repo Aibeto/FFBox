@@ -30,12 +30,14 @@ const startButtonText = computed(() => {
 });
 
 const handleSelectAllClick = () => {
+	if (!appStore.currentServer) return;
 	const newSet = new Set([...Object.keys(appStore.currentServer.data.tasks).map(Number)]);
 	newSet.delete(-1);
 	appStore.selectedTask = newSet;
 	appStore.taskSelectionModified = false;
 };
 const handleApplyAllClick = () => {
+	if (!appStore.currentServer) return;
 	const newSet = new Set([...Object.keys(appStore.currentServer.data.tasks).map(Number)]);
 	newSet.delete(-1);
 	appStore.applyParameters('applyToAllTasks', newSet);

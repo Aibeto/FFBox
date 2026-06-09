@@ -6,7 +6,7 @@ interface Props {
 	type?: 'text' | 'password';
 	disabled?: boolean;
 	placeholder?: string;
-	validator?: (value: string) => string;
+	validator?: (value: string) => string | undefined;
 	inputFixer?: (value: string) => string;
 	onChange?: (value: string) => any;
 	onEnter?: () => any;
@@ -50,14 +50,14 @@ const handleBlur = (event: FocusEvent) => {
 	focused.value = false;
 };
 const handleFocus = (event: FocusEvent) => {
-	event.target!.selectionEnd = event.target!.selectionStart;
+	(event.target as HTMLInputElement).selectionEnd = (event.target as HTMLInputElement).selectionStart;
 	focused.value = true;
 };
 const handleInput = (event: Event) => {
 	if (props.inputFixer) {
-		inputText.value = props.inputFixer(event.target!.value);
+		inputText.value = props.inputFixer((event.target as HTMLInputElement).value);
 	}
-	(props.onChange || (() => {}))(inputText.value ?? '');	// 使用输入法时会出现 inputText 为空的现象
+	props.onChange?.(inputText.value ?? '');	// 使用输入法时会出现 inputText 为空的现象
 };
 const handleKeydown = (event: KeyboardEvent) => {
 	if (props.onEnter && event.key === 'Enter') {

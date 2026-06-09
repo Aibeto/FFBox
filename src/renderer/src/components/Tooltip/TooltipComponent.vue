@@ -14,7 +14,7 @@ const newLinedContent = computed(() => {
 	return (typeof props.content == 'string'
 		? h(
 			Fragment,
-			props.content.split('\n').reduce((prev, curr) => prev.concat(curr, h('br')), [])
+			props.content.split('\n').reduce((prev, curr) => prev.concat(curr, h('br')), [] as any[])
 		) : props.content
 	);
 });

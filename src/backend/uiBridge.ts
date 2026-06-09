@@ -302,7 +302,7 @@ function mountPreviewWebSocketEvents(ws: WebSocket, request: Http.IncomingMessag
 
 	// 从 URL query 获取参数
 	const url = new URL(request.url || '/', 'http://localhost');
-	const taskId = parseInt(url.searchParams.get('taskId'));
+	const taskId = parseInt(url.searchParams.get('taskId') || '');
 	const startTime = parseFloat(url.searchParams.get('startTime') || '0');
 	const quality = (url.searchParams.get('quality') || 'H') as 'H' | 'M' | 'L' | 'XL';  // 默认高画质
 
@@ -466,7 +466,7 @@ function startPreviewStream(session: PreviewSession, startTime: number): void {
 	session.transform.reset();
 
 	// 管道连接：FFmpeg.stdout -> Transform -> WebSocket
-	session.ffmpeg.stdout.pipe(session.transform);
+	session.ffmpeg.stdout!.pipe(session.transform);
 
 	// Transform 输出到 WebSocket
 	session.transform.on('data', (chunk: Buffer) => {
@@ -1210,7 +1210,7 @@ function getRouter(): Router {
 		const density = ctx.query.density === 'H' ? 'H' : 'M';
 
 		try {
-			const { stream, contentType } = await ffboxService!.getThumbnailStream(+ctx.params.id, +ctx.query.fileIndex, +ctx.query.videoStreamIndex, width, height, density);
+			const { stream, contentType } = await ffboxService!.getThumbnailStream(+ctx.params.id, +(ctx.query.fileIndex || ''), +(ctx.query.videoStreamIndex || ''), width, height, density);
 
 			// 监听客户端断开连接事件
 			ctx.req.on('close', () => {

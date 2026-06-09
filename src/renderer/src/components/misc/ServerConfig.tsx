@@ -55,7 +55,7 @@ const Comp = defineComponent((props: P) => {
 	const exports = {
 		exportData: async () => {
 			return {
-				maxThreads: +maxThreadsValue.value,
+				maxThreads: maxThreadsValue.value || '1',
 				customFFmpegPath: customFFmpegPathValue.value,
 				preserveUnfinishedTasks: preserveUnfinishedTasksValue.value,
 				deleteFinishedTasks: deleteFinishedTasksValue.value,
@@ -80,19 +80,19 @@ const Comp = defineComponent((props: P) => {
 	return () => (
 		<div class={css.serverConfig}>
 			<BoxedNormalInput
-				title="同时转码任务数量" value={maxThreadsValue.value} onChange={(value: string) => maxThreadsValue.value = value} inputFixer={posIntegerFixer} placeholder="1"
+				title="同时转码任务数量" value={maxThreadsValue.value} onChange={(value) => maxThreadsValue.value = value} inputFixer={posIntegerFixer} placeholder="1"
 				{ ...useTooltip(`开始转码队列后，会使所有未完成任务进入排队状态，并持续挑选最靠前的任务开始运行。同时运行的任务数量受此控制${maxThreadsLimit.value ? `\n（您的用户等级最高支持同时运行 ${maxThreadsLimit.value} 个任务）` : ''}`, 't') }
 			/>
 			<BoxedSwitch
-				title="保留未完成任务" checked={preserveUnfinishedTasksValue.value} onChange={(value: boolean) => preserveUnfinishedTasksValue.value = value}
+				title="保留未完成任务" checked={preserveUnfinishedTasksValue.value} onChange={(value) => preserveUnfinishedTasksValue.value = value}
 				{ ...useTooltip('若转码服务意外退出，下次运行时将自动将转码途中未完成任务恢复到任务列表', 't')}
 			/>
 			<BoxedSwitch
-				title="任务完成自动移除" checked={deleteFinishedTasksValue.value} onChange={(value: boolean) => deleteFinishedTasksValue.value = value}
+				title="任务完成自动移除" checked={deleteFinishedTasksValue.value} onChange={(value) => deleteFinishedTasksValue.value = value}
 				{ ...useTooltip('任务成功转码后自动从任务列表中移除。任务出错则不受此设置影响', 't')}
 			/>
 			<BoxedNormalInput
-				title="ffmpeg 路径" value={customFFmpegPathValue.value} onChange={(value: string) => customFFmpegPathValue.value = value} placeholder="建议留空，自动检测" long={true}
+				title="ffmpeg 路径" value={customFFmpegPathValue.value} onChange={(value) => customFFmpegPathValue.value = value} placeholder="建议留空，自动检测" long={true}
 				{ ...useTooltip('可填入 ffmpeg 可执行文件的完整路径，或其所在的文件夹路径。\n- 若填入文件夹，FFBox 将自动查找其中的 ffmpeg 和 ffprobe；\n- 若填入完整路径，FFBox 将从同目录下查找 ffprobe。\n留空则自动检测。', 't')}
 			/>
 			<div style={{ margin: '12px' }}>

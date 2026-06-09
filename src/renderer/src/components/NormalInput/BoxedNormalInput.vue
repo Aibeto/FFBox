@@ -11,7 +11,7 @@ interface Props {
 	type?: 'text' | 'password';
 	disabled?: boolean;
 	placeholder?: string;
-	validator?: (value: string) => string;
+	validator?: (value: string) => string | undefined;
 	inputFixer?: (value: string) => string;
 	onChange?: (value: string | undefined) => any;
 	onEnter?: () => any;

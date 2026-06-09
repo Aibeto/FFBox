@@ -16,7 +16,7 @@ export interface SliderOptions {
 	arrowKeyStep?: number;	// 键盘步进的步长，默认 1
 	default?: number | string; // 值可以是数字或字符串。为字符串时将尝试通过 tags 转换为数字提供给滑块内部使用，否则不显示滑块
 	adsorption?: 'int' | 'tags' | ((value: number) => number);	// 鼠标或触屏调整时吸附值，不指定时自动选择 tags
-	valueToDisplay?: { base?: number, type?: 'bitrate' | 'integer' | 'revertInteger' } | ((value: number | string) => string);	// 显示在滑杆旁边的文字，可以是指示值域的对象、转换函数
+	valueToDisplay?: { base?: number, type?: 'bitrate' | 'integer' | 'revertInteger' } | ((value: number | string | undefined) => string);	// 显示在滑杆旁边的文字，可以是指示值域的对象、转换函数
 	valueToParam?: (value: number | string) => string | number;	// 输出到 ffmpeg 参数的文字
 }
 export interface BasicParameter {

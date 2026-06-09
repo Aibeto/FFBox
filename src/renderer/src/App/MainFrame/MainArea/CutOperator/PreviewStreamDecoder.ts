@@ -96,7 +96,7 @@ export class PreviewStreamDecoder {
 				this.mediaSource = null;
 				this.sourceBuffer = null;
 				this.requestId++;
-				throw new Error(e2);
+				throw new Error(e2 as any);
 			}
 		}
 
@@ -253,7 +253,7 @@ export class PreviewStreamDecoder {
 						this.sourceBuffer?.removeEventListener('updateend', handler);
 						resolve();
 					};
-					this.sourceBuffer.addEventListener('updateend', handler);
+					this.sourceBuffer!.addEventListener('updateend', handler);
 				});
 			}
 
@@ -262,16 +262,16 @@ export class PreviewStreamDecoder {
 
 			// 执行 append
 			try {
-				this.sourceBuffer.appendBuffer(data);
+				this.sourceBuffer.appendBuffer(data as any);
 				this.isBufferFull = false;
 				await new Promise<void>((resolve) => {
 					const handler = () => {
 						this.sourceBuffer?.removeEventListener('updateend', handler);
 						resolve();
 					};
-					this.sourceBuffer.addEventListener('updateend', handler);
+					this.sourceBuffer!.addEventListener('updateend', handler);
 				});
-			} catch (e) {
+			} catch (e: any) {
 				if (e.message.includes('The SourceBuffer is full')) {
 					// console.log(`[PreviewStreamDecoder] appendBuffer 取消，缓冲已满`);
 					this.bufferQueue.unshift(data);
@@ -397,7 +397,7 @@ export class PreviewStreamDecoder {
 						this.sourceBuffer?.removeEventListener('updateend', handler);
 						resolve();
 					};
-					this.sourceBuffer.addEventListener('updateend', handler);
+					this.sourceBuffer!.addEventListener('updateend', handler);
 				});
 			}
 			this.mediaSource.removeSourceBuffer(this.sourceBuffer);
@@ -439,7 +439,7 @@ export class PreviewStreamDecoder {
 		await this.destroy();
 
 		// 重新初始化
-		await this.initialize(_videoElement);
+		await this.initialize(_videoElement!);
 		this.isDestroying = false;	// 这招有效解决当 init 完成之前，又 restart 导致产生了多个请求未中断的问题
 	}
 }

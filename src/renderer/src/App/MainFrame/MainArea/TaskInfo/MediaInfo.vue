@@ -9,14 +9,15 @@ import nodeBridge from '@renderer/bridges/nodeBridge';
 import Popup from '@renderer/components/Popup/Popup';
 
 const appStore = useAppStore();
-const selectedTasks = computed(() => appStore.selectedTask.size === 0
+const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appStore.currentServer
 	? { task: undefined, count: 0 }
 	: { task: appStore.currentServer.data.tasks[[...appStore.selectedTask][0]], count: appStore.selectedTask.size }
 );
 
 const centerDraggerPos = ref(50);
 
-const openFile = (task: Task, filePath: string, outputIndex?: number) => {
+const openFile = (task: Task, filePath: string, outputIndex: number) => {
+	if (!appStore.currentServer) { debugger; throw 'ub'; }
 	const entity = appStore.currentServer.entity;
 	if ([TaskStatus.finished, TaskStatus.error].includes(task.status)) {
 		if (entity.ip === 'localhost') {
@@ -48,15 +49,15 @@ const openFile = (task: Task, filePath: string, outputIndex?: number) => {
 const getOutputFileTimeString = (task: Task, index: number, type: 'createTime' | 'modifyTime') => {
 	const result = getOutputFileTime(task, index);
 	if (result.ok) {
-		return getTimeString(new Date(result[type]));
+		return getTimeString(new Date(result[type]!));
 	} else {
 		return '不改变';
 	}
 }
 
 const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
-	const draggerRect = event.target.getBoundingClientRect();
-	const mainAreaRect = event.target.parentElement.getBoundingClientRect();
+	const draggerRect = (event.target as HTMLElement).getBoundingClientRect();
+	const mainAreaRect = (event.target as HTMLElement).parentElement!.getBoundingClientRect();
 	const inElementX = ((event as MouseEvent).pageX ?? (event as TouchEvent).touches[0].pageX) - draggerRect.x;	// 鼠标在元素内的 X
 	// 添加鼠标事件捕获
 	let handleMouseMove = (event: Partial<MouseEvent | TouchEvent>) => {
@@ -81,7 +82,7 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 
 <template>
 	<div class="mediaInfo">
-		<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task.taskName }}</div>
+		<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task!.taskName }}</div>
 		<div class="container" :data-color_theme="appStore.frontendSettings.colorTheme">
             <div class="left" :style="{ width: `${centerDraggerPos}%` }">
 				<div class="title">
@@ -103,7 +104,7 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 									</tr>
 									<tr>
 										<td>时长</td>
-										<td>{{ formatTimeToFFmpegStyle(inputFile.duration) }}</td>
+										<td>{{ formatTimeToFFmpegStyle(inputFile.duration!) }}</td>
 									</tr>
 								</tbody></table>
 							</div>
@@ -212,7 +213,7 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 						v-if="selectedTasks.task"
 						v-for="(outputFile, index) in selectedTasks.task.outputFiles"
 						@click="openFile(selectedTasks.task, outputFile, index)"
-						v-bind="useTooltip(appStore.currentServer.entity.ip === 'localhost' ? '点击打开输出文件' : '点击下载输出文件', 'tr')"
+						v-bind="useTooltip(appStore.currentServer?.entity.ip === 'localhost' ? '点击打开输出文件' : '点击下载输出文件', 'tr')"
 					>
 						<div class="fileName">{{ outputFile }}</div>
 						<div class="groups">

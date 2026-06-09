@@ -17,7 +17,7 @@ import * as mica from './mica';
 
 interface DownloadMap {
 	item?: Electron.DownloadItem;
-	finalFileBaseName?: string;
+	finalFileBaseName: string;
 	dir?: string;	// 批量下载前指定文件夹，这样每个文件下载时就不弹窗
 	fileTime?: { accessTime: number, createTime: number, modifyTime: number };
 }
@@ -87,8 +87,8 @@ class ElectronApp {
 
 	createMainWindow(): void {
 		const mainWindow = new BrowserWindow({
-			width: buildInfo.isDev ? 1440 : 1080,
-			height: buildInfo.isDev ? 900 : 720,
+			width: buildInfo?.isDev ? 1440 : 1080,
+			height: buildInfo?.isDev ? 900 : 720,
 			minWidth: 600,
 			minHeight: 300,
 			show: false,
@@ -231,7 +231,7 @@ class ElectronApp {
 		}
 		// this.mainWindow.webContents.send('debugMessage', '选出路径', servicePath);
 		return new Promise((resolve, reject) => {
-			this.service.start(servicePath).then(() => {
+			this.service!.start(servicePath).then(() => {
 				// 需要加一点延迟才报告成功，主要是因为 service 启动 server 需要一定时间，待 server 启动好之后才让 renderer 去连接
 				// 在 Windows 中可能不需要加这个延时，但是在 macOS 和 Linux 上似乎都是需要的
 				// 另外，调试过程中发现，如果尝试使用 debugMessage 把调试消息发送给 renderer，当程序忙的时候 renderer 并不一定会按实际顺序去显示，因此需要适当增加延时以验证 Promise 正常工作
@@ -249,15 +249,15 @@ class ElectronApp {
 	mountIpcEvents(): void {
 		// 最小化按钮
 		ipcMain.on('minimize', () => {
-			this.mainWindow.minimize();
+			this.mainWindow!.minimize();
 		});
 
 		// 窗口模式按钮
 		ipcMain.on('windowmode', () => {
-			if (this.mainWindow.isMaximized()) {
-				this.mainWindow.unmaximize();
+			if (this.mainWindow!.isMaximized()) {
+				this.mainWindow!.unmaximize();
 			} else {
-				this.mainWindow.maximize();
+				this.mainWindow!.maximize();
 			}
 		});
 
@@ -415,7 +415,7 @@ class ElectronApp {
 		});
 
 		// 设置任务栏 / dock 进度状态
-		ipcMain.on('setProgressBar', (event, progress: number, options: Electron.ProgressBarOptions | undefined) => {
+		ipcMain.on('setProgressBar', (event, progress: number, options: Electron.ProgressBarOptions) => {
 			this.mainWindow!.setProgressBar(progress * 0.99 + 0.01, options);
 			this.mainWindow!.setTitle(`FFBox${['normal', 'paused'].includes(options.mode) ? ` - ${(progress * 100).toFixed(0)}%` : ''}`);
 		});
@@ -434,7 +434,7 @@ class ElectronApp {
 		 * 下载过程持续向渲染进程发送 downloadProgress
 		 * 下载完成后再次发送 downloadStatusChange 信号，告知主窗口改变 UI
 		 */
-		ipcMain.on('downloadFile', (_event, params: { url: string; sessionId: string; finalFileBaseName?: string; fileTime?: any }) => {
+		ipcMain.on('downloadFile', (_event, params: { url: string; sessionId: string; finalFileBaseName: string; fileTime?: any }) => {
 			console.log('发动下载请求：', params.url);
 			const { finalFileBaseName, fileTime } = params;
 			this.downloadMap.set(params.url, { finalFileBaseName, fileTime });
@@ -445,8 +445,8 @@ class ElectronApp {
 			this.mainWindow!.webContents.downloadURL(params.url);
 		});
 
-		ipcMain.on('downloadFiles', async (_event, params: { sessionId: string; files: { url: string; finalFileBaseName?: string; fileTime?: any }[] }) => {
-			const result = await dialog.showOpenDialog(this.mainWindow, {
+		ipcMain.on('downloadFiles', async (_event, params: { sessionId: string; files: { url: string; finalFileBaseName: string; fileTime?: any }[] }) => {
+			const result = await dialog.showOpenDialog(this.mainWindow!, {
 				title: `指定 ${params.files.length} 个下载文件的保存文件夹`,
 				properties: ['openDirectory', 'createDirectory']
 			});
@@ -469,7 +469,7 @@ class ElectronApp {
 
 		// 应用菜单更新
 		ipcMain.on('setApplicationMenu', (event, menuStr: string) => {
-			const menuTemplate = convertFFBoxMenuToElectronMenuTemplate(menuStr, this.mainWindow.webContents);
+			const menuTemplate = convertFFBoxMenuToElectronMenuTemplate(menuStr, this.mainWindow!.webContents);
 			if (process.platform === 'darwin') {
 				menuTemplate.splice(1, 0, {
 					label: i11n.frontend.applicationMenu.编辑,
@@ -491,13 +491,13 @@ class ElectronApp {
 
 		// 打开“打开文件”对话框
 		ipcMain.handle('showOpenDialog', async (event, options: Electron.OpenDialogOptions) => {
-			const result = await dialog.showOpenDialog(this.mainWindow, options);
+			const result = await dialog.showOpenDialog(this.mainWindow!, options);
 			return result.canceled ? [] : result.filePaths;
 		});
 
 		// 打开“另存为”对话框
 		ipcMain.handle('showSaveDialog', async (event, options: Electron.SaveDialogOptions) => {
-			const result = await dialog.showSaveDialog(this.mainWindow, options);
+			const result = await dialog.showSaveDialog(this.mainWindow!, options);
 			return result.canceled ? '' : result.filePath;
 		});
 
@@ -573,20 +573,20 @@ class ElectronApp {
 
 		// 代为启动程序
 		ipcMain.on('spawn', async (event, url: string, params?: string[], options?: SpawnOptions) => {
-			spawn(url, params || [], options).on('error', () => {});
+			spawn(url, params || [], options || {}).on('error', () => {});
 		});		
 
 		// 半透明窗体
 		ipcMain.on('setBlurBehindWindow', (event, on: boolean) => {
 			switch (getOs()) {
 				case 'MacOS':
-					this.mainWindow.setVibrancy(on ? 'window' : 'window');
+					this.mainWindow!.setVibrancy(on ? 'window' : 'window');
 					break;
 				case 'Windows':
 					// this.mainWindow.setBackgroundMaterial(on ? 'mica' : 'none');
 					// this.mainWindow.setDarkTheme();
 					// this.mainWindow.setMicaEffect();
-					mica.setBlur(this.mainWindow, on);					
+					mica.setBlur(this.mainWindow!, on);					
 					break;
 			}
 		});

@@ -59,7 +59,7 @@ interface StoreState {
 	// 非界面类
 	notifications: Notification[],
 	servers: Server[];
-	currentServerId: string;
+	currentServerId: string | undefined;
 	selectedTask: Set<number>,
 	taskSelectionModified: boolean;	// 修改参数后显示提示是否应用到所有任务，更改 selectedTask 时去除显示
 	globalParams: OutputParams;
@@ -175,8 +175,9 @@ export const useAppStore = defineStore('app', {
 		 */
 		closeCutOperator() {
 			const 这 = useAppStore();
+			if (!这.showCutOperator) return;
 			const target = { value: 0 };
-			const initialDraggerPos = this.showCutOperator.initialDraggerPos;
+			const initialDraggerPos = 这.showCutOperator.initialDraggerPos;
 			if (这.draggerPos <= 0.01) {
 				gsap.to(target, {
 					value: initialDraggerPos,
@@ -187,7 +188,7 @@ export const useAppStore = defineStore('app', {
 					},
 				});
 			}
-			this.showCutOperator = undefined;
+			这.showCutOperator = undefined;
 		},
 		// #endregion 纯 UI
 		// #region 任务处理
@@ -196,7 +197,7 @@ export const useAppStore = defineStore('app', {
 		 * Promise 最终会在后端返回任务更新（或 200ms 超时）后，并将 globalParams 替换后 resolve
 		 */
 		addTasks (inputList: string[] | FileList, type: 'multiTask' | 'multiInput' = 'multiTask') {
-			return new Promise(async (resolve) => {
+			return new Promise<number[]>(async (resolve) => {
 				function allTimerFinish() {
 					Promise.all(newlyAddedTaskIds).then((ids) => {
 						// 从 5.0 开始，由于支持多输入，addTask 函数向后端传的是替换了文件名的 globalParams，因此需要 applySelectedTask 使参数变成当前选中的 task 的参数，否则不一致
@@ -204,18 +205,19 @@ export const useAppStore = defineStore('app', {
 						// 由于网络到达顺序的不确定性，Promise 完成时可能所有任务都完成了 taskUpdate，此时再加监听器则无法触发。因此需要加一个 timeout 做兜底
 						const handler = () => {
 							clearTimeout(timer);
-							server.entity.off('taskUpdate', handler);
+							server!.entity.off('taskUpdate', handler);
 							这.selectedTask = new Set(ids);
 							这.applySelectedTask();
 							resolve(ids);
 						};
 						const timer = setTimeout(handler, 200);
-						server.entity.on('taskUpdate', handler);
+						server!.entity.on('taskUpdate', handler);
 					});
 				}
 	
 				const 这 = useAppStore();
 				const server = 这.currentServer;
+				if (!server) { debugger; throw 'ub'; }
 				const isRemoteService = server.entity.ip !== 'localhost';
 				const newlyAddedTaskIds: Promise<number>[] = [];	// 考虑到 timer 的最后一项并不一定是网络到达的最后一项，这里使用 Promise。待后期远程调用批量化后可改进
 				let dropDelayCount = 0;
@@ -354,9 +356,7 @@ export const useAppStore = defineStore('app', {
 		addTask(fileName: string, paths: string[]): Promise<number> {
 			const 这 = useAppStore();
 			const currentBridge = 这.currentServer?.entity;
-			if (!currentBridge) {
-				return;
-			}
+			if (!currentBridge) { debugger; throw 'ub'; }
 			const params: OutputParams = JSON.parse(JSON.stringify(这.globalParams));
 			params.input.files = paths.map((path, index) => ({
 				filePath: path ? path.replace(/\\/g, '/') : undefined,
@@ -398,6 +398,7 @@ export const useAppStore = defineStore('app', {
 		 */
 		deleteTasks(taskIds: number[]) {
 			const 这 = useAppStore();
+			if (!这.currentServer) { debugger; throw 'ub'; }
 			for (const taskId of taskIds) {
 				const uploadFiles = 这.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === taskId)
 				for (const uploadFile of uploadFiles) {
@@ -416,6 +417,7 @@ export const useAppStore = defineStore('app', {
 		 */
 		applySelectedTask() {
 			const 这 = useAppStore();
+			if (!这.currentServer) { debugger; throw 'ub'; }
 			if (这.selectedTask.size > 0) {
 				for (const id of 这.selectedTask) {
 					这.globalParams = replaceOutputParams(这.currentServer.data.tasks[id].after, 这.globalParams, true);
@@ -426,6 +428,7 @@ export const useAppStore = defineStore('app', {
 		},
 		startNpause () {
 			const 这 = useAppStore();
+			if (!这.currentServer) { debugger; throw 'ub'; }
 			if (这.currentServer.entity.status !== ServiceBridgeStatus.Connected) {
 				return;
 			}
@@ -454,8 +457,9 @@ export const useAppStore = defineStore('app', {
 				这.presetName = '';
 			}
 
-			const entity = 这.currentServer?.entity;
-			const data = 这.currentServer?.data;
+			if (!这.currentServer) { debugger; throw 'ub'; }
+			const entity = 这.currentServer.entity;
+			const data = 这.currentServer.data;
 			if (data) {
 				// 这.globalParams
 				// 收集需要批量更新的输出参数，交给 service。同时本地替换一次 task.after
@@ -584,6 +588,7 @@ export const useAppStore = defineStore('app', {
 		 */
 		recalcChangedParams() {
 			const 这 = useAppStore();
+			if (!这.currentServer) { debugger; throw 'ub'; }
 			const paramsVisibility = {
 				duration: 0,
 				format: 0,
@@ -591,7 +596,7 @@ export const useAppStore = defineStore('app', {
 				video: 0,
 				audio: 0,
 			};
-			for (const [index, task] of Object.entries(这.currentServer?.data.tasks) || []) {
+			for (const [index, task] of Object.entries(这.currentServer.data.tasks) || []) {
 				if (index === '-1' || task.after.input.files.length !== 1 || task.after.outputs.length !== 1) {
 					continue;
 				}
@@ -669,7 +674,7 @@ export const useAppStore = defineStore('app', {
 				这.presetName = secureName;
 				这.applyParameters('loadPreset');
 			}
-			if (这.selectedTask.size > 0) {
+			if (这.selectedTask.size > 0 && 这.currentServer) {
 				// 这个操作约等于 applySelectedTask
 				// 主要目的是，当选中了任务更改预设时，全局参数中的输入文件名等信息会被替换，但任务中的不被替换。若马上就修改其他参数，会导致任务中的输入文件名等信息变成全局的
 				const fisrtSelectedTaskId = [...这.selectedTask][0];
@@ -722,8 +727,10 @@ export const useAppStore = defineStore('app', {
 		},
 		fetchAVOptions() {
 			const 这 = useAppStore();
-			const entity = 这.currentServer?.entity;
-			if (entity?.status === ServiceBridgeStatus.Connected) {
+			if (!这.currentServer) { debugger; throw 'ub'; }
+			const entity = 这.currentServer.entity;
+			const data = 这.currentServer.data;
+			if (entity.status === ServiceBridgeStatus.Connected) {
 				entity.getAVOptions().then((result: { codecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }, formats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[] }, filters: FFmpegFilterDetail[] }) => {
 					parseFFmpegCodecsToCodecsList(result.codecs);
 					parseFFmpegFiltersToFiltersList(result.filters);
@@ -731,7 +738,7 @@ export const useAppStore = defineStore('app', {
 					nodeBridge.localStorage.set('ffmpegCodecs', result.codecs);
 					nodeBridge.localStorage.set('ffmpegFormats', result.formats);
 					nodeBridge.localStorage.set('ffmpegFilters', result.filters);
-					Popup({ message: `已获取来自 ${这.currentServer.data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.formats.demuxer.length} 个解复用器、${result.formats.muxer.length} 个复用器、${result.filters.length} 个滤镜`, level: NotificationLevel.ok });
+					Popup({ message: `已获取来自 ${data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.formats.demuxer.length} 个解复用器、${result.formats.muxer.length} 个复用器、${result.filters.length} 个滤镜`, level: NotificationLevel.ok });
 					window?.dispatchEvent(new CustomEvent('finished-fetch-codecs'));
 				});
 			} else {
@@ -745,7 +752,8 @@ export const useAppStore = defineStore('app', {
 		 */
 		updateNotifications(server: Server) {
 			const 这 = useAppStore();
-			const entity = 这.currentServer?.entity;
+			if (!这.currentServer) { debugger; throw 'ub'; }
+			const entity = 这.currentServer.entity;
 			entity.getNotifications().then((result) => {
 				server.data.notifications = result;
 			});
@@ -958,6 +966,7 @@ export const useAppStore = defineStore('app', {
 					return false;
 				}
 			}
+			return false;
 		},
 		/**
 		 * 修改前端设置后调用
@@ -984,7 +993,7 @@ export const useAppStore = defineStore('app', {
 			}
 			// document.body.setAttribute('data-color_theme', 这.frontendSettings.colorTheme);
 
-			window.frontendSettings.useIEC = 这.frontendSettings.useIEC;
+			window.frontendSettings!.useIEC = 这.frontendSettings.useIEC;
 		},
 		
 		// #endregion 其他

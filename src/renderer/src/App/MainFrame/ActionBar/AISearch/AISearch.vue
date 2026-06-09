@@ -47,21 +47,22 @@ const inputValue = ref('');
 const messages = ref<AIChatMessage[]>([]);
 const sessionId = ref<string | null>(null);
 const loading = ref(false);
-const statusText = ref('大模型处理中');
+const statusText = ref<string | undefined>('大模型处理中');
 const selectedModelKey = ref<string | undefined>(undefined);
 
-const defaultAnchorRef = ref<HTMLDivElement>(null);
-const anchorRef = ref<HTMLDivElement>(null);
-const textRef = ref<HTMLTextAreaElement>(null);
-const messagesRef = ref<HTMLDivElement>(null);
+const defaultAnchorRef = ref<HTMLDivElement | null>(null);
+const anchorRef = ref<HTMLDivElement | null>(null);
+const textRef = ref<HTMLTextAreaElement | null>(null);
+const messagesRef = ref<HTMLDivElement | null>(null);
 
 const anchorStyle = ref<Record<string, string> | null>(null);
 
 const openedClass = computed(() => isOpened.value === 'opening' || isOpened.value === 'opened' ? 'opened' : '');
 
-const currentRoundsPerMax = computed(() => props.maxRounds && messages.value.filter((msg) => msg.role === 'user').length / (props.maxRounds || Number.MAX_SAFE_INTEGER));
+const currentRoundsPerMax = computed(() => props.maxRounds ? messages.value.filter((msg) => msg.role === 'user').length / props.maxRounds : 0);
 
-const usageTouchedWarning = computed(() => 
+const usageTouchedWarning = computed(() =>
+	// @ts-ignore
 	props.quotaUsed?.day >= 0.75 || props.quotaUsed?.week >= 0.75 || props.quotaUsed?.total >= 0.75 ||
 	(currentRoundsPerMax.value >= 0.75)
 );
@@ -106,7 +107,7 @@ const modelDropdownList = computed<MenuItem[]>(() => {
 	const rest = entries.slice(1).map((item) => ({ type: 'normal' as const, value: item.key, label: item.label }));
 	return rest.length ? [first, { type: 'separator' as const }, ...rest] : [first];
 });
-const selectedModelDisplayText = computed(() => selectedModelKey.value ? props.modelOptions.find((model) => model.key === selectedModelKey.value)?.key || '' : '');
+const selectedModelDisplayText = computed(() => selectedModelKey.value ? (props.modelOptions || []).find((model) => model.key === selectedModelKey.value)?.key || '' : '');
 
 const openWindow = () => {
 	if (!defaultAnchorRef.value) return;
@@ -159,14 +160,14 @@ const openWindow = () => {
 };
 
 const closeWindow = async () => {
-	const defaultRect = defaultAnchorRef.value.getBoundingClientRect();
-	const currentRect = anchorRef.value.getBoundingClientRect();
+	const defaultRect = defaultAnchorRef.value!.getBoundingClientRect();
+	const currentRect = anchorRef.value!.getBoundingClientRect();
 	// console.log(currentRect, defaultRect);
 	inputValue.value = '';
-	textRef.value.value = '';
+	textRef.value!.value = '';
 	const event = document.createEvent('HTMLEvents');
 	event.initEvent('input', false, true);
-	textRef.value.dispatchEvent(event);
+	textRef.value!.dispatchEvent(event);
 	// 按当前位置转换为 fixed 定位
 	anchorStyle.value = {
 		position: 'fixed',
@@ -296,7 +297,7 @@ const sendMessage = async () => {
 			// 链接
 			if (lnk instanceof Array) {
 				for (const link of lnk) {
-					if ('label' in link && 'url' in link) chatItem.actions.push(link);
+					if ('label' in link && 'url' in link) chatItem.actions!.push(link);
 				}
 			}
 			// 激活 1
@@ -325,12 +326,12 @@ const sendMessage = async () => {
 				}
 				// 找到文本中的总分
 				const matchFull = /满分[是为:：-\s]{0,3}(\d+(\.\d+)?)/.exec(msg)?.[1];
-				const full = +matchFull || 40;
+				const full = +matchFull! || 40;
 
 				total = extraScore || total;
 				const finalScore = 15 + (total / full) * 50;
 				console.log(`修行：${finalScore}`);
-				chatItem.actions.push({ label: '生成激活码', url: `ffbox:/showActivationCodeGenMsgbox?level=${finalScore}` });
+				chatItem.actions!.push({ label: '生成激活码', url: `ffbox:/showActivationCodeGenMsgbox?level=${finalScore}` });
 
 				showActivateCodeGen(Math.round(finalScore));
 			}
@@ -341,7 +342,7 @@ const sendMessage = async () => {
 
 			if (matchEnd2 || extraScoreActivated) {
 				console.log(`修行：50`);
-				chatItem.actions.push({ label: '生成激活码', url: `ffbox:/showActivationCodeGenMsgbox?level=50` });
+				chatItem.actions!.push({ label: '生成激活码', url: `ffbox:/showActivationCodeGenMsgbox?level=50` });
 
 				showActivateCodeGen(50);
 			}
@@ -366,7 +367,7 @@ const resetChat = () => {
 	(props.resetChat || (() => {}))(selectedModelKey.value);
 	if (props.initSystemMessage) {
 		setTimeout(() => {
-			messages.value.push(props.initSystemMessage);
+			messages.value.push(props.initSystemMessage!);
 		}, 0);
 	}
 };
@@ -376,7 +377,7 @@ const handleActionButtonClick = (url: string) => {
 	if (urlObject.protocol === 'ffbox:') {
 		const query = new URLSearchParams(urlObject.search);
 		if (urlObject.pathname === '/showActivationCodeGenMsgbox') {
-			const level = +query.get('level');
+			const level = +query.get('level')!;
 			if (isFinite(level)) {
 				showActivateCodeGen(level);
 			}
@@ -387,13 +388,13 @@ const handleActionButtonClick = (url: string) => {
 }
 
 const handleModelChange = (value: string) => {
-	const newModel = props.modelOptions.find((model) => model.key === value);
-	const currentModel = props.modelOptions.find((model) => model.key === selectedModelKey.value);
+	const newModel = props.modelOptions?.find((model) => model.key === value);
+	const currentModel = props.modelOptions?.find((model) => model.key === selectedModelKey.value);
 	if (!newModel || newModel === currentModel) {
 		return;
 	}
 	selectedModelKey.value = newModel.key;
-	if (newModel.provider !== currentModel.provider) {
+	if (newModel.provider !== currentModel?.provider) {
 		resetChat();
 	}
 };
@@ -420,7 +421,7 @@ watch(() => props.initialPlaceholderInterval, () => {
 			// initialPlaceholderIndex.value = initialPlaceholderIndex.value >= (props.initialPlaceholders?.length ?? 1) - 1 ? 0 : initialPlaceholderIndex.value + 1;
 			let newIndex = 0;
 			do {
-				newIndex = Math.floor(Math.random() * props.initialPlaceholders?.length || 1);
+				newIndex = Math.floor(Math.random() * (props.initialPlaceholders?.length || 1));
 			} while (newIndex === initialPlaceholderIndex.value);
 			initialPlaceholderIndex.value = newIndex;
 		}, props.initialPlaceholderInterval) as any;
@@ -436,7 +437,7 @@ watch(() => props.enabled, () => {
 }, { immediate: true });
 
 watch(() => messages.value.length, () => {
-	nextTick(() => messagesRef.value.scrollTo(0, Number.MAX_SAFE_INTEGER));
+	nextTick(() => messagesRef.value!.scrollTo(0, Number.MAX_SAFE_INTEGER));
 });
 
 </script>

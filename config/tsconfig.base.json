@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"composite": true,
+		"noImplicitAny": true,
+		"sourceMap": true,
+		"module": "nodenext",
+		"target": "esnext",
+		"moduleResolution": "nodenext",
+		"allowJs": true,
+		"rootDir": "../src",
+		"types": ["node"],
+		"paths": {
+			"@common/*": ["../src/common/*"],
+		}
+	}
+}

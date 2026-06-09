@@ -30,8 +30,8 @@ const sidebarColors = computed(() =>
 const animationName = ref('animationUp');
 
 const selectedMenuIndex = ref(-1);
-const topMenuRef = ref<HTMLDivElement>(null);
-const currentOpenedMenuRef = ref<ReturnType<typeof showMenu>>();
+const topMenuRef = ref<HTMLDivElement | null>(null);
+const currentOpenedMenuRef = ref<ReturnType<typeof showMenu> | null>(null);
 const topMenuButtonsMousemoveElems = ref<HTMLDivElement[]>([]);
 
 const selectedPanelIndex = ref(-1);	// 待打开面板再载入，节省资源
@@ -63,8 +63,8 @@ const finalMenu = computed(() => {
 			label: '服务器 (S)',
 			subMenu: [
 				{ type: 'normal', label: '添加服务器', value: '添加服务器', tooltip: '添加服务器标签页',
-					disabled: appStore.servers.length && appStore.servers[appStore.servers.length - 1].entity.status === ServiceBridgeStatus.Idle, onClick: () => appStore.addServer() },
-				{ type: 'normal', label: '关闭当前服务器页面', value: '关闭当前服务器页面', tooltip: '断开当前服务器连接并关闭标签页', disabled: !(appStore.currentServer?.entity.ip !== 'localhost'), onClick: () => appStore.removeServer(appStore.currentServerId) },
+					disabled: appStore.servers.length > 0 && appStore.servers[appStore.servers.length - 1].entity.status === ServiceBridgeStatus.Idle, onClick: () => appStore.addServer() },
+				{ type: 'normal', label: '关闭当前服务器页面', value: '关闭当前服务器页面', tooltip: '断开当前服务器连接并关闭标签页', disabled: !(appStore.currentServer?.entity.ip !== 'localhost'), onClick: () => appStore.removeServer(appStore.currentServerId!) },
 				{ type: 'normal', label: '关闭所有服务器页面', value: '关闭所有服务器页面', tooltip: '断开所有服务器连接（不包括本地服务器）并关闭标签页', onClick: () => {
 					for (const server of appStore.servers) {
 						if (server.entity.ip !== 'localhost') {
@@ -85,14 +85,15 @@ const finalMenu = computed(() => {
 				] : []),
 				...(appStore.currentServer?.entity.ip === 'localhost' ? [
 					{ type: 'separator' as const },
-					{ type: 'normal' as const, label: '本地服务器配置', value: '本地服务器配置', disabled: appStore.currentServer?.entity.status !== ServiceBridgeStatus.Connected, onClick: () => showServerConfig(appStore.currentServer.data.id) },
+					{ type: 'normal' as const, label: '本地服务器配置', value: '本地服务器配置', disabled: appStore.currentServer?.entity.status !== ServiceBridgeStatus.Connected, onClick: () => showServerConfig(appStore.currentServer!.data.id!) },
 				] : []),
 			],
 		},
 		{
 			type: 'submenu',
 			label: '任务 (T)',
-			subMenu: appStore.currentServer?.entity.status === ServiceBridgeStatus.Connected ? [
+			// appStore.currentServer 似乎就能判断子项目非空了，但这里 TypeScript 似乎有问题
+			subMenu: appStore.currentServer && appStore.currentServer?.entity.status === ServiceBridgeStatus.Connected ? [
 				{ type: 'normal', label: '添加任务（选择文件）', value: '添加任务', tooltip: '打开文件选择器，向当前服务器添加任务', onClick: () => {
 					showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList));
 				} },
@@ -102,9 +103,9 @@ const finalMenu = computed(() => {
 				{ type: 'submenu', label: '所有任务操作', subMenu: [
 					{ type: 'normal', label: '停止', value: '停止所有任务', tooltip: '将当前服务器所有运行中、已暂停的任务进行软停止操作', onClick: () => {
 						let count = 0;
-						for (const [id, task] of Object.entries(appStore.currentServer?.data.tasks) || []) {
+						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
 							if ([TaskStatus.idle_queued, TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued].includes(task.status)) {
-								appStore.currentServer.entity.taskReset(+id);
+								appStore.currentServer!.entity.taskReset(+id);
 								count++;
 							}
 						}
@@ -112,7 +113,7 @@ const finalMenu = computed(() => {
 					} },
 					{ type: 'normal', label: '删除【已完成】', value: '删除所有已完成任务', tooltip: '将当前服务器所有已完成的任务删除', onClick: () => {
 						const taskIds = [];
-						for (const [id, task] of Object.entries(appStore.currentServer.data.tasks)) {
+						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
 							if (task.status === TaskStatus.finished) {
 								taskIds.push(+id);
 							}
@@ -122,7 +123,7 @@ const finalMenu = computed(() => {
 					} },
 					{ type: 'normal', label: '删除【未启动】', value: '删除所有未启动任务', tooltip: '将当前服务器所有空闲、排队开始的任务删除', onClick: () => {
 						const taskIds = [];
-						for (const [id, task] of Object.entries(appStore.currentServer.data.tasks)) {
+						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
 							if ([TaskStatus.idle, TaskStatus.idle_queued].includes(task.status)) {
 								taskIds.push(+id);
 							}
@@ -132,7 +133,7 @@ const finalMenu = computed(() => {
 					} },
 					{ type: 'normal', label: '删除【上传中】', value: '删除所有正在上传的任务', tooltip: '将当前服务器所有正在上传的任务删除（仅打断由本客户端发起的上传操作。其他客户端的上传操作不会被停止，但任务会被删除）', onClick: () => {
 						const taskIds = [];
-						for (const [id, task] of Object.entries(appStore.currentServer.data.tasks)) {
+						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
 							if (task.status === TaskStatus.initializing) {
 								taskIds.push(+id);
 							}
@@ -142,9 +143,9 @@ const finalMenu = computed(() => {
 					} },
 					{ type: 'normal', label: '重置【已完成】', value: '重置所有已完成任务', tooltip: '将当前服务器所有已完成的任务重置到未启动状态', onClick: () => {
 						let count = 0;
-						for (const [id, task] of Object.entries(appStore.currentServer.data.tasks)) {
+						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
 							if (task.status === TaskStatus.finished) {
-								appStore.currentServer.entity.taskReset(+id);
+								appStore.currentServer!.entity.taskReset(+id);
 								count++;
 							}
 						}
@@ -152,9 +153,9 @@ const finalMenu = computed(() => {
 					} },
 					{ type: 'normal', label: '重置【出错】', value: '重置所有发生错误的任务', tooltip: '将当前服务器所有发生错误的任务重置到未启动状态', onClick: () => {
 						let count = 0;
-						for (const [id, task] of Object.entries(appStore.currentServer.data.tasks)) {
+						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
 							if (task.status === TaskStatus.error) {
-								appStore.currentServer.entity.taskReset(+id);
+								appStore.currentServer!.entity.taskReset(+id);
 								count++;
 							}
 						}
@@ -164,17 +165,17 @@ const finalMenu = computed(() => {
 				{ type: 'submenu', label: '已选中任务操作', subMenu: [
 					{ type: 'normal', label: '立即开始', value: '立即开始选中任务', tooltip: '马上启动所选任务的编码（仅对未启动、排队开始、排队继续任务有效）', onClick: () => {
 						for (const taskId of appStore.selectedTask) {
-							appStore.currentServer.entity.taskStart(taskId);
+							appStore.currentServer!.entity.taskStart(taskId);
 						}
 					} },
 					{ type: 'normal', label: '排队开始', value: '排队开始选中任务', tooltip: '将所选任务置入准备状态（对未启动任务置入排队开始状态，对已暂停任务置入排队继续状态）', onClick: () => {
 						for (const taskId of appStore.selectedTask) {
-							appStore.currentServer.entity.taskReady(taskId);
+							appStore.currentServer!.entity.taskReady(taskId);
 						}
 					} },
 					{ type: 'normal', label: '停止或重置', value: '停止或重置选中任务', tooltip: '对正在运行任务进行软停止，对正在停止任务进行硬停止，对已停止、已完成、出错任务置入未开始状态', onClick: () => {
 						for (const taskId of appStore.selectedTask) {
-							appStore.currentServer.entity.taskReset(taskId);
+							appStore.currentServer!.entity.taskReset(taskId);
 						}
 					} },
 					{ type: 'normal', label: '删除', value: '删除选中任务', tooltip: '对未开始、上传中任务进行删除操作（对其他状态任务无效）', onClick: () => {
@@ -183,10 +184,10 @@ const finalMenu = computed(() => {
 				] },
 				{ type: 'separator' },
 				{ type: 'normal', label: '开始执行队列', value: '开始执行队列。将所有未启动、暂停的任务划入排队状态，并启动任务调度', onClick: () => {
-					appStore.currentServer.entity.queueStart();
+					appStore.currentServer?.entity.queueStart();
 				} },
 				{ type: 'normal', label: '暂停执行队列', value: '暂停执行队列。将所有进行中任务暂停', disabled: appStore.currentServer.data.workingStatus === WorkingStatus.idle, onClick: () => {
-					appStore.currentServer.entity.queuePause();
+					appStore.currentServer?.entity.queuePause();
 				}},
 			] : [
 				{ type: 'normal', label: '请先连接当前服务器', value: '请先连接当前服务器', disabled: true },
@@ -302,7 +303,7 @@ watch(selectedMenuIndex, (index, oldIndex) => {
 			// 新打开菜单时，记录顶部菜单按钮位置，并在 body 上的此位置添加置顶元素
 			if (appStore.showMenuCenter === 1) {
 				const rects: DOMRect[] = [];
-				for (const topMenuButton of topMenuRef.value.children) {
+				for (const topMenuButton of topMenuRef.value!.children) {
 					rects.push(topMenuButton.getBoundingClientRect());
 				}
 				// topMenuButtonsMousemoveListener.value = 0;
@@ -316,6 +317,7 @@ watch(selectedMenuIndex, (index, oldIndex) => {
 					elem.style.setProperty('z-index', `100`);
 					elem.setAttribute('data-index', key);
 					elem.addEventListener('mousemove', (ev: MouseEvent) => {
+						// @ts-ignore
 						const index = +(ev.target as HTMLDivElement).getAttribute('data-index');
 						selectedMenuIndex.value = index;
 					});
@@ -325,7 +327,7 @@ watch(selectedMenuIndex, (index, oldIndex) => {
 			}
 		}
 
-		const elem = topMenuRef.value.children[index];
+		const elem = topMenuRef.value!.children[index];
 		const rect = elem.getBoundingClientRect();
 		currentOpenedMenuRef.value?.close();
 		if (selectedMenu.type !== 'submenu') {
@@ -367,7 +369,7 @@ watch(selectedMenuIndex, (index, oldIndex) => {
 	} else {
 		if (oldIndex !== -1) {
 			currentOpenedMenuRef.value?.close();
-			currentOpenedMenuRef.value = undefined;
+			currentOpenedMenuRef.value = null;
 			for (const elem of topMenuButtonsMousemoveElems.value) {
 				document.body.removeChild(elem);
 			}
@@ -405,8 +407,9 @@ const handleMenuItemClicked = (event: Event, value: any) => {
 	}
 	const correspondingMenuItem = dfs(finalMenu.value);
 	// 若找到该项，该项配置了 onClick，则触发
+	// 这里 onClick TypeScript 似乎也有 bug
 	if (correspondingMenuItem && 'onClick' in correspondingMenuItem.item && !correspondingMenuItem.item.disabled) {
-		const ret = correspondingMenuItem.item.onClick(event, value);
+		const ret = correspondingMenuItem.item.onClick!(event, value);
 		if (ret === true) {
 			appStore.showMenuCenter = 0;
 		} else if (ret === false) {

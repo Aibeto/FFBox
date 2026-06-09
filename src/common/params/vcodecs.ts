@@ -1,48 +1,6 @@
+import { getMenuItemByValue, MenuItem, NarrowedMenuItem } from '@common/menu';
 import { OutputParams_video } from "../types";
 import { SliderOptions, Parameter, RateControl } from './parameter';
-import { getMenuItemByValue, MenuItem, NarrowedMenuItem } from '@common/menu';
-
-// 通用 RateControl 构造函数
-// function makeRC(defaultCmd: (string | Symbol)[], sliderOpts: any): RateControl {
-// 	const cmdDef = sliderOpts.cmd || defaultCmd;
-// 	const paramName = (() => {
-// 		for (let i = 0; i < cmdDef.length; i++) {
-// 			if (cmdDef[i] === VALUE && i > 0) {
-// 				return (cmdDef[i - 1] as string).replace(/^-/, '');
-// 			}
-// 		}
-// 		return '';
-// 	})();
-// 	const paramToFFmpegArg: (v: number | string) => string | number = sliderOpts.paramToFFmpegArg ?? ((v) => v as number);
-
-// 	return {
-// 		detailToSlider: (detail) => {
-// 			const v = detail[paramName];
-// 			return v !== undefined ? sliderOpts.paramToSlider(Number(v)) : sliderOpts.paramToSlider(sliderOpts.default ?? 0);
-// 		},
-// 		sliderToDetail: (sliderValue) => {
-// 			return [paramName, sliderOpts.valueToParam(sliderValue)];
-// 		},
-// 		getFFmpegArgs: (detail) => {
-// 			const v = detail[paramName];
-// 			if (v === undefined || v === '') return [];
-// 			const args: (string | number)[] = [];
-// 			for (const item of cmdDef) {
-// 				if (item === VALUE) args.push(paramToFFmpegArg(Number(v)));
-// 				else args.push(item as string);
-// 			}
-// 			return args;
-// 		},
-// 		getParamNames: () => [paramName],
-// 		getDefaultDetail: () => ({ [paramName]: sliderOpts.valueToParam ? sliderOpts.valueToParam(sliderOpts.paramToSlider(sliderOpts.default ?? 0)) : (sliderOpts.default ?? 0) }),
-// 		min: sliderOpts.min,
-// 		max: sliderOpts.max,
-// 		tags: sliderOpts.tags,
-// 		arrowKeyStep: sliderOpts.arrowKeyStep,
-// 		adsorption: sliderOpts.adsorption,
-// 		valueToDisplay: sliderOpts.valueToDisplay,
-// 	};
-// }
 
 const AUTO_RATECONTROLs = [
 	{
@@ -2179,7 +2137,7 @@ export function getVideoFFmpegParam(videoParams: OutputParams_video) {
 					}
 					// 检查参数项是否有 strict2 标记
 					const item = parameter.items.find((item) => item.value === videoParams.detail[parameter.parameter]);
-					if (item?.strict2) {
+					if ((item as any)?.strict2) {
 						strict2 = true;
 					}
 				} else if (parameter.mode == 'slider') {

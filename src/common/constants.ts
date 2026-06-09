@@ -1,5 +1,5 @@
 export const version = (() => {
-    let ret = '5.4';
+    let ret = '5.5-alpha';
     if (!buildInfo) {
         ret += ' *'
     } else if (buildInfo.isDev) {

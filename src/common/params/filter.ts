@@ -28,8 +28,8 @@ export const associateNodesAndLines = (nodes: FilterNode[], lines: FilterLine[])
 			continue;
 		}
 		// 连接
-		fromNode.nexts[line.prevNodePortIndex] = line;
-		toNode.prevs[line.nextNodePortIndex] = line;
+		fromNode.nexts![line.prevNodePortIndex] = line;
+		toNode.prevs![line.nextNodePortIndex] = line;
 	}
 };
 
@@ -52,9 +52,9 @@ export const getFilterParam = (nodes: FilterNode[], lines: FilterLine[]) => {
 		if (node.name.match(/^(in)|(out)_\d+$/)) {
 			continue;
 		}
-		const inputLines = node.prevs.filter((prevLine) => prevLine);
+		const inputLines = node.prevs!.filter((prevLine) => prevLine);
 		const inputLabels = inputLines.length ? inputLines.map((line) => `[${line.name}]`).join('') : '';
-		const outputLines = node.nexts.filter((nextLine) => nextLine);
+		const outputLines = node.nexts!.filter((nextLine) => nextLine);
 		const outputLabels = outputLines.length ? outputLines.map((line) => `[${line.name}]`).join('') : '';
 		const paramsStr = Object.entries(node.params).filter(([key, value]) => value !== undefined && value !== '').map(([key, value]) => `${key}=${value}`).join(':');
 		const filterParam = `${node.name}${paramsStr.length ? `=${paramsStr}` : ''}`;
@@ -78,7 +78,7 @@ export const getNodeInputPoints: (node: FilterNode) => { type: 'V' | 'A' | 'N' |
 			return node.detail.inputType.split('').map((type) => ({ type }));
 		}
 	} else if (node.name.match(/out_\d+/)) {
-		return new Array(node.prevs.filter((line) => line).length + 1).fill({ type: 'U' });
+		return new Array(node.prevs!.filter((line) => line).length + 1).fill({ type: 'U' });
 	}
 	return [];
 };
@@ -94,7 +94,7 @@ export const getNodeOutputPoints: (node: FilterNode) => { type: 'V' | 'A' | 'N' 
 			return node.detail.outputType.split('').map((type) => ({ type }));
 		}
 	} else if (node.name.match(/in_\d+/)) {
-		return new Array(node.nexts.filter((line) => line).length + 1).fill({ type: 'U' });
+		return new Array(node.nexts!.filter((line) => line).length + 1).fill({ type: 'U' });
 	}
 	return [];
 };
@@ -105,14 +105,14 @@ export const fixNodePortPosition = (node: FilterNode) => {
 	const inputPoints = getNodeInputPoints(node);
 	const maxOutputPointsIndexHalf = (outputPoints.length - 1) / 2;
 	const maxInputPointsIndexHalf = (inputPoints.length - 1) / 2;
-	for (let i = 0; i < node.prevs.length; i++) {
-		const line = node.prevs[i];
+	for (let i = 0; i < node.prevs!.length; i++) {
+		const line = node.prevs![i];
 		if (line) {
 			line.nextXY = [node.x - 45, node.y + 15 * (i - maxInputPointsIndexHalf)];
 		}
 	}
-	for (let i = 0; i < node.nexts.length; i++) {
-		const line = node.nexts[i];
+	for (let i = 0; i < node.nexts!.length; i++) {
+		const line = node.nexts![i];
 		if (line) {
 			line.prevXY = [node.x + 45, node.y + 15 * (i - maxOutputPointsIndexHalf)];
 		}
@@ -130,31 +130,31 @@ export const deleteNode = (nodes: FilterNode[], lines: FilterLine[], node: Filte
 	const nodeIndex = nodes.findIndex((n) => n.id === node.id);
 	nodes.splice(nodeIndex, 1);
 	// 删除前连接线的同时，要把连接线前的节点的占用端口释放
-	for (const line of node.prevs) {
+	for (const line of node.prevs!) {
 		const prevNode = nodes.find((node) => node.id === line.prevNodeId);
-		prevNode.nexts.splice(line.prevNodePortIndex, 1);
-		let needToFixPrevNodePort = prevNode.name.match(/^in_\d+$/) || ['U', 'N'].includes(prevNode.detail.outputType[0]);	// 需要修复的第一个条件是端口数量是动态的（isPrevNodeOutputOrUN）
+		prevNode!.nexts!.splice(line.prevNodePortIndex, 1);
+		let needToFixPrevNodePort = prevNode!.name.match(/^in_\d+$/) || ['U', 'N'].includes(prevNode!.detail!.outputType[0]);	// 需要修复的第一个条件是端口数量是动态的（isPrevNodeOutputOrUN）
 		// 前连接线连接的节点的输出端口清除后，在其后面的端口会往前挪一位。这会导致这个端口往后的所有【线段】所记录的 portIndex 都 -1
-		for (let i = line.prevNodePortIndex; i < prevNode.nexts.length; i++) {
-			prevNode.nexts[i].prevNodePortIndex--;
+		for (let i = line.prevNodePortIndex; i < prevNode!.nexts!.length; i++) {
+			prevNode!.nexts![i].prevNodePortIndex--;
 			needToFixPrevNodePort = true;
 		}
 		if (needToFixPrevNodePort) {
-			fixNodePortPosition(prevNode);
+			fixNodePortPosition(prevNode!);
 		}
 	}
 	// 删除后连接线的同时，要把连接线后的节点的占用端口释放
-	for (const line of node.nexts) {
+	for (const line of node.nexts!) {
 		const nextNode = nodes.find((node) => node.id === line.nextNodeId);
-		nextNode.prevs.splice(line.nextNodePortIndex, 1);
-		let needToFixNextNodePort = nextNode.name.match(/^out_\d+$/) || ['U', 'N'].includes(nextNode.detail.inputType[0]);	// 需要修复的第一个条件是端口数量是动态的（isNextNodeOutputOrUN）
+		nextNode!.prevs!.splice(line.nextNodePortIndex, 1);
+		let needToFixNextNodePort = nextNode!.name.match(/^out_\d+$/) || ['U', 'N'].includes(nextNode!.detail!.inputType[0]);	// 需要修复的第一个条件是端口数量是动态的（isNextNodeOutputOrUN）
 		// 后连接线连接的节点的输入端口清除后，在其后面的端口会往前挪一位。这会导致这个端口往后的所有【线段】所记录的 portIndex 都 -1
-		for (let i = line.nextNodePortIndex; i < nextNode.prevs.length; i++) {
-			nextNode.prevs[i].nextNodePortIndex--;
+		for (let i = line.nextNodePortIndex; i < nextNode!.prevs!.length; i++) {
+			nextNode!.prevs![i].nextNodePortIndex--;
 			needToFixNextNodePort = true;
 		}
 		if (needToFixNextNodePort) {
-			fixNodePortPosition(nextNode);
+			fixNodePortPosition(nextNode!);
 		}
 	}
 	// 删除前后连接线
@@ -187,7 +187,7 @@ export const deleteNode = (nodes: FilterNode[], lines: FilterLine[], node: Filte
 				break;	// 没有后续输出节点了
 			}
 			inputNode.name = `in_${i - 1}`;
-			for (const nextLine of inputNode.nexts) {
+			for (const nextLine of inputNode.nexts!) {
 				const [inputNodeIndexStr, mediaType, mediaIndex] = nextLine.name.split(':');
 				nextLine.name = `${+inputNodeIndexStr - 1}:${mediaType}${mediaIndex !== undefined ? `:${mediaIndex}` : ''}`;
 			}
