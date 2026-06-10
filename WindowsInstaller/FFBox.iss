@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "FFBox"
-#define MyAppVersion "5.4"
+#define MyAppVersion "6.0"
 #define MyAppPublisher "滔滔清风"
 #define MyAppURL "http://ttqf.tech"
 ; #define MyCopyright "版权所有"

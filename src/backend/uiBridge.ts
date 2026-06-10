@@ -306,7 +306,7 @@ function mountPreviewWebSocketEvents(ws: WebSocket, request: Http.IncomingMessag
 	const startTime = parseFloat(url.searchParams.get('startTime') || '0');
 	const quality = (url.searchParams.get('quality') || 'H') as 'H' | 'M' | 'L' | 'XL';  // 默认高画质
 
-	if (!ffboxService!.tasklist[taskId]) {
+	if (!ffboxService!.taskList.has(taskId)) {
 		log.warn(`预览 WebSocket 连接被拒绝：无效 taskId。地址：${address}`);
 		ws.close(4003, 'Invalid taskId');
 		return;
@@ -413,7 +413,7 @@ function calculateCrf(quality: 'H' | 'M' | 'L' | 'XL' | 'XXL', resolution: strin
  * 启动预览流
  */
 function startPreviewStream(session: PreviewSession, startTime: number): void {
-	const task = ffboxService!.tasklist[session.taskId];
+	const task = ffboxService!.taskList.getById(session.taskId);
 	if (!task) {
 		session.ws.send(JSON.stringify({
 			type: 'error',
@@ -647,21 +647,36 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/tasks:
 	 *   get:
-	 *     summary: 获取任务 ID 列表
+	 *     summary: 任务区段查询
 	 *     security:
 	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: query
+	 *         name: offset
+	 *         schema:
+	 *           type: integer
+	 *           default: 0
+	 *         description: 起始偏移
+	 *       - in: query
+	 *         name: size
+	 *         schema:
+	 *           type: integer
+	 *           default: 100
+	 *         description: 查询数量
 	 *     responses:
 	 *       200:
-	 *         description: 任务 ID 列表
+	 *         description: 任务列表
 	 *         content:
 	 *           application/json:
 	 *             schema:
 	 *               type: array
 	 *               items:
-	 *                 type: integer
+	 *                 $ref: '#/components/schemas/Task'
 	 */
 	router.get('/api/v1/tasks', optionalAuth, async function (ctx) {
-		ctx.body = Object.keys(ffboxService!.tasklist).map(Number);
+		const offset = parseInt(ctx.query.offset as string) || 0;
+		const size = parseInt(ctx.query.size as string) || 100;
+		ctx.body = await ffboxService!.getTaskList(offset, size);
 	});
 
 	/**
@@ -707,6 +722,41 @@ function getRouter(): Router {
 
 	/**
 	 * @openapi
+	 * /api/v1/tasks/super-duplicate:
+	 *   post:
+	 *     summary: 批量复制指定偏移处的任务
+	 *     security:
+	 *       - bearerAuth: []
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               index:
+	 *                 type: integer
+	 *                 description: 任务在列表中的全局偏移
+	 *               count:
+	 *                 type: integer
+	 *                 description: 复制次数
+	 *     responses:
+	 *       200:
+	 *         description: 操作结果
+	 */
+	router.post('/api/v1/tasks/super-duplicate', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const { index, count } = ctx.request.body;
+		await ffboxService!.superDuplicate(index, count);
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
 	 * /api/v1/tasks/{id}:
 	 *   get:
 	 *     summary: 获取单个任务详情
@@ -733,7 +783,7 @@ function getRouter(): Router {
 	 *               $ref: '#/components/schemas/ErrorResponse'
 	 */
 	router.get('/api/v1/tasks/:id', optionalAuth, async function (ctx) {
-		const task = ffboxService!.tasklist[+ctx.params.id];
+		const task = ffboxService!.taskList.getById(+ctx.params.id);
 		if (!task) {
 			ctx.status = 400;
 			ctx.body = { error: 'Task not found' };
@@ -1133,7 +1183,7 @@ function getRouter(): Router {
 			ctx.body = { error: 'Missing fileIndex or videoStreamIndex' };
 			return;
 		}
-		const task = ffboxService!.tasklist[+ctx.params.id];
+		const task = ffboxService!.taskList.getById(+ctx.params.id);
 		if (!task) {
 			ctx.status = 400;
 			ctx.body = { error: 'Task not found' };

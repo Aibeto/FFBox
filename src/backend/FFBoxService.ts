@@ -6,7 +6,8 @@ import fs from 'fs';
 import fsPromise from 'fs/promises';
 import { utimes } from 'utimes';
 import path from 'path';
-import { ServiceTask, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail, FFmpegDemuxerDetail, Frame } from '@common/types';
+import { ServiceTask, Task, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail, FFmpegDemuxerDetail, Frame } from '@common/types';
+import { TaskList } from './TaskList';
 import i11n from '@common/i11n/i11n';
 import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import localConfig from '@common/localConfig';
@@ -23,8 +24,7 @@ export interface FFBoxServerEvent {
 }
 
 export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & FFBoxServerEvent>) implements FFBoxServiceInterface {
-	public tasklist: ServiceTask[] = [];
-	private latestTaskId = 0;
+	public taskList: TaskList = new TaskList();
 	public workingStatus: WorkingStatus = WorkingStatus.idle;
 	public ffmpegPath = '';
 	public ffprobePath = '';
@@ -425,11 +425,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @param task 直接传入 task 可减少一次内存查找
 	 */
 	private emitTaskUpdate(id: number, task?: ServiceTask): void {
-		const _task = task || this.tasklist[id];
+		const _task = task || this.taskList.getById(id);
 		if (_task) {
 			this.emit('taskUpdate', {
 				taskId: id,
 				task: {
+					id: _task.id,
 					taskName: _task.taskName,
 					before: _task.before,
 					after: _task.after,
@@ -451,7 +452,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 */
 	public taskAdd(taskName: string, outputParams: OutputParams, isRemote?: boolean): Promise<number> {
 		const maxTaskCount = this.functionLevel < 40 ? 66 : this.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
-		if (Object.keys(this.tasklist).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
+		if (this.taskList.count() >= maxTaskCount) {
 			this.setNotification(
 				undefined,
 				i11n.service.功能限制_任务数上限(maxTaskCount, false),
@@ -460,9 +461,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			return;
 		}
 
-		const id = this.latestTaskId++;
 		const firstFilePath = outputParams.input.files?.[0]?.filePath;
-		const task = getInitialServiceTask(taskName, outputParams);
+		const task = getInitialServiceTask(-1, taskName, outputParams);	// id 由 taskList.add 分配
+		const id = this.taskList.add(task);
 
 		// 更新命令行参数
 		if (isRemote) {
@@ -476,14 +477,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				this.getFileMetadata(id, task);
 			}
 		}
-	
-		log.info(`[任务 ${id}] 新增任务：${taskName}（${firstFilePath ? '单输入普通任务' : '多输入/网络任务'}）。`);
-		this.tasklist[id] = task;
-		this.emit('tasklistUpdate', { content: Object.keys(this.tasklist).map(Number) });
 
-		webhookManager.triggerTaskEvent('task.created', id, { taskId: id, task: this.tasklist[id] as any }).catch(() => {});
-		webhookManager.triggerGlobalEvent('tasklist.added', { taskId: id, task: this.tasklist[id] as any }).catch(() => {});
-		webhookManager.triggerGlobalEvent('tasklist.changed', { taskIds: Object.keys(this.tasklist).map(Number) });
+		log.info(`[任务 ${id}] 新增任务：${taskName}（${firstFilePath ? '单输入普通任务' : '多输入/网络任务'}）。`);
+		this.emit('tasklistUpdate', { added: [{ taskId: id, index: this.taskList.count() - 1 }], removed: [], totalCount: this.taskList.count() });
+
+		// TODO webhook 要把任务列表遍历一次，一下就把我 taskList 带来的性能提升抹掉了，想想要不要把 tasklist.changed 换成 tasklistUpdate 同款
+		// webhookManager.triggerTaskEvent('task.created', id, { taskId: id, task }).catch(() => {});
+		// webhookManager.triggerGlobalEvent('tasklist.added', { taskId: id, task }).catch(() => {});
+		// webhookManager.triggerGlobalEvent('tasklist.changed', { taskIds: this.taskList.getSnapshotIds() });
 
 		return Promise.resolve(id);
 	}
@@ -542,7 +543,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits taskUpdate
 	 */
 	public async mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id);
 		if (!task) {
 			// 上传完成之前删除了任务
 			return;
@@ -593,7 +594,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * 切换任务状态的初始化或待命状态
 	 */
 	public async setUploadStatus(id: number, isUploading: boolean): Promise<void> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id)!;
 		if (isUploading && task.status === TaskStatus.idle) {
 			task.status = TaskStatus.initializing;
 			this.emitTaskUpdate(id, task);
@@ -651,7 +652,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits tasklistUpdate
 	 */
 	public async taskDelete(id: number): Promise<void> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id);
 		if (!task) {
 			log.error(`[任务 ${id}] 删除：任务不存在！`);
 			return;
@@ -662,7 +663,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			log.info(`[任务 ${id}] 删除任务。`);
 		}
 		task.status = TaskStatus.deleted;
-		delete this.tasklist[id];
+		this.taskList.remove(id);
 
 		// 清理帧扫描状态（同时停止正在进行的扫描）
 		for (const [key, scan] of this.frameScanStatus) {
@@ -685,11 +686,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			}
 		}
 
-		this.emit('tasklistUpdate', { content: Object.keys(this.tasklist).map(Number) });
+		this.emit('tasklistUpdate', { added: [], removed: [{ taskId: id }], totalCount: this.taskList.count() });
 
-		webhookManager.triggerTaskEvent('task.deleted', id, { taskId: id });
-		webhookManager.triggerGlobalEvent('tasklist.removed', { taskId: id });
-		webhookManager.triggerGlobalEvent('tasklist.changed', { taskIds: Object.keys(this.tasklist).map(Number) });
+		// TODO webhook 要把任务列表遍历一次，一下就把我 taskList 带来的性能提升抹掉了，想想要不要把 tasklist.changed 换成 tasklistUpdate 同款
+		// webhookManager.triggerTaskEvent('task.deleted', id, { taskId: id });
+		// webhookManager.triggerGlobalEvent('tasklist.removed', { taskId: id });
+		// webhookManager.triggerGlobalEvent('tasklist.changed', { taskIds: this.taskList.getSnapshotIds() });
 	}
 
 	/**
@@ -699,7 +701,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits taskUpdate
 	 */
 	public async taskStart(id: number): Promise<void> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id);
 		if (!task) {
 			log.error(`[任务 ${id}] 启动：任务不存在！`);
 			return;
@@ -834,7 +836,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		task.ffmpeg = newFFmpeg;
 		this.emitTaskUpdate(id, task);
 
-		webhookManager.triggerTaskEvent('task.started', id, { taskId: id, task: this.tasklist[id] as any });
+		webhookManager.triggerTaskEvent('task.started', id, { taskId: id, task });
 
 		if (this.workingStatus === WorkingStatus.idle) {
 			this.workingStatus = WorkingStatus.running;
@@ -850,7 +852,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @param id 
 	 */
 	public async taskReady(id: number): Promise<void> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id);
 		if (!task) {
 			log.error(`[任务 ${id}] 准备启动：任务不存在！`);
 			return;
@@ -875,7 +877,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits taskUpdate
 	 */
 	public async taskPause(id: number): Promise<void> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id);
 		if (!task) {
 			log.error(`[任务 ${id}] 暂停：任务不存在！`);
 			return;
@@ -908,7 +910,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits taskUpdate
 	 */
 	public async taskResume(id: number): Promise<void> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id);
 		if (!task) {
 			log.error(`[任务 ${id}] 继续：任务不存在！`);
 			return;
@@ -947,7 +949,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 */
 	public taskReset(id: number): Promise<void> {
 		return new Promise((resolve, reject) => {
-			const task = this.tasklist[id];
+			const task = this.taskList.getById(id);
 			if (!task) {
 				log.error(`[任务 ${id}] 重置：任务不存在！`);
 				reject('任务不存在');
@@ -996,9 +998,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			return;
 		}
 		const tasks: { taskName: string; after: OutputParams; }[] = [];
-		for (const [id, task] of Object.entries(this.tasklist)) {
+		const snapshot = this.taskList.getSnapshot();
+		for (const task of snapshot) {
 			// 未开始或者排队的任务不需要存储
-			if ([TaskStatus.initializing, TaskStatus.idle, TaskStatus.finished, TaskStatus.error].includes(task.status) || id === '-1') {
+			if ([TaskStatus.initializing, TaskStatus.idle, TaskStatus.finished, TaskStatus.error].includes(task.status)) {
 				break;
 			}
 			tasks.push({
@@ -1021,18 +1024,19 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 */
 	private queueAssign(dontStop?: boolean): number {
 		if (this.workingStatus === WorkingStatus.running) {
-			let runningCount = Object.values(this.tasklist).reduce((prev, curr) => curr.status === TaskStatus.running ? prev + 1 : prev, 0);
+			const snapshot = this.taskList.getSnapshot();
+			let runningCount = snapshot.reduce((prev, curr) => curr.status === TaskStatus.running ? prev + 1 : prev, 0);
 			const maxThreads = Math.min(this.maxThreads, this.functionLevel < 20 ? 4 : this.functionLevel < 35 ? 6 : this.functionLevel < 50 ? 9 : this.functionLevel < 70 ? 99 : 256);
-			for (const [id, task] of Object.entries(this.tasklist)) {
-				if (runningCount >= maxThreads || id === '-1') {
+			for (const task of snapshot) {
+				if (runningCount >= maxThreads) {
 					break;
 				}
 				if (task.status === TaskStatus.idle_queued) {
-					this.taskStart(+id);
+					this.taskStart(task.id);
 					runningCount++;
 				}
 				if (task.status === TaskStatus.paused_queued) {
-					this.taskResume(+id);
+					this.taskResume(task.id);
 					// @ts-ignore
 					if (task.status === TaskStatus.running) runningCount++;
 				}
@@ -1055,10 +1059,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	public async queueStart(): Promise<void> {
 		this.workingStatus = WorkingStatus.running;
 		this.queueAssign(true);
-		for (const [id, task] of Object.entries(this.tasklist)) {
-			if (id === '-1') {
-				continue;
-			}
+		const snapshot = this.taskList.getSnapshot();
+		for (const task of snapshot) {
 			if (task.status === TaskStatus.idle) {
 				task.status = TaskStatus.idle_queued;
 			} else if (task.status === TaskStatus.paused) {
@@ -1070,9 +1072,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.emit('workingStatusUpdate', { value: 'start' });
 			webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
 		}
-		for (const [id, task] of Object.entries(this.tasklist)) {
-			if (id !== '-1' && [TaskStatus.idle_queued, TaskStatus.paused_queued].includes(task.status)) {
-				this.emitTaskUpdate(+id, task);
+		const snapshot2 = this.taskList.getSnapshot();
+		for (const task of snapshot2) {
+			if ([TaskStatus.idle_queued, TaskStatus.paused_queued].includes(task.status)) {
+				this.emitTaskUpdate(task.id, task);
 			}
 		}
 	}
@@ -1086,14 +1089,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			webhookManager.triggerGlobalEvent('queue.paused', { timestamp: Date.now() });
 		}
 		this.workingStatus = WorkingStatus.idle;
-		for (const [id, task] of Object.entries(this.tasklist)) {
-			if (id === '-1') {
-				continue;
-			}
+		const snapshot = this.taskList.getSnapshot();
+		for (const task of snapshot) {
 			if ([TaskStatus.running, TaskStatus.paused_queued].includes(task.status)) {
-				this.taskPause(+id);
+				this.taskPause(task.id);
 			} else if (task.status === TaskStatus.idle_queued) {
-				this.taskReset(+id);
+				this.taskReset(task.id);
 			}
 		}
 	}
@@ -1117,7 +1118,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		for (let i = 0; i < ids.length; i++) {
 			const id = ids[i];
 			const param = params[i];
-			const task = this.tasklist[id];
+			const task = this.taskList.getById(id)!;
 			task.after = replaceOutputParams(param, task.after, true);
 			if (task.remoteTask) {
 				// 如果修改了输出格式，需要重新计算 outputFile
@@ -1138,7 +1139,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @param append 附加到末尾，默认 true
 	 */
 	private setCmdText(id: number, content: string, append = true): void {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id)!;
 		if (!append) {
 			task.cmdData = content;
 		} else {
@@ -1206,6 +1207,31 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.notifications[notificationId] = notification;
 	}
 
+	// #region 任务区段查询与批量复制
+
+	/**
+	 * 任务区段查询：返回 [offset, offset+size) 范围内的任务列表
+	 */
+	public async getTaskList(offset: number, size: number): Promise<Task[]> {
+		return this.taskList.getRange(offset, size);
+	}
+
+	/**
+	 * 将指定全局偏移处的任务复制指定次数
+	 */
+	public async superDuplicate(index: number, count: number): Promise<void> {
+		const task = this.taskList.getByOffset(index);
+		if (!task) {
+			log.error(`superDuplicate：偏移 ${index} 处无任务！`);
+			return;
+		}
+		for (let i = 0; i < count; i++) {
+			await this.taskAdd(task.taskName, task.after);
+		}
+	}
+
+	// #endregion
+
 	private activate(activationCode: string): boolean {
 		const fixedCode = 'd324c697ebfc42b7';
 		const key = this.machineId + fixedCode;
@@ -1236,7 +1262,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	public async trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend = false): Promise<void> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id)!;
 		if (task.status === TaskStatus.running) {
 			this.setNotification(
 				id,
@@ -1261,7 +1287,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @param type 扫描类型：'fast' 快速扫描（ffprobe）、'full' 完整扫描（ffmpeg）、'stop' 停止扫描
 	 */
 	public async getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type: 'fast' | 'full' | 'stop' = 'fast'): Promise<Frame[]> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id);
 		if (!task) {
 			log.error(`[任务 ${id}] 获取帧信息：任务不存在！`);
 			return [];
@@ -1446,7 +1472,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @returns 返回包含流和内容类型的对象
 	 */
 	public async getThumbnailStream(id: number, fileIndex: number, videoStreamIndex: number, width?: number, height?: number, density?: 'H' | 'M'): Promise<{ stream: import('stream').PassThrough; contentType: string }> {
-		const task = this.tasklist[id];
+		const task = this.taskList.getById(id);
 		if (!task) {
 			throw new Error(`Task ${id} not found`);
 		}

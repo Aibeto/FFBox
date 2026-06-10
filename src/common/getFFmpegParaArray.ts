@@ -64,7 +64,7 @@ export function getFFmpegParaArray(params: { outputParams: OutputParams, withQuo
 	} else {
 		ret.push(...getVideoFFmpegParam(outputParams.outputs[0].video));
 		ret.push(...getAudioFFmpegParam(outputParams.outputs[0].audio));
-		ret.push(...getMuxFFmpegParam(outputParams.outputs[0].mux, outputDir, outputFileName, withQuotes, overrideFilePaths![0]));
+		ret.push(...getMuxFFmpegParam(outputParams.outputs[0].mux, outputDir, outputFileName, withQuotes, overrideFilePaths?.[0]));
 	}
 	ret.push('-y');
 	return ret;

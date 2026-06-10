@@ -2,6 +2,9 @@
   "Task": {
     "type": "object",
     "properties": {
+      "id": {
+        "type": "number"
+      },
       "taskName": {
         "type": "string"
       },
@@ -72,6 +75,7 @@
       }
     },
     "required": [
+      "id",
       "taskName",
       "before",
       "after",

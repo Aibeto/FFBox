@@ -302,8 +302,8 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<string>('GET', '/api/v1/system/working-status');
 	}
 
-	public getTaskList(): Promise<number[]> {
-		return this.httpRequest<number[]>('GET', '/api/v1/tasks');
+	public getTaskList(offset?: number, size?: number): Promise<Task[]> {
+		return this.httpRequest<Task[]>('GET', `/api/v1/tasks?offset=${offset ?? 0}&size=${size ?? 100}`);
 	}
 
 	public getTask(taskId: number): Promise<Task> {

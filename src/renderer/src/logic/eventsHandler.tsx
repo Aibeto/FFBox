@@ -34,53 +34,34 @@ export function handleWorkingStatusUpdate(server: Server, workingStatus: 'start'
 		// }
 	}
 };
-export function handleTasklistUpdate(server: Server, content: Array<number>) {
+export function handleTasklistUpdate(server: Server, data: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number }) {
 	const 这 = useAppStore();
 	const serverData = server.data;
-	let localI = 0;
-	let remoteI = 0;
-	let localKeys = Object.keys(serverData.tasks).map(Number).filter((value) => value >= 0);	// [1,3,4,5]
-	let remoteKeys = content.filter((value) => value >= 0);										// [1,3,5,6,7]
-	let newTaskIds: Array<number> = [];
-	let newTaskList: Array<UITask> = [];
-	while (localI < localKeys.length || remoteI < remoteKeys.length) {
-		let localKey = localKeys[localI];
-		let remoteKey = remoteKeys[remoteI];
-		if (localI >= localKeys.length) {
-			// 本地下标越界，说明远端添加任务了
-			let newTask = getInitialUITask('');
-			// newTask = mergeTaskFromService(newTask, ffboxService.getTask(remoteKey) as Task);
-			// 先用一个 InitialUITask 放在新位置，完成列表合并后再统一 getTask() 获取任务信息
-			newTaskIds.push(remoteKey);
-			newTaskList[remoteKey] = newTask;
-			remoteI++;
-		} else if (remoteI >= remoteKeys.length) {
-			// 远端下标越界，说明远端删除了最后面的若干个任务
-			for (let i = localI; i < localKeys.length; i++) {
-				这.selectedTask.delete(localKeys[i]);
-			}
-			break;
-		} else if (localKey < remoteKey) {
-			// 远端跳号了，说明远端删除了中间的任务
-			这.selectedTask.delete(localKey);
-			localI++;
-		} else if (localKey === remoteKey) {
-			// 从 local 处直接复制
-			newTaskList[localKey] = serverData.tasks[localKey];
-			localI++;
-			remoteI++;
+
+	// 处理删除
+	if (data.removed) {
+		for (const { taskId } of data.removed) {
+			这.selectedTask.delete(taskId);
+			delete serverData.tasks[taskId];
 		}
 	}
-	serverData.tasks = newTaskList;
-	// 依次获取所有新增任务的信息
+
+	// 处理新增 —— 先放占位 UITask，再延迟获取完整信息
 	// 为什么要加延迟？在不加延迟的情况下，会产生这样的错误：
 	// 添加远程任务时，服务器会发送 tasklist update 来到此处更新任务（返回一个 idle 的任务），同时上传模块会通过 setUploadStatus 使服务器发送 task update（返回一个 initializing 的任务），也就是产生两次 task update
 	// 但神奇的是，这.updateTask 的时候，还没执行 setUploadStatus，所以返回的是 idle，但请求还没来得及返回，setUploadStatus 就先走一步，把 initializing 更新到本地了。也就是说，updateTask 这个操作被插队了，导致把旧状态带了回来 = =
-	setTimeout(() => {
-		for (const newTaskId of newTaskIds) {
-			这.updateTask(server, newTaskId);
+	if (data.added) {
+		const newTaskIds: number[] = [];
+		for (const { taskId } of data.added) {
+			serverData.tasks[taskId] = getInitialUITask(taskId, '');
+			newTaskIds.push(taskId);
 		}
-	}, 20);
+		setTimeout(() => {
+			for (const newTaskId of newTaskIds) {
+				这.updateTask(server, newTaskId);
+			}
+		}, 20);
+	}
 };
 /**
  * 更新整个 task
@@ -91,7 +72,7 @@ export function handleTaskUpdate(server: Server, id: number, content: Task) {
 	const localTask = serverData.tasks[id];
 	if (!localTask) {
 		// 本地不存在此任务，则新增
-		serverData.tasks[id] = getInitialUITask('');
+		serverData.tasks[id] = getInitialUITask(id, '');
 	}
 	const task = mergeTaskFromService(serverData.tasks[id], content);
 	serverData.tasks[id] = task;

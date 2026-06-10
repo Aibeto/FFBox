@@ -19,7 +19,7 @@
       // },
       "program": "${workspaceFolder}/src/backend/index.ts",
       "outFiles": ["${workspaceFolder}/app/backend/**/*.cjs"],
-      "args": ["--loglevel", "6", "--webuiPort", "33270"],
+      "args": ["--loglevel", "3", "--webuiPort", "33270"],
       // "skipFiles": [
       //     "<node_internals>/**"
       // ],

@@ -285,8 +285,9 @@ export function randomString(length = 6, dictionary = 'abcdefghijklmnopqrstuvwxy
 
 // #region 任务转换区
 
-export function getInitialTask(fileName: string, outputParams?: OutputParams): Task {
+export function getInitialTask(id: number, fileName: string, outputParams?: OutputParams): Task {
 	const task: Task = {
+		id,
 		taskName: fileName,
 		before: [],
 		after: {
@@ -338,9 +339,9 @@ export function getInitialTask(fileName: string, outputParams?: OutputParams): T
 	return task;
 }
 
-export function getInitialServiceTask(fileName: string, outputParams?: OutputParams): ServiceTask {
+export function getInitialServiceTask(id: number, fileName: string, outputParams?: OutputParams): ServiceTask {
 	const task: ServiceTask = {
-		...getInitialTask(fileName, outputParams),
+		...getInitialTask(id, fileName, outputParams),
 		...{
 			ffmpeg: null,
 			remoteTask: false,
@@ -349,9 +350,9 @@ export function getInitialServiceTask(fileName: string, outputParams?: OutputPar
 	return task;
 }
 
-export function getInitialUITask(fileName: string, outputParams?: OutputParams): UITask {
+export function getInitialUITask(id: number, fileName: string, outputParams?: OutputParams): UITask {
 	const task: UITask = {
-		...getInitialTask(fileName, outputParams),
+		...getInitialTask(id, fileName, outputParams),
 		...{
 			dashboard: {
 				progress: 0,

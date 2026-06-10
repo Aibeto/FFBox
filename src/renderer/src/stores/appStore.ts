@@ -7,7 +7,7 @@ import { version } from '@common/constants';
 import { Server } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
-import { randomString, replaceOutputParams } from '@common/utils';
+import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromService } from '@common/utils';
 import { getMenuItemByValue } from '@common/menu';
 import { allVcodecs, builtInVcodecs } from '@common/params/vcodecs';
 import { allAcodecs, builtInAcodecs } from '@common/params/acodecs';
@@ -377,8 +377,17 @@ export const useAppStore = defineStore('app', {
 		 */
 		updateTaskList(server: Server) {
 			const 这 = useAppStore();
-			server.entity.getTaskList().then((content) => {
-				handleTasklistUpdate(server, content);
+			server.entity.getTaskList(0, 100).then((tasks) => {
+				for (const task of tasks) {
+					const existing = server.data.tasks[task.id];
+					if (existing) {
+						mergeTaskFromService(existing, task);
+					} else {
+						const uiTask = getInitialUITask(task.id, '');
+						mergeTaskFromService(uiTask, task);
+						server.data.tasks[task.id] = uiTask;
+					}
+				}
 				这.recalcChangedParams();
 			});
 		},
@@ -907,7 +916,7 @@ export const useAppStore = defineStore('app', {
 					handleWorkingStatusUpdate(server, data.value);
 				});
 				entity.on('tasklistUpdate', (data) => {
-					handleTasklistUpdate(server, data.content);
+					handleTasklistUpdate(server, data);
 					这.recalcChangedParams();
 				});
 				entity.on('taskUpdate', (data) => {

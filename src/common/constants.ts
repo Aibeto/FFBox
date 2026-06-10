@@ -1,5 +1,5 @@
 export const version = (() => {
-    let ret = '5.5-alpha';
+    let ret = '6.0-alpha';
     if (!buildInfo) {
         ret += ' *'
     } else if (buildInfo.isDev) {
@@ -7,5 +7,5 @@ export const version = (() => {
     }
     return ret;
 })();
-export const buildNumber = 21;
-//	1.0	1.1	2.0	2.1	2.2	2.3	2.4 2.5 2.6 3.0 4.0 4.1 4.2 4.3 4.4 4.5 5.0 5.1 5.2 5.3 5.4
+export const buildNumber = 22;
+//	1.0	1.1	2.0	2.1	2.2	2.3	2.4 2.5 2.6 3.0 4.0 4.1 4.2 4.3 4.4 4.5 5.0 5.1 5.2 5.3 5.4 6.0

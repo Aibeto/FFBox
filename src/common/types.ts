@@ -53,12 +53,14 @@ export interface FFBoxServiceInterface {
 	setParameters(ids: number[], params: OutputParams[]): Promise<void>;
 	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void>;
 	getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<Frame[]>;
+	getTaskList(offset: number, size: number): Promise<Task[]>;
+	superDuplicate(index: number, count: number): Promise<void>;
 }
 
 export interface FFBoxServiceEventParam {
 	ffmpegInfo: FFmpegInfo;
 	workingStatusUpdate: { value: 'start' | 'stop' | 'pause' };	// 此处不使用 WorkingStatus 的原因是：任务列表与任务状态是通过两个消息传送的，到达顺序不可保证，因此需要由后端告知工作状态停止是暂停还是停止，否则前端无法判断
-	tasklistUpdate: { content: number[] };
+	tasklistUpdate: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number };
 	taskUpdate: { taskId: number; task: Task };
 	cmdUpdate: { taskId: number; content: string; append: boolean };	// 由 append 确定是增量还是全量更新
 	progressUpdate: { taskId: number; time: number; status?: FFmpegProgress };	// 增量更新（status 未定义则为清空）
@@ -351,6 +353,7 @@ export type SingleProgressLog = Array<[number, number]>;
  */
 
 export interface Task {
+	id: number;		// 全局唯一任务 ID
 	taskName: string;
 	before: InputInfo[];
 	after: OutputParams;

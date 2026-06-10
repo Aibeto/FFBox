@@ -28,6 +28,9 @@
       "Task": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "number"
+          },
           "taskName": {
             "type": "string"
           },
@@ -98,6 +101,7 @@
           }
         },
         "required": [
+          "id",
           "taskName",
           "before",
           "after",
@@ -1722,21 +1726,41 @@
     },
     "/api/v1/tasks": {
       "get": {
-        "summary": "获取任务 ID 列表",
+        "summary": "任务区段查询",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "起始偏移"
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "schema": {
+              "type": "integer",
+              "default": 100
+            },
+            "description": "查询数量"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "任务 ID 列表",
+            "description": "任务列表",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "integer"
+                    "$ref": "#/components/schemas/Task"
                   }
                 }
               }
@@ -1784,6 +1808,41 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/super-duplicate": {
+      "post": {
+        "summary": "批量复制指定偏移处的任务",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "description": "任务在列表中的全局偏移"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "description": "复制次数"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作结果"
           }
         }
       }

@@ -514,8 +514,9 @@ export const keepFileTimeList: NarrowedMenuItem[] = [
 
 /**
  * 获取输出参数的命令行（对每个输出均需调用一次）
+ * @param overrideFilePath 代替 muxParams.filePath 的文件路径，不进行扩展名等替换，只做引号处理
  */
-export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, fileName: string, withQuotes = false, overrideFilePath: string) {
+export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, fileName: string, withQuotes = false, overrideFilePath?: string) {
 	let ret = [];
 	if (muxParams.format.length && muxParams.format !== '无') {
 		let formatItem = getMenuItemByValue(builtInMuxers, muxParams.format) as any;
