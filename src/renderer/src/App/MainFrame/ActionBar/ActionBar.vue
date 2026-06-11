@@ -12,9 +12,10 @@ const selectionDescription = computed(() => {
 	if (!appStore.currentServer || appStore.currentServer.entity.status !== ServiceBridgeStatus.Connected) {
 		return '未连接到服务器';
 	}
-	return Object.keys(appStore.currentServer?.data.tasks || []).length > 1 && !appStore.selectedTask.size && appStore.taskSelectionModified
+	const totalCount = appStore.currentServer.data.totalCount;
+	return totalCount > 1 && !appStore.selectedTask.size && appStore.taskSelectionModified
 		? '您修改了参数' + (window.innerWidth > 740 ? '，但并未应用到任务，是否' : '')
-		: `${Object.keys(appStore.currentServer?.data.tasks || []).length} 个任务` + (appStore.selectedTask.size ? `，已选择 ${appStore.selectedTask.size} 个` : '')
+		: `${totalCount} 个任务` + (appStore.selectedTask.size ? `，已选择 ${appStore.selectedTask.size} 个` : '')
 });
 const startButtonClass = computed(() => {
 	if (!appStore.currentServer || appStore.currentServer.entity.status !== ServiceBridgeStatus.Connected) {
@@ -52,7 +53,7 @@ const handleApplyAllClick = () => {
 			<Button :disabled="!appStore.currentServer || appStore.currentServer.entity.status !== ServiceBridgeStatus.Connected" :type="ButtonType.NoBg" @click="handleSelectAllClick"><IconSelectAll />全选</Button>
 			<div class="description">{{ selectionDescription }}</div>
 			<Button
-				v-if="Object.keys(appStore.currentServer?.data.tasks || []).length > 1 && (appStore.taskSelectionModified || appStore.selectedTask.size)"
+				v-if="appStore.currentServer?.data.totalCount > 1 && (appStore.taskSelectionModified || appStore.selectedTask.size)"
 				:type="ButtonType.Primary"
 				size="small"
 				class="smallButton"

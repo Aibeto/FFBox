@@ -2,7 +2,7 @@ import nodeBridge from '@renderer/bridges/nodeBridge';
 import { FFmpegInfo, FFmpegProgress, Notification, Task, TaskStatus, WorkingStatus } from '@common/types';
 import { Server, UITask } from '@renderer/types';
 import { getInitialUITask, mergeTaskFromService } from '@common/utils';
-import { dashboardTimer, overallProgressTimer } from '@renderer/common/dashboardCalc';
+import { dashboardTimer } from '@renderer/common/dashboardCalc';
 import { useAppStore } from '../stores/appStore';
 import { getLimitaion } from './limitaions';
 import Popup from '@renderer/components/Popup/Popup';
@@ -15,28 +15,19 @@ import ImageExitConfirm from '@renderer/assets/cartoons/exitConfirm.svg';
 export function handleFFmpegInfo(server: Server, info: FFmpegInfo) {
 	server.data.ffmpegInfo = info;
 };
-export function handleWorkingStatusUpdate(server: Server, workingStatus: 'start' | 'stop' | 'pause') {
+export function handleStatusUpdate(server: Server, workingStatus: 'start' | 'stop' | 'pause') {
 	const serverData = server.data;
 	serverData.workingStatus = workingStatus === 'start' ? WorkingStatus.running : WorkingStatus.idle;
-	// 处理 overallProgressTimer
-	if (serverData.workingStatus === WorkingStatus.running && !serverData.overallProgressTimerID) {
-		let timerID = setInterval(overallProgressTimer, 80, serverData);
-		serverData.overallProgressTimerID = timerID;
-		overallProgressTimer(serverData);
-	} else if (serverData.workingStatus === WorkingStatus.idle && serverData.overallProgressTimerID) {
-		clearInterval(serverData.overallProgressTimerID);
-		serverData.overallProgressTimerID = NaN;
-		overallProgressTimer(serverData);
-		// if (nodeBridge.remote && nodeBridge.remote.getCurrentWindow().isFocused()) {
-		if (workingStatus === 'stop') {
-			nodeBridge.flashFrame(true);
-		}
-		// }
+	if (workingStatus === 'stop') {
+		nodeBridge.flashFrame(true);
 	}
 };
 export function handleTasklistUpdate(server: Server, data: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number }) {
 	const 这 = useAppStore();
 	const serverData = server.data;
+
+	// 更新总数
+	serverData.totalCount = data.totalCount;
 
 	// 处理删除
 	if (data.removed) {
@@ -46,21 +37,33 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 		}
 	}
 
-	// 处理新增 —— 先放占位 UITask，再延迟获取完整信息
-	// 为什么要加延迟？在不加延迟的情况下，会产生这样的错误：
-	// 添加远程任务时，服务器会发送 tasklist update 来到此处更新任务（返回一个 idle 的任务），同时上传模块会通过 setUploadStatus 使服务器发送 task update（返回一个 initializing 的任务），也就是产生两次 task update
-	// 但神奇的是，这.updateTask 的时候，还没执行 setUploadStatus，所以返回的是 idle，但请求还没来得及返回，setUploadStatus 就先走一步，把 initializing 更新到本地了。也就是说，updateTask 这个操作被插队了，导致把旧状态带了回来 = =
+	// 处理新增
 	if (data.added) {
-		const newTaskIds: number[] = [];
-		for (const { taskId } of data.added) {
-			serverData.tasks[taskId] = getInitialUITask(taskId, '');
-			newTaskIds.push(taskId);
-		}
-		setTimeout(() => {
-			for (const newTaskId of newTaskIds) {
-				这.updateTask(server, newTaskId);
+		if (serverData.currentPage === 0) {
+			// 第一页：新增任务落在末尾，直接添加
+			// TODO 这对吗？这不对，应该检查是不是最后一页才对
+			const newTaskIds: number[] = [];
+			for (const { taskId, index } of data.added) {
+				if (index < serverData.pageSize) {
+					serverData.tasks[taskId] = getInitialUITask(taskId, '');
+					newTaskIds.push(taskId);
+				}
 			}
-		}, 20);
+			setTimeout(() => {
+				for (const newTaskId of newTaskIds) {
+					这.updateTask(server, newTaskId);
+				}
+			}, 20);
+		} else {
+			// 非第一页：结构性变更，重新拉取当前页
+			这.updateTaskList(server);
+		}
+	}
+
+	// 处理页码越界
+	const maxPage = Math.max(0, Math.ceil(serverData.totalCount / serverData.pageSize) - 1);
+	if (serverData.currentPage > maxPage) {
+		这.changePage(server, maxPage);
 	}
 };
 /**

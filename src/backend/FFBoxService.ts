@@ -420,6 +420,40 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	/**
+	 * 计算总进度并发送 statusUpdate
+	 * @param workingStatus 队列状态变化时携带，仅状态变化时传入
+	 * @emits statusUpdate
+	 */
+	private emitStatusUpdate(workingStatus?: 'start' | 'stop' | 'pause'): void {
+		let totalTime = 0.000001;
+		let totalProcessedTime = 0;
+		// TODO 仅统计运行中的任务进度，考虑对每个状态维护一个 Set，判断 Set 中有无此任务 id
+		for (const task of this.taskList.getSnapshot()) {
+			if (!task.before[0]?.duration || [TaskStatus.idle].includes(task.status)) {
+				continue;
+			}
+			const outputDuration = getOutputDuration(task as any);
+			if (outputDuration <= 0) continue;
+			totalTime += outputDuration;
+
+			let taskProgress: number;
+			if (task.status === TaskStatus.finished || task.status === TaskStatus.error) {
+				taskProgress = 1;
+			} else if (task.status === TaskStatus.running || task.status === TaskStatus.paused) {
+				const currentTime = task.progressLog.time.length > 0
+					? task.progressLog.time[task.progressLog.time.length - 1][1]
+					: 0;
+				taskProgress = Math.max(0, Math.min(1, currentTime / outputDuration));
+			} else {
+				taskProgress = 0;
+			}
+			totalProcessedTime += taskProgress * outputDuration;
+		}
+		const progress = isNaN(totalProcessedTime / totalTime) ? 0 : totalProcessedTime / totalTime;
+		this.emit('statusUpdate', { workingStatus, progress });
+	}
+
+	/**
 	 * 向所有客户端更新单个任务
 	 * @param id 任务 id
 	 * @param task 直接传入 task 可减少一次内存查找
@@ -818,6 +852,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				time,
 				status,
 			});
+			this.emitStatusUpdate();
 			webhookManager.triggerTaskEvent('task.progress', id, { taskId: id, progress: status });
 		});
 		newFFmpeg.on('data', ({ content }) => {
@@ -840,7 +875,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 		if (this.workingStatus === WorkingStatus.idle) {
 			this.workingStatus = WorkingStatus.running;
-			this.emit('workingStatusUpdate', { value: 'start' });
+			this.emitStatusUpdate('start');
 			webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
 		}
 		this.storeUnfinishedTask();
@@ -936,7 +971,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 		if (this.workingStatus === WorkingStatus.idle) {
 			this.workingStatus = WorkingStatus.running;
-			this.emit('workingStatusUpdate', { value: 'start' });
+			this.emitStatusUpdate('start');
 			webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
 		}
 	}
@@ -1043,7 +1078,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			}
 			if (!dontStop && runningCount === 0) {
 				this.workingStatus = WorkingStatus.idle;
-				this.emit('workingStatusUpdate', { value: 'stop' });
+				this.emitStatusUpdate('stop');
 				webhookManager.triggerGlobalEvent('queue.paused', { timestamp: Date.now() });
 			}
 			return runningCount;
@@ -1069,7 +1104,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 		const runningCount = this.queueAssign();
 		if (runningCount) {
-			this.emit('workingStatusUpdate', { value: 'start' });
+			this.emitStatusUpdate('start');
 			webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
 		}
 		const snapshot2 = this.taskList.getSnapshot();
@@ -1085,7 +1120,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 */
 	public async queuePause(): Promise<void> {
 		if (this.workingStatus === WorkingStatus.running) {
-			this.emit('workingStatusUpdate', { value: 'pause' });
+			this.emitStatusUpdate('pause');
 			webhookManager.triggerGlobalEvent('queue.paused', { timestamp: Date.now() });
 		}
 		this.workingStatus = WorkingStatus.idle;

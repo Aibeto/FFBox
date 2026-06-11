@@ -302,8 +302,26 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<string>('GET', '/api/v1/system/working-status');
 	}
 
-	public getTaskList(offset?: number, size?: number): Promise<Task[]> {
-		return this.httpRequest<Task[]>('GET', `/api/v1/tasks?offset=${offset ?? 0}&size=${size ?? 100}`);
+	public getTaskList(offset: number, size: number): Promise<Task[]> {
+		return this.httpRequest<Task[]>('GET', `/api/v1/tasks?offset=${offset}&size=${size}`);
+	}
+
+	public subscribeTasks(taskIds: number[]): void {
+		if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+			this.ws.send(JSON.stringify({ type: 'subscribe', taskIds }));
+		}
+	}
+
+	public unsubscribeTasks(taskIds: number[]): void {
+		if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+			this.ws.send(JSON.stringify({ type: 'unsubscribe', taskIds }));
+		}
+	}
+
+	public replaceSubscription(taskIds: number[]): void {
+		if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+			this.ws.send(JSON.stringify({ type: 'replaceSubscription', taskIds }));
+		}
 	}
 
 	public getTask(taskId: number): Promise<Task> {

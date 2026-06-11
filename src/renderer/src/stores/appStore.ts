@@ -16,7 +16,7 @@ import { RateControl } from '@common/params/parameter';
 import path from '@common/path';
 import i11n from '@common/i11n/i11n';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
-import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleWorkingStatusUpdate } from '@renderer/logic/eventsHandler';
+import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleStatusUpdate } from '@renderer/logic/eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { addUploadTask } from '../logic/transferManager2';
 import { getLimitaion } from '../logic/limitaions';
@@ -373,11 +373,26 @@ export const useAppStore = defineStore('app', {
 			return result;
 		},
 		/**
-		 * 获取 service 的 taskList 更新到本地
+		 * 获取 service 的 taskList 更新到本地（分页）
 		 */
 		updateTaskList(server: Server) {
 			const 这 = useAppStore();
-			server.entity.getTaskList(0, 100).then((tasks) => {
+			const offset = server.data.currentPage * server.data.pageSize;
+			const size = server.data.pageSize;
+			server.entity.getTaskList(offset, size).then((response) => {
+				const { tasks, totalCount } = response;
+				server.data.totalCount = totalCount;
+
+				// 清除不在当前页的任务
+				const newTaskIds = new Set(tasks.map(t => t.id));
+				for (const existingId of Object.keys(server.data.tasks).map(Number)) {
+					if (existingId !== -1 && !newTaskIds.has(existingId)) {
+						delete server.data.tasks[existingId];
+						这.selectedTask.delete(existingId);
+					}
+				}
+
+				// 合并当前页任务
 				for (const task of tasks) {
 					const existing = server.data.tasks[task.id];
 					if (existing) {
@@ -388,8 +403,21 @@ export const useAppStore = defineStore('app', {
 						server.data.tasks[task.id] = uiTask;
 					}
 				}
+
+				// 订阅当前页的 taskId
+				server.entity.replaceSubscription([...newTaskIds]);
+
 				这.recalcChangedParams();
 			});
+		},
+		/**
+		 * 切换分页
+		 */
+		changePage(server: Server, newPage: number) {
+			const 这 = useAppStore();
+			server.data.currentPage = newPage;
+			这.selectedTask.clear();
+			这.updateTaskList(server);
 		},
 		/**
 		 * 获取 service 的 task 更新到本地
@@ -834,9 +862,11 @@ export const useAppStore = defineStore('app', {
 					downloadFiles: [],
 					ffmpegInfo: { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, muxersCount: 0, demuxersCount: 0, filtersCount: 0 },
 					version: '',
+					totalCount: 0,
+					currentPage: 0,
+					pageSize: 5,
 					workingStatus: WorkingStatus.idle,
 					progress: 0,
-					overallProgressTimerID: NaN,
 				},
 				entity: new ServiceBridge(),
 			});
@@ -872,7 +902,8 @@ export const useAppStore = defineStore('app', {
 			console.log('初始化服务器连接', server.data);
 
 			const destroy = () => {
-				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegInfo', 'workingStatusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'taskNotification'] as any[]) {
+				// TODO 这里还没改
+				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegInfo', 'statusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'taskNotification'] as any[]) {
 					entity.removeAllListeners(eventName);
 				}
 			}
@@ -912,8 +943,11 @@ export const useAppStore = defineStore('app', {
 				entity.on('ffmpegInfo', (data) => {
 					handleFFmpegInfo(server, data);
 				});
-				entity.on('workingStatusUpdate', (data) => {
-					handleWorkingStatusUpdate(server, data.value);
+				entity.on('statusUpdate', (data) => {
+					if (data.workingStatus) {
+						handleStatusUpdate(server, data.workingStatus);
+					}
+					server.data.progress = data.progress;
 				});
 				entity.on('tasklistUpdate', (data) => {
 					handleTasklistUpdate(server, data);

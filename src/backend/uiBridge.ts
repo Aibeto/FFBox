@@ -12,7 +12,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
-import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams, CreateWebhookRequest, UpdateWebhookRequest } from '@common/types';
+import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams, CreateWebhookRequest, UpdateWebhookRequest, WsClientMessage, TaskListResponse } from '@common/types';
 import { version } from '@common/constants';
 import { getSingleArgvValue } from '@common/utils';
 import localConfig from '@common/localConfig';
@@ -27,6 +27,7 @@ interface Client {
 	sessionId: string;
 	username: string;
 	functionLevel: number;
+	subscribedTaskIds: Set<number>;
 }
 
 let server: Http.Server | null;
@@ -237,9 +238,34 @@ function mountWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): voi
 		sessionId,
 		username: session.username,
 		functionLevel: session.functionLevel,
+		subscribedTaskIds: new Set(),
 	};
 	clients.set(sessionId, client);
 	log.info(`新客户端接入：${address}。sessionId：${sessionId}，用户：${session.username || '(匿名)'}。当前客户端数量：${clients.size}。`);
+
+	// 处理客户端订阅消息
+	ws.on('message', (rawData: Buffer) => {
+		try {
+			const message: WsClientMessage = JSON.parse(rawData.toString());
+			switch (message.type) {
+				case 'subscribe':
+					for (const taskId of message.taskIds) {
+						client.subscribedTaskIds.add(taskId);
+					}
+					break;
+				case 'unsubscribe':
+					for (const taskId of message.taskIds) {
+						client.subscribedTaskIds.delete(taskId);
+					}
+					break;
+				case 'replaceSubscription':
+					client.subscribedTaskIds = new Set(message.taskIds);
+					break;
+			}
+		} catch (e) {
+			log.warn('WebSocket 消息解析失败', e);
+		}
+	});
 
 	ws.on('close', function (code: number, reason: Buffer) {
 		clients.delete(sessionId);
@@ -264,16 +290,15 @@ function mountEventFromService(): void {
 	if (!ffboxService || !wss) {
 		throw new Error('uiBridge 使用前应 init()');
 	}
-	const eventsEnum: Array<keyof FFBoxServiceEventParam> = [
+
+	// 全局事件：推送给所有客户端
+	const globalEvents: Array<keyof FFBoxServiceEventParam> = [
 		'ffmpegInfo',
-		"workingStatusUpdate",
-		"tasklistUpdate",
-		"taskUpdate",
-		"cmdUpdate",
-		"progressUpdate",
-		"notificationUpdate",
+		'statusUpdate',
+		'tasklistUpdate',
+		'notificationUpdate',
 	];
-	for (const event of eventsEnum) {
+	for (const event of globalEvents) {
 		ffboxService.on(event, (payload: FFBoxServiceEventParam[keyof FFBoxServiceEventParam]) => {
 			for (const client of clients.values()) {
 				if (client.ws.readyState === WebSocket.OPEN) {
@@ -284,6 +309,32 @@ function mountEventFromService(): void {
 					log.dev('触发信息：', data);
 					client.ws.send(JSON.stringify(data));
 				}
+			}
+		});
+	}
+
+	// 任务级事件：仅推送给订阅了对应 taskId 的客户端
+	const taskScopedEvents: Array<keyof FFBoxServiceEventParam> = [
+		'taskUpdate',
+		'cmdUpdate',
+		'progressUpdate',
+	];
+	for (const event of taskScopedEvents) {
+		ffboxService.on(event, (payload: any) => {
+			const taskId = payload.taskId;
+			const data: FFBoxServiceEventApi = {
+				event,
+				payload,
+			};
+			const sendQueue = [];
+			for (const client of clients.values()) {
+				if (client.ws.readyState === WebSocket.OPEN && client.subscribedTaskIds.has(taskId)) {
+					sendQueue.push(client);
+				}
+			}
+			log.dev('触发信息：', data, `将发送给 ${sendQueue.length} 个客户端`);
+			for (const client of sendQueue) {
+				client.ws.send(JSON.stringify(data));
 			}
 		});
 	}
@@ -676,7 +727,9 @@ function getRouter(): Router {
 	router.get('/api/v1/tasks', optionalAuth, async function (ctx) {
 		const offset = parseInt(ctx.query.offset as string) || 0;
 		const size = parseInt(ctx.query.size as string) || 100;
-		ctx.body = await ffboxService!.getTaskList(offset, size);
+		const tasks = await ffboxService!.getTaskList(offset, size);
+		const totalCount = ffboxService!.taskList.count();
+		ctx.body = { tasks, totalCount };
 	});
 
 	/**

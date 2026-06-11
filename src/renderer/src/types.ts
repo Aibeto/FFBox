@@ -66,9 +66,11 @@ export interface ServerData {
 	isSandboxed?: boolean;
 	machineId?: string;
 	functionLevel?: number;
+	totalCount: number;		// 任务总数（来自后端）
+	currentPage: number;	// 当前页码（0-indexed）
+	pageSize: number;		// 每页任务数
 	workingStatus: WorkingStatus;
-	progress: number;	// 由每个任务更新时计算出来
-	overallProgressTimerID: any;
+	progress: number;	// 由后端 statusUpdate 事件推送
 }
 
 export interface Server {

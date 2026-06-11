@@ -59,7 +59,7 @@ export interface FFBoxServiceInterface {
 
 export interface FFBoxServiceEventParam {
 	ffmpegInfo: FFmpegInfo;
-	workingStatusUpdate: { value: 'start' | 'stop' | 'pause' };	// 此处不使用 WorkingStatus 的原因是：任务列表与任务状态是通过两个消息传送的，到达顺序不可保证，因此需要由后端告知工作状态停止是暂停还是停止，否则前端无法判断
+	statusUpdate: { workingStatus?: 'start' | 'stop' | 'pause'; progress: number };	// 合并原 workingStatusUpdate 与总进度推送。workingStatus 在队列状态变化时携带，progress 始终携带
 	tasklistUpdate: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number };
 	taskUpdate: { taskId: number; task: Task };
 	cmdUpdate: { taskId: number; content: string; append: boolean };	// 由 append 确定是增量还是全量更新
@@ -84,6 +84,24 @@ export interface NormalApiWrapper<T> {
 	status: number;
 	message: string;
 	data: T;
+}
+
+// 客户端调用服务端消息（原 FFBoxServiceFunctionApi，但设计已完全不同）
+export type WsClientMessage = {
+	type: 'subscribe';
+	taskIds: number[];
+} | {
+	type: 'unsubscribe';
+	taskIds: number[];
+} | {
+	type: 'replaceSubscription';
+	taskIds: number[];
+};
+
+// 任务列表响应（带总数）
+export interface TaskListResponse {
+	tasks: Task[];
+	totalCount: number;
 }
 
 // #endregion

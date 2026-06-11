@@ -253,6 +253,21 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 				/>
 			</TransitionGroup>
 		</div>
+		<div class="pagination"
+			v-if="appStore.currentServer && appStore.currentServer.data.totalCount > appStore.currentServer.data.pageSize"
+		>
+			<button
+				:disabled="appStore.currentServer.data.currentPage === 0"
+				@click="appStore.changePage(appStore.currentServer!, appStore.currentServer!.data.currentPage - 1)"
+			>上一页</button>
+			<span class="page-info">
+				第 {{ appStore.currentServer.data.currentPage + 1 }} 页 / 共 {{ Math.ceil(appStore.currentServer.data.totalCount / appStore.currentServer.data.pageSize) }} 页
+			</span>
+			<button
+				:disabled="appStore.currentServer.data.currentPage >= Math.ceil(appStore.currentServer.data.totalCount / appStore.currentServer.data.pageSize) - 1"
+				@click="appStore.changePage(appStore.currentServer!, appStore.currentServer!.data.currentPage + 1)"
+			>下一页</button>
+		</div>
 		<div
 			v-if="appStore.currentServer?.data.ffmpegInfo.version"
 			class="dropfilesdiv"
@@ -309,6 +324,33 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 				transition: all 0.3s cubic-bezier(0.0, 0.9, 0.1, 1), opacity 0.3s linear, filter 0.3s ease-in, transform 0.3s cubic-bezier(0.5, 0, 1, 1);	// 但是离场动画是有效的
 			}
 			.tasklistTrans-enter-to, .tasklistTrans-leave-from {
+			}
+		}
+		.pagination {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			gap: 12px;
+			padding: 8px 0;
+			font-size: 13px;
+			.page-info {
+				color: var(--text);
+				opacity: 0.7;
+			}
+			button {
+				padding: 4px 12px;
+				border: 1px solid var(--border);
+				border-radius: 4px;
+				background: var(--background);
+				color: var(--text);
+				cursor: pointer;
+				&:disabled {
+					opacity: 0.5;
+					cursor: not-allowed;
+				}
+				&:hover:not(:disabled) {
+					background: var(--menuItemHovered);
+				}
 			}
 		}
 		.dropfilesdiv {
