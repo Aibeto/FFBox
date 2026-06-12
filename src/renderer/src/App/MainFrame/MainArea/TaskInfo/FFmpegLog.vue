@@ -5,7 +5,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 const appStore = useAppStore();
 const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appStore.currentServer
 	? { task: undefined, count: 0 }
-	: { task: appStore.currentServer.data.tasks[[...appStore.selectedTask][0]], count: appStore.selectedTask.size }
+	: { task: appStore.getTaskById([...appStore.selectedTask][0]), count: appStore.selectedTask.size }
 );
 
 const cmdRef = ref<HTMLTextAreaElement | null>(null);

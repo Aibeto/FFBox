@@ -509,9 +509,9 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	return () => {
 		// console.log('render', props.task.taskName);
-		if (!props.show) return (<div style={{ height: `${taskHeight.value}px`, marginBottom: '2px' }} data-index={props.index} data-id={props.id} />)
+		if (!props.show) return (<div style={{ height: `${taskHeight.value}px`, marginBottom: '2px' }} data-index={props.index} data-id={props.id} data-taskindex={props.task.taskIndex ?? ''} />)
 		return (
-		<div class={`${css.taskWrapper} ${isFirstRender.value ? css.firstRender : ''}`} style={{ '--height': `${taskHeight.value}px` }} data-color_theme={appStore.frontendSettings.colorTheme} data-index={props.index} data-id={props.id} onClick={(event) => props.onClick?.(event, props.id, props.index)}>
+		<div class={`${css.taskWrapper} ${isFirstRender.value ? css.firstRender : ''}`} style={{ '--height': `${taskHeight.value}px` }} data-color_theme={appStore.frontendSettings.colorTheme} data-index={props.index} data-id={props.id} data-taskindex={props.task.taskIndex ?? ''} onClick={(event) => props.onClick?.(event, props.id, props.index)}>
 			<div class={`${css.taskBackground} ${isFirstRender.value ? css.firstRender : ''}`}>
 				<div class={css.backgroundWhite} style={taskBackgroundStyle.value} />
 				<div class={css.backgroundProgress}>
@@ -540,7 +540,7 @@ export const TaskItem = defineComponent((props: Props) => {
 					onMouseenter={handleTaskNameMouseEnter}
 					onMouseleave={() => Tooltip.hide()}
 				>
-					{props.task.taskName ?? '读取中'}
+					<span class={css.taskIndex}>{props.index}</span>{props.task.taskName ?? '读取中'}
 				</div>
 				{settings.showParams && (
 					<div

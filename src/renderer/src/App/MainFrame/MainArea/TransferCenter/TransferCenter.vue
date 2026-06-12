@@ -55,9 +55,9 @@ const chunkList = computed(() => {
 
 const downloadFileList = computed(() => appStore.currentServer?.data.downloadFiles || []);
 
-const selectedTaskName = computed(() => 
-	appStore.selectedTask.size === 0 || !appStore.currentServer ? '您未选择任务' : 
-	appStore.selectedTask.size === 1 ? `任务「${appStore.currentServer.data.tasks[[...appStore.selectedTask][0]].taskName}」上传文件` : 
+const selectedTaskName = computed(() =>
+	appStore.selectedTask.size === 0 || !appStore.currentServer || !appStore.getTaskById([...appStore.selectedTask][0]) ? '您未选择任务' :
+	appStore.selectedTask.size === 1 ? `任务「${appStore.getTaskById([...appStore.selectedTask][0])?.taskName}」上传文件` :
 	`${appStore.selectedTask.size} 个任务的上传文件`
 );
 
@@ -93,7 +93,8 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 
 const handleFileClick = (file: UploadFile, index: number) => {
 	selectedFileIndex.value = index;
-	appStore.selectedTask = appStore.currentServer?.data.tasks[file.taskId] ? new Set([file.taskId]) : new Set();
+	const hasTask = appStore.currentServer?.data.taskIdToIndex.has(file.taskId) ?? false;
+	appStore.selectedTask = hasTask ? new Set([file.taskId]) : new Set();
 	appStore.taskSelectionModified = false;
 	appStore.applySelectedTask();
 };

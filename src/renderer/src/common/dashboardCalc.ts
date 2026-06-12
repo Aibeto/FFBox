@@ -10,7 +10,7 @@ export function overallProgressTimer(currentServer: ServerData) {
 	let tasks = currentServer.tasks;
 	let totalTime = 0.000001;
 	let totalProcessedTime = 0;
-	for (const task of Object.values(tasks)) {
+	for (const task of tasks) {
 		// 排除未在队列的
 		if (!task.before[0]?.duration || [TaskStatus.idle].includes(task.status)) {
 			continue;

@@ -32,15 +32,13 @@ const startButtonText = computed(() => {
 
 const handleSelectAllClick = () => {
 	if (!appStore.currentServer) return;
-	const newSet = new Set([...Object.keys(appStore.currentServer.data.tasks).map(Number)]);
-	newSet.delete(-1);
+	const newSet = new Set(appStore.currentServer.data.tasks.map(t => t.id));
 	appStore.selectedTask = newSet;
 	appStore.taskSelectionModified = false;
 };
 const handleApplyAllClick = () => {
 	if (!appStore.currentServer) return;
-	const newSet = new Set([...Object.keys(appStore.currentServer.data.tasks).map(Number)]);
-	newSet.delete(-1);
+	const newSet = new Set(appStore.currentServer.data.tasks.map(t => t.id));
 	appStore.applyParameters('applyToAllTasks', newSet);
 	appStore.taskSelectionModified = false;
 };
@@ -53,7 +51,7 @@ const handleApplyAllClick = () => {
 			<Button :disabled="!appStore.currentServer || appStore.currentServer.entity.status !== ServiceBridgeStatus.Connected" :type="ButtonType.NoBg" @click="handleSelectAllClick"><IconSelectAll />全选</Button>
 			<div class="description">{{ selectionDescription }}</div>
 			<Button
-				v-if="appStore.currentServer?.data.totalCount > 1 && (appStore.taskSelectionModified || appStore.selectedTask.size)"
+				v-if="(appStore.currentServer?.data.totalCount ?? 0) > 1 && (appStore.taskSelectionModified || appStore.selectedTask.size)"
 				:type="ButtonType.Primary"
 				size="small"
 				class="smallButton"

@@ -3,6 +3,7 @@ import { ServiceBridge } from '@renderer/bridges/serviceBridge'
 import { SingleTaskScheduler } from './logic/transferManager2';
 
 export interface UITask extends Task {
+	taskIndex: number;	// 全局序号，在 updateTaskList 获取后写入
 	dashboard: {
 		progress: number;
 		bitrate: number;
@@ -56,7 +57,8 @@ export interface ServerData {
 	id: string;			// 仅供前端一次性使用
 	name: string;		// 默认为空
 	nickName?: string;	// 暂不支持
-	tasks: UITask[];
+	tasks: UITask[];				// 真正的数组，按全局序号顺序存储当前缓冲区的任务
+	taskIdToIndex: Map<number, number>;	// taskId → tasks 数组下标，用于按 id 查找
 	notifications: Notification[];
 	uploadFiles: UploadFile[];
 	downloadFiles: DownloadFile[];
@@ -67,8 +69,8 @@ export interface ServerData {
 	machineId?: string;
 	functionLevel?: number;
 	totalCount: number;		// 任务总数（来自后端）
-	currentPage: number;	// 当前页码（0-indexed）
-	pageSize: number;		// 每页任务数
+	bufferStart: number;	// 当前缓冲区起始的全局偏移（含）
+	bufferEnd: number;		// 当前缓冲区结束的全局偏移（不含）
 	workingStatus: WorkingStatus;
 	progress: number;	// 由后端 statusUpdate 事件推送
 }

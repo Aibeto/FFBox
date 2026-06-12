@@ -77,7 +77,7 @@ const finalMenu = computed(() => {
 					{ type: 'normal' as const, label: '刷新当前服务器信息', value: '刷新当前服务器信息', tooltip: '刷新服务器版本、任务列表、通知列表等信息', onClick: () => {
 						const server = appStore.currentServer as any;
 						appStore.updateServerProperties(server);
-						appStore.updateTaskList(server);
+						appStore.updateTaskList(server, 0);
 						// entity.updateTaskList();
 						appStore.updateNotifications(server);
 					} },
@@ -103,49 +103,40 @@ const finalMenu = computed(() => {
 				{ type: 'submenu', label: '所有任务操作', subMenu: [
 					{ type: 'normal', label: '停止', value: '停止所有任务', tooltip: '将当前服务器所有运行中、已暂停的任务进行软停止操作', onClick: () => {
 						let count = 0;
-						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
+						for (const task of appStore.currentServer!.data.tasks) {
 							if ([TaskStatus.idle_queued, TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued].includes(task.status)) {
-								appStore.currentServer!.entity.taskReset(+id);
+								appStore.currentServer!.entity.taskReset(task.id);
 								count++;
 							}
 						}
 						Popup({ message: `已停止 ${count} 个任务` });
 					} },
 					{ type: 'normal', label: '删除【已完成】', value: '删除所有已完成任务', tooltip: '将当前服务器所有已完成的任务删除', onClick: () => {
-						const taskIds = [];
-						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
-							if (task.status === TaskStatus.finished) {
-								taskIds.push(+id);
-							}
-						}
+						const taskIds = appStore.currentServer!.data.tasks
+							.filter(task => task.status === TaskStatus.finished)
+							.map(task => task.id);
 						appStore.deleteTasks(taskIds);
 						Popup({ message: `已删除 ${taskIds.length} 个任务` });
 					} },
 					{ type: 'normal', label: '删除【未启动】', value: '删除所有未启动任务', tooltip: '将当前服务器所有空闲、排队开始的任务删除', onClick: () => {
-						const taskIds = [];
-						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
-							if ([TaskStatus.idle, TaskStatus.idle_queued].includes(task.status)) {
-								taskIds.push(+id);
-							}
-						}
+						const taskIds = appStore.currentServer!.data.tasks
+							.filter(task => [TaskStatus.idle, TaskStatus.idle_queued].includes(task.status))
+							.map(task => task.id);
 						appStore.deleteTasks(taskIds);
 						Popup({ message: `已删除 ${taskIds.length} 个任务` });
 					} },
 					{ type: 'normal', label: '删除【上传中】', value: '删除所有正在上传的任务', tooltip: '将当前服务器所有正在上传的任务删除（仅打断由本客户端发起的上传操作。其他客户端的上传操作不会被停止，但任务会被删除）', onClick: () => {
-						const taskIds = [];
-						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
-							if (task.status === TaskStatus.initializing) {
-								taskIds.push(+id);
-							}
-						}
+						const taskIds = appStore.currentServer!.data.tasks
+							.filter(task => task.status === TaskStatus.initializing)
+							.map(task => task.id);
 						appStore.deleteTasks(taskIds);
 						Popup({ message: `已删除 ${taskIds.length} 个任务` });
 					} },
 					{ type: 'normal', label: '重置【已完成】', value: '重置所有已完成任务', tooltip: '将当前服务器所有已完成的任务重置到未启动状态', onClick: () => {
 						let count = 0;
-						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
+						for (const task of appStore.currentServer!.data.tasks) {
 							if (task.status === TaskStatus.finished) {
-								appStore.currentServer!.entity.taskReset(+id);
+								appStore.currentServer!.entity.taskReset(task.id);
 								count++;
 							}
 						}
@@ -153,9 +144,9 @@ const finalMenu = computed(() => {
 					} },
 					{ type: 'normal', label: '重置【出错】', value: '重置所有发生错误的任务', tooltip: '将当前服务器所有发生错误的任务重置到未启动状态', onClick: () => {
 						let count = 0;
-						for (const [id, task] of Object.entries(appStore.currentServer!.data.tasks)) {
+						for (const task of appStore.currentServer!.data.tasks) {
 							if (task.status === TaskStatus.error) {
-								appStore.currentServer!.entity.taskReset(+id);
+								appStore.currentServer!.entity.taskReset(task.id);
 								count++;
 							}
 						}

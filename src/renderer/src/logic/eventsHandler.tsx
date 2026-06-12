@@ -33,37 +33,76 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 	if (data.removed) {
 		for (const { taskId } of data.removed) {
 			这.selectedTask.delete(taskId);
-			delete serverData.tasks[taskId];
+			const arrayIndex = serverData.taskIdToIndex.get(taskId);
+			if (arrayIndex !== undefined) {
+				serverData.tasks.splice(arrayIndex, 1);
+				serverData.taskIdToIndex.delete(taskId);
+				// 修正被 splice 影响的后续元素的索引
+				for (const [id, idx] of serverData.taskIdToIndex) {
+					if (idx > arrayIndex) {
+						serverData.taskIdToIndex.set(id, idx - 1);
+					}
+				}
+			}
+		}
+		// 删除后重新计算缓冲区边界
+		if (serverData.tasks.length > 0) {
+			serverData.bufferStart = serverData.tasks[0].taskIndex!;
+			serverData.bufferEnd = serverData.tasks[serverData.tasks.length - 1].taskIndex! + 1;
+		} else {
+			serverData.bufferStart = 0;
+			serverData.bufferEnd = 0;
 		}
 	}
 
 	// 处理新增
 	if (data.added) {
-		if (serverData.currentPage === 0) {
-			// 第一页：新增任务落在末尾，直接添加
-			// TODO 这对吗？这不对，应该检查是不是最后一页才对
-			const newTaskIds: number[] = [];
-			for (const { taskId, index } of data.added) {
-				if (index < serverData.pageSize) {
-					serverData.tasks[taskId] = getInitialUITask(taskId, '');
-					newTaskIds.push(taskId);
+		let hasOutsideBuffer = false;
+		for (const { taskId, index } of data.added) {
+			// 检查新增任务是否落在当前缓冲区范围内
+			if (index >= serverData.bufferStart && index < serverData.bufferEnd) {
+				const uiTask = getInitialUITask(taskId, '');
+				uiTask.taskIndex = index;
+				// 按全局序号找到正确的插入位置
+				let insertPos = serverData.tasks.length;
+				for (let i = 0; i < serverData.tasks.length; i++) {
+					if (serverData.tasks[i].taskIndex! > index) {
+						insertPos = i;
+						break;
+					}
 				}
+				serverData.tasks.splice(insertPos, 0, uiTask);
+				// 修正被 splice 影响的后续元素的索引
+				for (const [id, idx] of serverData.taskIdToIndex) {
+					if (idx >= insertPos) {
+						serverData.taskIdToIndex.set(id, idx + 1);
+					}
+				}
+				serverData.taskIdToIndex.set(taskId, insertPos);
+				// 更新缓冲区边界
+				serverData.bufferEnd++;
+				// 异步获取完整任务数据
+				setTimeout(() => {
+					这.updateTask(server, taskId);
+				}, 20);
+			} else {
+				hasOutsideBuffer = true;
 			}
-			setTimeout(() => {
-				for (const newTaskId of newTaskIds) {
-					这.updateTask(server, newTaskId);
-				}
-			}, 20);
-		} else {
-			// 非第一页：结构性变更，重新拉取当前页
-			这.updateTaskList(server);
+		}
+		// 如果新任务落在缓冲区外，刷新缓冲区（以当前第一个可见任务为参考点，保持用户视图位置）
+		if (hasOutsideBuffer) {
+			const firstTask = serverData.tasks[0];
+			const refIndex = firstTask ? firstTask.taskIndex! : 0;
+			这.updateTaskList(server, refIndex);
 		}
 	}
 
-	// 处理页码越界
-	const maxPage = Math.max(0, Math.ceil(serverData.totalCount / serverData.pageSize) - 1);
-	if (serverData.currentPage > maxPage) {
-		这.changePage(server, maxPage);
+	// 处理缓冲区越界：任务删除后 totalCount 可能小于 bufferEnd
+	if (serverData.bufferEnd > serverData.totalCount) {
+		// 重新计算缓冲区，以当前第一个可见任务为参考
+		const firstTask = serverData.tasks[0];
+		const firstVisibleGlobalIndex = firstTask ? firstTask.taskIndex! : 0;
+		这.updateTaskList(server, Math.min(firstVisibleGlobalIndex, Math.max(0, serverData.totalCount - 1)));
 	}
 };
 /**
@@ -72,13 +111,14 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
  */
 export function handleTaskUpdate(server: Server, id: number, content: Task) {
 	const serverData = server.data;
-	const localTask = serverData.tasks[id];
-	if (!localTask) {
-		// 本地不存在此任务，则新增
-		serverData.tasks[id] = getInitialUITask(id, '');
+	const arrayIndex = serverData.taskIdToIndex.get(id);
+	if (arrayIndex === undefined) {
+		// 本地缓冲区不存在此任务，忽略
+		return;
 	}
-	const task = mergeTaskFromService(serverData.tasks[id], content);
-	serverData.tasks[id] = task;
+	const localTask = serverData.tasks[arrayIndex];
+	const task = mergeTaskFromService(localTask, content);
+	serverData.tasks[arrayIndex] = task;
 	// Object.assign(serverData.tasks[id], task);
 	// timer 相关处理（开始运行时添加定时器，结束或暂停运行时取消定时器）
 	if (task.status === TaskStatus.running && !task.dashboardTimer) {
@@ -111,7 +151,9 @@ export function handleTaskUpdate(server: Server, id: number, content: Task) {
  * 增量更新 cmdData
  */
 export function handleCmdUpdate(server: Server, id: number, content: string, append: boolean) {
-	let task = server.data.tasks[id];
+	const arrayIndex = server.data.taskIdToIndex.get(id);
+	if (arrayIndex === undefined) return;
+	let task = server.data.tasks[arrayIndex];
 	if (append) {
 		task.cmdData += content;
 	} else {
@@ -122,7 +164,9 @@ export function handleCmdUpdate(server: Server, id: number, content: string, app
  * 增量更新 progressLog
  */
 export function handleProgressUpdate(server: Server, id: number, time: number, status: FFmpegProgress | undefined, functionLevel: number) {
-	const task = server.data.tasks[id];
+	const arrayIndex = server.data.taskIdToIndex.get(id);
+	if (arrayIndex === undefined) return;
+	const task = server.data.tasks[arrayIndex];
 	if (status) {
 		for (const parameter of ['time', 'frame', 'size']) {
 			const _parameter = parameter as 'time' | 'frame' | 'size';
@@ -187,7 +231,7 @@ export function handleCloseConfirm() {
 	// getQueueTaskCount 拷贝自 FFBoxService
 	function getQueueTaskCount(server: Server) {
 		let count: number = 0;
-		for (const task of Object.values(server.data.tasks)) {
+		for (const task of server.data.tasks) {
 			if (task && [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(task.status)) {
 				count++;
 			}

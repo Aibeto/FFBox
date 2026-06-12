@@ -280,6 +280,7 @@ onMounted(() => {
 		flex: 1 1 auto;
 		overflow: hidden;
 		.upperArea {
+			isolation: isolate;
 			.loginArea, .disconnectArea {
 				overflow: hidden;
 				@keyframes bganimation {

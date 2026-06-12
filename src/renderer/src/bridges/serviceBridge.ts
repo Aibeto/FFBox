@@ -302,8 +302,9 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<string>('GET', '/api/v1/system/working-status');
 	}
 
-	public getTaskList(offset: number, size: number): Promise<Task[]> {
-		return this.httpRequest<Task[]>('GET', `/api/v1/tasks?offset=${offset}&size=${size}`);
+	// 6.0 已不再是仿 IPC 结构了，所以这里要考虑在类型上把 implements FFBoxServiceInterface 去掉
+	public getTaskList(offset: number, size: number): Promise<{ tasks: Task[], totalCount: number }> {
+		return this.httpRequest<{ tasks: Task[], totalCount: number }>('GET', `/api/v1/tasks?offset=${offset}&size=${size}`);
 	}
 
 	public subscribeTasks(taskIds: number[]): void {

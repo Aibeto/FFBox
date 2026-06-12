@@ -3,8 +3,11 @@ import { computed, ref, watch } from 'vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { NotificationLevel } from '@common/types';
+import { UITask } from '@renderer/types';
 import { getOutputFileBaseName } from '@common/params/formats';
 import { getOutputFileTime } from '@common/utils';
+import { useScrollStop } from './useScrollStop';
+import CoarseSlider from './CoarseSlider';
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
 import Popup from '@renderer/components/Popup/Popup';
 import { TaskItem } from './TaskItem/TaskItem';
@@ -15,35 +18,14 @@ const appStore = useAppStore();
 
 const selectedTask_last = ref(-1);
 const taskListRef = ref<HTMLDivElement>();
+const listContainerRef = ref<HTMLElement>(null!);	// 列表的滚动容器
 const itemRefs = ref(new Map());	// index -> TaskItem
 const isVisible = ref(new Map<number, boolean>());	// index -> boolean
 let observer: IntersectionObserver;
 
-const tasks = computed(() => {
-	// console.log('服务器', appStore.currentServer, '任务', appStore.currentServer?.data.tasks);
-	const currentServer = appStore.currentServer;
-	if (!currentServer) {
-		return [];
-	}
-	const ret = [];
-	// 为 tasklist 中的每个条目补充 id（以前我这么设计，是为了节省一个字段，🤔但现在看来这个做法有点“个性”😂）
-	for (const [id_s, task] of Object.entries(currentServer.data.tasks)) {
-		let id = parseInt(id_s);
-		if (id_s !== '-1') {
-			ret.push({ ...task, id });
-		}
-	}
-	return ret;
-});
-
-// const taskList = computed(() => Object.keys(appStore.currentServer.data.tasks).map((s_id, index) => ({
-// 	task: appStore.currentServer.data.tasks[+s_id],
-// 	id: +s_id,
-// 	index,
-// 	selected: appStore.selectedTask.has(+s_id),
-// 	shouldHandleHover: true,
-// 	onClick: handleTaskClicked,
-// })).concat({ task: undefined, id: -1, index: -1 } as any));
+// 粗调滚动条（范围滑动条）
+const coarseStart = ref(0);	// 可见范围起始 index
+const coarseEnd = ref(0);	// 可见范围结束 index
 
 // const heightList = computed(() => Object.entries(appStore.currentServer.data.tasks).map(([s_id, task]) => {
 // 	const settings = appStore.taskViewSettings;
@@ -103,20 +85,21 @@ const bindItemRef = (el: any) => {
 
 const handleTaskClicked = (event: MouseEvent, id: number, index: number) => {
 	let currentSelection = new Set(appStore.selectedTask);
+	// TODO 应该直接用后端的 taskIndex 而不是可见的 index
 	if (event.shiftKey) {
-		if (selectedTask_last.value !== -1) {		// 之前没选东西，现在选一堆
-			currentSelection.clear();
-			const minIndex = Math.min(selectedTask_last.value, index);
-			const maxIndex = Math.max(selectedTask_last.value, index);
-			for (let i = minIndex; i <= maxIndex; i++) {	// 对 taskOrder 里指定区域项目进行选择
-				currentSelection.add(tasks.value[i].id);
-				// if (taskArray.has(id)) {	// 如果任务未被删除
-				// 	currentSelection.add(i);
-				// }
-			}
-		} else {							// 之前没选东西，现在选第一个
-			currentSelection = new Set([id]);
-		}
+		// if (selectedTask_last.value !== -1) {		// 之前没选东西，现在选一堆
+		// 	currentSelection.clear();
+		// 	const minIndex = Math.min(selectedTask_last.value, index);
+		// 	const maxIndex = Math.max(selectedTask_last.value, index);
+		// 	for (let i = minIndex; i <= maxIndex; i++) {	// 对 taskOrder 里指定区域项目进行选择
+		// 		currentSelection.add(tasks.value[i].id);
+		// 		// if (taskArray.has(id)) {	// 如果任务未被删除
+		// 		// 	currentSelection.add(i);
+		// 		// }
+		// 	}
+		// } else {							// 之前没选东西，现在选第一个
+		// 	currentSelection = new Set([id]);
+		// }
 	} else if (event.ctrlKey == true || navigator.platform.indexOf('Mac') >= 0 && event.metaKey == true) {
 		if (currentSelection.has(id)) {
 			currentSelection.delete(id);
@@ -161,7 +144,10 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 					if (!appStore.currentServer) { debugger; throw 'ub'; }
 					const entity = appStore.currentServer.entity;
 					const data = appStore.currentServer.data;
-					const tasks = [...appStore.selectedTask].map((taskId) => data.tasks[taskId]);
+					const tasks = [...appStore.selectedTask].map((taskId) => {
+						const idx = data.taskIdToIndex.get(taskId);
+						return idx !== undefined ? data.tasks[idx] : undefined;
+					}).filter(Boolean) as UITask[];
 					if (nodeBridge.env === 'electron') {
 						const downloadList = [];
 						for (const task of tasks) {
@@ -204,69 +190,188 @@ const handleDownloadFFmpegClicked = () => {
 };
 
 // 新任务加入，滚动到底
-watch(() => tasks.value.length, (newValue, oldValue) => {
-	if (newValue > oldValue) {
-		const elem = taskListRef.value!.parentElement!;
-		const elemHeight = elem.getBoundingClientRect().height;
-		if (elem.scrollTop + elemHeight > elem.scrollHeight - elemHeight * 1) {
-			elem.scrollTop = elem.scrollHeight - elem.getBoundingClientRect().height;
-		}
-	}
-});
+// TODO 需要额外检查现在的可视范围，不只是 scrollTop
+// watch(() => tasks.value.length, (newValue, oldValue) => {
+// 	if (newValue > oldValue) {
+// 		const elem = taskListRef.value!.parentElement!;
+// 		const elemHeight = elem.getBoundingClientRect().height;
+// 		if (elem.scrollTop + elemHeight > elem.scrollHeight - elemHeight * 1) {
+// 			elem.scrollTop = elem.scrollHeight - elem.getBoundingClientRect().height;
+// 		}
+// 	}
+// });
 
 const handleEntry = (entry: IntersectionObserverEntry, dataset: any) => {
 	isVisible.value.set(+dataset.index, entry.isIntersecting);
 }
 const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } }));
 
+// #region 无限滚动
+
+/**
+ * 用 DOM 方法找到当前视口中最上/最下任务的全局序号
+ * index 来源：元素的 data-taskindex 属性（由 UITask.taskIndex 写入）
+ * 若视口中没有可见任务，返回 { firstIndex: 0, lastIndex: 0 }
+ */
+function getVisibleRange(): { firstIndex: number; lastIndex: number } | undefined {
+	const container = listContainerRef.value;
+	if (!container) return;
+	const scrollTop = container.scrollTop;
+	const scrollBottom = scrollTop + container.clientHeight;
+	const taskElements = taskListRef.value?.children;
+	if (!taskElements || taskElements.length === 0) return;
+
+	let firstIndex: number | undefined;
+	let lastIndex = 0;
+	for (let i = 0; i < taskElements.length; i++) {
+		const el = taskElements[i] as HTMLElement;
+		const taskIndex = parseInt(el.dataset.taskindex ?? '');
+		if (isNaN(taskIndex)) continue;
+		const elTop = el.offsetTop;
+		const elBottom = elTop + el.offsetHeight;
+		if (elBottom > scrollTop && elTop < scrollBottom) {
+			if (firstIndex === undefined) firstIndex = taskIndex;
+			lastIndex = taskIndex;
+		}
+	}
+	if (firstIndex === undefined) return { firstIndex: 0, lastIndex: 0 };
+	return { firstIndex, lastIndex };
+}
+
+/**
+ * 将任务列表的 scrollTop 调整，使 start 和 end 的中央位于视口中央
+ * 需要在 DOM 更新后调用（nextTick 之后）
+ */
+function centerScroll(start: number, end: number) {
+	const container = listContainerRef.value;
+	const taskList = taskListRef.value;
+	if (!container || !taskList) return;
+
+	const targetIndex = Math.round((start + end) / 2);
+	const children = taskList.children;
+	for (let i = 0; i < children.length; i++) {
+		const el = children[i] as HTMLElement;
+		const taskIndex = parseInt(el.dataset.taskindex ?? '');
+		if (taskIndex === targetIndex) {
+			const elCenter = el.offsetTop + el.offsetHeight / 2;
+			const containerCenter = container.clientHeight / 2;
+			container.scrollTop = elCenter - containerCenter;
+			return;
+		}
+	}
+}
+
+/**
+ * 滚动停止处理：获取视口中的首尾任务，计算新缓冲区，拉取数据，居中滚动
+ */
+const handleScrollStop = () => {
+	if (!appStore.currentServer) return;
+
+	const range = getVisibleRange();
+	if (!range) return;
+
+	// 传入首尾可见任务的 index，updateTaskList 内部会头 -10、尾 +10
+	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex).then(() => {
+		// 数据更新且 DOM 渲染后，居中滚动
+		centerScroll(range.firstIndex, range.lastIndex);
+	});
+
+	// 同步粗调滚动条
+	syncCoarseScrollFromRange(range.firstIndex, range.lastIndex);
+};
+
+// 滚动停止检测
+const { isScrolling } = useScrollStop(listContainerRef, {
+	onScrollStop: handleScrollStop,
+});
+
+/**
+ * 根据可见范围首尾 index 同步粗调滚动条
+ */
+const syncCoarseScrollFromRange = (firstIndex: number, lastIndex: number) => {
+	coarseStart.value = firstIndex;
+	coarseEnd.value = lastIndex;
+};
+
+/**
+ * 粗调滑动条值变化（拖动中实时更新，不加载数据）
+ */
+const handleCoarseSliderUpdateStart = (val: number) => {
+	coarseStart.value = val;
+};
+const handleCoarseSliderUpdateEnd = (val: number) => {
+	coarseEnd.value = val;
+};
+
+/**
+ * 粗调滑动条松手（加载数据）
+ */
+const handleCoarseSliderChange = ({ start, end }: { start: number; end: number }) => {
+	if (!appStore.currentServer) return;
+	console.log('粗调跳转', start, '~', end);
+
+	// 跳转后，传入 start/end 作为可见范围，updateTaskList 内部会头 -10、尾 +10
+	appStore.updateTaskList(appStore.currentServer, start, end).then(() => {
+		// 数据更新且 DOM 渲染后，居中滚动
+		setTimeout(() => {
+			centerScroll(start, end);
+		}, 2000);
+	});
+};
+
+/**
+ * 监听任务总数变化，同步粗调滚动条范围
+ */
+watch(() => appStore.currentServer?.data.totalCount, (newTotal) => {
+	if (!newTotal) return;
+	const range = getVisibleRange();
+	if (range) {
+		syncCoarseScrollFromRange(range.firstIndex, range.lastIndex);
+	}
+});
+
+/**
+ * 计算粗调滚动条是否可见
+ */
+const showCoarseScrollbar = computed(() => {
+	return appStore.currentServer && appStore.currentServer.data.totalCount > 11;
+});
+
+// #endregion
+
 </script>
 
 <template>
-	<div class="listarea">
+	<div class="listarea" ref="listContainerRef">
 		<div class="tasklist" ref="taskListRef">
 			<TransitionGroup name="tasklistTrans">
 				<TaskItem
-					v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? appStore.currentServer!.data.tasks : []).map(Number)"
+					v-for="task in appStore.frontendSettings.useVirtualTaskList ? appStore.currentServer?.data.tasks || [] : []"
 					v-intersect="intersectProps"
-					:key="id"
-					:task="appStore.currentServer!.data.tasks[id]"
-					:id="id"
-					:index="index"
-					:show="isVisible.get(index - 2) || isVisible.get(index + 2) || isVisible.get(index) || false"
+					:key="task.id"
+					:task="task"
+					:id="task.id"
+					:index="task.taskIndex ?? 0"
+					:show="isVisible.get((task.taskIndex ?? 0) - 2) || isVisible.get((task.taskIndex ?? 0) + 2) || isVisible.get(task.taskIndex ?? 0) || false"
 					:ref="bindItemRef"
-					:selected="appStore.selectedTask.has(id)"
+					:selected="appStore.selectedTask.has(task.id)"
 					:should-handle-hover="true"
-					@click="handleTaskClicked"
+					@click="handleTaskClicked($event, task.id, task.taskIndex)"
 					@batchContextMenu="handleTaskBatchContextMenu"
 				/>
 				<TaskItem
-					v-for="(id, index) in Object.keys(appStore.frontendSettings.useVirtualTaskList ? [] : appStore.currentServer!.data.tasks).map(Number)"
-					:key="id"
-					:task="appStore.currentServer!.data.tasks[id]"
-					:id="id"
-					:index="index"
+					v-for="task in appStore.frontendSettings.useVirtualTaskList ? [] : appStore.currentServer?.data.tasks || []"
+					:key="task.id"
+					:task="task"
+					:id="task.id"
+					:index="task.taskIndex ?? 0"
 					:show="true"
-					:selected="appStore.selectedTask.has(id)"
+					:selected="appStore.selectedTask.has(task.id)"
 					:should-handle-hover="true"
-					@click="handleTaskClicked"
+					@click="handleTaskClicked($event, task.id, task.taskIndex)"
 					@batchContextMenu="handleTaskBatchContextMenu"
 				/>
 			</TransitionGroup>
-		</div>
-		<div class="pagination"
-			v-if="appStore.currentServer && appStore.currentServer.data.totalCount > appStore.currentServer.data.pageSize"
-		>
-			<button
-				:disabled="appStore.currentServer.data.currentPage === 0"
-				@click="appStore.changePage(appStore.currentServer!, appStore.currentServer!.data.currentPage - 1)"
-			>上一页</button>
-			<span class="page-info">
-				第 {{ appStore.currentServer.data.currentPage + 1 }} 页 / 共 {{ Math.ceil(appStore.currentServer.data.totalCount / appStore.currentServer.data.pageSize) }} 页
-			</span>
-			<button
-				:disabled="appStore.currentServer.data.currentPage >= Math.ceil(appStore.currentServer.data.totalCount / appStore.currentServer.data.pageSize) - 1"
-				@click="appStore.changePage(appStore.currentServer!, appStore.currentServer!.data.currentPage + 1)"
-			>下一页</button>
 		</div>
 		<div
 			v-if="appStore.currentServer?.data.ffmpegInfo.version"
@@ -296,6 +401,17 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 			</div>
 		</div>
 	</div>
+	<!-- 粗调滚动条：范围滑动条，悬浮在列表父节点底部 -->
+	<div class="coarse-scrollbar" v-if="showCoarseScrollbar">
+		<CoarseSlider
+			:total="appStore.currentServer!.data.totalCount"
+			:start="coarseStart"
+			:end="coarseEnd"
+			@update:start="handleCoarseSliderUpdateStart"
+			@update:end="handleCoarseSliderUpdateEnd"
+			@change="handleCoarseSliderChange"
+		/>
+	</div>
 </template>
 
 <style scoped lang="less">
@@ -324,33 +440,6 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 				transition: all 0.3s cubic-bezier(0.0, 0.9, 0.1, 1), opacity 0.3s linear, filter 0.3s ease-in, transform 0.3s cubic-bezier(0.5, 0, 1, 1);	// 但是离场动画是有效的
 			}
 			.tasklistTrans-enter-to, .tasklistTrans-leave-from {
-			}
-		}
-		.pagination {
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			gap: 12px;
-			padding: 8px 0;
-			font-size: 13px;
-			.page-info {
-				color: var(--text);
-				opacity: 0.7;
-			}
-			button {
-				padding: 4px 12px;
-				border: 1px solid var(--border);
-				border-radius: 4px;
-				background: var(--background);
-				color: var(--text);
-				cursor: pointer;
-				&:disabled {
-					opacity: 0.5;
-					cursor: not-allowed;
-				}
-				&:hover:not(:disabled) {
-					background: var(--menuItemHovered);
-				}
 			}
 		}
 		.dropfilesdiv {
@@ -431,5 +520,16 @@ const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } })
 				}
 			}
 		}
+	}
+	.coarse-scrollbar {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		padding: 0 16px;
+		z-index: 10;
 	}
 </style>

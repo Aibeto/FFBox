@@ -1,10 +1,10 @@
-import { h, VNodeRef } from 'vue';
+import { h, VNodeRef, nextTick } from 'vue';
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
 import gsap from 'gsap';
 import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, WorkingStatus } from '@common/types';
 import { version } from '@common/constants'; 
-import { Server } from '@renderer/types';
+import { Server, UITask } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
 import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromService } from '@common/utils';
@@ -132,6 +132,19 @@ export const useAppStore = defineStore('app', {
 		},
 	},
 	actions: {
+		// #region 辅助方法
+		/**
+		 * 根据 taskId 从当前服务器的 tasks 数组中查找任务
+		 * @returns UITask 或 undefined（不在缓冲区中）
+		 */
+		getTaskById(taskId: number): UITask | undefined {
+			const 这 = useAppStore();
+			const data = 这.currentServer?.data;
+			if (!data) return undefined;
+			const index = data.taskIdToIndex.get(taskId);
+			return index !== undefined ? data.tasks[index] : undefined;
+		},
+		// #endregion 辅助方法
 		// #region 纯 UI
 		/**
 		 * 打开切割操作器
@@ -230,7 +243,7 @@ export const useAppStore = defineStore('app', {
 							if (needStopCuzLimit) {
 								return;
 							}
-							if (Object.keys(server.data.tasks).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
+							if (server.data.totalCount >= maxTaskCount) {	// 使用 totalCount 判断任务总数上限
 								needStopCuzLimit = true;
 								这.pushMsg(
 									i11n.service.功能限制_任务数上限(maxTaskCount, true),
@@ -275,7 +288,7 @@ export const useAppStore = defineStore('app', {
 						dropDelayCount += 66.67;
 					}
 				} else if (type === 'multiInput') {
-					if (Object.keys(server.data.tasks).length - 1 >= maxTaskCount) {	// 全局任务占了一个位置
+					if (server.data.totalCount >= maxTaskCount) {	// 使用 totalCount 判断任务总数上限
 						这.pushMsg(
 							i11n.service.功能限制_任务数上限(maxTaskCount, true),
 							NotificationLevel.warning
@@ -373,51 +386,91 @@ export const useAppStore = defineStore('app', {
 			return result;
 		},
 		/**
-		 * 获取 service 的 taskList 更新到本地（分页）
+		 * 获取 service 的 taskList 更新到本地（基于缓冲区范围）
+		 * 既是初始化加载的入口，也是滚动停止/粗调跳转后的刷新方法
+		 * @param server 服务器实例
+		 * @param firstVisibleIndex 可见范围中第一个任务的全局序号（默认 0）
+		 * @param lastVisibleIndex 可见范围中最后一个任务的全局序号（默认 firstVisibleIndex）
+		 * 计算范围：firstVisibleIndex - 10 ~ lastVisibleIndex + 10
+		 * @returns Promise，resolve 时机为数据合并完成且 DOM 更新后（nextTick）
 		 */
-		updateTaskList(server: Server) {
+		updateTaskList(server: Server, firstVisibleIndex: number = 0, lastVisibleIndex?: number): Promise<void> {
 			const 这 = useAppStore();
-			const offset = server.data.currentPage * server.data.pageSize;
-			const size = server.data.pageSize;
-			server.entity.getTaskList(offset, size).then((response) => {
-				const { tasks, totalCount } = response;
-				server.data.totalCount = totalCount;
+			const totalCount = server.data.totalCount;
+			const _last = lastVisibleIndex ?? firstVisibleIndex;
 
-				// 清除不在当前页的任务
+			// 头 -10，尾 +10
+			const offset = Math.max(0, firstVisibleIndex - 10);
+			const end = totalCount > 0 ? Math.min(totalCount, _last + 11) : 21;
+			const size = end - offset;
+
+			if (size <= 0) return Promise.resolve();
+
+			return server.entity.getTaskList(offset, size).then((response) => {
+				const { tasks, totalCount: newTotalCount } = response;
+				server.data.totalCount = newTotalCount;
+
+				// 构建旧任务的临时 Map，用于合并保留已有的 dashboard 等状态
+				const oldTasksById = new Map<number, UITask>();
+				for (const task of server.data.tasks) {
+					oldTasksById.set(task.id, task);
+				}
+
+				// 清除不在新缓冲区的任务
 				const newTaskIds = new Set(tasks.map(t => t.id));
-				for (const existingId of Object.keys(server.data.tasks).map(Number)) {
-					if (existingId !== -1 && !newTaskIds.has(existingId)) {
-						delete server.data.tasks[existingId];
+				for (const [existingId] of oldTasksById) {
+					if (!newTaskIds.has(existingId)) {
 						这.selectedTask.delete(existingId);
 					}
 				}
 
-				// 合并当前页任务
-				for (const task of tasks) {
-					const existing = server.data.tasks[task.id];
+				// 重建 tasks 数组和 taskIdToIndex 映射
+				const newTasks: UITask[] = [];
+				const newMap = new Map<number, number>();
+				for (let i = 0; i < tasks.length; i++) {
+					const task = tasks[i];
+					const globalIndex = offset + i;
+					const existing = oldTasksById.get(task.id);
 					if (existing) {
 						mergeTaskFromService(existing, task);
+						existing.taskIndex = globalIndex;
+						newTasks.push(existing);
 					} else {
 						const uiTask = getInitialUITask(task.id, '');
 						mergeTaskFromService(uiTask, task);
-						server.data.tasks[task.id] = uiTask;
+						uiTask.taskIndex = globalIndex;
+						newTasks.push(uiTask);
 					}
+					newMap.set(task.id, i);
 				}
+				server.data.tasks = newTasks;
+				server.data.taskIdToIndex = newMap;
 
-				// 订阅当前页的 taskId
+				// 更新缓冲区范围
+				server.data.bufferStart = offset;
+				server.data.bufferEnd = offset + tasks.length;
+
+				// 订阅当前缓冲区的 taskId
 				server.entity.replaceSubscription([...newTaskIds]);
 
 				这.recalcChangedParams();
+
+				// 等待 DOM 更新后 resolve
+				return nextTick();
 			});
 		},
 		/**
-		 * 切换分页
+		 * 跳转到指定范围（粗调滑动条松手后使用）
+		 * @param start 可见范围起始 index
+		 * @param end 可见范围结束 index
 		 */
-		changePage(server: Server, newPage: number) {
+		jumpToRange(start: number, end: number) {
 			const 这 = useAppStore();
-			server.data.currentPage = newPage;
-			这.selectedTask.clear();
-			这.updateTaskList(server);
+			const server = 这.currentServer!;
+			const totalCount = server.data.totalCount;
+			if (totalCount === 0) return;
+			console.log('粗调跳转', start, '~', end);
+			this.updateTaskList(server, start, end);
 		},
 		/**
 		 * 获取 service 的 task 更新到本地
@@ -456,8 +509,12 @@ export const useAppStore = defineStore('app', {
 			const 这 = useAppStore();
 			if (!这.currentServer) { debugger; throw 'ub'; }
 			if (这.selectedTask.size > 0) {
+				const data = 这.currentServer.data;
 				for (const id of 这.selectedTask) {
-					这.globalParams = replaceOutputParams(这.currentServer.data.tasks[id].after, 这.globalParams, true);
+					const index = data.taskIdToIndex.get(id);
+					if (index !== undefined) {
+						这.globalParams = replaceOutputParams(data.tasks[index].after, 这.globalParams, true);
+					}
 				}
 			}
 			这.globalParams.extra.presetName = '';
@@ -503,7 +560,9 @@ export const useAppStore = defineStore('app', {
 				let needToUpdateIds: number[] = [];
 				let needToUpdateParams: OutputParams[] = [];
 				for (const id of selection || 这.selectedTask) {
-					let task = data.tasks[id];
+					const taskIndex = data.taskIdToIndex.get(id);
+					if (taskIndex === undefined) continue;
+					let task = data.tasks[taskIndex];
 					const needToReplaceAll = behavior === 'modifyTask' && 这.selectedTask.size === 1;
 					task.after = replaceOutputParams(这.globalParams, task.after, needToReplaceAll);
 					needToUpdateIds.push(id);
@@ -633,8 +692,8 @@ export const useAppStore = defineStore('app', {
 				video: 0,
 				audio: 0,
 			};
-			for (const [index, task] of Object.entries(这.currentServer.data.tasks) || []) {
-				if (index === '-1' || task.after.input.files.length !== 1 || task.after.outputs.length !== 1) {
+			for (const task of 这.currentServer.data.tasks || []) {
+				if (task.after.input.files.length !== 1 || task.after.outputs.length !== 1) {
 					continue;
 				}
 				const after = task.after;
@@ -715,7 +774,10 @@ export const useAppStore = defineStore('app', {
 				// 这个操作约等于 applySelectedTask
 				// 主要目的是，当选中了任务更改预设时，全局参数中的输入文件名等信息会被替换，但任务中的不被替换。若马上就修改其他参数，会导致任务中的输入文件名等信息变成全局的
 				const fisrtSelectedTaskId = [...这.selectedTask][0];
-				这.globalParams = replaceOutputParams(这.currentServer.data.tasks[fisrtSelectedTaskId].after, 这.globalParams, true);
+				const taskIndex = 这.currentServer.data.taskIdToIndex.get(fisrtSelectedTaskId);
+				if (taskIndex !== undefined) {
+					这.globalParams = replaceOutputParams(这.currentServer.data.tasks[taskIndex].after, 这.globalParams, true);
+				}
 			}
 		},
 		savePreset(name: string) {
@@ -857,14 +919,15 @@ export const useAppStore = defineStore('app', {
 					id: id,
 					name: '未连接',
 					tasks: [],
+					taskIdToIndex: new Map(),
 					notifications: [],
 					uploadFiles: [],
 					downloadFiles: [],
 					ffmpegInfo: { version: '', scanning: false, videoEncodersCount: 0, audioEncodersCount: 0, muxersCount: 0, demuxersCount: 0, filtersCount: 0 },
 					version: '',
 					totalCount: 0,
-					currentPage: 0,
-					pageSize: 5,
+					bufferStart: 0,
+					bufferEnd: 0,
 					workingStatus: WorkingStatus.idle,
 					progress: 0,
 				},
@@ -915,8 +978,9 @@ export const useAppStore = defineStore('app', {
 					console.log(`成功连接到服务器 ${server.entity.ip}`);
 					这.pushMsg(`成功连接到服务器 ${server.data.name}`, NotificationLevel.ok);
 					server.data.tasks = [];	// 由于 taskList 只包含 id，重新连接后需要清除原 task 信息以获取新的
+					server.data.taskIdToIndex = new Map();
 					这.updateServerProperties(server);
-					这.updateTaskList(server);
+					这.updateTaskList(server, 0);
 					// entity.updateTaskList();
 					这.updateNotifications(server);
 					resolve(server);
