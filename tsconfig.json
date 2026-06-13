@@ -6,5 +6,4 @@
 		{ "path": "./config/tsconfig.backend.json" }
 	],
 	"files": [],
-	"composite": true,
 }

@@ -391,8 +391,7 @@ export const useAppStore = defineStore('app', {
 		 * @param server 服务器实例
 		 * @param firstVisibleIndex 可见范围中第一个任务的全局序号（默认 0）
 		 * @param lastVisibleIndex 可见范围中最后一个任务的全局序号（默认 firstVisibleIndex）
-		 * 计算范围：firstVisibleIndex - 10 ~ lastVisibleIndex + 10
-		 * @returns Promise，resolve 时机为数据合并完成且 DOM 更新后（nextTick）
+		 * 计算范围：firstVisibleIndex - 100 ~ lastVisibleIndex + 100
 		 */
 		updateTaskList(server: Server, firstVisibleIndex: number = 0, lastVisibleIndex?: number): Promise<void> {
 			const 这 = useAppStore();
@@ -400,8 +399,8 @@ export const useAppStore = defineStore('app', {
 			const _last = lastVisibleIndex ?? firstVisibleIndex;
 
 			// 头 -10，尾 +10
-			const offset = Math.max(0, firstVisibleIndex - 10);
-			const end = totalCount > 0 ? Math.min(totalCount, _last + 11) : 21;
+			const offset = Math.max(0, firstVisibleIndex - 100);
+			const end = totalCount > 0 ? Math.min(totalCount, _last + 101) : 201;
 			const size = end - offset;
 
 			if (size <= 0) return Promise.resolve();
@@ -454,9 +453,6 @@ export const useAppStore = defineStore('app', {
 				server.entity.replaceSubscription([...newTaskIds]);
 
 				这.recalcChangedParams();
-
-				// 等待 DOM 更新后 resolve
-				return nextTick();
 			});
 		},
 		/**

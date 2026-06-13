@@ -1,7 +1,9 @@
 import { ref, watch, onUnmounted, type Ref } from 'vue';
 
 interface UseScrollStopOptions {
+	targetRef: Ref<HTMLElement | null>;
 	delay?: number;
+	disabledRef?: Ref<boolean>;
 	onScrollStop: () => void;
 }
 
@@ -12,8 +14,8 @@ interface UseScrollStopOptions {
  * - 被动滚动（鼠标滚轮/键盘方向键）：停止后 delay 触发
  * - 主动拖动（触屏/鼠标拖动滚动条）：停止后若指针仍按下则等松开再触发
  */
-export function useScrollStop(targetRef: Ref<HTMLElement | null>, options: UseScrollStopOptions) {
-	const { delay = 2000, onScrollStop } = options;
+export function useScrollStop(options: UseScrollStopOptions) {
+	const { targetRef, delay = 50, disabledRef, onScrollStop } = options;
 
 	const isScrolling = ref(false);
 	let scrollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -22,7 +24,11 @@ export function useScrollStop(targetRef: Ref<HTMLElement | null>, options: UseSc
 	let boundTarget: HTMLElement | null = null;
 
 	const handleScrollOrWheel = () => {
-		console.log('scroll');
+		if (disabledRef?.value) {
+			console.log('scroll 触发，但禁用本次响应');
+			return;
+		}
+		console.log('scroll 触发');
 		isScrolling.value = true;
 		needsPointerUp = false;
 		if (scrollTimer !== null) {
@@ -37,30 +43,32 @@ export function useScrollStop(targetRef: Ref<HTMLElement | null>, options: UseSc
 			} else {
 				// 指针未按下，立即触发
 				isScrolling.value = false;
-				console.log('延时完毕 scrollStop');
+				console.log('延时完毕 scrollStop 触发');
 				onScrollStop();
 			}
 		}, delay);
 	};
 
 	const handlePointerDown = () => {
-		console.log('pointerdown');
 		pointerIsDown = true;
-	};
 
-	const handlePointerUp = () => {
-		console.log('pointerup');
-		pointerIsDown = false;
-		if (needsPointerUp) {
-			console.log('指针已松开 onScrollStop');
-			needsPointerUp = false;
-			if (scrollTimer !== null) {
-				clearTimeout(scrollTimer);
-				scrollTimer = null;
+		const handlePointerUp = () => {
+			window.removeEventListener('mouseup', handlePointerUp);
+			window.removeEventListener('touchend', handlePointerUp);
+			pointerIsDown = false;
+			if (needsPointerUp) {
+				console.log('指针已松开 scrollStop 触发');
+				needsPointerUp = false;
+				if (scrollTimer !== null) {
+					clearTimeout(scrollTimer);
+					scrollTimer = null;
+				}
+				isScrolling.value = false;
+				onScrollStop();
 			}
-			isScrolling.value = false;
-			onScrollStop();
-		}
+		};
+		window.addEventListener('mouseup', handlePointerUp);
+		window.addEventListener('touchend', handlePointerUp);
 	};
 
 	const bind = (el: HTMLElement | null) => {
@@ -77,9 +85,6 @@ export function useScrollStop(targetRef: Ref<HTMLElement | null>, options: UseSc
 		}
 	};
 
-	// pointerup 挂在 window 上（用户可能在元素外松开）
-	window.addEventListener('pointerup', handlePointerUp);
-
 	// 自动绑定：当 targetRef 变化时重新绑定
 	watch(targetRef, (newEl) => {
 		bind(newEl);
@@ -87,7 +92,6 @@ export function useScrollStop(targetRef: Ref<HTMLElement | null>, options: UseSc
 
 	onUnmounted(() => {
 		bind(null); // 解绑
-		window.removeEventListener('pointerup', handlePointerUp);
 		if (scrollTimer !== null) {
 			clearTimeout(scrollTimer);
 		}

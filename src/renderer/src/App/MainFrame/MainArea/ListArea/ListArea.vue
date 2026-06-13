@@ -19,26 +19,6 @@ const appStore = useAppStore();
 const selectedTask_last = ref(-1);
 const taskListRef = ref<HTMLDivElement>();
 const listContainerRef = ref<HTMLElement>(null!);	// 列表的滚动容器
-const itemRefs = ref(new Map());	// index -> TaskItem
-const isVisible = ref(new Map<number, boolean>());	// index -> boolean
-let observer: IntersectionObserver;
-
-// 粗调滚动条（范围滑动条）
-const coarseStart = ref(0);	// 可见范围起始 index
-const coarseEnd = ref(0);	// 可见范围结束 index
-
-// const heightList = computed(() => Object.entries(appStore.currentServer.data.tasks).map(([s_id, task]) => {
-// 	const settings = appStore.taskViewSettings;
-// 	const uploadFiles = appStore.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === +s_id);
-// 	const isUploading = uploadFiles.length > 0 && task.status === TaskStatus.initializing;
-// 	const showDashboard = [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(task.status) || isUploading;
-// 	let height = 4;
-// 	height += settings.showParams ? 24 : 0;
-// 	height += showDashboard ? 72 : 0;
-// 	height += settings.showCmd ? 64 : 0;
-// 	height = Math.max(24, height);
-// 	return height;
-// }));
 
 const debugLauncher = (() => {
 	let clickSpeedCounter = 0;
@@ -72,16 +52,6 @@ const debugLauncher = (() => {
 		}
 	}
 })();
-
-
-const bindItemRef = (el: any) => {
-	// 卸载时 el 不存在
-	const index = +el?.$el.dataset.index;
-	if (el?.$el && itemRefs.value.get(index) !== el.$el) {
-		itemRefs.value.set(index, el.$el);
-		// console.log('bindItemRef', el.$el.dataset);
-	}
-};
 
 const handleTaskClicked = (event: MouseEvent, id: number, index: number) => {
 	let currentSelection = new Set(appStore.selectedTask);
@@ -201,19 +171,47 @@ const handleDownloadFFmpegClicked = () => {
 // 	}
 // });
 
+// #region 仿虚拟列表（条件渲染）
+
+// const heightList = computed(() => Object.entries(appStore.currentServer.data.tasks).map(([s_id, task]) => {
+// 	const settings = appStore.taskViewSettings;
+// 	const uploadFiles = appStore.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === +s_id);
+// 	const isUploading = uploadFiles.length > 0 && task.status === TaskStatus.initializing;
+// 	const showDashboard = [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(task.status) || isUploading;
+// 	let height = 4;
+// 	height += settings.showParams ? 24 : 0;
+// 	height += showDashboard ? 72 : 0;
+// 	height += settings.showCmd ? 64 : 0;
+// 	height = Math.max(24, height);
+// 	return height;
+// }));
+
 const handleEntry = (entry: IntersectionObserverEntry, dataset: any) => {
 	isVisible.value.set(+dataset.index, entry.isIntersecting);
 }
 const intersectProps = computed(() => ({ onChange: handleEntry, options: {  } }));
+const isVisible = ref(new Map<number, boolean>());	// index -> boolean
+
+// #endregion
 
 // #region 无限滚动
+
+const latestRequestId = ref(0);	// 自增 id。若列表刷新过程中再次请求刷新，只保留最新请求的结果
+const isPassiveScrolling = ref(false);	// 粗调完成后，会进行一次滚动位置修正（滚动条居中）。修正过程中，此值被打开，避免重复触发滚动停止检测。
+const fetchingListPreventAnimation = ref(false);	// 列表刷新过程中，此值被打开，避免任务项的进出动画
+
+// 粗调滚动条（范围滑动条）
+const coarseStart = ref(0);	// 可见范围起始 index
+const coarseEnd = ref(0);	// 可见范围结束 index
 
 /**
  * 用 DOM 方法找到当前视口中最上/最下任务的全局序号
  * index 来源：元素的 data-taskindex 属性（由 UITask.taskIndex 写入）
- * 若视口中没有可见任务，返回 { firstIndex: 0, lastIndex: 0 }
+ * 若视口中没有可见任务，返回 { firstIndex: 0, lastIndex: 0, distanceFirstElementToScrollTop: 0 }
+ * distanceFirstElementToScrollTop 正数：滚过了，第一个元素的头比视口顶部更上（不滚到顶的大多数情况）；负数：第一个元素的头头比视口顶部更下
+ * distanceLastElementToScrollBottom 正数：滚过了，最后一个元素的尾比视口底部更上（滚到底的情况）；负数：最后一个元素的尾比视口底部更下
  */
-function getVisibleRange(): { firstIndex: number; lastIndex: number } | undefined {
+function getVisibleRange(): { firstIndex: number; lastIndex: number; distanceFirstElementToScrollTop: number; distanceLastElementToScrollBottom: number } | undefined {
 	const container = listContainerRef.value;
 	if (!container) return;
 	const scrollTop = container.scrollTop;
@@ -222,7 +220,9 @@ function getVisibleRange(): { firstIndex: number; lastIndex: number } | undefine
 	if (!taskElements || taskElements.length === 0) return;
 
 	let firstIndex: number | undefined;
-	let lastIndex = 0;
+	let lastEl: HTMLElement | undefined;
+	let distanceFirstElementToScrollTop: number | undefined;
+	// 循环每个元素，遇到第一个出现的就记录为 firstIndex，一直记录 lastIndex 直到后面的不出现
 	for (let i = 0; i < taskElements.length; i++) {
 		const el = taskElements[i] as HTMLElement;
 		const taskIndex = parseInt(el.dataset.taskindex ?? '');
@@ -230,35 +230,19 @@ function getVisibleRange(): { firstIndex: number; lastIndex: number } | undefine
 		const elTop = el.offsetTop;
 		const elBottom = elTop + el.offsetHeight;
 		if (elBottom > scrollTop && elTop < scrollBottom) {
-			if (firstIndex === undefined) firstIndex = taskIndex;
-			lastIndex = taskIndex;
+			if (firstIndex === undefined) {
+				distanceFirstElementToScrollTop = scrollTop - elTop;
+				firstIndex = taskIndex;
+			}
+			lastEl = el;
 		}
 	}
-	if (firstIndex === undefined) return { firstIndex: 0, lastIndex: 0 };
-	return { firstIndex, lastIndex };
-}
-
-/**
- * 将任务列表的 scrollTop 调整，使 start 和 end 的中央位于视口中央
- * 需要在 DOM 更新后调用（nextTick 之后）
- */
-function centerScroll(start: number, end: number) {
-	const container = listContainerRef.value;
-	const taskList = taskListRef.value;
-	if (!container || !taskList) return;
-
-	const targetIndex = Math.round((start + end) / 2);
-	const children = taskList.children;
-	for (let i = 0; i < children.length; i++) {
-		const el = children[i] as HTMLElement;
-		const taskIndex = parseInt(el.dataset.taskindex ?? '');
-		if (taskIndex === targetIndex) {
-			const elCenter = el.offsetTop + el.offsetHeight / 2;
-			const containerCenter = container.clientHeight / 2;
-			container.scrollTop = elCenter - containerCenter;
-			return;
-		}
+	if (firstIndex && lastEl) {
+		const lastIndex = parseInt(lastEl.dataset.taskindex ?? '');
+		const elBottom = lastEl.offsetTop + lastEl.offsetHeight;
+		return { firstIndex, lastIndex, distanceFirstElementToScrollTop: distanceFirstElementToScrollTop!, distanceLastElementToScrollBottom: scrollBottom - elBottom };
 	}
+	return { firstIndex: 0, lastIndex: 0, distanceFirstElementToScrollTop: 0, distanceLastElementToScrollBottom: 0 };
 }
 
 /**
@@ -270,28 +254,46 @@ const handleScrollStop = () => {
 	const range = getVisibleRange();
 	if (!range) return;
 
-	// 传入首尾可见任务的 index，updateTaskList 内部会头 -10、尾 +10
+	const requestId = ++latestRequestId.value;	// 递增 id
+
+	if (coarseStart.value === range.firstIndex && coarseEnd.value === range.lastIndex) return;	// 原地滚动，不请求
+	console.log(coarseStart.value, coarseEnd.value, '->', range.firstIndex, range.lastIndex, range.distanceLastElementToScrollBottom);
+
+	// 若不作以下处理，列表拉到靠近头部或尾部时，会触发 2 次拉列表请求，这是因为处在头/尾时，即使真正的列表前/后有更多任务，前端并没有对应的 DOM，导致 range 会计算少一两个任务
+	// 因此当滚动到顶或底时进行一个缓冲区调整。这里的 8 是任务列表上下边距，但底边距实际上要比这大很多，甚至会出现多 2 个任务的情况（跟 dropfilesdiv 尺寸有关），为简便起见这里只加 1 个任务
+	if (range.distanceFirstElementToScrollTop < 8) range.firstIndex -= 1;
+	if (range.distanceLastElementToScrollBottom > 8) range.lastIndex += 1;
+
+	// 数据更新且 DOM 渲染后，居中滚动。由于浏览器自带 Scroll Anchoring，任务列表更新后无论是前面还是后面的 DOM 数量有变动，浏览器都会保持可见位置不变，因此大多数情况不需要处理
+	// 需要处理的是滚动位置接近头部的情况。浏览器会认为用户就想要固定在顶部，这时候就需要手动处理一下。
+	const initialScrollTop = listContainerRef.value.scrollTop;
+	if (initialScrollTop <= 1) {
+		listContainerRef.value.scrollTop += 1;
+	}
+	fetchingListPreventAnimation.value = true;
+	// 传入首尾可见任务的 index，updateTaskList 内部会头 -100 、尾 +100 进行数据更新
 	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex).then(() => {
-		// 数据更新且 DOM 渲染后，居中滚动
-		centerScroll(range.firstIndex, range.lastIndex);
+		if (requestId !== latestRequestId.value) return;	// 若已有更新的请求，不处理
+		// centerScroll(range.firstIndex, range.lastIndex);	// 会导致检测到 scroll 事件，触发 handleScrollStop
+		setTimeout(() => {
+			fetchingListPreventAnimation.value = false;
+			if (initialScrollTop <= 1) {
+				listContainerRef.value.scrollTop -= 1;
+			}
+		}, 0);
 	});
 
 	// 同步粗调滚动条
-	syncCoarseScrollFromRange(range.firstIndex, range.lastIndex);
+	coarseStart.value = range.firstIndex;
+	coarseEnd.value = range.lastIndex;
 };
 
 // 滚动停止检测
-const { isScrolling } = useScrollStop(listContainerRef, {
+const { isScrolling } = useScrollStop({
+	targetRef: listContainerRef,
+	disabledRef: isPassiveScrolling,
 	onScrollStop: handleScrollStop,
 });
-
-/**
- * 根据可见范围首尾 index 同步粗调滚动条
- */
-const syncCoarseScrollFromRange = (firstIndex: number, lastIndex: number) => {
-	coarseStart.value = firstIndex;
-	coarseEnd.value = lastIndex;
-};
 
 /**
  * 粗调滑动条值变化（拖动中实时更新，不加载数据）
@@ -309,13 +311,33 @@ const handleCoarseSliderUpdateEnd = (val: number) => {
 const handleCoarseSliderChange = ({ start, end }: { start: number; end: number }) => {
 	if (!appStore.currentServer) return;
 	console.log('粗调跳转', start, '~', end);
+	fetchingListPreventAnimation.value = true;
+	isPassiveScrolling.value = true;
 
-	// 跳转后，传入 start/end 作为可见范围，updateTaskList 内部会头 -10、尾 +10
+	// 跳转后，传入 start/end 作为可见范围，updateTaskList 内部会头 -100 、尾 +100
 	appStore.updateTaskList(appStore.currentServer, start, end).then(() => {
 		// 数据更新且 DOM 渲染后，居中滚动
 		setTimeout(() => {
-			centerScroll(start, end);
-		}, 2000);
+			const container = listContainerRef.value;
+			const taskList = taskListRef.value;
+			if (container && taskList) {
+				const targetIndex = Math.round((start + end) / 2);
+				const children = taskList.children;
+				isPassiveScrolling.value = true;
+				for (let i = 0; i < children.length; i++) {
+					const el = children[i] as HTMLElement;
+					const taskIndex = parseInt(el.dataset.taskindex ?? '');
+					if (taskIndex === targetIndex) {
+						const elCenter = el.offsetTop + el.offsetHeight / 2;
+						const containerCenter = container.clientHeight / 2;
+						container.scrollTop = elCenter - containerCenter;
+						break;
+					}
+				}
+			}
+			fetchingListPreventAnimation.value = false;
+			isPassiveScrolling.value = false;
+		}, 0);
 	});
 };
 
@@ -326,7 +348,8 @@ watch(() => appStore.currentServer?.data.totalCount, (newTotal) => {
 	if (!newTotal) return;
 	const range = getVisibleRange();
 	if (range) {
-		syncCoarseScrollFromRange(range.firstIndex, range.lastIndex);
+		coarseStart.value = range.firstIndex;
+		coarseEnd.value = range.lastIndex;
 	}
 });
 
@@ -344,7 +367,7 @@ const showCoarseScrollbar = computed(() => {
 <template>
 	<div class="listarea" ref="listContainerRef">
 		<div class="tasklist" ref="taskListRef">
-			<TransitionGroup name="tasklistTrans">
+			<TransitionGroup :name="fetchingListPreventAnimation ? '' : 'tasklistTrans'">
 				<TaskItem
 					v-for="task in appStore.frontendSettings.useVirtualTaskList ? appStore.currentServer?.data.tasks || [] : []"
 					v-intersect="intersectProps"
@@ -353,7 +376,6 @@ const showCoarseScrollbar = computed(() => {
 					:id="task.id"
 					:index="task.taskIndex ?? 0"
 					:show="isVisible.get((task.taskIndex ?? 0) - 2) || isVisible.get((task.taskIndex ?? 0) + 2) || isVisible.get(task.taskIndex ?? 0) || false"
-					:ref="bindItemRef"
 					:selected="appStore.selectedTask.has(task.id)"
 					:should-handle-hover="true"
 					@click="handleTaskClicked($event, task.id, task.taskIndex)"
