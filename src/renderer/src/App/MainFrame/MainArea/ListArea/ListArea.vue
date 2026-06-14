@@ -1,5 +1,5 @@
 <script setup lang="tsx">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { NotificationLevel } from '@common/types';
@@ -7,7 +7,7 @@ import { UITask } from '@renderer/types';
 import { getOutputFileBaseName } from '@common/params/formats';
 import { getOutputFileTime } from '@common/utils';
 import { useScrollStop } from './useScrollStop';
-import CoarseSlider from './CoarseSlider';
+import CoarseSlider from './CoarseSlider.vue';
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
 import Popup from '@renderer/components/Popup/Popup';
 import { TaskItem } from './TaskItem/TaskItem';
@@ -16,9 +16,12 @@ import ImageNoffmpeg from './noffmpeg.svg?component';
 
 const appStore = useAppStore();
 
-const selectedTask_last = ref(-1);
 const taskListRef = ref<HTMLDivElement>();
 const listContainerRef = ref<HTMLElement>(null!);	// 列表的滚动容器
+
+// #region 列表内操作（任务、其他 UI）
+
+const selectedTask_last = ref(-1);
 
 const debugLauncher = (() => {
 	let clickSpeedCounter = 0;
@@ -159,6 +162,8 @@ const handleDownloadFFmpegClicked = () => {
 	nodeBridge.jumpToUrl('https://ffmpeg.org/download.html');
 };
 
+// #endregion
+
 // 新任务加入，滚动到底
 // TODO 需要额外检查现在的可视范围，不只是 scrollTop
 // watch(() => tasks.value.length, (newValue, oldValue) => {
@@ -203,6 +208,51 @@ const fetchingListPreventAnimation = ref(false);	// 列表刷新过程中，此�
 // 粗调滚动条（范围滑动条）
 const coarseStart = ref(0);	// 可见范围起始 index
 const coarseEnd = ref(0);	// 可见范围结束 index
+
+// 浮标与自动隐藏
+const coarseSize = ref<'full' | 'small' | 'hidden'>('hidden');
+let scrollSmallOrHideTimer: ReturnType<typeof setTimeout> | null = null;	// 滚动后缩小或隐藏浮标的定时器
+let scrollDistanceTimer: ReturnType<typeof setTimeout> | null = null;	// 滚动距离累计清零、粗调恢复全范围显示定时器
+let scrollDistance = 0;	// 累计滚动距离（像素）
+const realtimeRange = ref<[number, number] | null>(null);	// 实时可见范围（滚动时更新，显示在浮标上）
+
+const autoHide = computed(() => appStore.frontendSettings.autoHideCoarseSlider);
+
+// 任务数较少时不显示粗调（TODO）
+const showCoarseScrollbar = computed(() => {
+	return true || appStore.currentServer && appStore.currentServer.data.totalCount > 11;
+});
+
+const scrollDistanceTimerCallback = () => {
+	// 滚动距离累计清零
+	// console.log('滚动距离清零');
+	lastScrollTop = listContainerRef.value.scrollTop;
+	scrollDistance = 0;
+	scrollDistanceTimer = null;
+	// 粗调恢复全范围显示
+	realtimeRange.value = null;
+}
+
+function scheduleCoarseSmallOrHide() {
+	clearTimeout(scrollSmallOrHideTimer ?? 0);
+	scrollSmallOrHideTimer = null;
+	scrollSmallOrHideTimer = setTimeout(() => {
+		coarseSize.value = autoHide.value ? 'hidden' : 'small';
+		scrollSmallOrHideTimer = null;
+	}, 2500);
+}
+
+function clearAllTimers() {
+	realtimeRange.value = null;
+	clearTimeout(scrollSmallOrHideTimer ?? 0);
+	scrollSmallOrHideTimer = null;
+	clearTimeout(scrollDistanceTimer ?? 0);
+	scrollDistanceTimer = null;
+}
+
+onBeforeUnmount(() => {
+	clearAllTimers();
+});
 
 /**
  * 用 DOM 方法找到当前视口中最上/最下任务的全局序号
@@ -261,7 +311,7 @@ const handleScrollStop = () => {
 
 	// 若不作以下处理，列表拉到靠近头部或尾部时，会触发 2 次拉列表请求，这是因为处在头/尾时，即使真正的列表前/后有更多任务，前端并没有对应的 DOM，导致 range 会计算少一两个任务
 	// 因此当滚动到顶或底时进行一个缓冲区调整。这里的 8 是任务列表上下边距，但底边距实际上要比这大很多，甚至会出现多 2 个任务的情况（跟 dropfilesdiv 尺寸有关），为简便起见这里只加 1 个任务
-	if (range.distanceFirstElementToScrollTop < 8) range.firstIndex -= 1;
+	if (range.distanceFirstElementToScrollTop < 8) range.firstIndex = Math.max(0, range.firstIndex - 1);
 	if (range.distanceLastElementToScrollBottom > 8) range.lastIndex += 1;
 
 	// 数据更新且 DOM 渲染后，居中滚动。由于浏览器自带 Scroll Anchoring，任务列表更新后无论是前面还是后面的 DOM 数量有变动，浏览器都会保持可见位置不变，因此大多数情况不需要处理
@@ -271,15 +321,19 @@ const handleScrollStop = () => {
 		listContainerRef.value.scrollTop += 1;
 	}
 	fetchingListPreventAnimation.value = true;
+	// isPassiveScrolling.value = true;	// 理论上要设这个锁，但实测会影响滚动到头部时的继续滚动，所以暂时不用
+
 	// 传入首尾可见任务的 index，updateTaskList 内部会头 -100 、尾 +100 进行数据更新
 	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex).then(() => {
 		if (requestId !== latestRequestId.value) return;	// 若已有更新的请求，不处理
-		// centerScroll(range.firstIndex, range.lastIndex);	// 会导致检测到 scroll 事件，触发 handleScrollStop
 		setTimeout(() => {
 			fetchingListPreventAnimation.value = false;
 			if (initialScrollTop <= 1) {
 				listContainerRef.value.scrollTop -= 1;
 			}
+			// setTimeout(() => {
+			// 	isPassiveScrolling.value = false;	// scrollTop 变化后才打开这个锁
+			// }, 0);
 		}, 0);
 	});
 
@@ -288,27 +342,15 @@ const handleScrollStop = () => {
 	coarseEnd.value = range.lastIndex;
 };
 
-// 滚动停止检测
-const { isScrolling } = useScrollStop({
-	targetRef: listContainerRef,
-	disabledRef: isPassiveScrolling,
-	onScrollStop: handleScrollStop,
-});
-
-/**
- * 粗调滑动条值变化（拖动中实时更新，不加载数据）
- */
-const handleCoarseSliderUpdateStart = (val: number) => {
-	coarseStart.value = val;
+// update 反应即时变化，change 则在松手时触发。但实际上松手时得到的 start end 就是传进去的 start end
+const handleCoarseSliderUpdate = (start: number, end: number) => {
+	coarseStart.value = start;
+	coarseEnd.value = end;
+	clearTimeout(scrollDistanceTimer ?? 0);
+	scrollDistanceTimer = null;
+	scrollDistanceTimerCallback();
 };
-const handleCoarseSliderUpdateEnd = (val: number) => {
-	coarseEnd.value = val;
-};
-
-/**
- * 粗调滑动条松手（加载数据）
- */
-const handleCoarseSliderChange = ({ start, end }: { start: number; end: number }) => {
+const handleCoarseSliderChange = (start: number, end: number) => {
 	if (!appStore.currentServer) return;
 	console.log('粗调跳转', start, '~', end);
 	fetchingListPreventAnimation.value = true;
@@ -341,23 +383,76 @@ const handleCoarseSliderChange = ({ start, end }: { start: number; end: number }
 	});
 };
 
-/**
- * 监听任务总数变化，同步粗调滚动条范围
- */
-watch(() => appStore.currentServer?.data.totalCount, (newTotal) => {
-	if (!newTotal) return;
-	const range = getVisibleRange();
-	if (range) {
-		coarseStart.value = range.firstIndex;
-		coarseEnd.value = range.lastIndex;
-	}
-});
+// 监听任务总数变化，同步粗调滚动条范围。实际上不需要这个监听，因为任务总数变化时，会触发 handleScrollStop，就会自动触发 getVisibleRange 同步范围
+// watch(() => appStore.currentServer?.data.totalCount, (newTotal) => {
+// 	if (!newTotal) return;
+// 	const range = getVisibleRange();
+// 	if (range) {
+// 		coarseStart.value = range.firstIndex;
+// 		coarseEnd.value = range.lastIndex;
+// 	}
+// });
 
-/**
- * 计算粗调滚动条是否可见
- */
-const showCoarseScrollbar = computed(() => {
-	return appStore.currentServer && appStore.currentServer.data.totalCount > 11;
+// 粗调面板鼠标进入时，显示浮标并且不消失
+function handleCoarsePanelMouseEnter() {
+	coarseSize.value = 'full';
+	clearAllTimers();
+}
+// 粗调面板鼠标离开时，延时后隐藏或缩小浮标
+function handleCoarsePanelMouseLeave() {
+	scheduleCoarseSmallOrHide();
+}
+// 粗调面板浮标开始拖拽时，显示浮标并且不消失
+function handleCoarseBuoyPointerdown() {
+	coarseSize.value = 'full';
+	clearAllTimers();
+}
+
+let realtimeRangeThrottleLastTime = 0;
+let lastScrollTop = 0;
+function handleListScroll() {
+	if (!showCoarseScrollbar.value) return;
+
+	const now = Date.now();
+	if (coarseSize.value === 'full') {
+		// 浮标较大时，每次都更新实时范围
+		const range = getVisibleRange();
+		if (range) {
+			realtimeRange.value = [range.firstIndex, range.lastIndex];
+		}
+	} else if (now - realtimeRangeThrottleLastTime > 100) {
+		// 浮标不可见时，节流更新
+		realtimeRangeThrottleLastTime = now;
+		const range = getVisibleRange();
+		if (range) {
+			realtimeRange.value = [range.firstIndex, range.lastIndex];
+		}
+	}
+
+	const delta = Math.abs(listContainerRef.value.scrollTop - lastScrollTop);
+	lastScrollTop = listContainerRef.value.scrollTop;
+	if (delta > 0) {
+		scrollDistance += delta;
+		clearTimeout(scrollDistanceTimer ?? 0);
+		scrollDistanceTimer = setTimeout(scrollDistanceTimerCallback, 750);
+
+		// 滚动距离超过阈值，短暂显示局部范围，并且若自动隐藏为开，暂时显示小浮标
+		// console.log('滚动距离', delta, scrollDistance);
+		if (scrollDistance > 1200) {	// 这个值可以设得比较大，因为滚动现在不止是用户在滚，程序也在不断改列表，会导致滚动量加大很多
+			if (coarseSize.value === 'hidden') {
+				coarseSize.value = 'small';
+			}
+			scheduleCoarseSmallOrHide();
+		}
+	}
+}
+
+// 滚动停止检测
+const { isScrolling } = useScrollStop({
+	targetRef: listContainerRef,
+	disabledRef: isPassiveScrolling,
+	onScrollStop: handleScrollStop,
+	onScroll: handleListScroll,
 });
 
 // #endregion
@@ -365,7 +460,7 @@ const showCoarseScrollbar = computed(() => {
 </script>
 
 <template>
-	<div class="listarea" ref="listContainerRef">
+	<div class="listarea" :class="{ 'listarea--with-panel': showCoarseScrollbar && !autoHide }" ref="listContainerRef">
 		<div class="tasklist" ref="taskListRef">
 			<TransitionGroup :name="fetchingListPreventAnimation ? '' : 'tasklistTrans'">
 				<TaskItem
@@ -423,15 +518,24 @@ const showCoarseScrollbar = computed(() => {
 			</div>
 		</div>
 	</div>
-	<!-- 粗调滚动条：范围滑动条，悬浮在列表父节点底部 -->
-	<div class="coarse-scrollbar" v-if="showCoarseScrollbar">
+	<div
+		class="coarse-panel"
+		:class="{
+			'coarse-panel-visible': coarseSize !== 'hidden' || (showCoarseScrollbar && !autoHide),
+		}"
+		@mouseenter="handleCoarsePanelMouseEnter"
+		@mouseleave="handleCoarsePanelMouseLeave"
+	>
 		<CoarseSlider
+			v-if="showCoarseScrollbar"
 			:total="appStore.currentServer!.data.totalCount"
 			:start="coarseStart"
 			:end="coarseEnd"
-			@update:start="handleCoarseSliderUpdateStart"
-			@update:end="handleCoarseSliderUpdateEnd"
+			:buoySize="coarseSize === 'full' ? 'full' : 'small'"
+			:customBuoyText="realtimeRange ? Math.round((realtimeRange[0] + realtimeRange[1]) / 2) + '' : undefined"
+			@update="handleCoarseSliderUpdate"
 			@change="handleCoarseSliderChange"
+			@buoyPointerdown="handleCoarseBuoyPointerdown"
 		/>
 	</div>
 </template>
@@ -443,8 +547,12 @@ const showCoarseScrollbar = computed(() => {
 		flex-direction: column;
 		box-sizing: border-box;
 		height: 100%;
+		flex: 1;
 		padding: 8px 0;
 		overflow-y: auto;
+		&.listarea--with-panel {
+			padding-right: 30px;
+		}
 		.tasklist {
 			margin-bottom: 14px;
 			.tasklistTrans-enter-from {
@@ -543,15 +651,20 @@ const showCoarseScrollbar = computed(() => {
 			}
 		}
 	}
-	.coarse-scrollbar {
+	.coarse-panel {
 		position: absolute;
-		bottom: 0;
-		left: 0;
-		right: 0;
-		height: 28px;
+		top: 16px;
+		right: 20px;
+		bottom: 16px;
 		display: flex;
 		align-items: center;
-		padding: 0 16px;
-		z-index: 10;
+		justify-content: center;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.25s ease;
+		&.coarse-panel-visible {
+			opacity: 1;
+			pointer-events: auto;
+		}
 	}
 </style>

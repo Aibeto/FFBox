@@ -5,6 +5,7 @@
 		"../src/common/**/*"
 	],
 	"compilerOptions": {
+		"types": ["node"],
 		"paths": {
 			"@common/*": ["../src/common/*"],
 			"@main/*": ["../src/main/*"]

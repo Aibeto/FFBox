@@ -8,7 +8,6 @@
 		"moduleResolution": "nodenext",
 		"allowJs": true,
 		"rootDir": "../src",
-		"types": ["node"],
 		"paths": {
 			"@common/*": ["../src/common/*"],
 		}

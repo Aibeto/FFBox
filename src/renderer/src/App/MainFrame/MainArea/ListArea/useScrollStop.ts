@@ -5,6 +5,7 @@ interface UseScrollStopOptions {
 	delay?: number;
 	disabledRef?: Ref<boolean>;
 	onScrollStop: () => void;
+	onScroll?: () => void;
 }
 
 /**
@@ -15,12 +16,12 @@ interface UseScrollStopOptions {
  * - 主动拖动（触屏/鼠标拖动滚动条）：停止后若指针仍按下则等松开再触发
  */
 export function useScrollStop(options: UseScrollStopOptions) {
-	const { targetRef, delay = 50, disabledRef, onScrollStop } = options;
+	const { targetRef, delay = 50, disabledRef, onScrollStop, onScroll } = options;
 
 	const isScrolling = ref(false);
 	let scrollTimer: ReturnType<typeof setTimeout> | null = null;
 	let pointerIsDown = false;
-	let needsPointerUp = false;
+	let needsPointerUp = false;	// 是否正在等待指针松开后触发滚动停止
 	let boundTarget: HTMLElement | null = null;
 
 	const handleScrollOrWheel = () => {
@@ -29,6 +30,7 @@ export function useScrollStop(options: UseScrollStopOptions) {
 			return;
 		}
 		console.log('scroll 触发');
+		onScroll?.();
 		isScrolling.value = true;
 		needsPointerUp = false;
 		if (scrollTimer !== null) {

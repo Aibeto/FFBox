@@ -7,6 +7,7 @@ import { PreviewStreamDecoder, PreviewDecoderConfig, BufferInfo } from '@rendere
 import { ServiceBridge } from '@renderer/bridges/serviceBridge';
 import { durationValidator, durationFixer } from '@renderer/components/validatorAndFixer';
 import { useTooltip } from '@renderer/common/tooltipUtil';
+import { getScaleUnit } from '@renderer/common/utils';
 import useLowerDividerDrag from '../useLowerDevider';
 import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
@@ -608,22 +609,6 @@ const drawKeyFrames = () => {
 		} else {
 			return withDecimal ? second.toFixed(2) : `${second.toFixed(0)} s`;
 		}
-	};
-	const getScaleUnit = (total: number, viewWidth: number, isClockUnit = false, threshold = 100, min = 1) => {
-		if (total <= 0) {
-			return min;
-		}
-		let currentScale = min;
-		let step = 0;
-		while (viewWidth / (total / currentScale) < threshold) {	// 如果按当前 scale 分割后产出的刻度线间隔不足阈值，那么降低密度
-			if (isClockUnit) {
-				currentScale *= [2, 2.5, 2, 1.5, 2, 2][step % 6];	// 1 2 5 10 15 30 60
-			} else {
-				currentScale *= [2, 2.5, 2][step % 3];	// 1 2 5 10
-			}
-			step++;
-		}
-		return currentScale;
 	};
 
 	ctx.textAlign = 'center';

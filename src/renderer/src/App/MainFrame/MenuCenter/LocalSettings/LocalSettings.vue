@@ -30,6 +30,10 @@ const useVirtualTaskListList: RadioListProps['list'] = [
 	{ value: true, caption: '启用仿虚拟列表（强优化）' },
 	{ value: false, caption: 'VDOM 完全渲染（弱优化）' },
 ];
+const autoHideCoarseSliderList: RadioListProps['list'] = [
+	{ value: true, caption: '自动隐藏' },
+	{ value: false, caption: '常驻显示' },
+];
 
 const localServiceStatus = computed(() => {
 	if (appStore.servers[0]?.entity.ip === 'localhost') {
@@ -61,6 +65,8 @@ const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value:
 			<RadioList :list="aiDisabledList" :value="appStore.frontendSettings.aiDisabled" @change="(value) => handleSettingChange('aiDisabled', value)" />
 			<span v-bind="useTooltip(i11n.frontend.settings.useVirtualTaskListDesc, 't')">任务列表性能优化</span>
 			<RadioList v-bind="useTooltip(i11n.frontend.settings.useVirtualTaskListDesc, 't')" :list="useVirtualTaskListList" :value="appStore.frontendSettings.useVirtualTaskList" @change="(value) => handleSettingChange('useVirtualTaskList', value)" />
+			<span>粗调滑块</span>
+			<RadioList :list="autoHideCoarseSliderList" :value="appStore.frontendSettings.autoHideCoarseSlider" @change="(value) => handleSettingChange('autoHideCoarseSlider', value)" />
 		</div>
 		<div class="configArea">
 			<p>转码服务相关设置请到“服务器配置”页面配置</p>

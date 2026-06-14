@@ -4,6 +4,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { TaskStatus } from '@common/types';
 import { getOutputDuration } from '@common/utils';
 import { calcDashboard } from '@renderer/common/dashboardCalc';
+import { getScaleUnit } from '@renderer/common/utils';
 import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
 
 type ChartType = 'progress' | 'size' | 'bitrate' | 'speed';
@@ -188,24 +189,6 @@ const getEstimatedMaxTimeSize = () => {
 		time: elapsedTime + (outputDuration.value - currentTime) / lastSpeedBitrate.speed,
 		size: currentSize + (outputDuration.value - currentTime) * lastSpeedBitrate.bitrate * 0.125,	// size 的单位是 kB，bitrate 的单位是 kbps
 	};
-};
-
-// 获取刻度线间隔
-const getScaleUnit = (total: number, viewWidth: number, isClockUnit = false, threshold = 100, min = 1) => {
-	if (total <= 0) {
-		return min;
-	}
-	let currentScale = min;
-	let step = 0;
-	while (viewWidth / (total / currentScale) < threshold) {	// 如果按当前 scale 分割后产出的刻度线间隔不足阈值，那么降低密度
-		if (isClockUnit) {
-			currentScale *= [2, 2.5, 2, 1.5, 2, 2][step % 6];	// 1 2 5 10 15 30 60
-		} else {
-			currentScale *= [2, 2.5, 2][step % 3];	// 1 2 5 10
-		}
-		step++;
-	}
-	return currentScale;
 };
 
 const render = () => {
