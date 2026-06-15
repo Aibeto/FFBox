@@ -4,6 +4,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import { showServerConfig } from '@renderer/components/misc/ServerConfig';
 import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
+import Slider from '@renderer/components/Slider/Slider.vue';
 import Button from '@renderer/components/Button/Button';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import i11n from '@common/i11n/i11n';
@@ -63,10 +64,32 @@ const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value:
 			<RadioList :list="progressModeList" value="预测实时值" /> -->
 			<span>AI 帮助功能</span>
 			<RadioList :list="aiDisabledList" :value="appStore.frontendSettings.aiDisabled" @change="(value) => handleSettingChange('aiDisabled', value)" />
+				<span>任务列表粗调滑块</span>
+				<RadioList :list="autoHideCoarseSliderList" :value="appStore.frontendSettings.autoHideCoarseSlider" @change="(value) => handleSettingChange('autoHideCoarseSlider', value)" />
 			<span v-bind="useTooltip(i11n.frontend.settings.useVirtualTaskListDesc, 't')">任务列表性能优化</span>
 			<RadioList v-bind="useTooltip(i11n.frontend.settings.useVirtualTaskListDesc, 't')" :list="useVirtualTaskListList" :value="appStore.frontendSettings.useVirtualTaskList" @change="(value) => handleSettingChange('useVirtualTaskList', value)" />
-			<span>粗调滑块</span>
-			<RadioList :list="autoHideCoarseSliderList" :value="appStore.frontendSettings.autoHideCoarseSlider" @change="(value) => handleSettingChange('autoHideCoarseSlider', value)" />
+			<span v-bind="useTooltip(i11n.frontend.settings.infiniteScrollThresholdDesc, 't')">任务列表无限滚动启用阈值</span>
+			<Slider
+				v-bind="useTooltip(i11n.frontend.settings.infiniteScrollThresholdDesc, 't')"
+				:value="appStore.frontendSettings.taskListInfiniteScrollThreshold"
+				:min="200"
+				:max="1000"
+				:tags="[[200, '200'], [300, '300'], [500, '500'], [750, '750'], [1000, '1000']]"
+				:adsorption="(v) => [200, 300, 500, 750, 1000].reduce((a, b) => Math.abs(v - a) < Math.abs(v - b) ? a : b)"
+				:valueToDisplay="(v) => `${v} 个任务`"
+				:onChange="(value) => handleSettingChange('taskListInfiniteScrollThreshold', value)"
+			/>
+			<span v-bind="useTooltip(i11n.frontend.settings.pageSizeDesc, 't')">任务列表缓冲区大小</span>
+			<Slider
+				v-bind="useTooltip(i11n.frontend.settings.pageSizeDesc, 't')"
+				:value="appStore.frontendSettings.taskListPageSize"
+				:min="50"
+				:max="1000"
+				:tags="[[50, '50'], [100, '100'], [200, '200'], [300, '300'], [500, '500'], [750, '750'], [1000, '1000']]"
+				:adsorption="(v) => [50, 100, 200, 300, 500, 750, 1000].reduce((a, b) => Math.abs(v - a) < Math.abs(v - b) ? a : b)"
+				:valueToDisplay="(v) => `${v} 个任务`"
+				:onChange="(value) => handleSettingChange('taskListPageSize', value)"
+			/>
 		</div>
 		<div class="configArea">
 			<p>转码服务相关设置请到“服务器配置”页面配置</p>

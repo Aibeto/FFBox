@@ -341,8 +341,6 @@ export const TaskItem = defineComponent((props: Props) => {
 		}
 	})
 
-	const taskNameRef = ref<HTMLDivElement | null>(null);
-	const paramAreaRef = ref<HTMLDivElement | null>(null);
 	const isFirstRender = ref(true);
 	// 监听窗口宽度变化
 	const windowWidth = ref(0);
@@ -478,7 +476,7 @@ export const TaskItem = defineComponent((props: Props) => {
 	};
 
 	const handleParaAreaMouseEnter = (event: MouseEvent) => {
-		const paramAreaPos = paramAreaRef.value!.getBoundingClientRect();
+		const paramAreaPos = (event.target as HTMLElement).getBoundingClientRect();
 		const position = window.innerWidth >= 920 ? { right: `${Math.min(window.innerWidth - event.pageX, window.innerWidth - 400)}px`, top: `${paramAreaPos.top}px` } : { right: '48px', top: `${paramAreaPos.top}px` };
 		const firstOutput = props.task.after.outputs[0];
 		Tooltip.show({
@@ -495,9 +493,18 @@ export const TaskItem = defineComponent((props: Props) => {
 		});
 	};
 
+	const handleTaskIndexMouseEnter = (event: MouseEvent) => {
+		const taskNamePos = (event.target as HTMLElement).getBoundingClientRect();
+		const position = { left: `44px`, top: `${taskNamePos.top - 3}px` };
+		Tooltip.show({
+			content: `任务序号：${props.index}，任务 ID：${props.task.id}`,
+			style: position,
+			class: css.taskNameTip,
+		});
+	};
 	const handleTaskNameMouseEnter = (event: MouseEvent) => {
-		const taskNamePos = taskNameRef.value!.getBoundingClientRect();
-		const position = { left: `44px`, top: `${taskNamePos.top}px`, maxWidth: `calc(100% - 88px)` };
+		const taskNamePos = (event.target as HTMLElement).getBoundingClientRect();
+		const position = { left: `${taskNamePos.left}px`, top: `${taskNamePos.top - 2}px`, maxWidth: `calc(100% - ${taskNamePos.left}px)` };
 		Tooltip.show({
 			content: props.task.taskName ?? '读取中',
 			style: position,
@@ -533,20 +540,14 @@ export const TaskItem = defineComponent((props: Props) => {
 				<div class={css.previewIcon} style={{ height: showDashboard.value ? '96px' : '24px'}}>
 					{taskStatusIcon.value}
 				</div>
-				<div
-					class={css.taskName}
-					style={taskNameStyle.value}
-					ref={taskNameRef}
-					onMouseenter={handleTaskNameMouseEnter}
-					onMouseleave={() => Tooltip.hide()}
-				>
-					<span class={css.taskIndex}>{props.index}</span>{props.task.taskName ?? '读取中'}
+				<div class={css.taskNameArea} style={taskNameStyle.value}>
+					<span class={css.taskIndex} onMouseenter={handleTaskIndexMouseEnter} onMouseleave={() => Tooltip.hide()}>{props.index}</span>
+					<span class={css.taskName} onMouseenter={handleTaskNameMouseEnter} onMouseleave={() => Tooltip.hide()}>{props.task.taskName ?? '读取中'}</span>
 				</div>
 				{settings.showParams && (
 					<div
 						class={`${css.paraArea} ${isFirstRender.value ? css.firstRender : ''}`}
 						style={{ maxWidth: windowWidth.value >= 930 ? 'min(calc(100% - 128px), 764px)' : 'calc(0% + 120px)', pointerEvents: props.shouldHandleHover ? 'all' : undefined }}
-						ref={paramAreaRef}
 						onMouseenter={handleParaAreaMouseEnter}
 						onMouseleave={() => Tooltip.hide()}
 					>

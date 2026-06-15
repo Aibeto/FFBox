@@ -54,6 +54,8 @@ interface StoreState {
 		aiDisabled: boolean,
 		useVirtualTaskList: boolean,
 		autoHideCoarseSlider: boolean,
+		taskListInfiniteScrollThreshold: number,
+		taskListPageSize: number,
 	},
 	unreadNotificationCount: number,
 	componentRefs: { [key: string]: VNodeRef | Element },
@@ -107,6 +109,8 @@ export const useAppStore = defineStore('app', {
 				aiDisabled: false,
 				useVirtualTaskList: true,
 				autoHideCoarseSlider: true,
+				taskListInfiniteScrollThreshold: 500,
+				taskListPageSize: 200,
 			},
 			unreadNotificationCount: 0,
 			componentRefs: {},
@@ -393,16 +397,29 @@ export const useAppStore = defineStore('app', {
 		 * @param server 服务器实例
 		 * @param firstVisibleIndex 可见范围中第一个任务的全局序号（默认 0）
 		 * @param lastVisibleIndex 可见范围中最后一个任务的全局序号（默认 firstVisibleIndex）
-		 * 计算范围：firstVisibleIndex - 100 ~ lastVisibleIndex + 100
+		 * 计算范围：firstVisibleIndex - pageSize/2 ~ lastVisibleIndex + pageSize/2
 		 */
 		updateTaskList(server: Server, firstVisibleIndex: number = 0, lastVisibleIndex?: number): Promise<void> {
 			const 这 = useAppStore();
 			const totalCount = server.data.totalCount;
 			const _last = lastVisibleIndex ?? firstVisibleIndex;
+			const halfPage = Math.round(这.frontendSettings.taskListPageSize / 2);
+			const threshold = 这.frontendSettings.taskListInfiniteScrollThreshold;
 
-			// 头 -10，尾 +10
-			const offset = Math.max(0, firstVisibleIndex - 100);
-			const end = totalCount > 0 ? Math.min(totalCount, _last + 101) : 201;
+			// 判断是否启用无限滚动：totalCount 为 0 时（初始加载）按 pageSize 拉取，已知 totalCount 时按阈值判断
+			const useInfiniteScroll = totalCount > 0 && totalCount >= threshold;
+
+			let offset: number, end: number;
+			if (!useInfiniteScroll) {
+				// 一次性拉取全部任务（初始加载时拉取足够多以覆盖非无限滚动场景）
+				offset = 0;
+				end = totalCount > 0 ? totalCount : Math.max(201, threshold);
+			} else {
+				// 无限滚动模式：基于可见范围前后各预加载 halfPage
+				offset = Math.max(0, firstVisibleIndex - halfPage);
+				end = Math.min(totalCount, _last + halfPage + 1);
+			}
+
 			const size = end - offset;
 
 			if (size <= 0) return Promise.resolve();

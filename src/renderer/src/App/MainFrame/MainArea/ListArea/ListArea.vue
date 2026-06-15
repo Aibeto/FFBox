@@ -218,9 +218,11 @@ const realtimeRange = ref<[number, number] | null>(null);	// 实时可见范围�
 
 const autoHide = computed(() => appStore.frontendSettings.autoHideCoarseSlider);
 
-// 任务数较少时不显示粗调（TODO）
+// 任务数较少时不显示粗调
 const showCoarseScrollbar = computed(() => {
-	return true || appStore.currentServer && appStore.currentServer.data.totalCount > 11;
+	const server = appStore.currentServer;
+	if (!server) return false;
+	return server.data.totalCount >= appStore.frontendSettings.taskListInfiniteScrollThreshold;
 });
 
 const scrollDistanceTimerCallback = () => {
@@ -295,53 +297,6 @@ function getVisibleRange(): { firstIndex: number; lastIndex: number; distanceFir
 	return { firstIndex: 0, lastIndex: 0, distanceFirstElementToScrollTop: 0, distanceLastElementToScrollBottom: 0 };
 }
 
-/**
- * 滚动停止处理：获取视口中的首尾任务，计算新缓冲区，拉取数据，居中滚动
- */
-const handleScrollStop = () => {
-	if (!appStore.currentServer) return;
-
-	const range = getVisibleRange();
-	if (!range) return;
-
-	const requestId = ++latestRequestId.value;	// 递增 id
-
-	if (coarseStart.value === range.firstIndex && coarseEnd.value === range.lastIndex) return;	// 原地滚动，不请求
-	console.log(coarseStart.value, coarseEnd.value, '->', range.firstIndex, range.lastIndex, range.distanceLastElementToScrollBottom);
-
-	// 若不作以下处理，列表拉到靠近头部或尾部时，会触发 2 次拉列表请求，这是因为处在头/尾时，即使真正的列表前/后有更多任务，前端并没有对应的 DOM，导致 range 会计算少一两个任务
-	// 因此当滚动到顶或底时进行一个缓冲区调整。这里的 8 是任务列表上下边距，但底边距实际上要比这大很多，甚至会出现多 2 个任务的情况（跟 dropfilesdiv 尺寸有关），为简便起见这里只加 1 个任务
-	if (range.distanceFirstElementToScrollTop < 8) range.firstIndex = Math.max(0, range.firstIndex - 1);
-	if (range.distanceLastElementToScrollBottom > 8) range.lastIndex += 1;
-
-	// 数据更新且 DOM 渲染后，居中滚动。由于浏览器自带 Scroll Anchoring，任务列表更新后无论是前面还是后面的 DOM 数量有变动，浏览器都会保持可见位置不变，因此大多数情况不需要处理
-	// 需要处理的是滚动位置接近头部的情况。浏览器会认为用户就想要固定在顶部，这时候就需要手动处理一下。
-	const initialScrollTop = listContainerRef.value.scrollTop;
-	if (initialScrollTop <= 1) {
-		listContainerRef.value.scrollTop += 1;
-	}
-	fetchingListPreventAnimation.value = true;
-	// isPassiveScrolling.value = true;	// 理论上要设这个锁，但实测会影响滚动到头部时的继续滚动，所以暂时不用
-
-	// 传入首尾可见任务的 index，updateTaskList 内部会头 -100 、尾 +100 进行数据更新
-	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex).then(() => {
-		if (requestId !== latestRequestId.value) return;	// 若已有更新的请求，不处理
-		setTimeout(() => {
-			fetchingListPreventAnimation.value = false;
-			if (initialScrollTop <= 1) {
-				listContainerRef.value.scrollTop -= 1;
-			}
-			// setTimeout(() => {
-			// 	isPassiveScrolling.value = false;	// scrollTop 变化后才打开这个锁
-			// }, 0);
-		}, 0);
-	});
-
-	// 同步粗调滚动条
-	coarseStart.value = range.firstIndex;
-	coarseEnd.value = range.lastIndex;
-};
-
 // update 反应即时变化，change 则在松手时触发。但实际上松手时得到的 start end 就是传进去的 start end
 const handleCoarseSliderUpdate = (start: number, end: number) => {
 	coarseStart.value = start;
@@ -356,7 +311,7 @@ const handleCoarseSliderChange = (start: number, end: number) => {
 	fetchingListPreventAnimation.value = true;
 	isPassiveScrolling.value = true;
 
-	// 跳转后，传入 start/end 作为可见范围，updateTaskList 内部会头 -100 、尾 +100
+	// 跳转后，传入 start/end 作为可见范围，updateTaskList 内部会按缓冲区大小进行数据更新
 	appStore.updateTaskList(appStore.currentServer, start, end).then(() => {
 		// 数据更新且 DOM 渲染后，居中滚动
 		setTimeout(() => {
@@ -393,6 +348,25 @@ const handleCoarseSliderChange = (start: number, end: number) => {
 // 	}
 // });
 
+watch(() => appStore.frontendSettings.taskListPageSize, (newPageSize) => {
+	const range = getVisibleRange();
+	if (!range) return;
+	isPassiveScrolling.value = true;
+	fetchingListPreventAnimation.value = true;
+
+	// 传入首尾可见任务的 index，updateTaskList 内部会按缓冲区大小进行数据更新
+	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex).then(() => {
+		setTimeout(() => {
+			fetchingListPreventAnimation.value = false;
+			isPassiveScrolling.value = false;	// scrollTop 变化后才打开这个锁
+		}, 0);
+	});
+
+	// 同步粗调滚动条
+	coarseStart.value = range.firstIndex;
+	coarseEnd.value = range.lastIndex;
+});
+
 // 粗调面板鼠标进入时，显示浮标并且不消失
 function handleCoarsePanelMouseEnter() {
 	coarseSize.value = 'full';
@@ -411,7 +385,7 @@ function handleCoarseBuoyPointerdown() {
 let realtimeRangeThrottleLastTime = 0;
 let lastScrollTop = 0;
 function handleListScroll() {
-	if (!showCoarseScrollbar.value) return;
+	if (!showCoarseScrollbar.value) return;	// 无限滚动未启用时，不响应滚动停止事件
 
 	const now = Date.now();
 	if (coarseSize.value === 'full') {
@@ -446,6 +420,54 @@ function handleListScroll() {
 		}
 	}
 }
+
+/**
+ * 滚动停止处理：获取视口中的首尾任务，计算新缓冲区，拉取数据，居中滚动
+ */
+ const handleScrollStop = () => {
+	if (!appStore.currentServer) return;
+	if (!showCoarseScrollbar.value) return;	// 无限滚动未启用时，不响应滚动停止事件
+
+	const range = getVisibleRange();
+	if (!range) return;
+
+	const requestId = ++latestRequestId.value;	// 递增 id
+
+	if (coarseStart.value === range.firstIndex && coarseEnd.value === range.lastIndex) return;	// 原地滚动，不请求
+	console.log(coarseStart.value, coarseEnd.value, '->', range.firstIndex, range.lastIndex, range.distanceLastElementToScrollBottom);
+
+	// 若不作以下处理，列表拉到靠近头部或尾部时，会触发 2 次拉列表请求，这是因为处在头/尾时，即使真正的列表前/后有更多任务，前端并没有对应的 DOM，导致 range 会计算少一两个任务
+	// 因此当滚动到顶或底时进行一个缓冲区调整。这里的 8 是任务列表上下边距，但底边距实际上要比这大很多，甚至会出现多 2 个任务的情况（跟 dropfilesdiv 尺寸有关），为简便起见这里只加 1 个任务
+	if (range.distanceFirstElementToScrollTop < 8) range.firstIndex = Math.max(0, range.firstIndex - 1);
+	if (range.distanceLastElementToScrollBottom > 8) range.lastIndex += 1;
+
+	// 数据更新且 DOM 渲染后，居中滚动。由于浏览器自带 Scroll Anchoring，任务列表更新后无论是前面还是后面的 DOM 数量有变动，浏览器都会保持可见位置不变，因此大多数情况不需要处理
+	// 需要处理的是滚动位置接近头部的情况。浏览器会认为用户就想要固定在顶部，这时候就需要手动处理一下。
+	const initialScrollTop = listContainerRef.value.scrollTop;
+	if (initialScrollTop <= 1) {
+		listContainerRef.value.scrollTop += 1;
+	}
+	fetchingListPreventAnimation.value = true;
+	// isPassiveScrolling.value = true;	// 理论上要设这个锁，但实测会影响滚动到头部时的继续滚动，所以暂时不用
+
+	// 传入首尾可见任务的 index，updateTaskList 内部会按缓冲区大小进行数据更新
+	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex).then(() => {
+		if (requestId !== latestRequestId.value) return;	// 若已有更新的请求，不处理
+		setTimeout(() => {
+			fetchingListPreventAnimation.value = false;
+			if (initialScrollTop <= 1) {
+				listContainerRef.value.scrollTop -= 1;
+			}
+			// setTimeout(() => {
+			// 	isPassiveScrolling.value = false;	// scrollTop 变化后才打开这个锁
+			// }, 0);
+		}, 0);
+	});
+
+	// 同步粗调滚动条
+	coarseStart.value = range.firstIndex;
+	coarseEnd.value = range.lastIndex;
+};
 
 // 滚动停止检测
 const { isScrolling } = useScrollStop({

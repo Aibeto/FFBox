@@ -26,6 +26,8 @@ export interface I11n {
 	frontend: {
 		settings: {
 			useVirtualTaskListDesc: string;
+			infiniteScrollThresholdDesc: string;
+			pageSizeDesc: string;
 		},
 		applicationMenu: {
 			编辑: string;

@@ -35,12 +35,19 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 			这.selectedTask.delete(taskId);
 			const arrayIndex = serverData.taskIdToIndex.get(taskId);
 			if (arrayIndex !== undefined) {
+				const removedGlobalIndex = serverData.tasks[arrayIndex].taskIndex;
 				serverData.tasks.splice(arrayIndex, 1);
 				serverData.taskIdToIndex.delete(taskId);
-				// 修正被 splice 影响的后续元素的索引
+				// 修正被 splice 影响的后续元素的数组索引
 				for (const [id, idx] of serverData.taskIdToIndex) {
 					if (idx > arrayIndex) {
 						serverData.taskIdToIndex.set(id, idx - 1);
+					}
+				}
+				// 修正被删除任务之后的任务的全局序号
+				for (const task of serverData.tasks) {
+					if (task.taskIndex > removedGlobalIndex) {
+						task.taskIndex--;
 					}
 				}
 			}
