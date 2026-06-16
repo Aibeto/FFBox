@@ -50,7 +50,7 @@ export interface FFBoxServiceInterface {
 	queueStart(): Promise<void>;
 	queuePause(): Promise<void>;
 	deleteNotification(notificationId: number): Promise<void>;
-	setParameters(ids: number[], params: OutputParams[]): Promise<void>;
+	setParameters(ids: number[], params: OutputParams, fullyReplace: boolean): Promise<void>;
 	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void>;
 	getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<Frame[]>;
 	getTaskList(offset: number, size: number): Promise<Task[]>;

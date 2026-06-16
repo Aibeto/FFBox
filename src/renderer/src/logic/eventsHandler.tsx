@@ -66,6 +66,10 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 	if (data.added) {
 		let hasOutsideBuffer = false;
 		for (const { taskId, index } of data.added) {
+			// 全选模式下，新任务也自动加入选中集合
+			if (这.isAllSelected) {
+				这.selectedTask.add(taskId);
+			}
 			// 检查新增任务是否落在当前缓冲区范围内
 			if (index >= serverData.bufferStart && index < serverData.bufferEnd) {
 				const uiTask = getInitialUITask(taskId, '');

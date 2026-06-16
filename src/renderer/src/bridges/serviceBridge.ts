@@ -254,8 +254,8 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<void>('PUT', `/api/v1/tasks/${id}/upload-status`, { isUploading });
 	}
 
-	public setParameters(ids: number[], params: OutputParams[]): Promise<void> {
-		return this.httpRequest<void>('PUT', `/api/v1/tasks/parameters`, { ids, params });
+	public setParameters(ids: number[], params: OutputParams, fullyReplace: boolean): Promise<void> {
+		return this.httpRequest<void>('PUT', `/api/v1/tasks/parameters`, { ids, params, fullyReplace });
 	}
 
 	public trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void> {
@@ -303,8 +303,11 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	}
 
 	// 6.0 已不再是仿 IPC 结构了，所以这里要考虑在类型上把 implements FFBoxServiceInterface 去掉
-	public getTaskList(offset: number, size: number): Promise<{ tasks: Task[], totalCount: number }> {
-		return this.httpRequest<{ tasks: Task[], totalCount: number }>('GET', `/api/v1/tasks?offset=${offset}&size=${size}`);
+	public getTaskList(offset: number, size: number): Promise<{ tasks: Task[], totalCount: number }>;
+	public getTaskList(offset: number, size: number, idOnly: true): Promise<{ taskIds: number[], totalCount: number }>;
+	public getTaskList(offset: number, size: number, idOnly?: boolean): Promise<{ tasks: Task[], totalCount: number } | { taskIds: number[], totalCount: number }> {
+		const idOnlyParam = idOnly ? '&idOnly=true' : '';
+		return this.httpRequest<any>('GET', `/api/v1/tasks?offset=${offset}&size=${size}${idOnlyParam}`);
 	}
 
 	public subscribeTasks(taskIds: number[]): void {
@@ -327,6 +330,10 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 
 	public getTask(taskId: number): Promise<Task> {
 		return this.httpRequest<Task>('GET', `/api/v1/tasks/${taskId}`);
+	}
+
+	public getTaskIndex(taskId: number): Promise<number> {
+		return this.httpRequest<{ index: number }>('GET', `/api/v1/tasks/${taskId}/index`).then(r => r.index);
 	}
 
 	public getNotifications(): Promise<Notification[]> {

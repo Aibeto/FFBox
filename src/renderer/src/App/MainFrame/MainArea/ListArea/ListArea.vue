@@ -21,8 +21,6 @@ const listContainerRef = ref<HTMLElement>(null!);	// 列表的滚动容器
 
 // #region 列表内操作（任务、其他 UI）
 
-const selectedTask_last = ref(-1);
-
 const debugLauncher = (() => {
 	let clickSpeedCounter = 0;
 	let clickSpeedTimer = 0;
@@ -56,23 +54,51 @@ const debugLauncher = (() => {
 	}
 })();
 
-const handleTaskClicked = (event: MouseEvent, id: number, index: number) => {
+const selectedTask_last = ref(-1);	// Shift 选择锚点，存储任务 ID，-1 表示无锚点
+
+const handleTaskClicked = async (event: MouseEvent, id: number) => {
 	let currentSelection = new Set(appStore.selectedTask);
-	// TODO 应该直接用后端的 taskIndex 而不是可见的 index
 	if (event.shiftKey) {
-		// if (selectedTask_last.value !== -1) {		// 之前没选东西，现在选一堆
-		// 	currentSelection.clear();
-		// 	const minIndex = Math.min(selectedTask_last.value, index);
-		// 	const maxIndex = Math.max(selectedTask_last.value, index);
-		// 	for (let i = minIndex; i <= maxIndex; i++) {	// 对 taskOrder 里指定区域项目进行选择
-		// 		currentSelection.add(tasks.value[i].id);
-		// 		// if (taskArray.has(id)) {	// 如果任务未被删除
-		// 		// 	currentSelection.add(i);
-		// 		// }
-		// 	}
-		// } else {							// 之前没选东西，现在选第一个
-		// 	currentSelection = new Set([id]);
-		// }
+		// Shift 跨区选择
+		if (selectedTask_last.value !== -1) {
+			const anchorId = selectedTask_last.value;
+			const server = appStore.currentServer;
+			// current 一定在缓冲区中（用户刚点击了它），anchor 可能不在
+			const anchorBufferIndex = server?.data.taskIdToIndex.get(anchorId);
+			const currentGlobalIndex = server?.data.tasks[server.data.taskIdToIndex.get(id)!]?.taskIndex;
+			if (anchorBufferIndex !== undefined && currentGlobalIndex !== undefined && server) {
+				// anchor 也在缓冲区中，直接取缓冲区范围内的任务
+				const minIdx = Math.min(anchorBufferIndex, server.data.taskIdToIndex.get(id)!);
+				const maxIdx = Math.max(anchorBufferIndex, server.data.taskIdToIndex.get(id)!);
+				for (let i = minIdx; i <= maxIdx; i++) {
+					currentSelection.add(server.data.tasks[i].id);
+				}
+			} else if (currentGlobalIndex !== undefined && server) {
+				// anchor 不在缓冲区，从后端查询 anchor 的全局序号
+				let anchorGlobalIndex: number | null;
+				try {
+					anchorGlobalIndex = await server.entity.getTaskIndex(anchorId);
+				} catch {
+					anchorGlobalIndex = null;
+				}
+				if (anchorGlobalIndex !== null) {
+					const minOffset = Math.min(anchorGlobalIndex, currentGlobalIndex);
+					const maxOffset = Math.max(anchorGlobalIndex, currentGlobalIndex);
+					const response = await server.entity.getTaskList(minOffset, maxOffset - minOffset + 1, true);
+					for (const taskId of response.taskIds) {
+						currentSelection.add(taskId);
+					}
+				} else {
+					// 锚点无效，只选当前
+					currentSelection.clear();
+					currentSelection.add(id);
+				}
+			}
+		} else {
+			// 无锚点，只选当前
+			currentSelection.clear();
+			currentSelection.add(id);
+		}
 	} else if (event.ctrlKey == true || navigator.platform.indexOf('Mac') >= 0 && event.metaKey == true) {
 		if (currentSelection.has(id)) {
 			currentSelection.delete(id);
@@ -83,9 +109,9 @@ const handleTaskClicked = (event: MouseEvent, id: number, index: number) => {
 		currentSelection.clear();
 		currentSelection.add(id);
 	}
-	selectedTask_last.value = index;
-	// this.selectedTask = new Set([...this.selectedTask])	// 更新自身的引用值以触发 computed: taskSelected
+	selectedTask_last.value = id;
 	appStore.selectedTask = new Set([...currentSelection]);
+	appStore.isAllSelected = false;
 	appStore.applySelectedTask();
 };
 
@@ -495,7 +521,7 @@ const { isScrolling } = useScrollStop({
 					:show="isVisible.get((task.taskIndex ?? 0) - 2) || isVisible.get((task.taskIndex ?? 0) + 2) || isVisible.get(task.taskIndex ?? 0) || false"
 					:selected="appStore.selectedTask.has(task.id)"
 					:should-handle-hover="true"
-					@click="handleTaskClicked($event, task.id, task.taskIndex)"
+					@click="handleTaskClicked($event, task.id)"
 					@batchContextMenu="handleTaskBatchContextMenu"
 				/>
 				<TaskItem
@@ -507,7 +533,7 @@ const { isScrolling } = useScrollStop({
 					:show="true"
 					:selected="appStore.selectedTask.has(task.id)"
 					:should-handle-hover="true"
-					@click="handleTaskClicked($event, task.id, task.taskIndex)"
+					@click="handleTaskClicked($event, task.id)"
 					@batchContextMenu="handleTaskBatchContextMenu"
 				/>
 			</TransitionGroup>
@@ -515,7 +541,7 @@ const { isScrolling } = useScrollStop({
 		<div
 			v-if="appStore.currentServer?.data.ffmpegInfo.version"
 			class="dropfilesdiv"
-			@click="appStore.selectedTask = new Set(); appStore.taskSelectionModified = false;"
+			@click="appStore.selectedTask = new Set(); appStore.isAllSelected = false; appStore.taskSelectionModified = false;"
 			@mousedown="debugLauncher($event)"
 			@dblclick="nodeBridge.env === 'electron' ? showAddTaskPrompt() : showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList))"
 		>

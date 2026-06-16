@@ -1146,17 +1146,16 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 	/**
 	 * 批量设置任务的输出参数，将算出的 paraArray 通过 taskUpdate 传回（这样对性能不太好）
+	 * @param ids 任务 ID 列表
+	 * @param params 统一的输出参数配置
+	 * @param fullyReplace 是否全量替换（true 为单个任务修改，false 为批量修改）
 	 * @emits taskUpdate
-	 *
 	 */
-	public async setParameters(ids: number[], params: OutputParams[]): Promise<void> {
-		for (let i = 0; i < ids.length; i++) {
-			const id = ids[i];
-			const param = params[i];
+	public async setParameters(ids: number[], params: OutputParams, fullyReplace: boolean): Promise<void> {
+		for (const id of ids) {
 			const task = this.taskList.getById(id)!;
-			task.after = replaceOutputParams(param, task.after, true);
+			task.after = replaceOutputParams(params, task.after, fullyReplace);
 			if (task.remoteTask) {
-				// 如果修改了输出格式，需要重新计算 outputFile
 				task.outputFiles = genTaskOutputFiles(task.after, ``);
 				task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
 			} else {
@@ -1245,9 +1244,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	// #region 任务区段查询与批量复制
 
 	/**
-	 * 任务区段查询：返回 [offset, offset+size) 范围内的任务列表
+	 * 任务区段查询：返回 [offset, offset+size) 范围内的任务列表或 ID 列表
 	 */
-	public async getTaskList(offset: number, size: number): Promise<Task[]> {
+	public async getTaskList(offset: number, size: number): Promise<Task[]>;
+	public async getTaskList(offset: number, size: number, idOnly: true): Promise<number[]>;
+	public async getTaskList(offset: number, size: number, idOnly?: boolean): Promise<Task[] | number[]> {
+		if (idOnly) {
+			return this.taskList.getRangeIds(offset, size);
+		}
 		return this.taskList.getRange(offset, size);
 	}
 

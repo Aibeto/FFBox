@@ -30,16 +30,34 @@ const startButtonText = computed(() => {
 	return appStore.currentServer.data.workingStatus === WorkingStatus.running ? '⏸暂停' : '▶开始';
 });
 
-const handleSelectAllClick = () => {
+const handleSelectAllClick = async () => {
 	if (!appStore.currentServer) return;
-	const newSet = new Set(appStore.currentServer.data.tasks.map(t => t.id));
-	appStore.selectedTask = newSet;
+	const server = appStore.currentServer;
+	const totalCount = server.data.totalCount;
+	const bufferedCount = server.data.tasks.length;
+	if (totalCount <= bufferedCount) {
+		// 全部在缓冲区中，直接用缓冲区
+		appStore.selectedTask = new Set(server.data.tasks.map(t => t.id));
+	} else {
+		// 需要从后端获取所有 ID
+		const allIds = await appStore.fetchAllTaskIds();
+		appStore.selectedTask = new Set(allIds);
+	}
+	appStore.isAllSelected = true;
 	appStore.taskSelectionModified = false;
 };
-const handleApplyAllClick = () => {
+const handleApplyAllClick = async () => {
 	if (!appStore.currentServer) return;
-	const newSet = new Set(appStore.currentServer.data.tasks.map(t => t.id));
-	appStore.applyParameters('applyToAllTasks', newSet);
+	const server = appStore.currentServer;
+	const totalCount = server.data.totalCount;
+	const bufferedCount = server.data.tasks.length;
+	let allIds: Set<number>;
+	if (totalCount <= bufferedCount) {
+		allIds = new Set(server.data.tasks.map(t => t.id));
+	} else {
+		allIds = new Set(await appStore.fetchAllTaskIds());
+	}
+	appStore.applyParameters('applyToAllTasks', allIds);
 	appStore.taskSelectionModified = false;
 };
 

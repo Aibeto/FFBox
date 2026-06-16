@@ -714,22 +714,43 @@ function getRouter(): Router {
 	 *           type: integer
 	 *           default: 100
 	 *         description: 查询数量
+	 *       - in: query
+	 *         name: idOnly
+	 *         schema:
+	 *           type: boolean
+	 *           default: false
+	 *         description: 为 true 时只返回 taskIds 数组，不返回完整任务对象
 	 *     responses:
 	 *       200:
-	 *         description: 任务列表
+	 *         description: 任务列表（tasks 或 taskIds，取决于 idOnly 参数）
 	 *         content:
 	 *           application/json:
 	 *             schema:
-	 *               type: array
-	 *               items:
-	 *                 $ref: '#/components/schemas/Task'
+	 *               type: object
+	 *               properties:
+	 *                 tasks:
+	 *                   type: array
+	 *                   items:
+	 *                     $ref: '#/components/schemas/Task'
+	 *                 taskIds:
+	 *                   type: array
+	 *                   items:
+	 *                     type: integer
+	 *                 totalCount:
+	 *                   type: integer
 	 */
 	router.get('/api/v1/tasks', optionalAuth, async function (ctx) {
 		const offset = parseInt(ctx.query.offset as string) || 0;
-		const size = parseInt(ctx.query.size as string) || 100;
-		const tasks = await ffboxService!.getTaskList(offset, size);
+		const size = parseInt(ctx.query.size as string) || 0;
+		const idOnly = ctx.query.idOnly === 'true';
 		const totalCount = ffboxService!.taskList.count();
-		ctx.body = { tasks, totalCount };
+		if (idOnly) {
+			const taskIds = await ffboxService!.getTaskList(offset, size, true);
+			ctx.body = { taskIds, totalCount };
+		} else {
+			const tasks = await ffboxService!.getTaskList(offset, size);
+			ctx.body = { tasks, totalCount };
+		}
 	});
 
 	/**
@@ -843,6 +864,37 @@ function getRouter(): Router {
 			return;
 		}
 		ctx.body = task;
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/{id}/index:
+	 *   get:
+	 *     summary: 查询任务的全局序号（通过 id 查 index）
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 任务的全局序号
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: object
+	 *               properties:
+	 *                 index:
+	 *                   type: integer
+	 *                   nullable: true
+	 *                   description: 任务的全局序号，任务不存在时返回 null
+	 */
+	router.get('/api/v1/tasks/:id/index', optionalAuth, async function (ctx) {
+		const index = ffboxService!.taskList.getIndexById(+ctx.params.id);
+		ctx.body = { index: index === -1 ? null : index };
 	});
 
 	/**
@@ -1043,8 +1095,8 @@ function getRouter(): Router {
 			ctx.body = { error: 'Missing request body' };
 			return;
 		}
-		const { ids, params } = ctx.request.body;
-		ffboxService!.setParameters(ids, params);
+		const { ids, params, fullyReplace } = ctx.request.body;
+		ffboxService!.setParameters(ids, params, fullyReplace);
 		ctx.body = { success: true };
 	});
 

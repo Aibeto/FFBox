@@ -116,10 +116,10 @@ export class TaskList {
 	}
 
 	/**
-	 * 任务区段查询：返回 [offset, offset+size) 范围内的任务列表
+	 * 任务区段查询（仅 ID）：返回 [offset, offset+size) 范围内的任务 ID 列表
 	 */
-	getRange(offset: number, size: number): ServiceTask[] {
-		const result: ServiceTask[] = [];
+	getRangeIds(offset: number, size: number): number[] {
+		const result: number[] = [];
 		let remaining = size;
 		let currentBlock = this.firstBlock;
 		// 跳到包含 offset 的块
@@ -130,11 +130,8 @@ export class TaskList {
 		let localIndex = offset - currentBlock.firstTaskIndex;
 		while (remaining > 0 && currentBlock) {
 			while (localIndex < currentBlock.size && remaining > 0) {
-				const taskId = currentBlock.getTaskAt(localIndex);	// TODO 这里后期是不是可直接用 block.taskIds 按 range 取？这样就不用一直查 map 了（虽然 taskIdToTask 这个速度更慢的 map 才是瓶颈）
-				if (taskId !== undefined) {
-					const task = this.taskIdToTask.get(taskId);
-					if (task) result.push(task);
-				}
+				const taskId = currentBlock.getTaskAt(localIndex);
+				if (taskId !== undefined) result.push(taskId);
 				localIndex++;
 				remaining--;
 			}
@@ -142,6 +139,15 @@ export class TaskList {
 			localIndex = 0;
 		}
 		return result;
+	}
+
+	/**
+	 * 任务区段查询：返回 [offset, offset+size) 范围内的任务列表
+	 */
+	getRange(offset: number, size: number): ServiceTask[] {
+		return this.getRangeIds(offset, size)
+			.map(id => this.taskIdToTask.get(id))
+			.filter((t): t is ServiceTask => t !== undefined);
 	}
 
 	/**
@@ -188,5 +194,17 @@ export class TaskList {
 	 */
 	has(id: number): boolean {
 		return this.taskIdToTask.has(id);
+	}
+
+	/**
+	 * 按任务 id 查询其全局序号
+	 * @returns 全局序号，若不存在则返回 -1
+	 */
+	getIndexById(id: number): number {
+		const block = this.taskIdToBlock.get(id);
+		if (!block) return -1;
+		const localIndex = block.taskIdToListIndex.get(id);
+		if (localIndex === undefined) return -1;
+		return block.firstTaskIndex + localIndex;
 	}
 }

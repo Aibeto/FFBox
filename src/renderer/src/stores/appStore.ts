@@ -64,6 +64,7 @@ interface StoreState {
 	servers: Server[];
 	currentServerId: string | undefined;
 	selectedTask: Set<number>,
+	isAllSelected: boolean;	// 标记是否已全选所有任务（跨缓冲区），滚动时不清除选中状态
 	taskSelectionModified: boolean;	// 修改参数后显示提示是否应用到所有任务，更改 selectedTask 时去除显示
 	globalParams: OutputParams;
 	presetName: string | undefined;
@@ -119,6 +120,7 @@ export const useAppStore = defineStore('app', {
 			servers: [],
 			currentServerId: undefined,
 			selectedTask: new Set(),
+			isAllSelected: false,
 			taskSelectionModified: false,
 			globalParams: JSON.parse(JSON.stringify(defaultParams)),
 			presetName: '',
@@ -347,7 +349,7 @@ export const useAppStore = defineStore('app', {
 					// 完成任务添加后，设置输入列表
 					const entity = 这.currentServer?.entity;
 					const params = 这.globalParams;
-					entity.setParameters([taskId], [{
+					entity.setParameters([taskId], {
 						...params,
 						input: {
 							files: inputPaths.map((path, index) => ({
@@ -362,7 +364,7 @@ export const useAppStore = defineStore('app', {
 								custom: params.input.files[index]?.custom ?? '',
 							})),
 						},
-					}]);
+					}, true);
 					allTimerFinish();
 				}
 			});
@@ -434,14 +436,6 @@ export const useAppStore = defineStore('app', {
 					oldTasksById.set(task.id, task);
 				}
 
-				// 清除不在新缓冲区的任务
-				const newTaskIds = new Set(tasks.map(t => t.id));
-				for (const [existingId] of oldTasksById) {
-					if (!newTaskIds.has(existingId)) {
-						这.selectedTask.delete(existingId);
-					}
-				}
-
 				// 重建 tasks 数组和 taskIdToIndex 映射
 				const newTasks: UITask[] = [];
 				const newMap = new Map<number, number>();
@@ -469,10 +463,21 @@ export const useAppStore = defineStore('app', {
 				server.data.bufferEnd = offset + tasks.length;
 
 				// 订阅当前缓冲区的 taskId
-				server.entity.replaceSubscription([...newTaskIds]);
+				server.entity.replaceSubscription([...newTasks.map(t => t.id)]);
 
 				这.recalcChangedParams();
 			});
+		},
+		/**
+		 * 从后端获取所有任务的 ID 列表（用于全选和跨区选择）
+		 */
+		async fetchAllTaskIds(): Promise<number[]> {
+			const 这 = useAppStore();
+			if (!这.currentServer) return [];
+			const totalCount = 这.currentServer.data.totalCount;
+			if (totalCount === 0) return [];
+			const response = await 这.currentServer.entity.getTaskList(0, totalCount, true);
+			return response.taskIds;
 		},
 		/**
 		 * 跳转到指定范围（粗调滑动条松手后使用）
@@ -572,22 +577,21 @@ export const useAppStore = defineStore('app', {
 			if (data) {
 				// 这.globalParams
 				// 收集需要批量更新的输出参数，交给 service。同时本地替换一次 task.after
-				let needToUpdateIds: number[] = [];
-				let needToUpdateParams: OutputParams[] = [];
-				for (const id of selection || 这.selectedTask) {
+				const targetIds = Array.from(selection || 这.selectedTask);
+				const isSingleTaskModify = behavior === 'modifyTask' && 这.selectedTask.size === 1;
+
+				// 本地更新缓冲区中的任务
+				for (const id of targetIds) {
 					const taskIndex = data.taskIdToIndex.get(id);
 					if (taskIndex === undefined) continue;
 					let task = data.tasks[taskIndex];
-					const needToReplaceAll = behavior === 'modifyTask' && 这.selectedTask.size === 1;
-					task.after = replaceOutputParams(这.globalParams, task.after, needToReplaceAll);
-					needToUpdateIds.push(id);
-					needToUpdateParams.push(task.after);
+					task.after = replaceOutputParams(这.globalParams, task.after, isSingleTaskModify);
 				}
-				if (needToUpdateIds.length) {
+				if (targetIds.length) {
 					// paraArray 由 service 算出后回填本地
 					// 更新方式是 taskUpdate
 					// 注意回填本地时也会产生一次 task.after 更新
-					entity.setParameters(needToUpdateIds, needToUpdateParams);
+					entity.setParameters(targetIds, 这.globalParams, isSingleTaskModify);
 				}
 
 				这.taskSelectionModified = true;
