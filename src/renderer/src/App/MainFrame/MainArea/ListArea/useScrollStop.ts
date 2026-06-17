@@ -26,10 +26,10 @@ export function useScrollStop(options: UseScrollStopOptions) {
 
 	const handleScrollOrWheel = () => {
 		if (disabledRef?.value) {
-			console.log('scroll 触发，但禁用本次响应');
+			// console.log('scroll 触发，但禁用本次响应');
 			return;
 		}
-		console.log('scroll 触发');
+		// console.log('scroll 触发');
 		onScroll?.();
 		isScrolling.value = true;
 		needsPointerUp = false;
@@ -41,11 +41,11 @@ export function useScrollStop(options: UseScrollStopOptions) {
 			if (pointerIsDown) {
 				// 指针仍按下，等松开后再触发
 				needsPointerUp = true;
-				console.log('延时完毕，指针未松开');
+				// console.log('延时完毕，指针未松开');
 			} else {
 				// 指针未按下，立即触发
 				isScrolling.value = false;
-				console.log('延时完毕 scrollStop 触发');
+				// console.log('延时完毕 scrollStop 触发');
 				onScrollStop();
 			}
 		}, delay);
@@ -59,7 +59,7 @@ export function useScrollStop(options: UseScrollStopOptions) {
 			window.removeEventListener('touchend', handlePointerUp);
 			pointerIsDown = false;
 			if (needsPointerUp) {
-				console.log('指针已松开 scrollStop 触发');
+				// console.log('指针已松开 scrollStop 触发');
 				needsPointerUp = false;
 				if (scrollTimer !== null) {
 					clearTimeout(scrollTimer);

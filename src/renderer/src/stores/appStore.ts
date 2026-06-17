@@ -399,9 +399,10 @@ export const useAppStore = defineStore('app', {
 		 * @param server 服务器实例
 		 * @param firstVisibleIndex 可见范围中第一个任务的全局序号（默认 0）
 		 * @param lastVisibleIndex 可见范围中最后一个任务的全局序号（默认 firstVisibleIndex）
+		 * @param force 是否强制完整拉取（默认 true）。为 false 且处于无限滚动模式时，仅拉取缓冲区前后缺失的部分
 		 * 计算范围：firstVisibleIndex - pageSize/2 ~ lastVisibleIndex + pageSize/2
 		 */
-		updateTaskList(server: Server, firstVisibleIndex: number = 0, lastVisibleIndex?: number): Promise<void> {
+		async updateTaskList(server: Server, firstVisibleIndex: number = 0, lastVisibleIndex?: number, force: boolean = true): Promise<void> {
 			const 这 = useAppStore();
 			const totalCount = server.data.totalCount;
 			const _last = lastVisibleIndex ?? firstVisibleIndex;
@@ -411,62 +412,121 @@ export const useAppStore = defineStore('app', {
 			// 判断是否启用无限滚动：totalCount 为 0 时（初始加载）按 pageSize 拉取，已知 totalCount 时按阈值判断
 			const useInfiniteScroll = totalCount > 0 && totalCount >= threshold;
 
-			let offset: number, end: number;
+			let newStart: number, newEnd: number;
 			if (!useInfiniteScroll) {
 				// 一次性拉取全部任务（初始加载时拉取足够多以覆盖非无限滚动场景）
-				offset = 0;
-				end = totalCount > 0 ? totalCount : Math.max(201, threshold);
+				newStart = 0;
+				newEnd = totalCount > 0 ? totalCount : 0;	// TODO 任务数量为 0 时有可能是初次加载
 			} else {
 				// 无限滚动模式：基于可见范围前后各预加载 halfPage
-				offset = Math.max(0, firstVisibleIndex - halfPage);
-				end = Math.min(totalCount, _last + halfPage + 1);
+				newStart = Math.max(0, firstVisibleIndex - halfPage);
+				newEnd = Math.min(totalCount, _last + halfPage + 1);
 			}
 
-			const size = end - offset;
+			const size = newEnd - newStart;
+			if (size <= 0) {
+				// 仅当初始化时会出现 0, 0 的情况，此时要获取任务总量
+				await server.entity.getTaskList(0, 0).then((resp) => server.data.totalCount = resp.totalCount);
+				return;
+			};
 
-			if (size <= 0) return Promise.resolve();
+			// 增量拉取分支：仅拉取缓冲区前后的缺失部分，中间已有任务不重新拉取
+			if (!force && useInfiniteScroll) {
+				const { bufferStart: oldStart, bufferEnd: oldEnd } = server.data;
+				const hasOverlap = oldStart < newEnd && oldEnd > newStart;
 
-			return server.entity.getTaskList(offset, size).then((response) => {
-				const { tasks, totalCount: newTotalCount } = response;
-				server.data.totalCount = newTotalCount;
+				// 1. 无交集，直接拉取新区完全替换老区（走下方完整拉取路径）
+				if (hasOverlap && oldEnd > oldStart) {
+					// 2. 前拉：新区开始 < 老区开始时，前拉起点：Math.min(新区开始, 老区开始)；前拉终点：Math.max(新区开始, 老区开始)。拉取 [新区开始, 老区开始)
+					// 3. 后拉：新区结束 > 老区结束时，后拉起点：Math.min(新区结束, 老区结束)；后拉终点：Math.max(新区结束, 老区结束)。拉取 [老区结束, 新区结束)
+					// 4. 前删：新区开始 > 老区开始时，前删起点：Math.min(新区开始, 老区开始)；前删终点：Math.max(新区开始, 老区开始)。丢弃 [老区开始, 新区开始)
+					// 5. 后删：新区结束 < 老区结束时，后删起点：Math.min(新区结束, 老区结束)；后删终点：Math.max(新区结束, 老区结束)。丢弃 [新区结束, 老区结束)
+					// AI 并没有按我给的前删后删思路，给了个更简单的 filter 实现
+					const [prefixResp, suffixResp] = await Promise.all([
+						newStart < oldStart ? server.entity.getTaskList(newStart, oldStart - newStart) : Promise.resolve(null),
+						newEnd > oldEnd ? server.entity.getTaskList(oldEnd, newEnd - oldEnd) : Promise.resolve(null),
+					]);
+					server.data.totalCount = prefixResp?.totalCount ?? suffixResp?.totalCount ?? totalCount;	// 更新任务总量
 
-				// 构建旧任务的临时 Map，用于合并保留已有的 dashboard 等状态
-				const oldTasksById = new Map<number, UITask>();
-				for (const task of server.data.tasks) {
-					oldTasksById.set(task.id, task);
-				}
+					// 前删 + 后删：从现有缓冲区中保留 [newStart, newEnd) 范围内的任务
+					const existingInRange = server.data.tasks.filter((task) => task.taskIndex! >= newStart && task.taskIndex! < newEnd);
 
-				// 重建 tasks 数组和 taskIdToIndex 映射
-				const newTasks: UITask[] = [];
-				const newMap = new Map<number, number>();
-				for (let i = 0; i < tasks.length; i++) {
-					const task = tasks[i];
-					const globalIndex = offset + i;
-					const existing = oldTasksById.get(task.id);
-					if (existing) {
-						mergeTaskFromService(existing, task);
-						existing.taskIndex = globalIndex;
-						newTasks.push(existing);
-					} else {
+					// 按顺序拼接：前缀（缓冲区之前的新任务）+ 现有（范围内）+ 后缀（缓冲区之后的新任务）
+					// 前缀/后缀来自缓冲区之外，不可能与现有任务重复，直接创建新 UITask
+					const merged: UITask[] = [];
+
+					for (const task of prefixResp?.tasks ?? []) {
 						const uiTask = getInitialUITask(task.id, '');
 						mergeTaskFromService(uiTask, task);
-						uiTask.taskIndex = globalIndex;
-						newTasks.push(uiTask);
+						uiTask.taskIndex = newStart + merged.length;
+						merged.push(uiTask);
 					}
-					newMap.set(task.id, i);
+					for (const task of existingInRange) {
+						merged.push(task);	// 老任务本身有 index，除非任务列表有变，否则 id 不用重新计算
+					}
+					for (const task of suffixResp?.tasks ?? []) {
+						const uiTask = getInitialUITask(task.id, '');
+						mergeTaskFromService(uiTask, task);
+						uiTask.taskIndex = newStart + merged.length;
+						merged.push(uiTask);
+					}
+
+					// 重建 taskIdToIndex 映射
+					const newMap = new Map<number, number>();
+					for (let i = 0; i < merged.length; i++) newMap.set(merged[i].id, i);
+					server.data.tasks = merged;
+					server.data.taskIdToIndex = newMap;
+					server.data.bufferStart = newStart;
+					server.data.bufferEnd = newStart + merged.length;
+					console.log(`任务列表更新完成，缓冲区范围：${server.data.bufferStart} - ${server.data.bufferEnd}`);
+
+					server.entity.replaceSubscription(merged.map(t => t.id));
+					这.recalcChangedParams();
+					return;
 				}
-				server.data.tasks = newTasks;
-				server.data.taskIdToIndex = newMap;
+			}
 
-				// 更新缓冲区范围
-				server.data.bufferStart = offset;
-				server.data.bufferEnd = offset + tasks.length;
+			// 完整拉取路径（原逻辑）
+			const response = await server.entity.getTaskList(newStart, size);
+			const { tasks, totalCount: newTotalCount } = response;
+			server.data.totalCount = newTotalCount;
 
-				// 订阅当前缓冲区的 taskId
-				server.entity.replaceSubscription([...newTasks.map(t => t.id)]);
+			// 构建旧任务的临时 Map，用于合并保留已有的 dashboard 等状态
+			const oldTasksById = new Map<number, UITask>();
+			for (const task of server.data.tasks) {
+				oldTasksById.set(task.id, task);
+			}
 
-				这.recalcChangedParams();
-			});
+			// 重建 tasks 数组和 taskIdToIndex 映射
+			const newTasks: UITask[] = [];
+			const newMap = new Map<number, number>();
+			for (let i = 0; i < tasks.length; i++) {
+				const task = tasks[i];
+				const globalIndex = newStart + i;
+				const existing = oldTasksById.get(task.id);
+				if (existing) {
+					mergeTaskFromService(existing, task);
+					existing.taskIndex = globalIndex;
+					newTasks.push(existing);
+				} else {
+					const uiTask = getInitialUITask(task.id, '');
+					mergeTaskFromService(uiTask, task);
+					uiTask.taskIndex = globalIndex;
+					newTasks.push(uiTask);
+				}
+				newMap.set(task.id, i);
+			}
+			server.data.tasks = newTasks;
+			server.data.taskIdToIndex = newMap;
+
+			// 更新缓冲区范围
+			server.data.bufferStart = newStart;
+			server.data.bufferEnd = newStart + tasks.length;
+
+			// 订阅当前缓冲区的 taskId
+			server.entity.replaceSubscription([...newTasks.map(t => t.id)]);
+
+			这.recalcChangedParams();
 		},
 		/**
 		 * 从后端获取所有任务的 ID 列表（用于全选和跨区选择）
@@ -999,7 +1059,10 @@ export const useAppStore = defineStore('app', {
 					server.data.tasks = [];	// 由于 taskList 只包含 id，重新连接后需要清除原 task 信息以获取新的
 					server.data.taskIdToIndex = new Map();
 					这.updateServerProperties(server);
-					这.updateTaskList(server, 0);
+					这.updateTaskList(server, 0).then(() => {
+						// 先拉一次任务总数（以决定是否要开启无限滚动，以确认 pageSize），再触发一次任务拉取
+						这.updateTaskList(server, 0);
+					});
 					// entity.updateTaskList();
 					这.updateNotifications(server);
 					resolve(server);

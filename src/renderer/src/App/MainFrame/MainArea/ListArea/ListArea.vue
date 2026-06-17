@@ -313,9 +313,11 @@ function getVisibleRange(): { firstIndex: number; lastIndex: number; distanceFir
 				firstIndex = taskIndex;
 			}
 			lastEl = el;
+		} else if (lastEl) {
+			break;	// 遇到第一个不可见元素，退出循环
 		}
 	}
-	if (firstIndex && lastEl) {
+	if (firstIndex !== undefined && lastEl) {
 		const lastIndex = parseInt(lastEl.dataset.taskindex ?? '');
 		const elBottom = lastEl.offsetTop + lastEl.offsetHeight;
 		return { firstIndex, lastIndex, distanceFirstElementToScrollTop: distanceFirstElementToScrollTop!, distanceLastElementToScrollBottom: scrollBottom - elBottom };
@@ -338,7 +340,7 @@ const handleCoarseSliderChange = (start: number, end: number) => {
 	isPassiveScrolling.value = true;
 
 	// 跳转后，传入 start/end 作为可见范围，updateTaskList 内部会按缓冲区大小进行数据更新
-	appStore.updateTaskList(appStore.currentServer, start, end).then(() => {
+	appStore.updateTaskList(appStore.currentServer, start, end, false).then(() => {
 		// 数据更新且 DOM 渲染后，居中滚动
 		setTimeout(() => {
 			const container = listContainerRef.value;
@@ -381,7 +383,7 @@ watch(() => appStore.frontendSettings.taskListPageSize, (newPageSize) => {
 	fetchingListPreventAnimation.value = true;
 
 	// 传入首尾可见任务的 index，updateTaskList 内部会按缓冲区大小进行数据更新
-	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex).then(() => {
+	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex, true).then(() => {
 		setTimeout(() => {
 			fetchingListPreventAnimation.value = false;
 			isPassiveScrolling.value = false;	// scrollTop 变化后才打开这个锁
@@ -476,8 +478,8 @@ function handleListScroll() {
 	fetchingListPreventAnimation.value = true;
 	// isPassiveScrolling.value = true;	// 理论上要设这个锁，但实测会影响滚动到头部时的继续滚动，所以暂时不用
 
-	// 传入首尾可见任务的 index，updateTaskList 内部会按缓冲区大小进行数据更新
-	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex).then(() => {
+	// 传入首尾可见任务的 index，增量拉取：仅拉取缓冲区前后缺失的部分
+	appStore.updateTaskList(appStore.currentServer, range.firstIndex, range.lastIndex, false).then(() => {
 		if (requestId !== latestRequestId.value) return;	// 若已有更新的请求，不处理
 		setTimeout(() => {
 			fetchingListPreventAnimation.value = false;

@@ -83,10 +83,10 @@ const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value:
 			<Slider
 				v-bind="useTooltip(i11n.frontend.settings.pageSizeDesc, 't')"
 				:value="appStore.frontendSettings.taskListPageSize"
-				:min="50"
+				:min="30"
 				:max="1000"
 				:tags="[[50, '50'], [100, '100'], [200, '200'], [300, '300'], [500, '500'], [750, '750'], [1000, '1000']]"
-				:adsorption="(v) => [50, 100, 200, 300, 500, 750, 1000].reduce((a, b) => Math.abs(v - a) < Math.abs(v - b) ? a : b)"
+				:adsorption="(v) => [30, 50, 100, 200, 300, 500, 750, 1000].reduce((a, b) => Math.abs(v - a) < Math.abs(v - b) ? a : b)"
 				:valueToDisplay="(v) => `${v} 个任务`"
 				:onChange="(value) => handleSettingChange('taskListPageSize', value)"
 			/>

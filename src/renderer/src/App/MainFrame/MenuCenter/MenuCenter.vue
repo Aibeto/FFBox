@@ -77,7 +77,7 @@ const finalMenu = computed(() => {
 					{ type: 'normal' as const, label: '刷新当前服务器信息', value: '刷新当前服务器信息', tooltip: '刷新服务器版本、任务列表、通知列表等信息', onClick: () => {
 						const server = appStore.currentServer as any;
 						appStore.updateServerProperties(server);
-						appStore.updateTaskList(server, 0);
+						appStore.updateTaskList(server, 0, 0, true);
 						// entity.updateTaskList();
 						appStore.updateNotifications(server);
 					} },

@@ -24,6 +24,7 @@ export function handleStatusUpdate(server: Server, workingStatus: 'start' | 'sto
 };
 export function handleTasklistUpdate(server: Server, data: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number }) {
 	const 这 = useAppStore();
+	const pageSize = 这.frontendSettings.taskListPageSize;
 	const serverData = server.data;
 
 	// 更新总数
@@ -31,10 +32,12 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 
 	// 处理删除
 	if (data.removed) {
+		let deletedFromBuffer = false;
 		for (const { taskId } of data.removed) {
 			这.selectedTask.delete(taskId);
 			const arrayIndex = serverData.taskIdToIndex.get(taskId);
 			if (arrayIndex !== undefined) {
+				deletedFromBuffer = true;
 				const removedGlobalIndex = serverData.tasks[arrayIndex].taskIndex;
 				serverData.tasks.splice(arrayIndex, 1);
 				serverData.taskIdToIndex.delete(taskId);
@@ -50,15 +53,21 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 						task.taskIndex--;
 					}
 				}
+				serverData.bufferEnd--;
 			}
 		}
-		// 删除后重新计算缓冲区边界
-		if (serverData.tasks.length > 0) {
-			serverData.bufferStart = serverData.tasks[0].taskIndex!;
-			serverData.bufferEnd = serverData.tasks[serverData.tasks.length - 1].taskIndex! + 1;
-		} else {
-			serverData.bufferStart = 0;
-			serverData.bufferEnd = 0;
+		// 仅当有任务从缓冲区内被删除时才需要处理边界
+		if (deletedFromBuffer) {
+			if (serverData.bufferEnd >= serverData.totalCount + data.removed.length) {
+				// 边界末尾就是任务列表末尾，收缩边界即可
+				serverData.bufferEnd = serverData.totalCount;
+				if (serverData.bufferStart > serverData.totalCount) {
+					serverData.bufferStart = Math.max(0, serverData.totalCount);
+				}
+			} else {
+				// 边界末尾不是列表末尾，保持边界不变，重新拉取数据填充
+				这.updateTaskList(server, Math.round(serverData.bufferStart + pageSize / 2), Math.round(serverData.bufferStart + pageSize / 2), false);
+			}
 		}
 	}
 
@@ -100,20 +109,19 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 				hasOutsideBuffer = true;
 			}
 		}
-		// 如果新任务落在缓冲区外，刷新缓冲区（以当前第一个可见任务为参考点，保持用户视图位置）
+		// 如果新任务落在缓冲区外
 		if (hasOutsideBuffer) {
-			const firstTask = serverData.tasks[0];
-			const refIndex = firstTask ? firstTask.taskIndex! : 0;
-			这.updateTaskList(server, refIndex);
+			if (serverData.bufferStart + pageSize > serverData.totalCount) {
+				// 缓冲区起点 + 分页大小大于新任务总数，说明列表基本拉到了末尾
+				// 扩展边界末尾，拉取新任务信息
+				这.updateTaskList(server, Math.round(serverData.bufferStart + pageSize / 2), serverData.totalCount - 1, false);
+			} else {
+				// 以当前第一个可见任务为参考点，保持用户视图位置
+				// const firstTask = serverData.tasks[0];
+				// const refIndex = firstTask ? firstTask.taskIndex! : 0;
+				// 这.updateTaskList(server, refIndex);
+			}
 		}
-	}
-
-	// 处理缓冲区越界：任务删除后 totalCount 可能小于 bufferEnd
-	if (serverData.bufferEnd > serverData.totalCount) {
-		// 重新计算缓冲区，以当前第一个可见任务为参考
-		const firstTask = serverData.tasks[0];
-		const firstVisibleGlobalIndex = firstTask ? firstTask.taskIndex! : 0;
-		这.updateTaskList(server, Math.min(firstVisibleGlobalIndex, Math.max(0, serverData.totalCount - 1)));
 	}
 };
 /**
