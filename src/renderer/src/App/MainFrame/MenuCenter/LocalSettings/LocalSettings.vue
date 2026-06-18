@@ -72,10 +72,10 @@ const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value:
 			<Slider
 				v-bind="useTooltip(i11n.frontend.settings.infiniteScrollThresholdDesc, 't')"
 				:value="appStore.frontendSettings.taskListInfiniteScrollThreshold"
-				:min="200"
+				:min="100"
 				:max="1000"
-				:tags="[[200, '200'], [300, '300'], [500, '500'], [750, '750'], [1000, '1000']]"
-				:adsorption="(v) => [200, 300, 500, 750, 1000].reduce((a, b) => Math.abs(v - a) < Math.abs(v - b) ? a : b)"
+				:tags="[[100, '100'], [200, '200'], [300, '300'], [500, '500'], [750, '750'], [1000, '1000']]"
+				:adsorption="(v) => [100, 150, 200, 300, 500, 750, 1000].reduce((a, b) => Math.abs(v - a) < Math.abs(v - b) ? a : b)"
 				:valueToDisplay="(v) => `${v} 个任务`"
 				:onChange="(value) => handleSettingChange('taskListInfiniteScrollThreshold', value)"
 			/>

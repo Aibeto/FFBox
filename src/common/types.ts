@@ -428,7 +428,6 @@ export type QueueEventType =
 
 // 任务列表相关事件
 export type TaskListEventType =
-	| 'tasklist.changed'    // 任务列表变化（通用）
 	| 'tasklist.added'      // 任务添加
 	| 'tasklist.removed'    // 任务删除
 	;

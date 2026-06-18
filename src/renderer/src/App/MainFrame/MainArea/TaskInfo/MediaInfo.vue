@@ -23,7 +23,7 @@ const openFile = (task: Task, filePath: string, outputIndex: number) => {
 		if (entity.ip === 'localhost') {
 			nodeBridge.openFile(`"${filePath}"`);
 		} else {
-			const newFileBaseName = getOutputFileBaseName(task.after.outputs[outputIndex].mux, task.taskName);
+			const newFileBaseName = getOutputFileBaseName(task.after.outputs[outputIndex].mux, task.taskName, { taskId: task.id, outputIndex });
 			const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 			if (nodeBridge.env === 'electron') {
 				let fileTime = undefined;

@@ -3,7 +3,7 @@ import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
 import gsap from 'gsap';
 import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, WorkingStatus } from '@common/types';
-import { version } from '@common/constants'; 
+import { version } from '@common/constants';
 import { Server, UITask } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
@@ -146,8 +146,7 @@ export const useAppStore = defineStore('app', {
 		 * @returns UITask 或 undefined（不在缓冲区中）
 		 */
 		getTaskById(taskId: number): UITask | undefined {
-			const 这 = useAppStore();
-			const data = 这.currentServer?.data;
+			const data = this.currentServer?.data;
 			if (!data) return undefined;
 			const index = data.taskIdToIndex.get(taskId);
 			return index !== undefined ? data.tasks[index] : undefined;
@@ -158,10 +157,8 @@ export const useAppStore = defineStore('app', {
 		 * 打开切割操作器
 		 */
 		openCutOperator(focusOn: 'input' | 'output') {
-			const 这 = useAppStore();
-
 			// 检查进入条件
-			const globalParams = 这.globalParams;
+			const globalParams = this.globalParams;
 			const filter = globalParams.filter;
 			if (globalParams.input.files.length !== 1 ||
 				globalParams.outputs.length !== 1 ||
@@ -170,24 +167,24 @@ export const useAppStore = defineStore('app', {
 				Popup({ message: '此功能仅限单输入输出模式使用', level: NotificationLevel.warning });
 				return;
 			}
-			if (这.selectedTask.size !== 1) {
+			if (this.selectedTask.size !== 1) {
 				Popup({ message: '请先选择一个任务', level: NotificationLevel.warning });
 				return;
 			}
-	
+
 			this.showInfoCenter = false;
 			this.showTransferCenter = false;
 			this.showTaskInfo = undefined;
 			this.showMenuCenter = 0;
-			this.showCutOperator = { initialDraggerPos: 这.draggerPos, focusOn };
-			
-			const target = { value: 这.draggerPos };
+			this.showCutOperator = { initialDraggerPos: this.draggerPos, focusOn };
+
+			const target = { value: this.draggerPos };
 			gsap.to(target, {
 				value: 0,
 				duration: 0.5,
 				ease: "power3.inOut",
 				onUpdate: () => {
-					这.draggerPos = target.value;
+					this.draggerPos = target.value;
 				},
 			});
 		},
@@ -195,21 +192,20 @@ export const useAppStore = defineStore('app', {
 		 * 关闭切割操作器
 		 */
 		closeCutOperator() {
-			const 这 = useAppStore();
-			if (!这.showCutOperator) return;
+			if (!this.showCutOperator) return;
 			const target = { value: 0 };
-			const initialDraggerPos = 这.showCutOperator.initialDraggerPos;
-			if (这.draggerPos <= 0.01) {
+			const initialDraggerPos = this.showCutOperator.initialDraggerPos;
+			if (this.draggerPos <= 0.01) {
 				gsap.to(target, {
 					value: initialDraggerPos,
 					duration: 0.5,
 					ease: "power3.inOut",
 					onUpdate: () => {
-						这.draggerPos = target.value;
+						this.draggerPos = target.value;
 					},
 				});
 			}
-			这.showCutOperator = undefined;
+			this.showCutOperator = undefined;
 		},
 		// #endregion 纯 UI
 		// #region 任务处理
@@ -218,6 +214,7 @@ export const useAppStore = defineStore('app', {
 		 * Promise 最终会在后端返回任务更新（或 200ms 超时）后，并将 globalParams 替换后 resolve
 		 */
 		addTasks (inputList: string[] | FileList, type: 'multiTask' | 'multiInput' = 'multiTask') {
+			const store = this;
 			return new Promise<number[]>(async (resolve) => {
 				function allTimerFinish() {
 					Promise.all(newlyAddedTaskIds).then((ids) => {
@@ -227,17 +224,16 @@ export const useAppStore = defineStore('app', {
 						const handler = () => {
 							clearTimeout(timer);
 							server!.entity.off('taskUpdate', handler);
-							这.selectedTask = new Set(ids);
-							这.applySelectedTask();
+							store.selectedTask = new Set(ids);
+							store.applySelectedTask();
 							resolve(ids);
 						};
 						const timer = setTimeout(handler, 200);
 						server!.entity.on('taskUpdate', handler);
 					});
 				}
-	
-				const 这 = useAppStore();
-				const server = 这.currentServer;
+
+				const server = store.currentServer;
 				if (!server) { debugger; throw 'ub'; }
 				const isRemoteService = server.entity.ip !== 'localhost';
 				const newlyAddedTaskIds: Promise<number>[] = [];	// 考虑到 timer 的最后一项并不一定是网络到达的最后一项，这里使用 Promise。待后期远程调用批量化后可改进
@@ -253,7 +249,7 @@ export const useAppStore = defineStore('app', {
 							}
 							if (server.data.totalCount >= maxTaskCount) {	// 使用 totalCount 判断任务总数上限
 								needStopCuzLimit = true;
-								这.pushMsg(
+								store.pushMsg(
 									i11n.service.功能限制_任务数上限(maxTaskCount, true),
 									NotificationLevel.warning
 								);
@@ -276,7 +272,7 @@ export const useAppStore = defineStore('app', {
 								}
 							}
 							const inputName = `[uploading] ${fileBaseName}`
-							let promise: Promise<number> = 这.addTask(
+							let promise: Promise<number> = store.addTask(
 								trimExt(fileBaseName),
 								[needUpload ? inputName : (typeof input === 'string' ? input : input.path)]
 							);	// 网页版拖入文件必定上传，electron 版拖入文件则直接以路径输入
@@ -297,21 +293,21 @@ export const useAppStore = defineStore('app', {
 					}
 				} else if (type === 'multiInput') {
 					if (server.data.totalCount >= maxTaskCount) {	// 使用 totalCount 判断任务总数上限
-						这.pushMsg(
+						store.pushMsg(
 							i11n.service.功能限制_任务数上限(maxTaskCount, true),
 							NotificationLevel.warning
 						);
 						allTimerFinish();
 						return;
 					}
-	
+
 					/**
 					 * 本地：无需上传，字符串原样传入，File 读取 .path
 					 * 远程：字符串判断是文件（非文件夹）后生成 inputName 占位符后上传，文件直接上传（丢文件夹会失败）
 					 */
 					// 先添加占位符任务，然后检查上传
 					const firstFileBaseName = typeof inputList[0] === 'string' ? path.parse(inputList[0])?.name : inputList[0]?.name;
-					const taskId = await 这.addTask(
+					const taskId = await store.addTask(
 						firstFileBaseName ? trimExt(firstFileBaseName) : `新任务 ${new Date().toISOString()}`,
 						[]
 					);
@@ -347,8 +343,8 @@ export const useAppStore = defineStore('app', {
 					}
 
 					// 完成任务添加后，设置输入列表
-					const entity = 这.currentServer?.entity;
-					const params = 这.globalParams;
+					const entity = server.entity;
+					const params = store.globalParams;
 					entity.setParameters([taskId], {
 						...params,
 						input: {
@@ -375,10 +371,9 @@ export const useAppStore = defineStore('app', {
 		 * @param path 输入文件的路径。若为远程任务则需定义一个占位符，完成上传后通过 service.mergeUploaded 修正文件名
 		 */
 		addTask(fileName: string, paths: string[]): Promise<number> {
-			const 这 = useAppStore();
-			const currentBridge = 这.currentServer?.entity;
+			const currentBridge = this.currentServer?.entity;
 			if (!currentBridge) { debugger; throw 'ub'; }
-			const params: OutputParams = JSON.parse(JSON.stringify(这.globalParams));
+			const params: OutputParams = JSON.parse(JSON.stringify(this.globalParams));
 			params.input.files = paths.map((path, index) => ({
 				filePath: path ? path.replace(/\\/g, '/') : undefined,
 				demuxer: params.input.files[index]?.demuxer ?? '自动',
@@ -396,18 +391,18 @@ export const useAppStore = defineStore('app', {
 		/**
 		 * 获取 service 的 taskList 更新到本地（基于缓冲区范围）
 		 * 既是初始化加载的入口，也是滚动停止/粗调跳转后的刷新方法
-		 * @param server 服务器实例
 		 * @param firstVisibleIndex 可见范围中第一个任务的全局序号（默认 0）
 		 * @param lastVisibleIndex 可见范围中最后一个任务的全局序号（默认 firstVisibleIndex）
 		 * @param force 是否强制完整拉取（默认 true）。为 false 且处于无限滚动模式时，仅拉取缓冲区前后缺失的部分
 		 * 计算范围：firstVisibleIndex - pageSize/2 ~ lastVisibleIndex + pageSize/2
 		 */
-		async updateTaskList(server: Server, firstVisibleIndex: number = 0, lastVisibleIndex?: number, force: boolean = true): Promise<void> {
-			const 这 = useAppStore();
+		async updateTaskList(firstVisibleIndex: number = 0, lastVisibleIndex?: number, force: boolean = true): Promise<void> {
+			const server = this.currentServer;
+			if (!server) { debugger; throw 'ub'; }
 			const totalCount = server.data.totalCount;
 			const _last = lastVisibleIndex ?? firstVisibleIndex;
-			const halfPage = Math.round(这.frontendSettings.taskListPageSize / 2);
-			const threshold = 这.frontendSettings.taskListInfiniteScrollThreshold;
+			const halfPage = Math.round(this.frontendSettings.taskListPageSize / 2);
+			const threshold = this.frontendSettings.taskListInfiniteScrollThreshold;
 
 			// 判断是否启用无限滚动：totalCount 为 0 时（初始加载）按 pageSize 拉取，已知 totalCount 时按阈值判断
 			const useInfiniteScroll = totalCount > 0 && totalCount >= threshold;
@@ -481,7 +476,7 @@ export const useAppStore = defineStore('app', {
 					console.log(`任务列表更新完成，缓冲区范围：${server.data.bufferStart} - ${server.data.bufferEnd}`);
 
 					server.entity.replaceSubscription(merged.map(t => t.id));
-					这.recalcChangedParams();
+					this.recalcChangedParams();
 					return;
 				}
 			}
@@ -526,17 +521,17 @@ export const useAppStore = defineStore('app', {
 			// 订阅当前缓冲区的 taskId
 			server.entity.replaceSubscription([...newTasks.map(t => t.id)]);
 
-			这.recalcChangedParams();
+			this.recalcChangedParams();
 		},
 		/**
 		 * 从后端获取所有任务的 ID 列表（用于全选和跨区选择）
 		 */
 		async fetchAllTaskIds(): Promise<number[]> {
-			const 这 = useAppStore();
-			if (!这.currentServer) return [];
-			const totalCount = 这.currentServer.data.totalCount;
+			if (!this.currentServer) return [];
+			const server = this.currentServer;
+			const totalCount = server.data.totalCount;
 			if (totalCount === 0) return [];
-			const response = await 这.currentServer.entity.getTaskList(0, totalCount, true);
+			const response = await server.entity.getTaskList(0, totalCount, true);
 			return response.taskIds;
 		},
 		/**
@@ -545,40 +540,38 @@ export const useAppStore = defineStore('app', {
 		 * @param end 可见范围结束 index
 		 */
 		jumpToRange(start: number, end: number) {
-			const 这 = useAppStore();
-			const server = 这.currentServer!;
-			const totalCount = server.data.totalCount;
-			if (totalCount === 0) return;
+			const totalCount = this.currentServer?.data.totalCount;
+			if (!totalCount) return;
 			console.log('粗调跳转', start, '~', end);
-			this.updateTaskList(server, start, end);
+			this.updateTaskList(start, end);
 		},
 		/**
 		 * 获取 service 的 task 更新到本地
 		 */
-		updateTask(server: Server, taskId: number) {
-			const 这 = useAppStore();
+		updateTask(taskId: number) {
+			const server = this.currentServer;
+			if (!server) return;
 			server.entity.getTask(taskId).then((content) => {
 				handleTaskUpdate(server, taskId, content);
-				这.recalcChangedParams();
+				this.recalcChangedParams();
 			});
 		},
 		/**
 		 * 检查每个任务的上传状态，调用 entity.deleteTask
-		 * @param taskIds 
+		 * @param taskIds
 		 */
 		deleteTasks(taskIds: number[]) {
-			const 这 = useAppStore();
-			if (!这.currentServer) { debugger; throw 'ub'; }
+			if (!this.currentServer) { debugger; throw 'ub'; }
 			for (const taskId of taskIds) {
-				const uploadFiles = 这.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === taskId)
+				const uploadFiles = this.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === taskId)
 				for (const uploadFile of uploadFiles) {
 					// 对于正在读取校验的任务
 					uploadFile.readTask?.stop();	// 不一定有，比如上传完成
 					// 对于正在上传的任务
-					const uploadingChunks = uploadFile.chunks.filter((chunk) => chunk.status === 'uploading'); 
+					const uploadingChunks = uploadFile.chunks.filter((chunk) => chunk.status === 'uploading');
 					uploadingChunks.forEach((chunk) => chunk.abortController.abort());
 				}
-				这.currentServer.entity.taskDelete(taskId);
+				this.currentServer.entity.taskDelete(taskId);
 			}
 		},
 		/**
@@ -586,28 +579,26 @@ export const useAppStore = defineStore('app', {
 		 * 函数将使用已选择的任务项替换 globalParameters
 		 */
 		applySelectedTask() {
-			const 这 = useAppStore();
-			if (!这.currentServer) { debugger; throw 'ub'; }
-			if (这.selectedTask.size > 0) {
-				const data = 这.currentServer.data;
-				for (const id of 这.selectedTask) {
+			if (!this.currentServer) { debugger; throw 'ub'; }
+			if (this.selectedTask.size > 0) {
+				const data = this.currentServer.data;
+				for (const id of this.selectedTask) {
 					const index = data.taskIdToIndex.get(id);
 					if (index !== undefined) {
-						这.globalParams = replaceOutputParams(data.tasks[index].after, 这.globalParams, true);
+						this.globalParams = replaceOutputParams(data.tasks[index].after, this.globalParams, true);
 					}
 				}
 			}
-			这.globalParams.extra.presetName = '';
-			这.presetName = '';
+			this.globalParams.extra.presetName = '';
+			this.presetName = '';
 		},
 		startNpause () {
-			const 这 = useAppStore();
-			if (!这.currentServer) { debugger; throw 'ub'; }
-			if (这.currentServer.entity.status !== ServiceBridgeStatus.Connected) {
+			if (!this.currentServer) { debugger; throw 'ub'; }
+			if (this.currentServer.entity.status !== ServiceBridgeStatus.Connected) {
 				return;
 			}
-			const data = 这.currentServer.data;
-			const entity = 这.currentServer.entity;
+			const data = this.currentServer.data;
+			const entity = this.currentServer.entity;
 			if (data.workingStatus === WorkingStatus.idle) {		// 开始任务
 				entity.queueStart();
 			} else {
@@ -622,45 +613,44 @@ export const useAppStore = defineStore('app', {
 		 * 对于用户操作，将预设参数置为未保存
 		 */
 		applyParameters(behavior: 'modifyTask' | 'applyToAllTasks' | 'loadPreset' | 'verifyDefaults' = 'modifyTask', selection?: Set<number>) {
-			const 这 = useAppStore();
 			// 更改到一些不匹配的值后会导致 getFFmpegParaArray 出错，但是修正代码就在后面，因此仅需忽略它，让它继续运行下去，不要急着更新
 
 			// 变更预设参数
 			if (behavior === 'modifyTask') {
-				这.globalParams.extra.presetName = '';
-				这.presetName = '';
+				this.globalParams.extra.presetName = '';
+				this.presetName = '';
 			}
 
-			if (!这.currentServer) { debugger; throw 'ub'; }
-			const entity = 这.currentServer.entity;
-			const data = 这.currentServer.data;
+			if (!this.currentServer) { debugger; throw 'ub'; }
+			const entity = this.currentServer.entity;
+			const data = this.currentServer.data;
 			if (data) {
-				// 这.globalParams
+				// this.globalParams
 				// 收集需要批量更新的输出参数，交给 service。同时本地替换一次 task.after
-				const targetIds = Array.from(selection || 这.selectedTask);
-				const isSingleTaskModify = behavior === 'modifyTask' && 这.selectedTask.size === 1;
+				const targetIds = Array.from(selection || this.selectedTask);
+				const isSingleTaskModify = behavior === 'modifyTask' && this.selectedTask.size === 1;
 
 				// 本地更新缓冲区中的任务
 				for (const id of targetIds) {
 					const taskIndex = data.taskIdToIndex.get(id);
 					if (taskIndex === undefined) continue;
 					let task = data.tasks[taskIndex];
-					task.after = replaceOutputParams(这.globalParams, task.after, isSingleTaskModify);
+					task.after = replaceOutputParams(this.globalParams, task.after, isSingleTaskModify);
 				}
 				if (targetIds.length) {
 					// paraArray 由 service 算出后回填本地
 					// 更新方式是 taskUpdate
 					// 注意回填本地时也会产生一次 task.after 更新
-					entity.setParameters(targetIds, 这.globalParams, isSingleTaskModify);
+					entity.setParameters(targetIds, this.globalParams, isSingleTaskModify);
 				}
 
-				这.taskSelectionModified = true;
+				this.taskSelectionModified = true;
 			}
 
 			// 存盘
 			clearTimeout((window as any).saveAllParaTimer);
 			(window as any).saveAllParaTimer = setTimeout(() => {
-				nodeBridge.localStorage.set('globalParams', 这.globalParams);
+				nodeBridge.localStorage.set('globalParams', this.globalParams);
 				console.log('参数已保存');
 			}, 700);
 		},
@@ -669,9 +659,8 @@ export const useAppStore = defineStore('app', {
 		 * 并会调用一次 applyParameters 以存储并将当前配置应用到所选任务上
 		 */
 		checkAndApplyCodecDefaults(who: { video?: true, audio?: true, mux?: true }, outputIndex = 0) {
-			const 这 = useAppStore();
 			if (who.video) {
-				const v = 这.globalParams.outputs[outputIndex].video;
+				const v = this.globalParams.outputs[outputIndex].video;
 				const vcodec = getMenuItemByValue(builtInVcodecs, v.vcodec) ?? getMenuItemByValue(allVcodecs, v.vcodec);
 				// 清理所有码率控制参数
 				const rcList = ((vcodec as any)?.extra?.rateControl || []) as any[];
@@ -704,7 +693,7 @@ export const useAppStore = defineStore('app', {
 				}
 			}
 			if (who.audio) {
-				const a = 这.globalParams.outputs[outputIndex].audio;
+				const a = this.globalParams.outputs[outputIndex].audio;
 				const acodec = getMenuItemByValue(builtInAcodecs, a.acodec) ?? getMenuItemByValue(allAcodecs, a.acodec);
 				// 清理所有码率控制参数
 				const rcList = ((acodec as any)?.extra?.rateControl || []) as any[];
@@ -737,7 +726,7 @@ export const useAppStore = defineStore('app', {
 				}
 			}
 			if (who.mux) {
-				const m = 这.globalParams.outputs[outputIndex].mux;
+				const m = this.globalParams.outputs[outputIndex].mux;
 				const muxer = getMenuItemByValue(builtInMuxers, m.format) ?? getMenuItemByValue(allMuxers, m.format)
 				for (const parameter of ((muxer as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
@@ -754,16 +743,15 @@ export const useAppStore = defineStore('app', {
 					}
 				}
 			}
-			这.applyParameters('verifyDefaults');
+			this.applyParameters('verifyDefaults');
 		},
 		/**
-		 * 检查有多少参数是非“不重新编码”的，以此更改界面显示形式（paramsVisibility）
+		 * 检查有多少参数是非"不重新编码"的，以此更改界面显示形式（paramsVisibility）
 		 * 在服务器初次加载和修改参数时调用
 		 * 目前均以第一个输入和第一个输出的参数为准
 		 */
 		recalcChangedParams() {
-			const 这 = useAppStore();
-			if (!这.currentServer) { debugger; throw 'ub'; }
+			if (!this.currentServer) { debugger; throw 'ub'; }
 			const paramsVisibility = {
 				duration: 0,
 				format: 0,
@@ -771,7 +759,7 @@ export const useAppStore = defineStore('app', {
 				video: 0,
 				audio: 0,
 			};
-			for (const task of 这.currentServer.data.tasks || []) {
+			for (const task of this.currentServer.data.tasks || []) {
 				if (task.after.input.files.length !== 1 || task.after.outputs.length !== 1) {
 					continue;
 				}
@@ -814,61 +802,59 @@ export const useAppStore = defineStore('app', {
 				audio: (['none', 'input', 'all'] as any)[paramsVisibility.audio],
 			};
 			if (
-				这.taskViewSettings.paramsVisibility.duration !== newVisibility.duration ||
-				这.taskViewSettings.paramsVisibility.format !== newVisibility.format ||
-				这.taskViewSettings.paramsVisibility.smpte !== newVisibility.smpte ||
-				这.taskViewSettings.paramsVisibility.video !== newVisibility.video ||
-				这.taskViewSettings.paramsVisibility.audio !== newVisibility.audio
+				this.taskViewSettings.paramsVisibility.duration !== newVisibility.duration ||
+				this.taskViewSettings.paramsVisibility.format !== newVisibility.format ||
+				this.taskViewSettings.paramsVisibility.smpte !== newVisibility.smpte ||
+				this.taskViewSettings.paramsVisibility.video !== newVisibility.video ||
+				this.taskViewSettings.paramsVisibility.audio !== newVisibility.audio
 			) {
-				这.taskViewSettings.paramsVisibility = newVisibility;
+				this.taskViewSettings.paramsVisibility = newVisibility;
 			}
-			// 这.taskViewSettings.paramsVisibility = {
+			// this.taskViewSettings.paramsVisibility = {
 			// 	duration: (['none', 'input', 'all'] as any)[paramsVisibility.duration],
 			// 	format: (['none', 'input', 'all'] as any)[paramsVisibility.format],
 			// 	smpte: (['none', 'input', 'all'] as any)[paramsVisibility.smpte],
 			// 	video: (['none', 'input', 'all'] as any)[paramsVisibility.video],
 			// 	audio: (['none', 'input', 'all'] as any)[paramsVisibility.audio],
 			// };
-			// console.log('recalcChangedParams', 这.taskViewSettings.paramsVisibility);
+			// console.log('recalcChangedParams', this.taskViewSettings.paramsVisibility);
 		},
 		/**
 		 * 按名称载入预设并更新配置（含所选任务配置）
 		 */
 		async loadPreset(name: string) {
-			const 这 = useAppStore();
 			const secureName = name.replaceAll('.', '．');
 			if (secureName === '默认配置') {
-				这.globalParams = JSON.parse(JSON.stringify(defaultParams));
-				这.presetName = secureName;
-				这.checkAndApplyCodecDefaults({ video: true, audio: true });
+				this.globalParams = JSON.parse(JSON.stringify(defaultParams));
+				this.presetName = secureName;
+				this.checkAndApplyCodecDefaults({ video: true, audio: true });
 			} else {
 				const params = await nodeBridge.localStorage.get(`presets.${secureName}`);
 				if (params) {
-					这.globalParams = params;
+					this.globalParams = params;
 				}
-				这.presetName = secureName;
-				这.applyParameters('loadPreset');
+				this.presetName = secureName;
+				this.applyParameters('loadPreset');
 			}
-			if (这.selectedTask.size > 0 && 这.currentServer) {
+			if (this.selectedTask.size > 0 && this.currentServer) {
 				// 这个操作约等于 applySelectedTask
 				// 主要目的是，当选中了任务更改预设时，全局参数中的输入文件名等信息会被替换，但任务中的不被替换。若马上就修改其他参数，会导致任务中的输入文件名等信息变成全局的
-				const fisrtSelectedTaskId = [...这.selectedTask][0];
-				const taskIndex = 这.currentServer.data.taskIdToIndex.get(fisrtSelectedTaskId);
+				const fisrtSelectedTaskId = [...this.selectedTask][0];
+				const taskIndex = this.currentServer.data.taskIdToIndex.get(fisrtSelectedTaskId);
 				if (taskIndex !== undefined) {
-					这.globalParams = replaceOutputParams(这.currentServer.data.tasks[taskIndex].after, 这.globalParams, true);
+					this.globalParams = replaceOutputParams(this.currentServer.data.tasks[taskIndex].after, this.globalParams, true);
 				}
 			}
 		},
 		savePreset(name: string) {
-			const 这 = useAppStore();
 			const secureName = name.replaceAll('.', '．');
-			return nodeBridge.localStorage.set(`presets.${secureName}`, 这.globalParams).then(() => {
-				这.presetName = secureName;
-				这.loadPresetList();
+			return nodeBridge.localStorage.set(`presets.${secureName}`, this.globalParams).then(() => {
+				this.presetName = secureName;
+				this.loadPresetList();
 			});
 		},
 		editPreset(oldName: string, newName: string) {
-			const 这 = useAppStore();
+			const store = this;
 			const secureOldName = oldName.replaceAll('.', '．');
 			const secureNewName = newName.replaceAll('.', '．');
 			async function f() {
@@ -877,37 +863,34 @@ export const useAppStore = defineStore('app', {
 				if (newName !== oldName) {
 					nodeBridge.localStorage.delete(`presets.${secureOldName}`);
 				}
-				这.presetName = secureNewName;
-				这.loadPresetList();
+				store.presetName = secureNewName;
+				store.loadPresetList();
 			}
 			return f();
 		},
 		deletePreset(name: string) {
-			const 这 = useAppStore();
 			const secureName = name.replaceAll('.', '．');
 			return nodeBridge.localStorage.delete(`presets.${secureName}`).then(() => {
-				这.presetName = '';
-				这.loadPresetList();
+				this.presetName = '';
+				this.loadPresetList();
 			});
 		},
 		/**
 		 * 通过 electronStore.get('presets') 得到的 key 更新当前可用的预设菜单
 		 */
 		loadPresetList() {
-			const 这 = useAppStore();
 			nodeBridge.localStorage.get('presets').then((presets) => {
 				try {
-					这.availablePresets = Object.keys(presets);
+					this.availablePresets = Object.keys(presets);
 				} catch (error) {
 					nodeBridge.localStorage.set('presets', {});
 				}
 			});
 		},
 		fetchAVOptions() {
-			const 这 = useAppStore();
-			if (!这.currentServer) { debugger; throw 'ub'; }
-			const entity = 这.currentServer.entity;
-			const data = 这.currentServer.data;
+			if (!this.currentServer) { debugger; throw 'ub'; }
+			const entity = this.currentServer.entity;
+			const data = this.currentServer.data;
 			if (entity.status === ServiceBridgeStatus.Connected) {
 				entity.getAVOptions().then((result: { codecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }, formats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[] }, filters: FFmpegFilterDetail[] }) => {
 					parseFFmpegCodecsToCodecsList(result.codecs);
@@ -928,34 +911,32 @@ export const useAppStore = defineStore('app', {
 		/**
 		 * 获取 service 的 notifications 更新到本地
 		 */
-		updateNotifications(server: Server) {
-			const 这 = useAppStore();
-			if (!这.currentServer) { debugger; throw 'ub'; }
-			const entity = 这.currentServer.entity;
+		updateNotifications() {
+			if (!this.currentServer) { debugger; throw 'ub'; }
+			const entity = this.currentServer.entity;
 			entity.getNotifications().then((result) => {
-				server.data.notifications = result;
+				this.currentServer!.data.notifications = result;
 			});
 		},
 		pushMsg(message: string, level: NotificationLevel) {
-			const 这 = useAppStore();
 			Popup({ message, level });
-			这.notifications.push({
+			this.notifications.push({
 				time: new Date().getTime(),
 				content: message,
 				level,
 			})
 		},
 		setUnreadNotifationCount(clear = false) {
-			const 这 = useAppStore();
-			这.unreadNotificationCount = clear ? 0 : 这.unreadNotificationCount + 1;
+			this.unreadNotificationCount = clear ? 0 : this.unreadNotificationCount + 1;
 		},
 		// #endregion 通知处理
 		// #region 服务器处理
 		/**
 		 * 获取 service 的版本和属性更新到本地
 		 */
-		updateServerProperties(server: Server) {
-			const 这 = useAppStore();
+		updateServerProperties() {
+			const server = this.currentServer;
+			if (!server) { debugger; throw 'ub'; }
 			Promise.all([
 				fetch(`http://${server.entity.ip}:${server.entity.port}/api/v1/system/version`, { method: 'get' }),
 				server.entity.getProperties(),
@@ -991,9 +972,8 @@ export const useAppStore = defineStore('app', {
 		 * 添加服务器标签页
 		 */
 		addServer() {
-			const 这 = useAppStore();
 			const id = randomString(6);
-			这.servers.push({
+			this.servers.push({
 				data: {
 					id: id,
 					name: '未连接',
@@ -1012,8 +992,8 @@ export const useAppStore = defineStore('app', {
 				},
 				entity: new ServiceBridge(),
 			});
-			这.selectedTask.clear();
-			这.currentServerId = id;
+			this.selectedTask.clear();
+			this.currentServerId = id;
 			return id;
 		},
 		/**
@@ -1021,21 +1001,19 @@ export const useAppStore = defineStore('app', {
 		 * TODO 暂未实现上传下载中断逻辑
 		 */
 		removeServer(serverId: string) {
-			const 这 = useAppStore();
-			const index = 这.servers.findIndex((server) => server.data.id === serverId);
+			const index = this.servers.findIndex((server) => server.data.id === serverId);
 			if (index > -1) {
-				这.servers.splice(index, 1);
+				this.servers.splice(index, 1);
 			}
-			if (这.currentServerId === serverId) {
-				这.currentServerId = 这.servers[index - 1].data.id;
+			if (this.currentServerId === serverId) {
+				this.currentServerId = this.servers[index - 1].data.id;
 			}
 		},
 		/**
 		 * 初始化服务器连接并挂载事件监听
 		 */
 		initializeServer(serverId: string, ip: string, port: number, username: string, password: string, retryCount = 0) {
-			const 这 = useAppStore();
-			const server = 这.servers.find((server) => server.data.id === serverId) as Server;
+			const server = this.servers.find((server) => server.data.id === serverId) as Server;
 			const entity = server.entity;
 			if (!ip) {
 				return Promise.reject();
@@ -1051,41 +1029,42 @@ export const useAppStore = defineStore('app', {
 			}
 			return new Promise((resolve, reject) => {
 				entity.connect(ip, _port, username, password);
-	
+
 				entity.on('connected', () => {
 					server.data.name = ip === 'localhost' ? '本地服务器' : ip;
 					console.log(`成功连接到服务器 ${server.entity.ip}`);
-					这.pushMsg(`成功连接到服务器 ${server.data.name}`, NotificationLevel.ok);
+					this.pushMsg(`成功连接到服务器 ${server.data.name}`, NotificationLevel.ok);
 					server.data.tasks = [];	// 由于 taskList 只包含 id，重新连接后需要清除原 task 信息以获取新的
 					server.data.taskIdToIndex = new Map();
-					这.updateServerProperties(server);
-					这.updateTaskList(server, 0).then(() => {
+					// 以下操作针对的是特定 server（闭包捕获），而非 currentServer（可能已切换），因此直接调用 server.entity 而非 store action
+					this.updateServerProperties();
+					this.updateTaskList(0).then(() => {
 						// 先拉一次任务总数（以决定是否要开启无限滚动，以确认 pageSize），再触发一次任务拉取
-						这.updateTaskList(server, 0);
+						this.updateTaskList(0);
 					});
 					// entity.updateTaskList();
-					这.updateNotifications(server);
+					this.updateNotifications();
 					resolve(server);
 				});
 				entity.on('disconnected', () => {
 					console.log(`已断开服务器 ${server.entity.ip} 的连接`);
-					这.pushMsg(`已断开服务器 ${server.data.name} 的连接`, NotificationLevel.warning);
+					this.pushMsg(`已断开服务器 ${server.data.name} 的连接`, NotificationLevel.warning);
 					destroy();
 				});
 				entity.on('error', (reason) => {
 					if (!retryCount || reason.includes('连接失败')) {
 						console.log(`服务器 ${server.entity.ip} ${reason}`);
-						这.pushMsg(`服务器 ${server.data.name} ${reason}`, NotificationLevel.error);
+						this.pushMsg(`服务器 ${server.data.name} ${reason}`, NotificationLevel.error);
 						destroy();
 						reject(reason);
 					} else {
 						console.log(`服务器 ${server.entity.ip} ${reason}，剩余重试次数 ${retryCount}`);
 						setTimeout(() => {
-							这.initializeServer(serverId, ip, port, username, password, retryCount - 1);
+							this.initializeServer(serverId, ip, port, username, password, retryCount - 1);
 						}, 150);
 					}
 				});
-	
+
 				entity.on('ffmpegInfo', (data) => {
 					handleFFmpegInfo(server, data);
 				});
@@ -1097,17 +1076,17 @@ export const useAppStore = defineStore('app', {
 				});
 				entity.on('tasklistUpdate', (data) => {
 					handleTasklistUpdate(server, data);
-					这.recalcChangedParams();
+					this.recalcChangedParams();
 				});
 				entity.on('taskUpdate', (data) => {
 					handleTaskUpdate(server, data.taskId, data.task);
-					这.recalcChangedParams();
+					this.recalcChangedParams();
 				});
 				entity.on('cmdUpdate', (data) => {
 					handleCmdUpdate(server, data.taskId, data.content, data.append);
 				});
 				entity.on('progressUpdate', (data) => {
-					handleProgressUpdate(server, data.taskId, data.time, data.status, 这.functionLevel);
+					handleProgressUpdate(server, data.taskId, data.time, data.status, this.functionLevel);
 				});
 				entity.on('notificationUpdate', (data) => {
 					handleNotificationUpdate(server, data.notificationId, data.notification);
@@ -1118,24 +1097,21 @@ export const useAppStore = defineStore('app', {
 		 * 重新连接已掉线或未成功连接的服务器
 		 */
 		reConnectServer(serverId: string) {
-			const 这 = useAppStore();
-			const server = 这.servers.find((server) => server.data.id === serverId) as Server;
+			const server = this.servers.find((server) => server.data.id === serverId) as Server;
 			const entity = server.entity;
-			这.initializeServer(serverId, entity.ip, entity.port, entity.username, entity.password);
+			this.initializeServer(serverId, entity.ip, entity.port, entity.username, entity.password);
 		},
 		// #endregion 服务器处理
 		// #region 其他
 		async activateBackend(userInput: string): Promise<number | false> {
-			const 这 = useAppStore();
-			const result = await 这.currentServer?.entity.activate(userInput).catch(() => false);
+			const result = await this.currentServer?.entity.activate(userInput).catch(() => false);
 			if (result && Number.isFinite(+result)) {
-				这.currentServer!.data.functionLevel = +result;
+				this.currentServer!.data.functionLevel = +result;
 				return +result;
 			}
 			return false;
 		},
 		async activateFrontend(userInput: string): Promise<number | false> {
-			const 这 = useAppStore();
 			if (nodeBridge.env === 'electron') {
 				/**
 				 * 客户端和管理端均使用机器码 + 固定码共 32 位作为 key
@@ -1148,7 +1124,7 @@ export const useAppStore = defineStore('app', {
 				const decrypted = CryptoJS.AES.decrypt(userInput, key)
 				const decryptedString = CryptoJS.enc.Utf8.stringify(decrypted);
 				if ((+decryptedString).toString() === decryptedString) {
-					这.functionLevel = parseInt(decryptedString);
+					this.functionLevel = parseInt(decryptedString);
 					nodeBridge.localStorage.set('frontendSettings.activationCode', userInput);
 					return parseInt(decryptedString);
 				} else {
@@ -1163,28 +1139,26 @@ export const useAppStore = defineStore('app', {
 		 * 对于用户操作，进行存盘
 		 */
 		applyFrontendSettings(isUserInteraction: boolean) {
-			const 这 = useAppStore();
-
 			if (isUserInteraction) {
 				// 存盘
 				clearTimeout((window as any).saveAllParaTimer);
 				(window as any).saveAllParaTimer = setTimeout(() => {
-					nodeBridge.localStorage.set('frontendSettings', 这.frontendSettings);
+					nodeBridge.localStorage.set('frontendSettings', this.frontendSettings);
 					console.log('设置已保存');
 				}, 700);
 			}
 
-			document.body.className = 这.frontendSettings.colorTheme;
-			if (这.frontendSettings.colorTheme === 'themeAcrylic') {
+			document.body.className = this.frontendSettings.colorTheme;
+			if (this.frontendSettings.colorTheme === 'themeAcrylic') {
 				nodeBridge.setBlurBehindWindow(true);
 			} else {
 				nodeBridge.setBlurBehindWindow(false);
 			}
-			// document.body.setAttribute('data-color_theme', 这.frontendSettings.colorTheme);
+			// document.body.setAttribute('data-color_theme', this.frontendSettings.colorTheme);
 
-			window.frontendSettings!.useIEC = 这.frontendSettings.useIEC;
+			window.frontendSettings!.useIEC = this.frontendSettings.useIEC;
 		},
-		
+
 		// #endregion 其他
 	},
 });

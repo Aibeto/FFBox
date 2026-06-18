@@ -23,8 +23,8 @@ export function handleStatusUpdate(server: Server, workingStatus: 'start' | 'sto
 	}
 };
 export function handleTasklistUpdate(server: Server, data: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number }) {
-	const 这 = useAppStore();
-	const pageSize = 这.frontendSettings.taskListPageSize;
+	const store = useAppStore();
+	const pageSize = store.frontendSettings.taskListPageSize;
 	const serverData = server.data;
 
 	// 更新总数
@@ -34,7 +34,7 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 	if (data.removed) {
 		let deletedFromBuffer = false;
 		for (const { taskId } of data.removed) {
-			这.selectedTask.delete(taskId);
+			store.selectedTask.delete(taskId);
 			const arrayIndex = serverData.taskIdToIndex.get(taskId);
 			if (arrayIndex !== undefined) {
 				deletedFromBuffer = true;
@@ -66,7 +66,7 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 				}
 			} else {
 				// 边界末尾不是列表末尾，保持边界不变，重新拉取数据填充
-				这.updateTaskList(server, Math.round(serverData.bufferStart + pageSize / 2), Math.round(serverData.bufferStart + pageSize / 2), false);
+				store.updateTaskList(Math.round(serverData.bufferStart + pageSize / 2), Math.round(serverData.bufferStart + pageSize / 2), false);
 			}
 		}
 	}
@@ -76,8 +76,8 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 		let hasOutsideBuffer = false;
 		for (const { taskId, index } of data.added) {
 			// 全选模式下，新任务也自动加入选中集合
-			if (这.isAllSelected) {
-				这.selectedTask.add(taskId);
+			if (store.isAllSelected) {
+				store.selectedTask.add(taskId);
 			}
 			// 检查新增任务是否落在当前缓冲区范围内
 			if (index >= serverData.bufferStart && index < serverData.bufferEnd) {
@@ -103,7 +103,7 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 				serverData.bufferEnd++;
 				// 异步获取完整任务数据
 				setTimeout(() => {
-					这.updateTask(server, taskId);
+					store.updateTask(taskId);
 				}, 20);
 			} else {
 				hasOutsideBuffer = true;
@@ -114,7 +114,7 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 			if (serverData.bufferStart + pageSize > serverData.totalCount) {
 				// 缓冲区起点 + 分页大小大于新任务总数，说明列表基本拉到了末尾
 				// 扩展边界末尾，拉取新任务信息
-				这.updateTaskList(server, Math.round(serverData.bufferStart + pageSize / 2), serverData.totalCount - 1, false);
+				store.updateTaskList(Math.round(serverData.bufferStart + pageSize / 2), serverData.totalCount - 1, false);
 			} else {
 				// 以当前第一个可见任务为参考点，保持用户视图位置
 				// const firstTask = serverData.tasks[0];
@@ -220,15 +220,15 @@ export function handleProgressUpdate(server: Server, id: number, time: number, s
  * 增量更新 notifications
  */
 export function handleNotificationUpdate(server: Server, notificationId: number, notification?: Notification) {
-	const 这 = useAppStore();
+	const store = useAppStore();
 	if (notification) {
 		server.data.notifications[notificationId] = notification;
-		const serverNameString = 这.servers.length > 1 ? `${server.data.name}：` : '';
+		const serverNameString = store.servers.length > 1 ? `${server.data.name}：` : '';
 		Popup({
 			message: serverNameString + notification.content,
 			level: notification.level,
 		});
-		这.setUnreadNotifationCount();
+		store.setUnreadNotifationCount();
 	} else {
 		delete server.data.notifications[notificationId];
 	}
@@ -239,8 +239,8 @@ export function handleNotificationUpdate(server: Server, notificationId: number,
 // #region ipc events
 
 export function handleCloseConfirm() {
-	const 这 = useAppStore();
-	const localServer = 这.localServer;
+	const store = useAppStore();
+	const localServer = store.localServer;
 	function readyToClose () {
 		nodeBridge.ipcRenderer?.send('exitConfirm');
 		setTimeout(() => {

@@ -500,13 +500,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const id = this.taskList.add(task);
 
 		// 更新命令行参数
+		const taskIndex = this.taskList.getIndexById(id);
 		if (isRemote) {
-			task.outputFiles = genTaskOutputFiles(task.after, ``);
-			task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
+			task.outputFiles = genTaskOutputFiles(task.after, ``, { taskId: id, taskIndex });
+			task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles, taskId: id, taskIndex });
 			task.status = TaskStatus.initializing;
 			task.remoteTask = true;
 		} else {
-			task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true });
+			task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, taskId: id, taskIndex });
 			if (firstFilePath?.length) {
 				this.getFileMetadata(id, task);
 			}
@@ -515,10 +516,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		log.info(`[任务 ${id}] 新增任务：${taskName}（${firstFilePath ? '单输入普通任务' : '多输入/网络任务'}）。`);
 		this.emit('tasklistUpdate', { added: [{ taskId: id, index: this.taskList.count() - 1 }], removed: [], totalCount: this.taskList.count() });
 
-		// TODO webhook 要把任务列表遍历一次，一下就把我 taskList 带来的性能提升抹掉了，想想要不要把 tasklist.changed 换成 tasklistUpdate 同款
-		// webhookManager.triggerTaskEvent('task.created', id, { taskId: id, task }).catch(() => {});
-		// webhookManager.triggerGlobalEvent('tasklist.added', { taskId: id, task }).catch(() => {});
-		// webhookManager.triggerGlobalEvent('tasklist.changed', { taskIds: this.taskList.getSnapshotIds() });
+		webhookManager.triggerTaskEvent('task.created', id, { taskId: id, task }).catch(() => {});
+		webhookManager.triggerGlobalEvent('tasklist.added', { taskId: id, task }).catch(() => {});
 
 		return Promise.resolve(id);
 	}
@@ -619,7 +618,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				} as any;	// 看看这样会不会出 bug
 			}
 		}
-		task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
+		task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles, taskId: id, taskIndex: this.taskList.getIndexById(id) });
 		this.setNotification(id, `任务「${task.taskName}」输入文件「${fileBaseName}」上传完成`, NotificationLevel.info);
 		this.emitTaskUpdate(id, task);
 	}
@@ -721,11 +720,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 
 		this.emit('tasklistUpdate', { added: [], removed: [{ taskId: id }], totalCount: this.taskList.count() });
-
-		// TODO webhook 要把任务列表遍历一次，一下就把我 taskList 带来的性能提升抹掉了，想想要不要把 tasklist.changed 换成 tasklistUpdate 同款
-		// webhookManager.triggerTaskEvent('task.deleted', id, { taskId: id });
-		// webhookManager.triggerGlobalEvent('tasklist.removed', { taskId: id });
-		// webhookManager.triggerGlobalEvent('tasklist.changed', { taskIds: this.taskList.getSnapshotIds() });
+		// TODO 如果任务输出路径中用到了 taskIndex，后面的序号都会变
+		webhookManager.triggerTaskEvent('task.deleted', id, { taskId: id });
+		webhookManager.triggerGlobalEvent('tasklist.removed', { taskId: id });
 	}
 
 	/**
@@ -761,15 +758,16 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.setCmdText(id, '', false);
 		// const filePath = task.after.input.files[0].filePath!; // 需要上传完成，状态为 TASK_STOPPED 时才能开始任务，因此 filePath 非空
 		let newFFmpeg: FFmpeg;
+		const taskIndex = this.taskList.getIndexById(id);
 		if (task.remoteTask) {
 			newFFmpeg = new FFmpeg(
 				this.ffmpegPath,
 				0,
-				getFFmpegParaArray({ outputParams: task.after, inputDir: `${os.tmpdir()}/FFBoxUploadCache`, overrideFilePaths: task.outputFiles.map((fileBaseName) => `${os.tmpdir()}/FFBoxDownloadCache/${fileBaseName}`) })
+				getFFmpegParaArray({ outputParams: task.after, inputDir: `${os.tmpdir()}/FFBoxUploadCache`, overrideFilePaths: task.outputFiles.map((fileBaseName) => `${os.tmpdir()}/FFBoxDownloadCache/${fileBaseName}`), taskId: id, taskIndex })
 			);
 		} else {
-			task.outputFiles = genTaskOutputFiles(task.after);	// 本地任务的 outputFiles 在任务开始时才生成，而远程任务则是在添加和修改参数时就刷新
-			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray({ outputParams: task.after }));
+			task.outputFiles = genTaskOutputFiles(task.after, undefined, { taskId: id, taskIndex });	// 本地任务的 outputFiles 在任务开始时才生成，而远程任务则是在添加和修改参数时就刷新
+			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray({ outputParams: task.after, taskId: id, taskIndex }));
 		}
 		newFFmpeg.on('closed', async (errorCode, runningResult) => {
 			if (errorCode) {
@@ -1155,11 +1153,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		for (const id of ids) {
 			const task = this.taskList.getById(id)!;
 			task.after = replaceOutputParams(params, task.after, fullyReplace);
+			const taskIndex = this.taskList.getIndexById(id);
 			if (task.remoteTask) {
-				task.outputFiles = genTaskOutputFiles(task.after, ``);
-				task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles });
+				task.outputFiles = genTaskOutputFiles(task.after, ``, { taskId: id, taskIndex });
+				task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, overrideFilePaths: task.outputFiles, taskId: id, taskIndex });
 			} else {
-				task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true });
+				task.paraArray = getFFmpegParaArray({ outputParams: task.after, withQuotes: true, taskId: id, taskIndex });
 			}
 			this.emitTaskUpdate(id, task);
 		}
