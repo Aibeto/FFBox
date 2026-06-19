@@ -38,7 +38,8 @@ export interface FFmpegInfo {
 export interface FFBoxServiceInterface {
 	initSettings(): Promise<void>;
 	initFFmpeg(): void;
-	taskAdd(taskName: string, outputParams?: OutputParams): Promise<number>;
+	taskAddBatch(filePaths: string[], outputParams?: OutputParams): Promise<number[]>;
+	taskCopy(id: number, count?: number): Promise<number>;
 	mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void>;
 	setUploadStatus(id: number, isUploading: boolean): Promise<void>;
 	taskDelete(id: number): Promise<void>;
@@ -54,7 +55,6 @@ export interface FFBoxServiceInterface {
 	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void>;
 	getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<Frame[]>;
 	getTaskList(offset: number, size: number): Promise<Task[]>;
-	superDuplicate(index: number, count: number): Promise<void>;
 }
 
 export interface FFBoxServiceEventParam {
@@ -477,8 +477,7 @@ export interface WebhookEventDataMap {
 	'queue.paused': { timestamp: number };
 
 	// 任务列表事件
-	'tasklist.changed': { taskIds: number[] };
-	'tasklist.added': { taskId: number; task: Task };
+	'tasklist.added': { added: { taskId: number; index: number; task: Task }[] };
 	'tasklist.removed': { taskId: number };
 
 	// 通知事件

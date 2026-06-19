@@ -18,6 +18,7 @@ export enum ServiceBridgeStatus {
 	Reconnecting = 'Reconnecting',
 };
 
+// TODO 6.0 版本中，前后端不再是仿 RPC 设计，因此这里的接口并没有 implements FFBoxServiceInterface
 export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & ServeiceBridgeEvent>) implements FFBoxServiceInterface {
 	private ws: WebSocket | null = null;
 	public ip: string | undefined;
@@ -218,8 +219,12 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 
 	// #region 任务管理
 
-	public taskAdd(taskName: string, outputParams?: OutputParams): Promise<number> {
-		return this.httpRequest<number>('POST', '/api/v1/tasks', { taskName, outputParams });
+	public taskAddBatch(filePaths: string[], outputParams?: OutputParams): Promise<number[]> {
+		return this.httpRequest<number[]>('POST', '/api/v1/tasks', { filePaths, outputParams });
+	}
+
+	public taskCopy(id: number, count?: number): Promise<number> {
+		return this.httpRequest<number>('POST', `/api/v1/tasks/${id}/copy`, { count });
 	}
 
 	public taskDelete(id: number): Promise<void> {

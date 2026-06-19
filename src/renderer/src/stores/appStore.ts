@@ -22,8 +22,6 @@ import { addUploadTask } from '../logic/transferManager2';
 import { getLimitaion } from '../logic/limitaions';
 import Popup from '@renderer/components/Popup/Popup';
 
-const { trimExt } = path;
-
 interface StoreState {
 	// 界面类
 	showMenuCenter: 0 | 1 | 2; // 0：关闭　1：开启菜单栏　2：全开
@@ -213,180 +211,139 @@ export const useAppStore = defineStore('app', {
 		 * 添加一系列任务。仅支持本地文件和远程路径，本地文件夹需展开后再传入，未知路径传入无效
 		 * Promise 最终会在后端返回任务更新（或 200ms 超时）后，并将 globalParams 替换后 resolve
 		 */
-		addTasks (inputList: string[] | FileList, type: 'multiTask' | 'multiInput' = 'multiTask') {
+		async addTasks (inputList: string[] | FileList, type: 'multiTask' | 'multiInput' = 'multiTask') {
 			const store = this;
-			return new Promise<number[]>(async (resolve) => {
-				function allTimerFinish() {
-					Promise.all(newlyAddedTaskIds).then((ids) => {
-						// 从 5.0 开始，由于支持多输入，addTask 函数向后端传的是替换了文件名的 globalParams，因此需要 applySelectedTask 使参数变成当前选中的 task 的参数，否则不一致
-						// 需要等待一次 taskUpdate，待另一个监听器替换了任务参数之后，再在此处 applySelectedTask，否则会导致参数为空
-						// 由于网络到达顺序的不确定性，Promise 完成时可能所有任务都完成了 taskUpdate，此时再加监听器则无法触发。因此需要加一个 timeout 做兜底
-						const handler = () => {
-							clearTimeout(timer);
-							server!.entity.off('taskUpdate', handler);
-							store.selectedTask = new Set(ids);
-							store.applySelectedTask();
-							resolve(ids);
-						};
-						const timer = setTimeout(handler, 200);
-						server!.entity.on('taskUpdate', handler);
-					});
-				}
+			const server = store.currentServer;
+			if (!server) { debugger; throw 'ub'; }
 
-				const server = store.currentServer;
-				if (!server) { debugger; throw 'ub'; }
-				const isRemoteService = server.entity.ip !== 'localhost';
-				const newlyAddedTaskIds: Promise<number>[] = [];	// 考虑到 timer 的最后一项并不一定是网络到达的最后一项，这里使用 Promise。待后期远程调用批量化后可改进
-				let dropDelayCount = 0;
-				const maxTaskCount = getLimitaion('maxTaskListCount');
+			function selectAndApply(ids: number[]) {
+				// 等待第一个 taskUpdate，确保任务参数已在本地同步，再 applySelectedTask
+				// 由于网络到达顺序的不确定性，加一个 timeout 做兜底
+				const handler = () => {
+					clearTimeout(timer);
+					server!.entity.off('taskUpdate', handler);
+					store.selectedTask = new Set(ids);
+					store.applySelectedTask();
+					return ids;
+				};
+				const timer = setTimeout(handler, 200);
+				server!.entity.on('taskUpdate', handler);
+			}
 
-				if (type === 'multiTask') {
-					let needStopCuzLimit = false;	// 因为使用了 setTimeout，所以使用标记位停止后续添加
-					for (const input of inputList) {
-						setTimeout(async () => {	// v2.4 版本开始完全可以不要延时，但是太生硬，所以加个动画
-							if (needStopCuzLimit) {
-								return;
-							}
-							if (server.data.totalCount >= maxTaskCount) {	// 使用 totalCount 判断任务总数上限
-								needStopCuzLimit = true;
-								store.pushMsg(
-									i11n.service.功能限制_任务数上限(maxTaskCount, true),
-									NotificationLevel.warning
-								);
-								allTimerFinish();
-								return;
-							}
-							const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
-							const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
-							const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
-							// console.log('添加任务', input, fileType);
-							if (needUpload) {
-								const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
-								const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
-								if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
-									Popup({
-										message: `${fileBaseName} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
-										level: 2,
-									});
-									return;
-								}
-							}
-							const inputName = `[uploading] ${fileBaseName}`
-							let promise: Promise<number> = store.addTask(
-								trimExt(fileBaseName),
-								[needUpload ? inputName : (typeof input === 'string' ? input : input.path)]
-							);	// 网页版拖入文件必定上传，electron 版拖入文件则直接以路径输入
-							if (needUpload) {
-								// addTask 后，后端通过发送一个 tasklistUpdate 来使前端更新任务列表，然后 resolve 掉 addTask 请求。由于上传过程并不会访问 task，故哪怕网络到达顺序不对，这里也不会出错
-								promise.then(async (taskId) => {
-									const file = await addUploadTask(server as any, input, taskId, fileBaseName, inputName);
-									server.data.uploadFiles.push(file);
-								});
-							}
-							newlyAddedTaskIds.push(promise);
-							if (newlyAddedTaskIds.length === inputList.length) {
-								allTimerFinish();
-							}
-						}, dropDelayCount);
-						// console.log(dropDelayCount)
-						dropDelayCount += 66.67;
-					}
-				} else if (type === 'multiInput') {
-					if (server.data.totalCount >= maxTaskCount) {	// 使用 totalCount 判断任务总数上限
-						store.pushMsg(
-							i11n.service.功能限制_任务数上限(maxTaskCount, true),
-							NotificationLevel.warning
-						);
-						allTimerFinish();
-						return;
-					}
+			const isRemoteService = server.entity.ip !== 'localhost';
+			const maxTaskCount = getLimitaion('maxTaskListCount');
 
-					/**
-					 * 本地：无需上传，字符串原样传入，File 读取 .path
-					 * 远程：字符串判断是文件（非文件夹）后生成 inputName 占位符后上传，文件直接上传（丢文件夹会失败）
-					 */
-					// 先添加占位符任务，然后检查上传
-					const firstFileBaseName = typeof inputList[0] === 'string' ? path.parse(inputList[0])?.name : inputList[0]?.name;
-					const taskId = await store.addTask(
-						firstFileBaseName ? trimExt(firstFileBaseName) : `新任务 ${new Date().toISOString()}`,
-						[]
+			if (type === 'multiTask') {
+				if (server.data.totalCount >= maxTaskCount) {
+					store.pushMsg(
+						i11n.service.功能限制_任务数上限(maxTaskCount, true),
+						NotificationLevel.warning
 					);
-					newlyAddedTaskIds.push(Promise.resolve(taskId));
-
-					const inputPaths: string[] = [];
-					for (const input of inputList) {
-						const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
-						const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
-						const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
-						// console.log('添加任务', input, fileType);
-						if (needUpload) {
-							const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
-							const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
-							if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
-								Popup({
-									message: `${fileBaseName} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
-									level: 2,
-								});
-								continue;
-							}
-						}
-						if (needUpload) {
-							const inputName = `[uploading] ${fileBaseName}`
-							const file = await addUploadTask(server as any, input, taskId, fileBaseName, inputName);
-							server.data.uploadFiles.push(file);
-							inputPaths.push(inputName);
-						} else {
-							inputPaths.push(typeof input === 'string' ? input : input.path);
-						}
-						// inputPaths.push(input);
-						// inputPaths.push(input.path);
-					}
-
-					// 完成任务添加后，设置输入列表
-					const entity = server.entity;
-					const params = store.globalParams;
-					entity.setParameters([taskId], {
-						...params,
-						input: {
-							files: inputPaths.map((path, index) => ({
-								filePath: path.replace(/\\/g, '/'),
-								demuxer: params.input.files[index]?.demuxer ?? '自动',
-								begin: params.input.files[index]?.begin ?? '',
-								end: params.input.files[index]?.end ?? '',
-								hwaccel: params.input.files[index]?.hwaccel ?? '',
-								skipFrame: params.input.files[index]?.skipFrame ?? '',
-								readrate: params.input.files[index]?.readrate ?? '',
-								detail: params.input.files[index]?.detail ?? {},
-								custom: params.input.files[index]?.custom ?? '',
-							})),
-						},
-					}, true);
-					allTimerFinish();
+					return [];
 				}
-			});
-		},
-		/**
-		 * 添加任务
-		 * path 将自动添加到 params 中去
-		 * @param path 输入文件的路径。若为远程任务则需定义一个占位符，完成上传后通过 service.mergeUploaded 修正文件名
-		 */
-		addTask(fileName: string, paths: string[]): Promise<number> {
-			const currentBridge = this.currentServer?.entity;
-			if (!currentBridge) { debugger; throw 'ub'; }
-			const params: OutputParams = JSON.parse(JSON.stringify(this.globalParams));
-			params.input.files = paths.map((path, index) => ({
-				filePath: path ? path.replace(/\\/g, '/') : undefined,
-				demuxer: params.input.files[index]?.demuxer ?? '自动',
-				begin: params.input.files[index]?.begin ?? '',
-				end: params.input.files[index]?.end ?? '',
-				hwaccel: params.input.files[index]?.hwaccel ?? '',
-				skipFrame: params.input.files[index]?.skipFrame ?? '',
-				readrate: params.input.files[index]?.readrate ?? '',
-				detail: params.input.files[index]?.detail ?? {},
-				custom: params.input.files[index]?.custom ?? '',
-			}));
-			const result = currentBridge.taskAdd(fileName, params);
-			return result;
+
+				// 收集所有文件路径，同时检查上传限制
+				const filePaths: string[] = [];
+				const inputMeta: { input: string | File; fileBaseName: string; needUpload: boolean }[] = [];
+
+				for (const input of inputList) {
+					const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
+					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
+					const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
+					if (needUpload) {
+						const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
+						const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
+						if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
+							Popup({
+								message: `${fileBaseName} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
+								level: 2,
+							});
+							continue;
+						}
+					}
+					const uploadInputName = `[uploading] ${fileBaseName}`;
+					filePaths.push(needUpload ? uploadInputName : (typeof input === 'string' ? input : input.path));
+					inputMeta.push({ input, fileBaseName, needUpload });
+				}
+				if (filePaths.length === 0) {
+					return [];
+				}
+
+				// 批量创建任务
+				const ids = await server.entity.taskAddBatch(filePaths, store.globalParams);
+
+				// 对需要上传的文件启动上传
+				for (let i = 0; i < ids.length; i++) {
+					const { input, fileBaseName, needUpload } = inputMeta[i];
+					if (needUpload) {
+						const uploadInputName = `[uploading] ${fileBaseName}`;
+						// await new Promise((r) => setTimeout(r, 150));
+						const file = await addUploadTask(server as any, input, ids[i], fileBaseName, uploadInputName);
+						server.data.uploadFiles.push(file);
+					}
+				}
+
+				selectAndApply(ids);
+			} else if (type === 'multiInput') {
+				if (server.data.totalCount >= maxTaskCount) {
+					store.pushMsg(
+						i11n.service.功能限制_任务数上限(maxTaskCount, true),
+						NotificationLevel.warning
+					);
+					return [];
+				}
+
+				// 批量创建 1 个空路径任务
+				const ids = await server.entity.taskAddBatch([''], store.globalParams);
+				const taskId = ids[0];
+
+				// 收集输入文件路径（处理上传）
+				const inputPaths: string[] = [];
+				for (const input of inputList) {
+					const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
+					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
+					const needUpload = fileType === 'lf' && isRemoteService;
+					if (needUpload) {
+						const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
+						const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
+						if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
+							Popup({
+								message: `${fileBaseName} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
+								level: 2,
+							});
+							continue;
+						}
+					}
+					if (needUpload) {
+						const inputName = `[uploading] ${fileBaseName}`;
+						const file = await addUploadTask(server as any, input, taskId, fileBaseName, inputName);
+						server.data.uploadFiles.push(file);
+						inputPaths.push(inputName);
+					} else {
+						inputPaths.push(typeof input === 'string' ? input : input.path);
+					}
+				}
+
+				// 设置输入列表
+				const params = store.globalParams;
+				server.entity.setParameters([taskId], {
+					...params,
+					input: {
+						files: inputPaths.map((p, index) => ({
+							filePath: p.replace(/\\/g, '/'),
+							demuxer: params.input.files[index]?.demuxer ?? '自动',
+							begin: params.input.files[index]?.begin ?? '',
+							end: params.input.files[index]?.end ?? '',
+							hwaccel: params.input.files[index]?.hwaccel ?? '',
+							skipFrame: params.input.files[index]?.skipFrame ?? '',
+							readrate: params.input.files[index]?.readrate ?? '',
+							detail: params.input.files[index]?.detail ?? {},
+							custom: params.input.files[index]?.custom ?? '',
+						})),
+					},
+				}, true);
+				selectAndApply([taskId]);	// TODO 不用等 setParameters 完成吗？
+			}
 		},
 		/**
 		 * 获取 service 的 taskList 更新到本地（基于缓冲区范围）

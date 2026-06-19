@@ -757,7 +757,11 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/tasks:
 	 *   post:
-	 *     summary: 创建新任务
+	 *     summary: 批量创建新任务
+	 *     description: |
+	 *       接收文件路径数组和输出参数模板，为每个路径创建一个任务。
+	 *       当路径为 1 个时，完全使用前端的输出参数；当路径为多个时，对每个任务进行输入路径替换。
+	 *       任务名称由后端从文件路径自动计算（去除扩展名）。
 	 *     security:
 	 *       - bearerAuth: []
 	 *     requestBody:
@@ -766,21 +770,30 @@ function getRouter(): Router {
 	 *         application/json:
 	 *           schema:
 	 *             type: object
+	 *             required: [filePaths, outputParams]
 	 *             properties:
-	 *               taskName:
-	 *                 type: string
+	 *               filePaths:
+	 *                 type: array
+	 *                 items:
+	 *                   type: string
+	 *                 description: 文件路径数组，每个路径创建一个任务。路径为空字符串时使用默认名称
 	 *               outputParams:
 	 *                 $ref: '#/components/schemas/OutputParams'
 	 *     responses:
 	 *       200:
-	 *         description: 返回新创建的任务 ID
+	 *         description: 返回新创建的任务 ID 数组
 	 *         content:
 	 *           application/json:
 	 *             schema:
-	 *               type: object
-	 *               properties:
-	 *                 taskId:
-	 *                   type: integer
+	 *               type: array
+	 *               items:
+	 *                 type: integer
+	 *       400:
+	 *         description: 请求参数错误
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/ErrorResponse'
 	 */
 	router.post('/api/v1/tasks', optionalAuth, async function (ctx) {
 		if (!ctx.request.body) {
@@ -788,45 +801,88 @@ function getRouter(): Router {
 			ctx.body = { error: 'Missing request body' };
 			return;
 		}
-		const { taskName, outputParams } = ctx.request.body;
-		const isRemote = ctx.URL.hostname !== 'localhost' && ctx.URL.hostname !== '127.0.0.1';
-		const result = await ffboxService!.taskAdd(taskName, outputParams as OutputParams, isRemote);
+		const { outputParams, filePaths } = ctx.request.body;
+		const isRemote = ctx.URL.hostname !== 'localhost';
+		if (!Array.isArray(filePaths) || !filePaths.every((p: any) => typeof p === 'string')) {
+			ctx.status = 400;
+			ctx.body = { error: 'filePaths must be an array of strings' };
+			return;
+		}
+		if (!outputParams || typeof outputParams !== 'object') {
+			ctx.status = 400;
+			ctx.body = { error: 'outputParams is required' };
+			return;
+		}
+		const result = await ffboxService!.taskAddBatch(filePaths, outputParams as OutputParams, isRemote);
 		ctx.body = result;
 	});
 
 	/**
 	 * @openapi
-	 * /api/v1/tasks/super-duplicate:
+	 * /api/v1/tasks/{id}/copy:
 	 *   post:
-	 *     summary: 批量复制指定偏移处的任务
+	 *     summary: 复制已有任务，支持指定份数
 	 *     security:
 	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: path
+	 *         name: id
+	 *         required: true
+	 *         schema:
+	 *           type: integer
+	 *         description: 源任务 ID
 	 *     requestBody:
-	 *       required: true
+	 *       required: false
 	 *       content:
 	 *         application/json:
 	 *           schema:
 	 *             type: object
 	 *             properties:
-	 *               index:
-	 *                 type: integer
-	 *                 description: 任务在列表中的全局偏移
 	 *               count:
 	 *                 type: integer
-	 *                 description: 复制次数
+	 *                 minimum: 1
+	 *                 default: 1
+	 *                 description: 复制份数
 	 *     responses:
 	 *       200:
-	 *         description: 操作结果
+	 *         description: 返回最后一个新创建的任务 ID
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: integer
+	 *       400:
+	 *         description: 请求参数错误
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/ErrorResponse'
+	 *       404:
+	 *         description: 源任务不存在
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/ErrorResponse'
 	 */
-	router.post('/api/v1/tasks/super-duplicate', optionalAuth, async function (ctx) {
-		if (!ctx.request.body) {
+	router.post('/api/v1/tasks/:id/copy', optionalAuth, async function (ctx) {
+		const id = parseInt(ctx.params.id);
+		if (isNaN(id)) {
 			ctx.status = 400;
-			ctx.body = { error: 'Missing request body' };
+			ctx.body = { error: 'Invalid task id' };
 			return;
 		}
-		const { index, count } = ctx.request.body;
-		await ffboxService!.superDuplicate(index, count);
-		ctx.body = { success: true };
+		const count = ctx.request.body?.count ?? 1;
+		if (typeof count !== 'number' || count < 1 || !Number.isInteger(count)) {
+			ctx.status = 400;
+			ctx.body = { error: 'count must be a positive integer' };
+			return;
+		}
+		const result = await ffboxService!.taskCopy(id, count);
+		if (result === -1) {
+			ctx.status = 404;
+			ctx.body = { error: `Task ${id} not found` };
+			return;
+		}
+		ctx.body = result;
 	});
 
 	/**

@@ -59,7 +59,7 @@ export function getFFmpegParaArray(params: { outputParams: OutputParams, withQuo
 				// 至少需要有连线才能输出
 				ret.push(...getVideoFFmpegParam(outputParams.outputs[outputIndex].video));
 				ret.push(...getAudioFFmpegParam(outputParams.outputs[outputIndex].audio));
-				ret.push(...getMuxFFmpegParam(outputParams.outputs[outputIndex].mux, outputDir, outputFileName, withQuotes, overrideFilePaths![outputIndex], { taskId, taskIndex, outputIndex }));
+				ret.push(...getMuxFFmpegParam(outputParams.outputs[outputIndex].mux, outputDir, outputFileName, withQuotes, overrideFilePaths?.[outputIndex], { taskId, taskIndex, outputIndex }));
 			}
 		}
 	} else {

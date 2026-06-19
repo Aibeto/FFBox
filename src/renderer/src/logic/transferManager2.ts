@@ -8,17 +8,19 @@ import { useAppStore } from '../stores/appStore';
 
 const globalTaskPool: { [key: string]: Set<SingleTaskScheduler> } = {};	// 当前所有正在运行的任务的实例（某一实例无论有多少个同时执行，实例都只出现一次。比如说有 3 个 readTask，这 3 个 readTask 各自的执行数加起来不超过总并发量）
 const globalTaskWorkingCount: { [key: string]: number } = {};
+// let globalHashTask: any[] = [];	// 调试用
 
 export class SingleTaskScheduler extends EventEmitter {
 	public concurrency!: number;
 	public taskName?: string;	// 指定 taskName 后，任务的 concurrency 计算将不仅限于单个 SingleTaskScheduler 实例，而是在全局共享同名的 concurrency
 	public task!: (singleTaskscheduler: this) => Promise<any>;
+	public extra?: any;
 	public globalPool: Set<SingleTaskScheduler> | undefined;	// 外界可以通过此值查询是否有任务在运行
 	private _workingCount: number;
 	private _working: boolean;
 	private _count: number;		// 运行计数，第一次从 0 开始
 
-	constructor(params: { concurrency: number, taskName: string, task: (singleTaskscheduler: SingleTaskScheduler) => Promise<any> }) {
+	constructor(params: { concurrency: number, taskName: string, task: (singleTaskscheduler: SingleTaskScheduler) => Promise<any>, extra?: any }) {
 		super();
 		Object.assign(this, params);
 		this._workingCount = 0;
@@ -30,6 +32,9 @@ export class SingleTaskScheduler extends EventEmitter {
 			if (!globalTaskWorkingCount[params.taskName]) globalTaskWorkingCount[params.taskName] = 0;
 			this.globalPool = globalTaskPool[params.taskName];
 		}
+		// (window as any).globalTaskPool = globalTaskPool;
+		// (window as any).globalTaskWorkingCount = globalTaskWorkingCount;
+		// (window as any).globalHashTask = globalHashTask;
 	}
 
 	get workingCount() { return this._workingCount }
@@ -39,7 +44,7 @@ export class SingleTaskScheduler extends EventEmitter {
 
 	public start() {
 		this._working = true;
-		if (this.taskName && this.globalPool) this.globalPool.add(this);
+		if (this.taskName && this.globalPool) this.globalPool.add(this);	// 进入运行状态后才往全局池添加
 		this.queueTask();
 	}
 	public stop() {
@@ -60,8 +65,9 @@ export class SingleTaskScheduler extends EventEmitter {
 			}
 			for (; this.globalWorkingCount! < this.concurrency; globalTaskWorkingCount[this.taskName]++) {
 				const list = [...this.globalPool];
-				const randomIndex = Math.floor(Math.random() * list.length);
-				const selectedInstance = list[randomIndex];
+				// const randomIndex = Math.floor(Math.random() * list.length);
+				// const selectedInstance = list[randomIndex];
+				const selectedInstance = list[0];
 				selectedInstance.doTask();
 			}
 		} else {
@@ -81,7 +87,8 @@ export class SingleTaskScheduler extends EventEmitter {
 
 	public async doTask() {
 		this._workingCount++;	// 只需管理自己的 _workingCount 即可。全局的 workingCount 由 queueTask 管理
-		setTimeout(() => {				
+		// console.log(this.taskName, this.extra, '开始工作，当前工作数', this._workingCount);
+		setTimeout(() => {
 			this.task(this).then(async () => {
 				this._workingCount--;
 				// await new Promise((r) => setTimeout(r, 100));
@@ -90,6 +97,7 @@ export class SingleTaskScheduler extends EventEmitter {
 				if (!this.working && !this.workingCount) {
 					this.emit('allDone');	// 已停止工作，且没有其他任务，即为全部完成
 				}
+				// console.log(this.taskName, this.extra, '工作完成，剩余工作数', this._workingCount);
 				this.queueTask();
 			}).catch(() => {
 				// 任务失败即不再继续后续任务，剩余所有任务均执行 workingCount-- 后，最后一个完成的检查到 workingCount === 0 即停止
@@ -99,6 +107,7 @@ export class SingleTaskScheduler extends EventEmitter {
 					globalTaskWorkingCount[this.taskName]--;
 					this.globalPool?.delete(this);
 				}
+				// console.log(this.taskName, this.extra, '停止工作，剩余工作数', this._workingCount);
 
 				if (!this._workingCount) {
 					this.emit('allDone');	// 已停止工作，且没有其他任务，即为全部完成
@@ -111,8 +120,24 @@ export class SingleTaskScheduler extends EventEmitter {
 	}
 }
 
+// hash 相关
 const hashWorkers: Worker[] = [];	// 所有任务共用
 const hashWorkerRunningList: boolean[] = [];
+function ensureHashWorkerList(concurrency: number) {
+	if (hashWorkers.length < concurrency) {
+		for (let i = 0; i < concurrency; i++) {
+			hashWorkers.push(new HashWorker());
+			hashWorkerRunningList.push(false);
+		}
+	}
+}
+function terminateAllHashWorkers() {
+	hashWorkers.forEach((worker) => worker.terminate());
+	hashWorkers.splice(0, hashWorkers.length);
+	hashWorkerRunningList.splice(0, hashWorkerRunningList.length);
+	console.log('已释放 workers');
+}
+
 const memLimit = 100 * 1000 * 1000;	// 已读取未哈希的数据量达到此值时转锁等待哈希；大小小于该值的文件读取完毕后无需清除
 
 /**
@@ -210,35 +235,32 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 		});
 		ts1.start();
 
-		// 根据 CPU 数量划分成若干个 worker 任务
 		file.status = 'hashing';
+		// 根据 CPU 数量划分成若干个 worker 任务
 		const cpuCount = navigator.hardwareConcurrency - 1 || 4;
-		if (!hashWorkers.length) {
-			for (let i = 0; i < cpuCount; i++) {
-				hashWorkers.push(new HashWorker());
-				hashWorkerRunningList.push(false);
-			}
-		}
+		// const cpuCount = 1;
 
 		// 通过 task 为 worker 分配任务
 		const hashDoneChunkIndexes: number[] = [];	// 供下一轮 upload 进行消费
 		// let hashDone = false;
 		const ts2 = new SingleTaskScheduler({
-			// concurrency: 1,
 			concurrency: cpuCount,
 			taskName: 'hashFile',
+			extra: file,
 			task: async (sts) => {
 				if (readDone === 'cancelled') {
 					throw '哈希计算即将中止'
 				}
 				if (!readDoneChunkIndexes.length) {
 					if (readDone === 'done') {
+						// console.log(`【${file.fileBaseName}】哈希计算即将结束`);
 						throw '哈希计算即将结束'
 					} else {
 						await new Promise((resolve) => setTimeout(resolve, 150));	// read 步骤还没读完，转锁
 						return;
 					}
 				}
+				ensureHashWorkerList(cpuCount);
 				// 检查哪个 worker 空闲，检查还没 hash 的任务，然后发送给 worker，等待其完成
 				const idleWorkerIndex = hashWorkerRunningList.findIndex((isRunning) => !isRunning);
 				const notHashedIndex = readDoneChunkIndexes.shift();
@@ -272,7 +294,8 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 				}
 				// await new Promise(r => setTimeout(r, 1500));
 			}
-		})
+		});
+		// globalHashTask.push(ts2);
 		file.hashTask = ts2;
 		ts2.start();
 		// 等待所有 hash 完成
@@ -280,11 +303,9 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 			ts2.on('allDone', () => {
 				if (readDone !== 'cancelled') {
 					console.log(`【${file.fileBaseName}】哈希全部完成`);
-					if (!ts2.globalPool?.size) {
-						hashWorkers.forEach((worker) => worker.terminate());
-						hashWorkers.splice(0, hashWorkers.length);
-						hashWorkerRunningList.splice(0, hashWorkerRunningList.length);
-						console.log('已释放 workers');
+					// 通过 globalWorkingCount 判断是否还有其他 hash 任务在运行。注意不要用 globalPool.size，因为只要有新的任务 throw，pool 就会去掉这个任务，但此时 hash worker 可能还没返回
+					if (!ts2.globalWorkingCount) {
+						terminateAllHashWorkers();
 					}
 					// hashDone = true;
 					resolve(0);

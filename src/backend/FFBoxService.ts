@@ -480,18 +480,21 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	/**
-	 * 新增任务
+	 * 新增单个任务（内部方法，由 taskAddBatch 和 taskCopy 调用）
 	 * @param isRemote 该值由 uiBridge 传入，前端无法指定
-	 * @emits tasklistUpdate
+	 * @param silent 为 true 时不 emit tasklistUpdate、不触发 webhook，供批量调用使用
+	 * @emits tasklistUpdate（当 silent 为 false 时）
 	 */
-	public taskAdd(taskName: string, outputParams: OutputParams, isRemote?: boolean): Promise<number> {
+	private taskAdd(taskName: string, outputParams: OutputParams, isRemote?: boolean, silent?: boolean): Promise<number> {
 		const maxTaskCount = this.functionLevel < 40 ? 66 : this.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
 		if (this.taskList.count() >= maxTaskCount) {
-			this.setNotification(
-				undefined,
-				i11n.service.功能限制_任务数上限(maxTaskCount, false),
-				NotificationLevel.warning,
-			);
+			if (!silent) {
+				this.setNotification(
+					undefined,
+					i11n.service.功能限制_任务数上限(maxTaskCount, false),
+					NotificationLevel.warning,
+				);
+			}
 			return;
 		}
 
@@ -514,12 +517,84 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 
 		log.info(`[任务 ${id}] 新增任务：${taskName}（${firstFilePath ? '单输入普通任务' : '多输入/网络任务'}）。`);
-		this.emit('tasklistUpdate', { added: [{ taskId: id, index: this.taskList.count() - 1 }], removed: [], totalCount: this.taskList.count() });
-
-		webhookManager.triggerTaskEvent('task.created', id, { taskId: id, task }).catch(() => {});
-		webhookManager.triggerGlobalEvent('tasklist.added', { taskId: id, task }).catch(() => {});
+		if (!silent) {
+			this.emit('tasklistUpdate', { added: [{ taskId: id, index: this.taskList.count() - 1 }], removed: [], totalCount: this.taskList.count() });
+			webhookManager.triggerTaskEvent('task.created', id, { taskId: id, task }).catch(() => {});
+			webhookManager.triggerGlobalEvent('tasklist.added', { taskId: id, task }).catch(() => {});
+		}
 
 		return Promise.resolve(id);
+	}
+
+	/**
+	 * 批量新增任务
+	 * 后端负责从文件路径计算任务名称，前端无需传入 taskName
+	 * @param filePaths 文件路径数组，每个路径创建一个任务。路径为空字符串时使用默认名称
+	 * @param outputParams 输出参数模板，每个任务的 input.files[0].filePath 会被替换
+	 * @param isRemote 是否为远程任务
+	 * @returns 所有新创建的任务 ID
+	 */
+	public async taskAddBatch(filePaths: string[], outputParams: OutputParams, isRemote?: boolean): Promise<number[]> {
+		const maxTaskCount = this.functionLevel < 40 ? 66 : this.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
+		const remaining = maxTaskCount - this.taskList.count();
+		if (filePaths.length > remaining) {
+			this.setNotification(
+				undefined,
+				i11n.service.功能限制_任务数上限(maxTaskCount, false),
+				NotificationLevel.warning,
+			);
+			filePaths = filePaths.slice(0, remaining);
+			if (filePaths.length === 0) {
+				return Promise.resolve([]);
+			}
+		}
+
+		const addedItems: { taskId: number; index: number }[] = [];
+		const ids: number[] = [];
+		const isBatch = true || filePaths.length > 1;
+
+		for (const filePath of filePaths) {
+			// 计算任务名：从文件路径提取不带扩展名的文件名
+			let taskName = filePath ? path.parse(filePath).name : `新任务 ${new Date().toISOString()}`;
+			if (taskName.startsWith('[uploading] ')) taskName = taskName.slice(12);
+			// 多路径时对每个任务替换输入文件路径
+			const params = isBatch ? JSON.parse(JSON.stringify(outputParams)) : outputParams;
+			if (isBatch && params.input.files.length > 0) {
+				params.input.files[0].filePath = filePath || undefined;
+			}
+			const id = await this.taskAdd(taskName, params, isRemote, true);
+			ids.push(id);
+			addedItems.push({ taskId: id, index: this.taskList.getIndexById(id) });
+		}
+
+		// 一次性发送列表更新
+		this.emit('tasklistUpdate', { added: addedItems, removed: [], totalCount: this.taskList.count() });
+		// 一次性触发 webhook
+		const webhookAdded = addedItems.map(({ taskId, index }) => ({ taskId, index, task: this.taskList.getById(taskId)! }));
+		webhookManager.triggerGlobalEvent('tasklist.added', { added: webhookAdded }).catch(() => {});
+		for (const { taskId } of addedItems) {
+			const task = this.taskList.getById(taskId)!;
+			webhookManager.triggerTaskEvent('task.created', taskId, { taskId, task }).catch(() => {});
+		}
+
+		return Promise.resolve(ids);
+	}
+
+	/**
+	 * 复制任务
+	 * 从已有任务复制参数创建新任务，支持指定份数
+	 */
+	public taskCopy(id: number, count: number = 1): Promise<number> {
+		const task = this.taskList.getById(id);
+		if (!task) {
+			log.error(`taskCopy：任务 ${id} 不存在！`);
+			return Promise.resolve(-1);
+		}
+		let lastId = -1;
+		for (let i = 0; i < count; i++) {
+			lastId = this.taskAdd(task.taskName, task.after)!;
+		}
+		return Promise.resolve(lastId);
 	}
 
 	/**
@@ -572,7 +647,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * 对于远程文件，上传完成后调用此函数合并文件
 	 * 前端无论检查到已缓存还是未缓存都使用相同的参数调用。前端和后端各自判断文件是否已上传过。若使用过，前端不再上传，后端不再进行分片读取合并
 	 * @param fileBaseName 文件名参数不包含 hash，仅用于作为 input.files[].filePath 最终文件名的一部分供用户识别。相同 hash 但文件名不同的话，服务器会保留多份
-	 * @param inputName 在新建任务上传文件之前，或添加输入文件上传之前，hash 尚未得知，因此前端应发起修改输入参数的调用，生成这个上传文件的一个临时占位符。上传完毕后，往 inputName 传入生成的占位符，以便后端将其替换为真实文件名
+	 * @param inputName 【占位符】在新建任务上传文件之前，或添加输入文件上传之前，hash 尚未得知，因此前端应发起修改输入参数的调用，生成这个上传文件的一个临时占位符。上传完毕后，往 inputName 传入生成的占位符，以便后端将其替换为真实文件名
 	 * @emits taskUpdate
 	 */
 	public async mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void> {
@@ -1254,19 +1329,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		return this.taskList.getRange(offset, size);
 	}
 
-	/**
-	 * 将指定全局偏移处的任务复制指定次数
-	 */
-	public async superDuplicate(index: number, count: number): Promise<void> {
-		const task = this.taskList.getByOffset(index);
-		if (!task) {
-			log.error(`superDuplicate：偏移 ${index} 处无任务！`);
-			return;
-		}
-		for (let i = 0; i < count; i++) {
-			await this.taskAdd(task.taskName, task.after);
-		}
-	}
 
 	// #endregion
 

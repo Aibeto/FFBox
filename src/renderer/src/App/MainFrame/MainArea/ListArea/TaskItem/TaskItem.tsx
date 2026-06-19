@@ -445,7 +445,7 @@ export const TaskItem = defineComponent((props: Props) => {
 				] : []),
 				{ type: 'normal' as const, icon: <span>➕</span>, label: '复制任务', value: '复制任务', onClick: () => {
 					if (entity?.status === ServiceBridgeStatus.Connected) {
-						entity.taskAdd(props.task.taskName, props.task.after);
+						entity.taskCopy(props.task.id);
 					}
 				} },
 				{ type: 'separator' as const },
