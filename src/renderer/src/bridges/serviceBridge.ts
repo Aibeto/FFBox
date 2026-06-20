@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import CryptoJS from 'crypto-js';
 import { TypedEventEmitter } from '@common/utils';
-import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, Notification, OutputParams, Task } from '@common/types';
+import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, Notification, OutputParams, Task, TaskStatus } from '@common/types';
 
 export interface ServeiceBridgeEvent {
 	connected: () => void;
@@ -227,28 +227,28 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<number>('POST', `/api/v1/tasks/${id}/copy`, { count });
 	}
 
-	public taskDelete(id: number): Promise<void> {
-		return this.httpRequest<void>('DELETE', `/api/v1/tasks/${id}`);
+	public taskDelete(ids: number[]): Promise<void> {
+		return this.httpRequest<void>('POST', '/api/v1/tasks/delete', { ids });
 	}
 
-	public taskStart(id: number): Promise<void> {
-		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/start`);
+	public taskStart(ids: number[]): Promise<void> {
+		return this.httpRequest<void>('POST', '/api/v1/tasks/start', { ids });
 	}
 
-	public taskReady(id: number): Promise<void> {
-		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/ready`);
+	public taskReady(ids: number[]): Promise<void> {
+		return this.httpRequest<void>('POST', '/api/v1/tasks/ready', { ids });
 	}
 
-	public taskPause(id: number): Promise<void> {
-		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/pause`);
+	public taskPause(ids: number[]): Promise<void> {
+		return this.httpRequest<void>('POST', '/api/v1/tasks/pause', { ids });
 	}
 
-	public taskResume(id: number): Promise<void> {
-		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/resume`);
+	public taskResume(ids: number[]): Promise<void> {
+		return this.httpRequest<void>('POST', '/api/v1/tasks/resume', { ids });
 	}
 
-	public taskReset(id: number): Promise<void> {
-		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/reset`);
+	public taskReset(ids: number[]): Promise<void> {
+		return this.httpRequest<void>('POST', '/api/v1/tasks/reset', { ids });
 	}
 
 	public mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void> {
@@ -313,6 +313,13 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	public getTaskList(offset: number, size: number, idOnly?: boolean): Promise<{ tasks: Task[], totalCount: number } | { taskIds: number[], totalCount: number }> {
 		const idOnlyParam = idOnly ? '&idOnly=true' : '';
 		return this.httpRequest<any>('GET', `/api/v1/tasks?offset=${offset}&size=${size}${idOnlyParam}`);
+	}
+
+	/**
+	 * 按状态筛选任务 ID 列表
+	 */
+	public getTaskIdsByStatus(status: TaskStatus): Promise<{ taskIds: number[], totalCount: number }> {
+		return this.httpRequest<any>('GET', `/api/v1/tasks?status=${status}`);
 	}
 
 	public subscribeTasks(taskIds: number[]): void {

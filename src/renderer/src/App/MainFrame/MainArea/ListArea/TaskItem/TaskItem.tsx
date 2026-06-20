@@ -420,25 +420,25 @@ export const TaskItem = defineComponent((props: Props) => {
 				},
 				{ type: 'separator' },
 				...([TaskStatus.idle, TaskStatus.idle_queued].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.idle ? '开始转码' : '立即开始转码', value: '开始', onClick: () => { entity.taskStart(props.id) } },
+					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.idle ? '开始转码' : '立即开始转码', value: '开始', onClick: () => { entity.taskStart([props.id]) } },
 				] : []),
 				...([TaskStatus.paused, TaskStatus.paused_queued].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.paused ? '继续转码' : '立即继续转码', value: '继续', onClick: () => { entity.taskResume(props.id) } },
+					{ type: 'normal' as const, icon: <span>▶️</span>, label: props.task.status === TaskStatus.paused ? '继续转码' : '立即继续转码', value: '继续', onClick: () => { entity.taskResume([props.id]) } },
 				] : []),
 				...([TaskStatus.idle, TaskStatus.paused].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>⏳</span>, label: props.task.status === TaskStatus.idle ? '准备转码（排队）' : '准备继续转码（排队）', value: '准备', onClick: () => { entity.taskReady(props.id) } },
+					{ type: 'normal' as const, icon: <span>⏳</span>, label: props.task.status === TaskStatus.idle ? '准备转码（排队）' : '准备继续转码（排队）', value: '准备', onClick: () => { entity.taskReady([props.id]) } },
 				] : []),
 				...([TaskStatus.running, TaskStatus.paused_queued].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>⏸️</span>, label: props.task.status === TaskStatus.running ? '暂停转码' : '保持暂停（取消排队）', value: '暂停', onClick: () => { entity.taskPause(props.id) }, tooltip: hasQueuedTask ? '暂停当前任务\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : undefined },
+					{ type: 'normal' as const, icon: <span>⏸️</span>, label: props.task.status === TaskStatus.running ? '暂停转码' : '保持暂停（取消排队）', value: '暂停', onClick: () => { entity.taskPause([props.id]) }, tooltip: hasQueuedTask ? '暂停当前任务\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : undefined },
 				] : []),
 				...([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>⏹️</span>, label: '软停止转码', value: '停止', onClick: () => { entity.taskReset(props.id) }, tooltip: `中止解码，完成收尾工作并停止${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
+					{ type: 'normal' as const, icon: <span>⏹️</span>, label: '软停止转码', value: '停止', onClick: () => { entity.taskReset([props.id]) }, tooltip: `中止解码，完成收尾工作并停止${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
 				] : []),
 				...([TaskStatus.stopping].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>🛑</span>, label: '硬停止转码', value: '硬停止', onClick: () => { entity.taskReset(props.id) }, tooltip: `调用系统级 kill 立即结束 ffmpeg，可能会导致输出文件无法播放${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
+					{ type: 'normal' as const, icon: <span>🛑</span>, label: '硬停止转码', value: '硬停止', onClick: () => { entity.taskReset([props.id]) }, tooltip: `调用系统级 kill 立即结束 ffmpeg，可能会导致输出文件无法播放${ hasQueuedTask ? '\n（有其他排队中任务，如有空闲名额则会被调度器启动）' : '' }` },
 				] : []),
 				...([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
-					{ type: 'normal' as const, icon: <span>🔙</span>, label: props.task.status === TaskStatus.idle_queued ? '重置任务（取消排队）' : '重置任务', value: '重置', onClick: () => { entity.taskReset(props.id) } },
+					{ type: 'normal' as const, icon: <span>🔙</span>, label: props.task.status === TaskStatus.idle_queued ? '重置任务（取消排队）' : '重置任务', value: '重置', onClick: () => { entity.taskReset([props.id]) } },
 				] : []),
 				...([TaskStatus.initializing, TaskStatus.idle, TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
 					{ type: 'normal' as const, icon: <span>🗑️</span>, label: '删除任务', value: '停止', onClick: () => { appStore.deleteTasks([props.id]) } },
@@ -467,9 +467,9 @@ export const TaskItem = defineComponent((props: Props) => {
 		const entity = appStore.currentServer!.entity;
 		let task = props.task;
 		if ([TaskStatus.running, TaskStatus.paused_queued].includes(task.status)) {
-			entity.taskPause(props.id);
+			entity.taskPause([props.id]);
 		} else if ([TaskStatus.idle_queued, TaskStatus.paused, TaskStatus.stopping, TaskStatus.finished, TaskStatus.error].includes(task.status)) {
-			entity.taskReset(props.id);
+			entity.taskReset([props.id]);
 		} else if (task.status === TaskStatus.idle || task.status === TaskStatus.initializing) {
 			appStore.deleteTasks([props.id]);
 		}

@@ -1257,7 +1257,6 @@
       "TaskListEventType": {
         "type": "string",
         "enum": [
-          "tasklist.changed",
           "tasklist.added",
           "tasklist.removed"
         ]
@@ -1495,34 +1494,35 @@
             ],
             "additionalProperties": false
           },
-          "tasklist.changed": {
+          "tasklist.added": {
             "type": "object",
             "properties": {
-              "taskIds": {
+              "added": {
                 "type": "array",
                 "items": {
-                  "type": "number"
+                  "type": "object",
+                  "properties": {
+                    "taskId": {
+                      "type": "number"
+                    },
+                    "index": {
+                      "type": "number"
+                    },
+                    "task": {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  },
+                  "required": [
+                    "taskId",
+                    "index",
+                    "task"
+                  ],
+                  "additionalProperties": false
                 }
               }
             },
             "required": [
-              "taskIds"
-            ],
-            "additionalProperties": false
-          },
-          "tasklist.added": {
-            "type": "object",
-            "properties": {
-              "taskId": {
-                "type": "number"
-              },
-              "task": {
-                "$ref": "#/components/schemas/Task"
-              }
-            },
-            "required": [
-              "taskId",
-              "task"
+              "added"
             ],
             "additionalProperties": false
           },
@@ -1566,7 +1566,6 @@
           "task.progress",
           "queue.started",
           "queue.paused",
-          "tasklist.changed",
           "tasklist.added",
           "tasklist.removed",
           "notification"
@@ -1750,17 +1749,61 @@
               "default": 100
             },
             "description": "查询数量"
+          },
+          {
+            "in": "query",
+            "name": "idOnly",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "为 true 时只返回 taskIds 数组，不返回完整任务对象"
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "deleted",
+                "initializing",
+                "idle",
+                "idle_queued",
+                "running",
+                "paused",
+                "paused_queued",
+                "stopping",
+                "finishing",
+                "finished",
+                "error"
+              ]
+            },
+            "description": "按任务状态筛选，传入时忽略 offset/size，返回匹配该状态的所有任务 ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "任务列表",
+            "description": "任务列表（tasks 或 taskIds，取决于 idOnly 参数；指定 status 时始终返回 taskIds）",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Task"
+                  "type": "object",
+                  "properties": {
+                    "tasks": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Task"
+                      }
+                    },
+                    "taskIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "totalCount": {
+                      "type": "integer"
+                    }
                   }
                 }
               }
@@ -1769,7 +1812,8 @@
         }
       },
       "post": {
-        "summary": "创建新任务",
+        "summary": "批量创建新任务",
+        "description": "接收文件路径数组和输出参数模板，为每个路径创建一个任务。\n当路径为 1 个时，完全使用前端的输出参数；当路径为多个时，对每个任务进行输入路径替换。\n任务名称由后端从文件路径自动计算（去除扩展名）。\n",
         "security": [
           {
             "bearerAuth": []
@@ -1781,9 +1825,17 @@
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "filePaths",
+                  "outputParams"
+                ],
                 "properties": {
-                  "taskName": {
-                    "type": "string"
+                  "filePaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "文件路径数组，每个路径创建一个任务。路径为空字符串时使用默认名称"
                   },
                   "outputParams": {
                     "$ref": "#/components/schemas/OutputParams"
@@ -1795,16 +1847,24 @@
         },
         "responses": {
           "200": {
-            "description": "返回新创建的任务 ID",
+            "description": "返回新创建的任务 ID 数组",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "taskId": {
-                      "type": "integer"
-                    }
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1812,28 +1872,37 @@
         }
       }
     },
-    "/api/v1/tasks/super-duplicate": {
+    "/api/v1/tasks/{id}/copy": {
       "post": {
-        "summary": "批量复制指定偏移处的任务",
+        "summary": "复制已有任务，支持指定份数",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "源任务 ID"
+          }
+        ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "index": {
-                    "type": "integer",
-                    "description": "任务在列表中的全局偏移"
-                  },
                   "count": {
                     "type": "integer",
-                    "description": "复制次数"
+                    "minimum": 1,
+                    "default": 1,
+                    "description": "复制份数"
                   }
                 }
               }
@@ -1842,7 +1911,34 @@
         },
         "responses": {
           "200": {
-            "description": "操作结果"
+            "description": "返回最后一个新创建的任务 ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "源任务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1887,10 +1983,11 @@
             }
           }
         }
-      },
-      "delete": {
-        "summary": "删除任务",
-        "description": "【initializing / idle / idle_queued / finished / error】 => 【deleted】",
+      }
+    },
+    "/api/v1/tasks/{id}/index": {
+      "get": {
+        "summary": "查询任务的全局序号（通过 id 查 index）",
         "security": [
           {
             "bearerAuth": []
@@ -1906,6 +2003,58 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "任务的全局序号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "任务的全局序号，任务不存在时返回 null"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/delete": {
+      "post": {
+        "summary": "批量删除任务",
+        "description": "【initializing / idle / idle_queued / finished / error】 => 【deleted】",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "任务 ID 数组"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "删除成功",
@@ -1920,25 +2069,37 @@
         }
       }
     },
-    "/api/v1/tasks/{id}/start": {
+    "/api/v1/tasks/start": {
       "post": {
-        "summary": "启动单个任务",
+        "summary": "批量启动任务",
         "description": "【idle / idle_queued / error】 => 【running】 => 【finished / error】",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "integer"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "任务 ID 数组"
+                  }
+                }
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "启动成功",
@@ -1953,25 +2114,37 @@
         }
       }
     },
-    "/api/v1/tasks/{id}/ready": {
+    "/api/v1/tasks/ready": {
       "post": {
-        "summary": "准备任务（加入队列）",
-        "description": "将单个任务进入排队状态（不会启动调度系统改变当前的执行/暂停状态）\\n【idle / paused】 => 【idle_queued / paused_queued】 => 【running】",
+        "summary": "批量准备任务（加入队列）",
+        "description": "将任务进入排队状态（不会启动调度系统改变当前的执行/暂停状态）\\n【idle / paused】 => 【idle_queued / paused_queued】 => 【running】",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "integer"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "任务 ID 数组"
+                  }
+                }
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "操作成功",
@@ -1986,25 +2159,37 @@
         }
       }
     },
-    "/api/v1/tasks/{id}/pause": {
+    "/api/v1/tasks/pause": {
       "post": {
-        "summary": "暂停任务",
-        "description": "暂停单个任务\\n【running / paused_queued】 => 【paused】",
+        "summary": "批量暂停任务",
+        "description": "暂停任务\\n【running / paused_queued】 => 【paused】",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "integer"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "任务 ID 数组"
+                  }
+                }
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "暂停成功",
@@ -2019,25 +2204,37 @@
         }
       }
     },
-    "/api/v1/tasks/{id}/resume": {
+    "/api/v1/tasks/resume": {
       "post": {
-        "summary": "继续执行单个任务",
+        "summary": "批量继续执行任务",
         "description": "【paused / paused_queued】 => 【running】",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "integer"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "任务 ID 数组"
+                  }
+                }
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "恢复成功",
@@ -2052,25 +2249,37 @@
         }
       }
     },
-    "/api/v1/tasks/{id}/reset": {
+    "/api/v1/tasks/reset": {
       "post": {
-        "summary": "重置任务",
+        "summary": "批量重置任务",
         "description": "重置任务（收尾/强行，根据状态决定） 【paused / paused_queued / stopping / finished / error】 => 【idle】",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "integer"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "任务 ID 数组"
+                  }
+                }
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "重置成功",

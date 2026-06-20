@@ -12,7 +12,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
-import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams, CreateWebhookRequest, UpdateWebhookRequest, WsClientMessage, TaskListResponse } from '@common/types';
+import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams, CreateWebhookRequest, UpdateWebhookRequest, WsClientMessage, TaskStatus } from '@common/types';
 import { version } from '@common/constants';
 import { getSingleArgvValue } from '@common/utils';
 import localConfig from '@common/localConfig';
@@ -720,9 +720,15 @@ function getRouter(): Router {
 	 *           type: boolean
 	 *           default: false
 	 *         description: 为 true 时只返回 taskIds 数组，不返回完整任务对象
+	 *       - in: query
+	 *         name: status
+	 *         schema:
+	 *           type: string
+	 *           enum: [deleted, initializing, idle, idle_queued, running, paused, paused_queued, stopping, finishing, finished, error]
+	 *         description: 按任务状态筛选，传入时忽略 offset/size，返回匹配该状态的所有任务 ID
 	 *     responses:
 	 *       200:
-	 *         description: 任务列表（tasks 或 taskIds，取决于 idOnly 参数）
+	 *         description: 任务列表（tasks 或 taskIds，取决于 idOnly 参数；指定 status 时始终返回 taskIds）
 	 *         content:
 	 *           application/json:
 	 *             schema:
@@ -740,10 +746,17 @@ function getRouter(): Router {
 	 *                   type: integer
 	 */
 	router.get('/api/v1/tasks', optionalAuth, async function (ctx) {
+		const status = ctx.query.status as string | undefined;
+		const totalCount = ffboxService!.taskList.count();
+		// 按状态筛选模式
+		if (status && Object.values(TaskStatus).includes(status as TaskStatus)) {
+			const taskIds = ffboxService!.getTaskIdsByStatus(status as TaskStatus);
+			ctx.body = { taskIds, totalCount };
+			return;
+		}
 		const offset = parseInt(ctx.query.offset as string) || 0;
 		const size = parseInt(ctx.query.size as string) || 0;
 		const idOnly = ctx.query.idOnly === 'true';
-		const totalCount = ffboxService!.taskList.count();
 		if (idOnly) {
 			const taskIds = await ffboxService!.getTaskList(offset, size, true);
 			ctx.body = { taskIds, totalCount };
@@ -955,18 +968,25 @@ function getRouter(): Router {
 
 	/**
 	 * @openapi
-	 * /api/v1/tasks/{id}:
-	 *   delete:
-	 *     summary: 删除任务
+	 * /api/v1/tasks/delete:
+	 *   post:
+	 *     summary: 批量删除任务
 	 *     description: 【initializing / idle / idle_queued / finished / error】 => 【deleted】
 	 *     security:
 	 *       - bearerAuth: []
-	 *     parameters:
-	 *       - in: path
-	 *         name: id
-	 *         required: true
-	 *         schema:
-	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             required: [ids]
+	 *             properties:
+	 *               ids:
+	 *                 type: array
+	 *                 items:
+	 *                   type: integer
+	 *                 description: 任务 ID 数组
 	 *     responses:
 	 *       200:
 	 *         description: 删除成功
@@ -975,25 +995,37 @@ function getRouter(): Router {
 	 *             schema:
 	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
-	router.delete('/api/v1/tasks/:id', optionalAuth, async function (ctx) {
-		ffboxService!.taskDelete(+ctx.params.id);
+	router.post('/api/v1/tasks/delete', optionalAuth, async function (ctx) {
+		if (!ctx.request.body || !Array.isArray(ctx.request.body.ids)) {
+			ctx.status = 400;
+			ctx.body = { error: 'ids must be an array' };
+			return;
+		}
+		ffboxService!.taskDelete(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
 	/**
 	 * @openapi
-	 * /api/v1/tasks/{id}/start:
+	 * /api/v1/tasks/start:
 	 *   post:
-	 *     summary: 启动单个任务
+	 *     summary: 批量启动任务
 	 *     description: 【idle / idle_queued / error】 => 【running】 => 【finished / error】
 	 *     security:
 	 *       - bearerAuth: []
-	 *     parameters:
-	 *       - in: path
-	 *         name: id
-	 *         required: true
-	 *         schema:
-	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             required: [ids]
+	 *             properties:
+	 *               ids:
+	 *                 type: array
+	 *                 items:
+	 *                   type: integer
+	 *                 description: 任务 ID 数组
 	 *     responses:
 	 *       200:
 	 *         description: 启动成功
@@ -1002,25 +1034,37 @@ function getRouter(): Router {
 	 *             schema:
 	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
-	router.post('/api/v1/tasks/:id/start', optionalAuth, async function (ctx) {
-		ffboxService!.taskStart(+ctx.params.id);
+	router.post('/api/v1/tasks/start', optionalAuth, async function (ctx) {
+		if (!ctx.request.body || !Array.isArray(ctx.request.body.ids)) {
+			ctx.status = 400;
+			ctx.body = { error: 'ids must be an array' };
+			return;
+		}
+		ffboxService!.taskStart(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
 	/**
 	 * @openapi
-	 * /api/v1/tasks/{id}/ready:
+	 * /api/v1/tasks/ready:
 	 *   post:
-	 *     summary: 准备任务（加入队列）
-	 *     description: 将单个任务进入排队状态（不会启动调度系统改变当前的执行/暂停状态）\n【idle / paused】 => 【idle_queued / paused_queued】 => 【running】
+	 *     summary: 批量准备任务（加入队列）
+	 *     description: 将任务进入排队状态（不会启动调度系统改变当前的执行/暂停状态）\n【idle / paused】 => 【idle_queued / paused_queued】 => 【running】
 	 *     security:
 	 *       - bearerAuth: []
-	 *     parameters:
-	 *       - in: path
-	 *         name: id
-	 *         required: true
-	 *         schema:
-	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             required: [ids]
+	 *             properties:
+	 *               ids:
+	 *                 type: array
+	 *                 items:
+	 *                   type: integer
+	 *                 description: 任务 ID 数组
 	 *     responses:
 	 *       200:
 	 *         description: 操作成功
@@ -1029,25 +1073,37 @@ function getRouter(): Router {
 	 *             schema:
 	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
-	router.post('/api/v1/tasks/:id/ready', optionalAuth, async function (ctx) {
-		ffboxService!.taskReady(+ctx.params.id);
+	router.post('/api/v1/tasks/ready', optionalAuth, async function (ctx) {
+		if (!ctx.request.body || !Array.isArray(ctx.request.body.ids)) {
+			ctx.status = 400;
+			ctx.body = { error: 'ids must be an array' };
+			return;
+		}
+		ffboxService!.taskReady(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
 	/**
 	 * @openapi
-	 * /api/v1/tasks/{id}/pause:
+	 * /api/v1/tasks/pause:
 	 *   post:
-	 *     summary: 暂停任务
-	 *     description: 暂停单个任务\n【running / paused_queued】 => 【paused】
+	 *     summary: 批量暂停任务
+	 *     description: 暂停任务\n【running / paused_queued】 => 【paused】
 	 *     security:
 	 *       - bearerAuth: []
-	 *     parameters:
-	 *       - in: path
-	 *         name: id
-	 *         required: true
-	 *         schema:
-	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             required: [ids]
+	 *             properties:
+	 *               ids:
+	 *                 type: array
+	 *                 items:
+	 *                   type: integer
+	 *                 description: 任务 ID 数组
 	 *     responses:
 	 *       200:
 	 *         description: 暂停成功
@@ -1056,25 +1112,37 @@ function getRouter(): Router {
 	 *             schema:
 	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
-	router.post('/api/v1/tasks/:id/pause', optionalAuth, async function (ctx) {
-		ffboxService!.taskPause(+ctx.params.id);
+	router.post('/api/v1/tasks/pause', optionalAuth, async function (ctx) {
+		if (!ctx.request.body || !Array.isArray(ctx.request.body.ids)) {
+			ctx.status = 400;
+			ctx.body = { error: 'ids must be an array' };
+			return;
+		}
+		ffboxService!.taskPause(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
 	/**
 	 * @openapi
-	 * /api/v1/tasks/{id}/resume:
+	 * /api/v1/tasks/resume:
 	 *   post:
-	 *     summary: 继续执行单个任务
+	 *     summary: 批量继续执行任务
 	 *     description: 【paused / paused_queued】 => 【running】
 	 *     security:
 	 *       - bearerAuth: []
-	 *     parameters:
-	 *       - in: path
-	 *         name: id
-	 *         required: true
-	 *         schema:
-	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             required: [ids]
+	 *             properties:
+	 *               ids:
+	 *                 type: array
+	 *                 items:
+	 *                   type: integer
+	 *                 description: 任务 ID 数组
 	 *     responses:
 	 *       200:
 	 *         description: 恢复成功
@@ -1083,25 +1151,37 @@ function getRouter(): Router {
 	 *             schema:
 	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
-	router.post('/api/v1/tasks/:id/resume', optionalAuth, async function (ctx) {
-		ffboxService!.taskResume(+ctx.params.id);
+	router.post('/api/v1/tasks/resume', optionalAuth, async function (ctx) {
+		if (!ctx.request.body || !Array.isArray(ctx.request.body.ids)) {
+			ctx.status = 400;
+			ctx.body = { error: 'ids must be an array' };
+			return;
+		}
+		ffboxService!.taskResume(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
 	/**
 	 * @openapi
-	 * /api/v1/tasks/{id}/reset:
+	 * /api/v1/tasks/reset:
 	 *   post:
-	 *     summary: 重置任务
+	 *     summary: 批量重置任务
 	 *     description: 重置任务（收尾/强行，根据状态决定） 【paused / paused_queued / stopping / finished / error】 => 【idle】
 	 *     security:
 	 *       - bearerAuth: []
-	 *     parameters:
-	 *       - in: path
-	 *         name: id
-	 *         required: true
-	 *         schema:
-	 *           type: integer
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             required: [ids]
+	 *             properties:
+	 *               ids:
+	 *                 type: array
+	 *                 items:
+	 *                   type: integer
+	 *                 description: 任务 ID 数组
 	 *     responses:
 	 *       200:
 	 *         description: 重置成功
@@ -1110,8 +1190,13 @@ function getRouter(): Router {
 	 *             schema:
 	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
-	router.post('/api/v1/tasks/:id/reset', optionalAuth, async function (ctx) {
-		await ffboxService!.taskReset(+ctx.params.id);
+	router.post('/api/v1/tasks/reset', optionalAuth, async function (ctx) {
+		if (!ctx.request.body || !Array.isArray(ctx.request.body.ids)) {
+			ctx.status = 400;
+			ctx.body = { error: 'ids must be an array' };
+			return;
+		}
+		await ffboxService!.taskReset(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 

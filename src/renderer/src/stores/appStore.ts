@@ -2,7 +2,7 @@ import { h, VNodeRef, nextTick } from 'vue';
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
 import gsap from 'gsap';
-import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, WorkingStatus } from '@common/types';
+import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, TaskStatus, WorkingStatus } from '@common/types';
 import { version } from '@common/constants';
 import { Server, UITask } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
@@ -262,7 +262,7 @@ export const useAppStore = defineStore('app', {
 						}
 					}
 					const uploadInputName = `[uploading] ${fileBaseName}`;
-					filePaths.push(needUpload ? uploadInputName : (typeof input === 'string' ? input : input.path));
+					filePaths.push(needUpload ? uploadInputName : (typeof input === 'string' ? input : input.path.replace(/\\/g, '/')));
 					inputMeta.push({ input, fileBaseName, needUpload });
 				}
 				if (filePaths.length === 0) {
@@ -492,6 +492,17 @@ export const useAppStore = defineStore('app', {
 			return response.taskIds;
 		},
 		/**
+		 * 按状态从后端查询任务 ID 并设为选中集合
+		 */
+		async selectTasksByStatus(status: TaskStatus): Promise<number[]> {
+			if (!this.currentServer) return [];
+			const response = await this.currentServer.entity.getTaskIdsByStatus(status);
+			this.selectedTask = new Set(response.taskIds);
+			this.isAllSelected = false;
+			this.taskSelectionModified = false;
+			return response.taskIds;
+		},
+		/**
 		 * 跳转到指定范围（粗调滑动条松手后使用）
 		 * @param start 可见范围起始 index
 		 * @param end 可见范围结束 index
@@ -528,8 +539,8 @@ export const useAppStore = defineStore('app', {
 					const uploadingChunks = uploadFile.chunks.filter((chunk) => chunk.status === 'uploading');
 					uploadingChunks.forEach((chunk) => chunk.abortController.abort());
 				}
-				this.currentServer.entity.taskDelete(taskId);
 			}
+			this.currentServer.entity.taskDelete(taskIds);
 		},
 		/**
 		 * 修改已选任务项后调用

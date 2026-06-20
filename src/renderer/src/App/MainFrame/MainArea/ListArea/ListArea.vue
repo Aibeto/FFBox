@@ -121,19 +121,13 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 			{ type: 'normal', label: `已选中 ${appStore.selectedTask.size} 个任务`, value: 'description', disabled: true },
 			{ type: 'separator',  },
 			{ type: 'normal', icon: <span>▶️</span>, label: '立即开始', value: '立即开始选中任务', tooltip: '马上启动所选任务的编码（仅对未启动、排队开始、排队继续任务有效）', onClick: () => {
-				for (const taskId of appStore.selectedTask) {
-					appStore.currentServer?.entity.taskStart(taskId);
-				}
+				appStore.currentServer?.entity.taskStart([...appStore.selectedTask]);
 			} },
 			{ type: 'normal', icon: <span>⏳</span>, label: '排队开始', value: '排队开始选中任务', tooltip: '将所选任务置入准备状态（对未启动任务置入排队开始状态，对已暂停任务置入排队继续状态）', onClick: () => {
-				for (const taskId of appStore.selectedTask) {
-					appStore.currentServer?.entity.taskReady(taskId);
-				}
+				appStore.currentServer?.entity.taskReady([...appStore.selectedTask]);
 			} },
 			{ type: 'normal', icon: <span>⏹️</span>, label: '停止或重置', value: '停止或重置选中任务', tooltip: '对正在运行任务进行软停止，对正在停止任务进行硬停止，对已停止、已完成、出错任务置入未开始状态', onClick: () => {
-				for (const taskId of appStore.selectedTask) {
-					appStore.currentServer?.entity.taskReset(taskId);
-				}
+				appStore.currentServer?.entity.taskReset([...appStore.selectedTask]);
 			} },
 			{ type: 'normal', icon: <span>🗑️</span>, label: '删除', value: '删除选中任务', tooltip: '对未开始、上传中任务进行删除操作（对其他状态任务无效）', onClick: () => {
 				appStore.deleteTasks([...appStore.selectedTask]);

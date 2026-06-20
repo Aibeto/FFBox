@@ -42,12 +42,12 @@ export interface FFBoxServiceInterface {
 	taskCopy(id: number, count?: number): Promise<number>;
 	mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void>;
 	setUploadStatus(id: number, isUploading: boolean): Promise<void>;
-	taskDelete(id: number): Promise<void>;
-	taskStart(id: number): Promise<void>;
-	taskReady(id: number): Promise<void>;
-	taskPause(id: number): Promise<void>;
-	taskResume(id: number): Promise<void>;
-	taskReset(id: number): Promise<void>;
+	taskDelete(ids: number[]): Promise<void>;
+	taskStart(ids: number[]): Promise<void>;
+	taskReady(ids: number[]): Promise<void>;
+	taskPause(ids: number[]): Promise<void>;
+	taskResume(ids: number[]): Promise<void>;
+	taskReset(ids: number[]): Promise<void>;
 	queueStart(): Promise<void>;
 	queuePause(): Promise<void>;
 	deleteNotification(notificationId: number): Promise<void>;
@@ -55,6 +55,7 @@ export interface FFBoxServiceInterface {
 	trailLimit_stopTranscoding(id: number, reason: 'media' | 'working', byFrontend?: boolean): Promise<void>;
 	getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<Frame[]>;
 	getTaskList(offset: number, size: number): Promise<Task[]>;
+	getTaskIdsByStatus(status: TaskStatus): Promise<number[]>;
 }
 
 export interface FFBoxServiceEventParam {

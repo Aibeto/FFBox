@@ -1,4 +1,4 @@
-import { ServiceTask } from '@common/types';
+import { ServiceTask, TaskStatus } from '@common/types';
 import { TaskBlock } from './TaskBlock';
 
 /**
@@ -176,6 +176,24 @@ export class TaskList {
 		while (block) {
 			for (const taskId of block.taskIds) {
 				result.push(taskId);
+			}
+			block = block.next;
+		}
+		return result;
+	}
+
+	/**
+	 * 按状态筛选任务 ID 列表
+	 */
+	getIdsByStatus(status: TaskStatus): number[] {
+		const result: number[] = [];
+		let block = this.firstBlock;
+		while (block) {
+			for (const taskId of block.taskIds) {
+				const task = this.taskIdToTask.get(taskId);
+				if (task && task.status === status) {
+					result.push(taskId);
+				}
 			}
 			block = block.next;
 		}

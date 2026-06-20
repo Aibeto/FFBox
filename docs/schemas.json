@@ -1231,7 +1231,6 @@
   "TaskListEventType": {
     "type": "string",
     "enum": [
-      "tasklist.changed",
       "tasklist.added",
       "tasklist.removed"
     ]
@@ -1469,34 +1468,35 @@
         ],
         "additionalProperties": false
       },
-      "tasklist.changed": {
+      "tasklist.added": {
         "type": "object",
         "properties": {
-          "taskIds": {
+          "added": {
             "type": "array",
             "items": {
-              "type": "number"
+              "type": "object",
+              "properties": {
+                "taskId": {
+                  "type": "number"
+                },
+                "index": {
+                  "type": "number"
+                },
+                "task": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              },
+              "required": [
+                "taskId",
+                "index",
+                "task"
+              ],
+              "additionalProperties": false
             }
           }
         },
         "required": [
-          "taskIds"
-        ],
-        "additionalProperties": false
-      },
-      "tasklist.added": {
-        "type": "object",
-        "properties": {
-          "taskId": {
-            "type": "number"
-          },
-          "task": {
-            "$ref": "#/components/schemas/Task"
-          }
-        },
-        "required": [
-          "taskId",
-          "task"
+          "added"
         ],
         "additionalProperties": false
       },
@@ -1540,7 +1540,6 @@
       "task.progress",
       "queue.started",
       "queue.paused",
-      "tasklist.changed",
       "tasklist.added",
       "tasklist.removed",
       "notification"
