@@ -858,7 +858,7 @@ function getRouter(): Router {
 	 *                 description: 复制份数
 	 *     responses:
 	 *       200:
-	 *         description: 返回最后一个新创建的任务 ID
+	 *         description: 返回当前任务列表数量
 	 *         content:
 	 *           application/json:
 	 *             schema:
@@ -889,13 +889,14 @@ function getRouter(): Router {
 			ctx.body = { error: 'count must be a positive integer' };
 			return;
 		}
-		const result = await ffboxService!.taskCopy(id, count);
-		if (result === -1) {
+		const task = ffboxService!.taskList.getById(id);
+		if (!task) {
 			ctx.status = 404;
 			ctx.body = { error: `Task ${id} not found` };
 			return;
 		}
-		ctx.body = result;
+		await ffboxService!.taskCopy(id, count);
+		ctx.body = ffboxService!.taskList.count();
 	});
 
 	/**
@@ -1001,7 +1002,7 @@ function getRouter(): Router {
 			ctx.body = { error: 'ids must be an array' };
 			return;
 		}
-		ffboxService!.taskDelete(ctx.request.body.ids);
+		ffboxService!.taskDeleteBatch(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
@@ -1040,7 +1041,7 @@ function getRouter(): Router {
 			ctx.body = { error: 'ids must be an array' };
 			return;
 		}
-		ffboxService!.taskStart(ctx.request.body.ids);
+		ffboxService!.taskStartBatch(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
@@ -1079,7 +1080,7 @@ function getRouter(): Router {
 			ctx.body = { error: 'ids must be an array' };
 			return;
 		}
-		ffboxService!.taskReady(ctx.request.body.ids);
+		ffboxService!.taskReadyBatch(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
@@ -1118,7 +1119,7 @@ function getRouter(): Router {
 			ctx.body = { error: 'ids must be an array' };
 			return;
 		}
-		ffboxService!.taskPause(ctx.request.body.ids);
+		ffboxService!.taskPauseBatch(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
@@ -1157,7 +1158,7 @@ function getRouter(): Router {
 			ctx.body = { error: 'ids must be an array' };
 			return;
 		}
-		ffboxService!.taskResume(ctx.request.body.ids);
+		ffboxService!.taskResumeBatch(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 
@@ -1196,7 +1197,7 @@ function getRouter(): Router {
 			ctx.body = { error: 'ids must be an array' };
 			return;
 		}
-		await ffboxService!.taskReset(ctx.request.body.ids);
+		await ffboxService!.taskResetBatch(ctx.request.body.ids);
 		ctx.body = { success: true };
 	});
 

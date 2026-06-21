@@ -39,12 +39,12 @@ export interface FFBoxServiceInterface {
 	initSettings(): Promise<void>;
 	initFFmpeg(): void;
 	taskAddBatch(filePaths: string[], outputParams?: OutputParams): Promise<number[]>;
-	taskCopy(id: number, count?: number): Promise<number>;
+	taskCopy(id: number, count?: number): Promise<void>;
 	mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void>;
 	setUploadStatus(id: number, isUploading: boolean): Promise<void>;
-	taskDelete(ids: number[]): Promise<void>;
-	taskStart(ids: number[]): Promise<void>;
-	taskReady(ids: number[]): Promise<void>;
+	taskDeleteBatch(ids: number[]): Promise<void>;
+	taskStartBatch(ids: number[]): Promise<void>;
+	taskReadyBatch(ids: number[]): Promise<void>;
 	taskPause(ids: number[]): Promise<void>;
 	taskResume(ids: number[]): Promise<void>;
 	taskReset(ids: number[]): Promise<void>;
