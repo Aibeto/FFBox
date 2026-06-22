@@ -18,7 +18,7 @@ import { FFmpeg } from './FFmpegInvoke';
 import { YieldManager } from './YieldManager';
 import { webhookManager } from './utils/webhookManager';
 
-const yieldThreshold = 2;
+const yieldThreshold = 10;
 
 export interface FFBoxServerEvent {
 	serverReady: () => void;
@@ -29,6 +29,7 @@ export interface FFBoxServerEvent {
 export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & FFBoxServerEvent>) implements FFBoxServiceInterface {
 	public taskList: TaskList = new TaskList();
 	public yieldManager: YieldManager = new YieldManager();
+	private asyncList: Set<{ type: string }> = new Set();
 	public workingStatus: WorkingStatus = WorkingStatus.idle;
 	public ffmpegPath = '';
 	public ffprobePath = '';
@@ -76,6 +77,23 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			webhookManager.load();
 			// this.initFFmpeg();	// 在 initSetting 中已调用
 		}, 0);
+	}
+
+	private asyncListTimer: number | null = null;
+	private asyncListOp(op: '+' | '-', entry: { type: string }) {
+		if (op === '+') {
+			this.asyncList.add(entry);
+		} else {
+			this.asyncList.delete(entry);
+		}
+		if (!this.asyncListTimer) {
+			this.emit('asyncListUpdate', { list: [...this.asyncList] });
+			const lastAsyncCount = this.asyncList.size;
+			this.asyncListTimer = setTimeout(() => {
+				this.asyncListTimer = null;
+				if (lastAsyncCount !== this.asyncList.size) this.emit('asyncListUpdate', { list: [...this.asyncList] });
+			}, 100) as any;
+		}
 	}
 
 	private async initActivationInfo() {
@@ -554,6 +572,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			}
 		}
 
+		const asyncEntry = { type: `添加 ${filePaths.length} 个任务` };
+		this.asyncListOp('+', asyncEntry);
+	
 		const addedItems: { taskId: number; index: number }[] = [];
 		const ids: number[] = [];
 		const isBatch = true || filePaths.length > 1;
@@ -586,6 +607,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		// 对本地批量任务，低优先级进行媒体信息扫描
 		if (!isRemote && addedItems.length > 0) {
 			(async () => {
+				const asyncEntry = { type: `批量任务媒体信息扫描 ${addedItems.length} 个任务` };
+				this.asyncListOp('+', asyncEntry);
+
 				for (let i = 0; i < addedItems.length;) {
 					const batchIds = [];
 					for (let j = 0; i < addedItems.length && j < yieldThreshold;) {
@@ -603,9 +627,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						this.getFileMetadata(task.id, task);
 					}
 				}
+				this.asyncListOp('-', asyncEntry);
 			})();
 		}
-
+		this.asyncListOp('-', asyncEntry);
 		return Promise.resolve(ids);
 	}
 
@@ -619,10 +644,14 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			log.error(`taskCopy：任务 ${id} 不存在！`);
 			return;
 		}
+		const asyncEntry = { type: `复制任务 ${id} ${count} 份` };
+		this.asyncListOp('+', asyncEntry);
+
 		for (let i = 0; i < count; i++) {
 			if (i % yieldThreshold === 0) await this.yieldManager.yield({ type: 'taskAdd' });
 			this.taskAdd(task.taskName, task.after, task.remoteTask, false, true);
 		}
+		this.asyncListOp('-', asyncEntry);
 		return;
 	}
 
@@ -806,6 +835,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 */
 	public async taskDeleteBatch(ids: number[]): Promise<void> {
 		this.yieldManager.kill((metadata) => ids.some((id) => metadata.taskIds?.has(id)));
+		const asyncEntry = { type: `删除任务 ${ids.length} 个` };
+		this.asyncListOp('+', asyncEntry);
 
 		const removedItems: { taskId: number }[] = [];
 		for (const id of ids) {
@@ -852,6 +883,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 		this.emit('tasklistUpdate', { added: [], removed: removedItems, totalCount: this.taskList.count() });
 		webhookManager.triggerGlobalEvent('tasklist.removed', { removed: removedItems });
+		this.asyncListOp('-', asyncEntry);
 	}
 
 	/**
@@ -1011,6 +1043,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits taskUpdate
 	 */
 	public async taskStartBatch(ids: number[]): Promise<void> {
+		const asyncEntry = { type: `启动任务 ${ids.length} 个` };
+		this.asyncListOp('+', asyncEntry);
+
 		for (let i = 0; i < ids.length;) {
 			const batchIds = [];
 			for (let j = 0; i < ids.length && j < yieldThreshold;) {
@@ -1026,6 +1061,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				this.taskStart(taskId);
 			}
 		}
+		this.asyncListOp('-', asyncEntry);
 	}
 
 	/**
@@ -1035,6 +1071,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 */
 	public async taskReadyBatch(ids: number[]): Promise<void> {
 		this.yieldManager.kill((metadata) => ['taskStart', 'taskPause', 'taskResume', 'taskReset'].includes(metadata.type) && ids.some((id) => metadata.taskIds?.has(id)));
+		const asyncEntry = { type: `准备任务 ${ids.length} 个` };
+		this.asyncListOp('+', asyncEntry);
 
 		for (let i = 0; i < ids.length;) {
 			const batchIds = [];
@@ -1066,6 +1104,38 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				this.emitTaskUpdate(taskId, task);
 			}
 		}
+		this.asyncListOp('-', asyncEntry);
+	}
+
+	/**
+	 * 暂停单个任务（内部方法，由 taskPauseBatch 和 queuePause 调用）
+	 * 【running / paused_queued】 => 【paused】
+	 * @param id 任务 id
+	 * @emits taskUpdate
+	 */
+	private taskPause(id: number): void {
+		const task = this.taskList.getById(id);
+		if (!task) {
+			log.error(`[任务 ${id}] 暂停：任务不存在！`);
+			return;
+		}
+		if (!task.ffmpeg) {
+			// ffmpeg 已退出，不应调用 pause
+			log.error(`[任务 ${id}] 暂停：操作不合法！`);
+			return;
+		}
+		if (!([TaskStatus.running, TaskStatus.paused_queued].includes(task.status))) {
+			log.error(`[任务 ${id}] 暂停：任务当前状态为 ${task.status}，操作不合法但允许执行！`);
+		} else {
+			log.info(`[任务 ${id}] 暂停。`);
+		}
+		task.status = TaskStatus.paused;
+		task.ffmpeg!.pause();
+		task.progressLog.lastPaused = new Date().getTime() / 1000;
+		task.progressLog.elapsed += task.progressLog.lastPaused - task.progressLog.lastStarted;
+		this.emitTaskUpdate(id, task);
+
+		webhookManager.triggerTaskEvent('task.paused', id, { taskId: id, task: task as any });
 	}
 
 	/**
@@ -1076,6 +1146,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 */
 	public async taskPauseBatch(ids: number[]): Promise<void> {
 		this.yieldManager.kill((metadata) => ['taskReady', 'taskStart', 'taskResume', 'taskReset'].includes(metadata.type) && ids.some((id) => metadata.taskIds?.has(id)));
+		const asyncEntry = { type: `暂停任务 ${ids.length} 个` };
+		this.asyncListOp('+', asyncEntry);
 
 		for (let i = 0; i < ids.length;) {
 			const batchIds = [];
@@ -1089,31 +1161,49 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				break;
 			}
 			for (const id of batchIds) {
-				const task = this.taskList.getById(id);
-				if (!task) {
-					log.error(`[任务 ${id}] 暂停：任务不存在！`);
-					continue;
-				}
-				if (!task.ffmpeg) {
-					// ffmpeg 已退出，不应调用 pause
-					log.error(`[任务 ${id}] 暂停：操作不合法！`);
-					continue;
-				}
-				if (!([TaskStatus.running, TaskStatus.paused_queued].includes(task.status))) {
-					log.error(`[任务 ${id}] 暂停：任务当前状态为 ${task.status}，操作不合法但允许执行！`);
-				} else {
-					log.info(`[任务 ${id}] 暂停。`);
-				}
-				task.status = TaskStatus.paused;
-				task.ffmpeg!.pause();
-				task.progressLog.lastPaused = new Date().getTime() / 1000;
-				task.progressLog.elapsed += task.progressLog.lastPaused - task.progressLog.lastStarted;
-				this.emitTaskUpdate(id, task);
-
-				webhookManager.triggerTaskEvent('task.paused', id, { taskId: id, task: task as any });
+				this.taskPause(id);
 			}
 		}
 		this.queueAssign();
+		this.asyncListOp('-', asyncEntry);
+	}
+
+	/**
+	 * 继续执行单个任务（内部方法，由 taskResumeBatch 和 queueAssign 调用）
+	 * 【paused / paused_queued】 => 【running】
+	 * @param id 任务 id
+	 * @emits taskUpdate
+	 */
+	private taskResume(id: number): void {
+		const task = this.taskList.getById(id);
+		if (!task) {
+			log.error(`[任务 ${id}] 继续：任务不存在！`);
+			return;
+		}
+		if (!([TaskStatus.paused, TaskStatus.paused_queued].includes(task.status))) {
+			log.error(`[任务 ${id}] 继续：任务当前状态为 ${task.status}，操作不合法但允许执行！`);
+		} else {
+			log.info(`[任务 ${id}] 继续。`);
+		}
+		if (this.trailLimit_checkIsMediaWorkingTimeExceeded(id, task)) {
+			task.status = TaskStatus.paused;
+			this.emitTaskUpdate(id, task);
+			return;
+		}
+
+		task.status = TaskStatus.running;
+		const nowRealTime = new Date().getTime() / 1000;
+		task.progressLog.lastStarted = nowRealTime;
+		task.ffmpeg!.resume();
+		this.emitTaskUpdate(id, task);
+
+		webhookManager.triggerTaskEvent('task.resumed', id, { taskId: id, task: task as any });
+
+		if (this.workingStatus === WorkingStatus.idle) {
+			this.workingStatus = WorkingStatus.running;
+			this.emitStatusUpdate('start');
+			webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
+		}
 	}
 
 	/**
@@ -1124,6 +1214,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 */
 	public async taskResumeBatch(ids: number[]): Promise<void> {
 		this.yieldManager.kill((metadata) => ['taskReady', 'taskStart', 'taskPause', 'taskReset'].includes(metadata.type) && ids.some((id) => metadata.taskIds?.has(id)));
+		const asyncEntry = { type: `继续任务 ${ids.length} 个` };
+		this.asyncListOp('+', asyncEntry);
 
 		for (let i = 0; i < ids.length;) {
 			const batchIds = [];
@@ -1135,37 +1227,54 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				await this.yieldManager.yield({ type: 'taskResume', taskIds: new Set(batchIds) });
 			} catch (error) {}
 			for (const id of batchIds) {
-				const task = this.taskList.getById(id);
-				if (!task) {
-					log.error(`[任务 ${id}] 继续：任务不存在！`);
-					continue;
-				}
-				if (!([TaskStatus.paused, TaskStatus.paused_queued].includes(task.status))) {
-					log.error(`[任务 ${id}] 继续：任务当前状态为 ${task.status}，操作不合法但允许执行！`);
-				} else {
-					log.info(`[任务 ${id}] 继续。`);
-				}
-				if (this.trailLimit_checkIsMediaWorkingTimeExceeded(id, task)) {
-					task.status = TaskStatus.paused;
-					this.emitTaskUpdate(id, task);
-					continue;
-				}
-
-				task.status = TaskStatus.running;
-				const nowRealTime = new Date().getTime() / 1000;
-				task.progressLog.lastStarted = nowRealTime;
-				task.ffmpeg!.resume();
-				this.emitTaskUpdate(id, task);
-
-				webhookManager.triggerTaskEvent('task.resumed', id, { taskId: id, task: task as any });
-
-				if (this.workingStatus === WorkingStatus.idle) {
-					this.workingStatus = WorkingStatus.running;
-					this.emitStatusUpdate('start');
-					webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
-				}
+				this.taskResume(id);
 			}
 		}
+	}
+
+	/**
+	 * 重置单个任务（收尾/强行，根据状态决定）（内部方法，由 taskResetBatch 调用）
+	 * 【paused / paused_queued / stopping / finished / error】 => 【idle】
+	 * @param id 任务 id
+	 * @emits taskUpdate
+	 */
+	private taskReset(id: number): void {
+		const task = this.taskList.getById(id);
+		if (!task) {
+			log.error(`[任务 ${id}] 重置：任务不存在！`);
+			return;
+		}
+		if ([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(task.status)) {
+			// 暂停状态下重置或运行状态下达到限制停止工作
+			log.info(`[任务 ${id}] 重置——软停止。`);
+			task.status = TaskStatus.stopping;
+			task.ffmpeg!.exit(() => {
+				task.status = TaskStatus.idle;
+				task.ffmpeg = null;
+				this.emitTaskUpdate(id, task);
+				this.queueAssign();
+				this.storeUnfinishedTask();
+			});
+		} else if (task.status === TaskStatus.stopping) {
+			// 正在停止状态下强制重置
+			log.info(`[任务 ${id}] 重置——硬停止。`);
+			task.status = TaskStatus.stopping;
+			task.ffmpeg!.forceKill(() => {
+				task.status = TaskStatus.idle;
+				task.ffmpeg = null;
+				this.emitTaskUpdate(id, task);
+				this.queueAssign();
+				this.storeUnfinishedTask();
+			});
+		} else if ([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(task.status)) {
+			// 完成状态下或队列中仍未开始状态下重置
+			log.info(`[任务 ${id}] 重置到初始状态。`);
+			task.status = TaskStatus.idle;
+			this.queueAssign();
+		} else {
+			log.error(`[任务 ${id}] 重置：任务当前状态为 ${task.status}，操作不合法！`);
+		}
+		this.emitTaskUpdate(id, task);
 	}
 
 	/**
@@ -1176,6 +1285,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 */
 	public async taskResetBatch(ids: number[]): Promise<void> {
 		this.yieldManager.kill((metadata) => ['taskReady', 'taskStart', 'taskPause', 'taskResume'].includes(metadata.type) && ids.some((id) => metadata.taskIds?.has(id)));
+		const asyncEntry = { type: `重置任务 ${ids.length} 个` };
+		this.asyncListOp('+', asyncEntry);
 
 		for (let i = 0; i < ids.length;) {
 			const batchIds = [];
@@ -1187,44 +1298,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				await this.yieldManager.yield({ type: 'taskReset', taskIds: new Set(batchIds) });
 			} catch (error) {}
 			for (const id of batchIds) {
-				const task = this.taskList.getById(id);
-				if (!task) {
-					log.error(`[任务 ${id}] 重置：任务不存在！`);
-					continue;
-				}
-				if ([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(task.status)) {
-					// 暂停状态下重置或运行状态下达到限制停止工作
-					log.info(`[任务 ${id}] 重置——软停止。`);
-					task.status = TaskStatus.stopping;
-					task.ffmpeg!.exit(() => {
-						task.status = TaskStatus.idle;
-						task.ffmpeg = null;
-						this.emitTaskUpdate(id, task);
-						this.queueAssign();
-						this.storeUnfinishedTask();
-					});
-				} else if (task.status === TaskStatus.stopping) {
-					// 正在停止状态下强制重置
-					log.info(`[任务 ${id}] 重置——硬停止。`);
-					task.status = TaskStatus.stopping;
-					task.ffmpeg!.forceKill(() => {
-						task.status = TaskStatus.idle;
-						task.ffmpeg = null;
-						this.emitTaskUpdate(id, task);
-						this.queueAssign();
-						this.storeUnfinishedTask();
-					});
-				} else if ([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(task.status)) {
-					// 完成状态下或队列中仍未开始状态下重置
-					log.info(`[任务 ${id}] 重置到初始状态。`);
-					task.status = TaskStatus.idle;
-					this.queueAssign();
-				} else {
-					log.error(`[任务 ${id}] 重置：任务当前状态为 ${task.status}，操作不合法！`);
-				}
-				this.emitTaskUpdate(id, task);
+				this.taskReset(id);
 			}
 		}
+		this.asyncListOp('-', asyncEntry);
 	}
 
 	private storeUnfinishedTask(): void {
@@ -1251,35 +1328,70 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	/**
-	 * 分配队列任务，每当任务状态更新时都应调用此函数
+	 * 简述：挑选正在排队的任务开始执行。每当任务状态更新时都应调用此函数
 	 * 如果当前 workingStatus 为 running，那么挑选处于【空闲_已排队】【已暂停_已排队】的任务进入【正在运行】状态，直到【正在运行】的数量达到最大
 	 * 如果安排完成后【正在运行】的任务数量依然为 0，说明所有任务均已处理完毕，workingStatus 进入 idle 状态
 	 * @returns 当前正在运行的任务数
 	 */
-	private queueAssign(dontStop?: boolean): number {
+	private async queueAssign(dontStop?: boolean): Promise<number> {
 		if (this.workingStatus === WorkingStatus.running) {
-			const snapshot = this.taskList.getSnapshot();
-			let runningCount = snapshot.reduce((prev, curr) => curr.status === TaskStatus.running ? prev + 1 : prev, 0);
+			const asyncEntry = { type: `排队任务分配执行` };
+			this.asyncListOp('+', asyncEntry);
+
 			const maxThreads = Math.min(this.maxThreads, this.functionLevel < 20 ? 4 : this.functionLevel < 35 ? 6 : this.functionLevel < 50 ? 9 : this.functionLevel < 70 ? 99 : 256);
-			for (const task of snapshot) {
-				if (runningCount >= maxThreads) {
-					break;
-				}
-				if (task.status === TaskStatus.idle_queued) {
-					this.taskStart(task.id);
-					runningCount++;
-				}
-				if (task.status === TaskStatus.paused_queued) {
-					this.taskResumeBatch([task.id]);
-					// @ts-ignore
+			let runningCount = 0;
+
+			// 先统计一次 runningCount	TODO：改为状态桶统计
+			let block = this.taskList.firstBlock;
+			while (block) {
+				for (const taskId of block.taskIds) {
+					const task = this.taskList.getById(taskId);
+					if (!task) { debugger; throw 'ub'; }
+					
 					if (task.status === TaskStatus.running) runningCount++;
 				}
+				block = block.next;
 			}
+
+			// 然后根据 runningCount 分配任务
+			let i = 0;
+			block = this.taskList.firstBlock;
+			while (block) {
+				if (runningCount >= maxThreads) break;
+
+				for (const taskId of block.taskIds) {
+					if (runningCount >= maxThreads) break;
+
+					const task = this.taskList.getById(taskId);
+					if (!task) { debugger; throw 'ub'; }
+					
+					if (task.status === TaskStatus.idle_queued) {
+						this.taskStart(task.id);
+						runningCount++;
+					}
+					if (task.status === TaskStatus.paused_queued) {
+						this.taskResume(task.id);
+						// @ts-ignore
+						if (task.status === TaskStatus.running) runningCount++;
+					}
+				}
+				if (i % yieldThreshold === 0) {
+					try {
+						await this.yieldManager.yield({ type: 'queueAssign' });
+					} catch (error) {
+						break;
+					}
+				}
+				i++;
+				block = block.next;
+			}
+
 			if (!dontStop && runningCount === 0) {
 				this.workingStatus = WorkingStatus.idle;
 				this.emitStatusUpdate('stop');
 				webhookManager.triggerGlobalEvent('queue.paused', { timestamp: Date.now() });
 			}
+			this.asyncListOp('-', asyncEntry);
 			return runningCount;
 		}
 		return 0;
@@ -1291,50 +1403,85 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * 也就是优先启动已排队的任务，再将空闲任务加入排队
 	 */
 	public async queueStart(): Promise<void> {
+		this.yieldManager.kill((metadata) => ['queueStart'].includes(metadata.type));
+		const asyncEntry = { type: `启动任务队列` };
+		this.asyncListOp('+', asyncEntry);
+
 		this.workingStatus = WorkingStatus.running;
+		// 启动此前已排队的任务
 		this.queueAssign(true);
-		const snapshot = this.taskList.getSnapshot();
-		for (const task of snapshot) {
-			if (task.status === TaskStatus.idle) {
-				task.status = TaskStatus.idle_queued;
-			} else if (task.status === TaskStatus.paused) {
-				task.status = TaskStatus.paused_queued;
+
+		// 将空闲任务纳入排队
+		const updatedTasks: ServiceTask[] = [];
+		let block = this.taskList.firstBlock;
+		let i = 0;
+		while (block) {
+			for (const taskId of block.taskIds) {
+				const task = this.taskList.getById(taskId);
+				if (!task) { debugger; throw 'ub'; }
+				
+				if (task.status === TaskStatus.idle) {
+					task.status = TaskStatus.idle_queued;
+					updatedTasks.push(task);
+				} else if (task.status === TaskStatus.paused) {
+					task.status = TaskStatus.paused_queued;
+					updatedTasks.push(task);
+				}
+				if (i % yieldThreshold === 0) {
+					try {
+						try {
+							await this.yieldManager.yield({ type: 'queueStart' });
+						} catch (error) {
+							break;
+						}
+					} catch (error) {
+						break;
+					}
+				}
+				i++;
 			}
+			block = block.next;
 		}
-		const runningCount = this.queueAssign();
+		
+		// 再次分配任务，达到最大可运行数
+		const runningCount = await this.queueAssign();
 		if (runningCount) {
 			this.emitStatusUpdate('start');
 			webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
 		}
-		const snapshot2 = this.taskList.getSnapshot();
-		for (const task of snapshot2) {
+		for (const task of updatedTasks) {
 			if ([TaskStatus.idle_queued, TaskStatus.paused_queued].includes(task.status)) {
 				this.emitTaskUpdate(task.id, task);
 			}
 		}
+		this.asyncListOp('-', asyncEntry);
 	}
 
 	/**
 	 * 暂停处理队列，将所有【正在运行】的任务暂停、【空闲_已排队】的任务重置
 	 */
 	public async queuePause(): Promise<void> {
+		this.yieldManager.kill((metadata) => ['queuePause', 'queueAssign', 'queueStart'].includes(metadata.type));
+
 		if (this.workingStatus === WorkingStatus.running) {
 			this.emitStatusUpdate('pause');
 			webhookManager.triggerGlobalEvent('queue.paused', { timestamp: Date.now() });
 		}
 		this.workingStatus = WorkingStatus.idle;
-		const snapshot = this.taskList.getSnapshot();
-		const pauseIds: number[] = [];
-		const resetIds: number[] = [];
-		for (const task of snapshot) {
-			if ([TaskStatus.running, TaskStatus.paused_queued].includes(task.status)) {
-				pauseIds.push(task.id);
-			} else if (task.status === TaskStatus.idle_queued) {
-				resetIds.push(task.id);
+		let block = this.taskList.firstBlock;
+		while (block) {
+			for (const taskId of block.taskIds) {
+				const task = this.taskList.getById(taskId);
+				if (!task) { debugger; throw 'ub'; }
+				
+				if ([TaskStatus.running, TaskStatus.paused_queued].includes(task.status)) {
+					this.taskPause(task.id);
+				} else if (task.status === TaskStatus.idle_queued) {
+					this.taskReset(task.id);
+				}
 			}
+			block = block.next;
 		}
-		if (pauseIds.length) await this.taskPauseBatch(pauseIds);
-		if (resetIds.length) await this.taskResetBatch(resetIds);
 	}
 
 	/**
@@ -1445,8 +1592,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.notifications[notificationId] = notification;
 	}
 
-	// #region 任务区段查询与批量复制
-
 	/**
 	 * 任务区段查询：返回 [offset, offset+size) 范围内的任务列表或 ID 列表
 	 */
@@ -1465,9 +1610,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	public getTaskIdsByStatus(status: TaskStatus): number[] {
 		return this.taskList.getIdsByStatus(status);
 	}
-
-
-	// #endregion
 
 	private activate(activationCode: string): boolean {
 		const fixedCode = 'd324c697ebfc42b7';

@@ -73,6 +73,7 @@ export interface ServerData {
 	bufferEnd: number;		// 当前缓冲区结束的全局偏移（不含）
 	workingStatus: WorkingStatus;
 	progress: number;	// 由后端 statusUpdate 事件推送
+	asyncList: { type: string }[];	// 异步操作列表，由 asyncListUpdate 事件推送
 }
 
 export interface Server {

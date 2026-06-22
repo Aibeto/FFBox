@@ -9,8 +9,8 @@ import { TaskBlock } from './TaskBlock';
 export class TaskList {
 	private taskIdToTask: Map<number, ServiceTask> = new Map();
 	private taskIdToBlock: Map<number, TaskBlock> = new Map();
-	private firstBlock: TaskBlock | null = null;
-	private lastBlock: TaskBlock | null = null;
+	public firstBlock: TaskBlock | null = null;
+	public lastBlock: TaskBlock | null = null;
 	private nextTaskId: number = 0;	// 任务的下一个自增 id
 	private nextBlockId: number = 0;	// 块的下一个自增 id
 	private readonly blockSize: number;

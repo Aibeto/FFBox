@@ -297,6 +297,7 @@ function mountEventFromService(): void {
 		'statusUpdate',
 		'tasklistUpdate',
 		'notificationUpdate',
+		'asyncListUpdate',
 	];
 	for (const event of globalEvents) {
 		ffboxService.on(event, (payload: FFBoxServiceEventParam[keyof FFBoxServiceEventParam]) => {

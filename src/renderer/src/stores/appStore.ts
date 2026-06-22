@@ -957,6 +957,7 @@ export const useAppStore = defineStore('app', {
 					bufferEnd: 0,
 					workingStatus: WorkingStatus.idle,
 					progress: 0,
+					asyncList: [],
 				},
 				entity: new ServiceBridge(),
 			});
@@ -1058,6 +1059,9 @@ export const useAppStore = defineStore('app', {
 				});
 				entity.on('notificationUpdate', (data) => {
 					handleNotificationUpdate(server, data.notificationId, data.notification);
+				});
+				entity.on('asyncListUpdate', (data) => {
+					server.data.asyncList = data.list;
 				});
 			});
 		},

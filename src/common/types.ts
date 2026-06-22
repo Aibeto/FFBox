@@ -45,9 +45,9 @@ export interface FFBoxServiceInterface {
 	taskDeleteBatch(ids: number[]): Promise<void>;
 	taskStartBatch(ids: number[]): Promise<void>;
 	taskReadyBatch(ids: number[]): Promise<void>;
-	taskPause(ids: number[]): Promise<void>;
-	taskResume(ids: number[]): Promise<void>;
-	taskReset(ids: number[]): Promise<void>;
+	taskPauseBatch(ids: number[]): Promise<void>;
+	taskResumeBatch(ids: number[]): Promise<void>;
+	taskResetBatch(ids: number[]): Promise<void>;
 	queueStart(): Promise<void>;
 	queuePause(): Promise<void>;
 	deleteNotification(notificationId: number): Promise<void>;
@@ -66,6 +66,7 @@ export interface FFBoxServiceEventParam {
 	cmdUpdate: { taskId: number; content: string; append: boolean };	// 由 append 确定是增量还是全量更新
 	progressUpdate: { taskId: number; time: number; status?: FFmpegProgress };	// 增量更新（status 未定义则为清空）
 	notificationUpdate: { notificationId: number; notification?: Notification };	// 增量（notification 未定义则为删除）
+	asyncListUpdate: { list: { type: string }[] };
 }
 
 export type FFBoxServiceEvent = {
@@ -79,6 +80,9 @@ export type FFBoxServiceEventApi = {
 } | {
 	event: 'connected';
 	payload: { timestamp: number };
+} | {
+	event: 'asyncListLength';
+	payload: number;
 };
 
 export interface NormalApiWrapper<T> {
@@ -479,7 +483,7 @@ export interface WebhookEventDataMap {
 
 	// 任务列表事件
 	'tasklist.added': { added: { taskId: number; index: number; task: Task }[] };
-	'tasklist.removed': { taskId: number };
+	'tasklist.removed': { removed: { taskId: number }[]; };
 
 	// 通知事件
 	'notification': { notificationId: number; notification: Notification };
