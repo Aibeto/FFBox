@@ -9,6 +9,20 @@ import { TaskBlock } from './TaskBlock';
 export class TaskList {
 	private taskIdToTask: Map<number, ServiceTask> = new Map();
 	private taskIdToBlock: Map<number, TaskBlock> = new Map();
+	// 每种状态对应的 taskId 集合，用于 O(1) 统计和 O(k) 按状态筛选
+	public statusSets: Record<TaskStatus, Set<number>> = {
+		[TaskStatus.deleted]: new Set(),
+		[TaskStatus.initializing]: new Set(),
+		[TaskStatus.idle]: new Set(),
+		[TaskStatus.idle_queued]: new Set(),
+		[TaskStatus.running]: new Set(),
+		[TaskStatus.paused]: new Set(),
+		[TaskStatus.paused_queued]: new Set(),
+		[TaskStatus.stopping]: new Set(),
+		[TaskStatus.finishing]: new Set(),
+		[TaskStatus.finished]: new Set(),
+		[TaskStatus.error]: new Set(),
+	}
 	public firstBlock: TaskBlock | null = null;
 	public lastBlock: TaskBlock | null = null;
 	private nextTaskId: number = 0;	// 任务的下一个自增 id
@@ -57,7 +71,8 @@ export class TaskList {
 		}
 		this.lastBlock.addTask(taskId);
 		this.taskIdToBlock.set(taskId, this.lastBlock);
-		
+		this.statusSets[task.status].add(taskId);
+
 		return taskId;
 	}
 
@@ -66,9 +81,10 @@ export class TaskList {
 	 * @returns 是否成功移除
 	 */
 	remove(taskId: number): boolean {
-		if (!this.taskIdToTask.has(taskId)) {
-			return false;
-		}
+		const task = this.taskIdToTask.get(taskId);
+		if (!task) return false;
+
+		this.statusSets[task.status].delete(taskId);
 
 		// 从块中移除 taskId，并更新后续块的 firstTaskIndex
 		const block = this.taskIdToBlock.get(taskId);
@@ -183,21 +199,42 @@ export class TaskList {
 	}
 
 	/**
-	 * 按状态筛选任务 ID 列表
+	 * 按状态筛选任务 ID 列表（保持块顺序）
 	 */
 	getIdsByStatus(status: TaskStatus): number[] {
+		const set = this.statusSets[status];
+		if (set.size === 0) return [];
 		const result: number[] = [];
 		let block = this.firstBlock;
 		while (block) {
 			for (const taskId of block.taskIds) {
-				const task = this.taskIdToTask.get(taskId);
-				if (task && task.status === status) {
+				if (set.has(taskId)) {
 					result.push(taskId);
 				}
 			}
 			block = block.next;
 		}
 		return result;
+	}
+
+	/**
+	 * 获取指定状态的任务数量
+	 */
+	getTaskCountByStatus(status: TaskStatus): number {
+		return this.statusSets[status].size;
+	}
+
+	/**
+	 * 更新任务状态，自动维护 statusSets
+	 */
+	setStatus(taskId: number, newStatus: TaskStatus): void {
+		const task = this.taskIdToTask.get(taskId);
+		if (!task) return;
+		const oldStatus = task.status;
+		if (oldStatus === newStatus) return;
+		this.statusSets[oldStatus].delete(taskId);
+		this.statusSets[newStatus].add(taskId);
+		task.status = newStatus;
 	}
 
 	/**

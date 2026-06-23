@@ -33,7 +33,7 @@
  * ```
  */
 
-const clearanceTime = 100;	// 净空时间（让给 js 主线程做其他事的时间，若非调试需要一般是 0）
+const clearanceTime = 0;	// 净空时间（让给 js 主线程做其他事的时间，若非调试需要一般是 0）
 
 interface YieldItemMetadata {
 	type: string;

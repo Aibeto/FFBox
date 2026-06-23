@@ -10,12 +10,12 @@
   <circle cx="32" cy="32" r="25.5" fill="none" stroke="currentColor" stroke-width="6"
           stroke-dasharray="40 120" stroke-dashoffset="0" stroke-linecap="round">
     <animateTransform attributeName="transform" type="rotate"
-                      from="180 32 32" to="540 32 32" dur="0.1s" repeatCount="indefinite"/>
+                      from="180 32 32" to="540 32 32" dur="0.15s" repeatCount="indefinite"/>
   </circle>
   <circle cx="32" cy="32" r="25.5" fill="none" stroke="url(#fadeGradient)" stroke-width="6"
   stroke-dasharray="80 80" stroke-dashoffset="0" stroke-linecap="round">
     <animateTransform attributeName="transform" type="rotate"
-                from="0 32 32" to="360 32 32" dur="0.1s" repeatCount="indefinite"/>
+                from="0 32 32" to="360 32 32" dur="0.15s" repeatCount="indefinite"/>
   </circle>
 
 </svg>

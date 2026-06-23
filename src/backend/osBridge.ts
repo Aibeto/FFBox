@@ -1,8 +1,10 @@
 import { spawnInvoker } from '@common/spawnInvoker';
 import { getTimeString } from '@common/utils';
 import { ChildProcess } from 'child_process';
+import { log } from './utils';
 
 let helper: ChildProcess | undefined = undefined;
+let helperStartupPromise: Promise<ChildProcess> | null = null;
 
 /**
  * 保证 FFBoxHelper 已启动，否则再次启动
@@ -33,39 +35,44 @@ function callHelper<T>(func: (helper: ChildProcess) => Promise<T> | T): Promise<
 		if (helper) {
 			callCorrespondingFunction(helper);
 		} else {
-			console.log(getTimeString(new Date()), '正在启动 helper');
-			spawnInvoker('FFBoxHelper.exe', ['--standalone'], {
+			if (!helperStartupPromise) log.info(getTimeString(new Date()), '正在启动 helper');
+			const currentPromise = helperStartupPromise || spawnInvoker('FFBoxHelper.exe', ['--standalone'], {
 				detached: false,
 				shell: false,
 				// encoding: 'utf8'
-			})
-				.then((_helper) => {
-					helper = _helper;
-					_helper.on('close', (code) => {
-						// 'close' 事件将始终在 'exit' 或 'error'（如果子进程衍生失败）已经触发之后触发
-						switch (code) {
-							case -4058:
-								// 找不到文件，启动失败
-								helper = undefined;
-								reject('FFBoxHelper 未找到');
-								break;
-							case -1:
-								// 进程退出
-								helper = undefined;
-								break;
-						}
-					});
-					// helper?.on('exit', (code, signal) => {
-					// 	console.log('exit', code, signal);
-					// });
-					// _helper.stdout!.on('data', (data) => {
-					// 	console.warn(data.toString());
-					// });
-					callCorrespondingFunction(_helper);
-				})
-				.catch((reason) => {
-					console.error(reason);
+			});
+			helperStartupPromise = currentPromise;
+			currentPromise.then((_helper) => {
+				helper = _helper;
+				_helper.on('close', (code) => {
+					// 'close' 事件将始终在 'exit' 或 'error'（如果子进程衍生失败）已经触发之后触发
+					switch (code) {
+						case -4058:
+							// 找不到文件，启动失败
+							helper = undefined;
+							log.error(`[helper] FFBoxHelper 未找到`);
+							reject('FFBoxHelper 未找到');
+							break;
+						case -1:
+							// 进程退出
+							log.warn(`[helper] 进程退出`);
+							helper = undefined;
+							break;
+					}
 				});
+				// helper?.on('exit', (code, signal) => {
+				// 	console.log('exit', code, signal);
+				// });
+				// _helper.stdout!.on('data', (data) => {
+				// 	console.warn(data.toString());
+				// });
+				callCorrespondingFunction(_helper);
+			})
+			.catch((reason) => {
+				log.error(`[helper]`, reason);
+			}).finally(() => {
+				helperStartupPromise = null;
+			});
 		}
 	});
 }
