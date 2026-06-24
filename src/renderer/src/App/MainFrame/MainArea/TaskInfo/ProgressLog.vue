@@ -26,8 +26,15 @@ let rendering = 0;	// 0: 空闲　1: 渲染中　2: 渲染中重复调用 render
 
 const outputDuration = computed(() => selectedTasks.value.task ? getOutputDuration(selectedTasks.value.task) : 0);
 const isDark = computed(() => appStore.frontendSettings.colorTheme === 'themeDark');
+// 获取当前正在运行的 run 或最新 run 的 progressLog
+const activeProgressLog = computed(() => {
+	const task = selectedTasks.value.task;
+	if (!task) return undefined;
+	const activeRun = [...task.runs].reverse().find(r => r.status === TaskStatus.running) || task.runs[task.runs.length - 1];
+	return activeRun?.progressLog;
+});
 const selectionList = computed(() => {
-	const disableNormalChart = !selectedTasks.value.task || selectedTasks.value.task?.progressLog.time.length <= 1;
+	const disableNormalChart = !selectedTasks.value.task || (activeProgressLog.value?.time.length ?? 0) <= 1;
 	// const disableTransferChart = selectedTasks.value.task.transferProgressLog.transferred.length <= 1;
 	return [
 		{ value: 'progress', caption: '进度', disabled: disableNormalChart },
@@ -210,7 +217,7 @@ const render = () => {
 	rendering = 1;
 
 	// 更新横纵轴端点
-	if (task.progressLog.frame.length >= 5 && task.progressLog.size.length >= 2) {
+	if ((activeProgressLog.value?.frame.length ?? 0) >= 5 && (activeProgressLog.value?.size.length ?? 0) >= 2) {
 		const latestMaxTimeSize = getEstimatedMaxTimeSize();
 		totalTime_smooth.value = totalTime_smooth.value * 0.92 + latestMaxTimeSize.time * 0.08;
 		totalSize_smooth.value = totalSize_smooth.value * 0.92 + latestMaxTimeSize.size * 0.08;
@@ -263,14 +270,14 @@ const render = () => {
 		context.fillStyle = '#4499EE33';
 		context.strokeStyle = '#4499EE';
 		context.beginPath();
-		for (let i = 0; i < task.progressLog.time.length; i++) {
-			const elem = task.progressLog.time[i];
+		for (let i = 0; i < (activeProgressLog.value?.time.length ?? 0); i++) {
+			const elem = activeProgressLog.value!.time[i];
 			const x = (elem[0] / horizontalMax) * (canvasWidth - 100) + 100;
 			const y = (1 - elem[1] / outputDuration.value) * (canvasHeight - 30);
 			context.lineTo(x, y);
 		}
 		context.stroke();
-		const lastX = task.progressLog.time[task.progressLog.time.length - 1][0] / horizontalMax * (canvasWidth - 100) + 100;
+		const lastX = activeProgressLog.value!.time[activeProgressLog.value!.time.length - 1][0] / horizontalMax * (canvasWidth - 100) + 100;
 		context.lineTo(lastX, canvasHeight - 30);
 		context.lineTo(100, canvasHeight - 30);
 		context.fill();

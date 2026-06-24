@@ -1,5 +1,5 @@
 import { SingleProgressLog, TaskStatus } from '@common/types';
-import { getOutputDuration, parseTimeString } from '@common/utils';
+import { getOutputDuration } from '@common/utils';
 import { ServerData, UITask } from '@renderer/types';
 
 /**
@@ -16,7 +16,9 @@ export function overallProgressTimer(currentServer: ServerData) {
 			continue;
 		}
 		totalTime += task.before[0].duration;
-		totalProcessedTime += task.dashboard_smooth.progress * task.before[0].duration;
+		// 从正在运行的 run 或最新 run 读取 dashboard_smooth
+		const activeRun = [...task.runs].reverse().find(r => r.status === TaskStatus.running) || task.runs[task.runs.length - 1];
+		totalProcessedTime += (activeRun?.dashboard_smooth?.progress ?? 0) * task.before[0].duration;
 	}
 	let progress = totalProcessedTime / totalTime;
 	currentServer.progress = progress;
@@ -79,7 +81,9 @@ export function calcDashboard(progressLog: SingleProgressLog, elapsedTime: numbe
  * 计算单个任务的 timer 函数，根据计算结果原地修改 progress 和 progress_smooth
  */
 export function dashboardTimer(task: UITask) {
-	const progressLog = task.progressLog;
+	// 找到当前正在运行的 run（从后往前找第一个 running 状态的），若无则使用最新条目
+	const activeRun = [...task.runs].reverse().find(r => r.status === TaskStatus.running) || task.runs[task.runs.length - 1];
+	const progressLog = activeRun.progressLog;
 	if (progressLog.time.length <= 2) {
 		// 任务刚开始时显示的数据不准确
 		return;
@@ -104,8 +108,8 @@ export function dashboardTimer(task: UITask) {
 	// 进度细节计算
 	// const afterFramerate = task.after.outputs[0]?.video.framerate === '不改变' ? task.before[0].vframerate : +task.after.outputs[0]?.video.framerate;
 	if (progress < 0.995) {
-		task.dashboard = {
-			...task.dashboard,
+		activeRun.dashboard = {
+			...activeRun.dashboard,
 			progress,
 			bitrate: (sizeK / timeK) * 8,
 			// speed: frameK / afterFramerate || timeK,	// 如果可以读出帧速，或者输出的是视频，用帧速算 speed 更准确；否则用时间算 speed
@@ -116,22 +120,22 @@ export function dashboardTimer(task: UITask) {
 		};
 
 		// 平滑处理
-		let { bitrate, speed, time, frame, size } = task.dashboard_smooth;
-		progress = progress * 0.7 + task.dashboard.progress * 0.3;
-		bitrate  = bitrate * 0.9 + task.dashboard.bitrate * 0.1;
-		speed    = speed * 0.6 + task.dashboard.speed * 0.4;
-		time     = time * 0.7 + task.dashboard.time * 0.3;
-		frame    = frame * 0.7 + task.dashboard.frame * 0.3;
-		size    = size * 0.9 + task.dashboard.size * 0.1;
+		let { bitrate, speed, time, frame, size } = activeRun.dashboard_smooth;
+		progress = progress * 0.7 + activeRun.dashboard.progress * 0.3;
+		bitrate  = bitrate * 0.9 + activeRun.dashboard.bitrate * 0.1;
+		speed    = speed * 0.6 + activeRun.dashboard.speed * 0.4;
+		time     = time * 0.7 + activeRun.dashboard.time * 0.3;
+		frame    = frame * 0.7 + activeRun.dashboard.frame * 0.3;
+		size    = size * 0.9 + activeRun.dashboard.size * 0.1;
 		if (isNaN(bitrate) || bitrate == Infinity) { bitrate = 0 }
 		if (isNaN(speed)) { speed = 0 }
 		if (isNaN(time)) { time = 0 }
 		if (isNaN(frame)) { frame = 0 }
 		if (isNaN(size)) { size = 0 }
-		task.dashboard_smooth = { ...task.dashboard_smooth, progress, bitrate, speed, time, frame, size };
+		activeRun.dashboard_smooth = { ...activeRun.dashboard_smooth, progress, bitrate, speed, time, frame, size };
 	} else {
 		// 进度满了就别更新了
-		task.dashboard.progress = 1;
+		activeRun.dashboard.progress = 1;
 	}
-	// task.progress_smooth = Object.assign({}, task.progress_smooth); 
+	// task.progress_smooth = Object.assign({}, task.progress_smooth);
 }

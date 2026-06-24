@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { Task, TaskStatus } from '@common/types';
-import { formatTimeToFFmpegStyle, getOutputFileTime, getTimeString } from '@common/utils';
+import { formatTimeToFFmpegStyle, getOutputFileTime, getTimeString, getTaskLatestOutputParams } from '@common/utils';
 import { getOutputFileBaseName } from '@common/params/formats';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import { useAppStore } from '@renderer/stores/appStore';
@@ -23,11 +23,11 @@ const openFile = (task: Task, filePath: string, outputIndex: number) => {
 		if (entity.ip === 'localhost') {
 			nodeBridge.openFile(`"${filePath}"`);
 		} else {
-			const newFileBaseName = getOutputFileBaseName(task.after.outputs[outputIndex].mux, task.taskName, { taskId: task.id, outputIndex });
+			const newFileBaseName = getOutputFileBaseName(getTaskLatestOutputParams(task).outputs[outputIndex].mux, task.taskName, { taskId: task.id, outputIndex });
 			const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 			if (nodeBridge.env === 'electron') {
 				let fileTime = undefined;
-				const output = task.after.outputs[outputIndex];
+				const output = getTaskLatestOutputParams(task).outputs[outputIndex];
 				const mux = output.mux;
 				if (mux.keepFileTime) {
 					let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, outputIndex);
@@ -211,7 +211,7 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 					<button
 						class="node outputNode"
 						v-if="selectedTasks.task"
-						v-for="(outputFile, index) in selectedTasks.task.outputFiles"
+						v-for="(outputFile, index) in (selectedTasks.task?.runs?.[selectedTasks.task.runs.length - 1]?.outputFiles ?? [])"
 						@click="openFile(selectedTasks.task, outputFile, index)"
 						v-bind="useTooltip(appStore.currentServer?.entity.ip === 'localhost' ? '点击打开输出文件' : '点击下载输出文件', 'tr')"
 					>

@@ -63,8 +63,8 @@ export interface FFBoxServiceEventParam {
 	statusUpdate: { workingStatus?: 'start' | 'stop' | 'pause'; progress: number };	// 合并原 workingStatusUpdate 与总进度推送。workingStatus 在队列状态变化时携带，progress 始终携带
 	tasklistUpdate: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number };
 	taskUpdate: { taskId: number; task: Task };
-	cmdUpdate: { taskId: number; content: string; append: boolean };	// 由 append 确定是增量还是全量更新
-	progressUpdate: { taskId: number; time: number; status?: FFmpegProgress };	// 增量更新（status 未定义则为清空）
+	cmdUpdate: { taskId: number; runIndex: number; content: string; append: boolean };	// 由 append 确定是增量还是全量更新
+	progressUpdate: { taskId: number; runIndex: number; time: number; status?: FFmpegProgress };	// 增量更新（status 未定义则为清空）
 	notificationUpdate: { notificationId: number; notification?: Notification };	// 增量（notification 未定义则为删除）
 	asyncListUpdate: { list: { type: string }[] };
 }
@@ -365,6 +365,26 @@ export interface FFmpegProgress {
 }
 
 export type SingleProgressLog = Array<[number, number]>;
+
+// 单次运行快照
+export interface Run {
+	after: OutputParams;
+	paraArray: Array<string>;
+	outputFiles: string[];		// 对于本地任务，表示生成文件的绝对路径；对于远程任务，则为 fileName（自动生成的字符串） + ext，在 taskAdd 和调节参数之后生成文件名，注意不包含目录。
+	status: TaskStatus;
+	progressLog: {
+		time: SingleProgressLog;
+		frame: SingleProgressLog;
+		size: SingleProgressLog;
+		// 涉及到的时间单位均为 s
+		lastStarted: number;
+		elapsed: number;		// 暂停才更新一次，因此记录的并不是实时的任务时间
+		lastPaused: number;		// 既用于暂停后恢复时计算速度，也用于统计任务耗时
+	};
+	cmdData: string;
+	errorInfo: Array<string>;
+}
+
 /**
  * 文件路径处理规则：
  * 添加任务时调用 mainVue 的 addTask，传入 baseName，并且把输入添加到 input.files 中。但此项中的 filePath 属性，本地任务直接添加绝对路径，远程任务则留空
@@ -379,22 +399,8 @@ export interface Task {
 	id: number;		// 全局唯一任务 ID
 	taskName: string;
 	before: InputInfo[];
-	after: OutputParams;
-	paraArray: Array<string>;
 	status: TaskStatus;
-	progressLog: {
-		time: SingleProgressLog;
-		frame: SingleProgressLog;
-		size: SingleProgressLog;
-		// 涉及到的时间单位均为 s
-		lastStarted: number;
-		elapsed: number;		// 暂停才更新一次，因此记录的并不是实时的任务时间
-		lastPaused: number;		// 既用于暂停后恢复时计算速度，也用于统计任务耗时
-	};
-	cmdData: string;
-	errorInfo: Array<string>;
-	// notifications: Array<Notification>;
-	outputFiles: string[];		// 对于本地任务，表示生成文件的绝对路径；对于远程任务，则为 fileName（自动生成的字符串） + ext，在 taskAdd 和调节参数之后生成文件名，注意不包含目录。
+	runs: Run[];	// 运行快照数组。0 号位置为 getFileMetadata 结果，其他运行记录从 1 号位置开始存储
 }
 
 export interface ServiceTask extends Task {
@@ -402,6 +408,7 @@ export interface ServiceTask extends Task {
 	// TODO
 	// ffmpeg: any | null;
 	remoteTask: boolean;	// 本地/远程任务对于 service 来说，对输出文件名的处理方式不同；对于 UI 来说，只需要判断 IP 是否为 localhost 即决定是下载还是直接打开了
+	activeRunIndex: number;	// 当前正在运行的 run 索引（taskStart 时设置，用于进度/cmd 写入）（当然从设计逻辑来说，似乎取倒数第一个就可以了）
 }
 
 export enum WorkingStatus {

@@ -7,7 +7,7 @@ import { version } from '@common/constants';
 import { Server, UITask } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
-import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromService } from '@common/utils';
+import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromService, getTaskLatestOutputParams } from '@common/utils';
 import { getMenuItemByValue } from '@common/menu';
 import { allVcodecs, builtInVcodecs } from '@common/params/vcodecs';
 import { allAcodecs, builtInAcodecs } from '@common/params/acodecs';
@@ -553,7 +553,9 @@ export const useAppStore = defineStore('app', {
 				for (const id of this.selectedTask) {
 					const index = data.taskIdToIndex.get(id);
 					if (index !== undefined) {
-						this.globalParams = replaceOutputParams(data.tasks[index].after, this.globalParams, true);
+						const task = data.tasks[index];
+						const latestRun = task.runs[task.runs.length - 1];	// TODO 选取当前而不是 latest
+						this.globalParams = replaceOutputParams(latestRun.after, this.globalParams, true);
 					}
 				}
 			}
@@ -594,7 +596,7 @@ export const useAppStore = defineStore('app', {
 			const data = this.currentServer.data;
 			if (data) {
 				// this.globalParams
-				// 收集需要批量更新的输出参数，交给 service。同时本地替换一次 task.after
+				// 收集需要批量更新的输出参数，交给 service。同时本地替换一次 run.after
 				const targetIds = Array.from(selection || this.selectedTask);
 				const isSingleTaskModify = behavior === 'modifyTask' && this.selectedTask.size === 1;
 
@@ -603,12 +605,13 @@ export const useAppStore = defineStore('app', {
 					const taskIndex = data.taskIdToIndex.get(id);
 					if (taskIndex === undefined) continue;
 					let task = data.tasks[taskIndex];
-					task.after = replaceOutputParams(this.globalParams, task.after, isSingleTaskModify);
+					const latestRun = task.runs[task.runs.length - 1];
+					latestRun.after = replaceOutputParams(this.globalParams, latestRun.after, isSingleTaskModify);	// TODO：这里的 index 是不对的
 				}
 				if (targetIds.length) {
 					// paraArray 由 service 算出后回填本地
 					// 更新方式是 taskUpdate
-					// 注意回填本地时也会产生一次 task.after 更新
+					// 注意回填本地时也会产生一次 run.after 更新
 					entity.setParameters(targetIds, this.globalParams, isSingleTaskModify);
 				}
 
@@ -728,10 +731,10 @@ export const useAppStore = defineStore('app', {
 				audio: 0,
 			};
 			for (const task of this.currentServer.data.tasks || []) {
-				if (task.after.input.files.length !== 1 || task.after.outputs.length !== 1) {
+				const after = getTaskLatestOutputParams(task);
+				if (after.input.files.length !== 1 || after.outputs.length !== 1) {
 					continue;
 				}
-				const after = task.after;
 				if (after.input.files[0].begin || after.input.files[0].end || after.outputs[0].mux.begin || after.outputs[0].mux.end) {
 					paramsVisibility.duration = Math.max(paramsVisibility.duration, 2);
 				} else {
@@ -745,7 +748,7 @@ export const useAppStore = defineStore('app', {
 				if (after.outputs[0].video.vcodec !== '禁用视频') {
 					if (after.outputs[0].video.vcodec !== '不重新编码') {
 						paramsVisibility.video = Math.max(paramsVisibility.video, 2);
-						if (after.outputs[0].video.resolution !== '不改变' || task.after.outputs[0].video.framerate !== '不改变') {
+						if (after.outputs[0].video.resolution !== '不改变' || after.outputs[0].video.framerate !== '不改变') {
 							paramsVisibility.smpte = Math.max(paramsVisibility.smpte, 2);
 						} else {
 							paramsVisibility.smpte = Math.max(paramsVisibility.smpte, 1);
@@ -1052,10 +1055,10 @@ export const useAppStore = defineStore('app', {
 					this.recalcChangedParams();
 				});
 				entity.on('cmdUpdate', (data) => {
-					handleCmdUpdate(server, data.taskId, data.content, data.append);
+					handleCmdUpdate(server, data.taskId, data.runIndex, data.content, data.append);
 				});
 				entity.on('progressUpdate', (data) => {
-					handleProgressUpdate(server, data.taskId, data.time, data.status, this.functionLevel);
+					handleProgressUpdate(server, data.taskId, data.runIndex, data.time, data.status, this.functionLevel);
 				});
 				entity.on('notificationUpdate', (data) => {
 					handleNotificationUpdate(server, data.notificationId, data.notification);

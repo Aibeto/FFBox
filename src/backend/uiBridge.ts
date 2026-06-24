@@ -13,6 +13,7 @@ import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams, CreateWebhookRequest, UpdateWebhookRequest, WsClientMessage, TaskStatus } from '@common/types';
+import { getTaskLatestOutputParams } from '@common/utils';
 import { version } from '@common/constants';
 import { getSingleArgvValue } from '@common/utils';
 import localConfig from '@common/localConfig';
@@ -474,7 +475,7 @@ function startPreviewStream(session: PreviewSession, startTime: number): void {
 		return;
 	}
 
-	const filePath = task.after.input.files[0]?.filePath;
+	const filePath = getTaskLatestOutputParams(task).input.files[0]?.filePath;
 	if (!filePath) {
 		session.ws.send(JSON.stringify({
 			type: 'error',

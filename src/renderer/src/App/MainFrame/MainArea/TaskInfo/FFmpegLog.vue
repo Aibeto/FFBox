@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
+import { TaskStatus } from '@common/types';
 
 const appStore = useAppStore();
 const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appStore.currentServer
@@ -8,8 +9,16 @@ const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appSto
 	: { task: appStore.getTaskById([...appStore.selectedTask][0]), count: appStore.selectedTask.size }
 );
 
+// 获取当前正在运行的 run 或最新 run 的 cmdData
+const activeCmdData = computed(() => {
+	const task = selectedTasks.value.task;
+	if (!task) return '';
+	const activeRun = [...task.runs].reverse().find(r => r.status === TaskStatus.running) || task.runs[task.runs.length - 1];
+	return activeRun?.cmdData ?? '';
+});
+
 const cmdRef = ref<HTMLTextAreaElement | null>(null);
-watch(() => selectedTasks.value.task?.cmdData, () => {
+watch(() => activeCmdData.value, () => {
 	const elem = cmdRef.value;
 	if (elem) {
 		const scrollBottom = elem?.scrollTop + elem.getBoundingClientRect().height;
@@ -39,7 +48,7 @@ onMounted(() => {
 			<textarea
 				aria-label="任务命令行"
 				readonly
-				:value="selectedTasks.task?.cmdData"
+				:value="activeCmdData"
 				ref="cmdRef"
 			/>
 		</div>

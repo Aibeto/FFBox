@@ -37,6 +37,16 @@ export const TaskItem = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 	const settings = appStore.taskViewSettings;
 
+	// runIndex 控制器：用于切换查看不同的 runs 条目
+	const runIndex = ref(props.task.runs.length - 1);
+	// 当用户调整参数使 runs 产生新条目时，自动跳到最新 index
+	watch(() => props.task.runs.length, (newLen) => {
+		runIndex.value = newLen - 1;
+	});
+	// 当前正在显示的 run
+	const currentRun = computed(() => props.task.runs[runIndex.value]);
+	const currentAfter = computed(() => currentRun.value.after);
+
 	// const usedKeys = new Set();
 	// onRenderTracked(e => {
 	// 	console.log('[TRACKED]', props.task.taskName, e);
@@ -112,10 +122,10 @@ export const TaskItem = defineComponent((props: Props) => {
 	const durationBefore = computed(() => formatTimeToFFmpegStyle(props.task.before[0]?.duration ?? NaN));
 	const durationAfter = computed(() => formatTimeToFFmpegStyle(outputDuration.value));
 	const smpteBefore = computed(() => defaultVideo.value?.resolution && defaultVideo.value?.fps ? `${defaultVideo.value?.resolution}@${defaultVideo.value?.fps}` : '-');
-	const videoRateControlValue = computed(() => getVideoRateControlParam(props.task.after.outputs[0]?.video)?.value);
-	const audioRateControlValue = computed(() => getAudioRateControlParam(props.task.after.outputs[0]?.audio)?.value);
-	const videoRateControl = computed(() => (videoRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.video.ratecontrol} ${videoRateControlValue.value}`));
-	const audioRateControl = computed(() => (audioRateControlValue.value === '-' ? '' : `@${props.task.after.outputs[0]?.audio.ratecontrol} ${audioRateControlValue.value}`));
+	const videoRateControlValue = computed(() => getVideoRateControlParam(currentAfter.value.outputs[0]?.video)?.value);
+	const audioRateControlValue = computed(() => getAudioRateControlParam(currentAfter.value.outputs[0]?.audio)?.value);
+	const videoRateControl = computed(() => (videoRateControlValue.value === '-' ? '' : `@${currentAfter.value.outputs[0]?.video.ratecontrol} ${videoRateControlValue.value}`));
+	const audioRateControl = computed(() => (audioRateControlValue.value === '-' ? '' : `@${currentAfter.value.outputs[0]?.audio.ratecontrol} ${audioRateControlValue.value}`));
 	const videoInputBitrate = computed(() => defaultVideo.value?.bitrate && defaultVideo.value.bitrate > 0 ? `@${beforeBitrateFilter(defaultVideo.value?.bitrate)}` : '');
 	const audioInputBitrate = computed(() => defaultAudio.value?.bitrate && defaultAudio.value.bitrate > 0 ? `@${beforeBitrateFilter(defaultAudio.value?.bitrate)}` : '');
 
@@ -139,7 +149,7 @@ export const TaskItem = defineComponent((props: Props) => {
 			}
 		}
 	};
-	const graphBitrate = computed(() => graphBitrateFilter(props.task.dashboard_smooth.bitrate));
+	const graphBitrate = computed(() => graphBitrateFilter(currentRun.value.dashboard_smooth.bitrate));
 	const speedFilter = (value: number) => {
 		if (value < 10) {
 			return value.toFixed(2) + ' ×';
@@ -147,7 +157,7 @@ export const TaskItem = defineComponent((props: Props) => {
 			return value.toFixed(1) + ' ×';
 		}
 	};
-	const graphSpeed = computed(() => speedFilter(props.task.dashboard_smooth.speed));
+	const graphSpeed = computed(() => speedFilter(currentRun.value.dashboard_smooth.speed));
 	const timeFilter = (value: number, withDecimal = true) => {
 		let left = value;
 		let hour = Math.floor(left / 3600); left -= hour * 3600;
@@ -161,17 +171,17 @@ export const TaskItem = defineComponent((props: Props) => {
 			return withDecimal ? second.toFixed(2) : `${second.toFixed(0)} s`;
 		}
 	};
-	const graphTime = computed(() => timeFilter(props.task.dashboard_smooth.time));
+	const graphTime = computed(() => timeFilter(currentRun.value.dashboard_smooth.time));
 	const graphLeftTime = computed(() => {
 		const totalDuration = outputDuration.value;
-		if (props.task.dashboard_smooth.speed > 0) {
-			const needTime = totalDuration / props.task.dashboard_smooth.speed;
-			const remainTime = (totalDuration - props.task.dashboard_smooth.time) / totalDuration * needTime;	// 剩余进度比例 * 全进度耗时
+		if (currentRun.value.dashboard_smooth.speed > 0) {
+			const needTime = totalDuration / currentRun.value.dashboard_smooth.speed;
+			const remainTime = (totalDuration - currentRun.value.dashboard_smooth.time) / totalDuration * needTime;	// 剩余进度比例 * 全进度耗时
 			return timeFilter(remainTime, false);
 		}
 		return '-';
 	});
-	const graphSize = computed(() => formatSize(props.task.dashboard_smooth.size * 1000, appStore.frontendSettings.useIEC));
+	const graphSize = computed(() => formatSize(currentRun.value.dashboard_smooth.size * 1000, appStore.frontendSettings.useIEC));
 	const graphUploadRead = computed(() => formatSize(transferInfo.value.totalRead, appStore.frontendSettings.useIEC));
 	const graphUploadHash = computed(() => formatSize(transferInfo.value.totalHash, appStore.frontendSettings.useIEC));
 	const graphUploadUpload = computed(() => formatSize(transferInfo.value.totalUpload, appStore.frontendSettings.useIEC));
@@ -181,19 +191,19 @@ export const TaskItem = defineComponent((props: Props) => {
 	 *  　　　或：(log(数值 / 想要以多少作为最低值) / log(底，即每增长多少倍数为一格)) / 格数
 	 */
 	const graphBitrateStyle = computed(() => {
-		let value = Math.log(props.task.dashboard_smooth.bitrate / 62.5) / Math.log(8) / 4;		// 62.5K, 500K, 4M, 32M, 256M
+		let value = Math.log(currentRun.value.dashboard_smooth.bitrate / 62.5) / Math.log(8) / 4;		// 62.5K, 500K, 4M, 32M, 256M
 		value = Math.min(Math.max(value, 0), 1);
 		return `background: conic-gradient(hwb(var(--primaryColor)) 0%, hwb(var(--primaryColor)) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
 	});
 	const graphSpeedStyle = computed(() => {
-		let value = Math.log(props.task.dashboard_smooth.speed / 0.04) / Math.log(5) / 6;			// 0.04, 0.2, 1, 5, 25, 125, 625
+		let value = Math.log(currentRun.value.dashboard_smooth.speed / 0.04) / Math.log(5) / 6;			// 0.04, 0.2, 1, 5, 25, 125, 625
 		value = Math.min(Math.max(value, 0), 1);
 		return `background: conic-gradient(hwb(var(--primaryColor)) 0%, hwb(var(--primaryColor)) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
 	});
 
 	const overallProgress = computed(() => uploadStatus.value !== 'fine'
 		? (transferInfo.value.totalRead * 0.1 + transferInfo.value.totalHash * 0.1 + transferInfo.value.totalUpload * 0.8) / transferInfo.value.totalSize
-		: props.task.dashboard_smooth.progress
+		: currentRun.value.dashboard_smooth.progress
 	);
 	// const overallProgress = { value: 0.99 };
 	const overallProgressDescription = computed(() => uploadStatus.value !== 'fine' ? '上传进度' : '转码进度');
@@ -264,7 +274,7 @@ export const TaskItem = defineComponent((props: Props) => {
 	});
 
 	const taskBackgroundProgressStyle = computed(() => {
-		const taskProgress = (props.task.dashboard_smooth.progress) * 100 + '%';
+		const taskProgress = (currentRun.value.dashboard_smooth.progress) * 100 + '%';
 		const transferProgress = ((transferInfo.value.totalRead * 0.1 + transferInfo.value.totalHash * 0.1 + transferInfo.value.totalUpload * 0.8) / transferInfo.value.totalSize) * 100 + '%';
 		return {
 			green: { width: taskProgress, opacity: [TaskStatus.running, TaskStatus.finishing].includes(props.task.status) ? 1 : 0},
@@ -317,11 +327,20 @@ export const TaskItem = defineComponent((props: Props) => {
 		}
 		return str.slice(i + 1);
 	}	
-	const cmdText = computed(() => settings.cmdDisplay === 'input'
-		? ['ffmpeg', ...props.task.paraArray].join(' ')
-		: props.task.cmdData.length >= 12000 ? '（此处只显示最后 120 行。请双击此处打开“输出日志”面板查看全文）\n' + lastNLines(props.task.cmdData, 120) : props.task.cmdData
-	);
-	watch(() => props.task.cmdData, () => {
+	const cmdText = computed(() => {
+		if (settings.cmdDisplay === 'input') {
+			return ['ffmpeg', ...currentRun.value.paraArray].join(' ')
+		} else {
+			if (!currentRun.value.cmdData) {
+				return '（任务未运行，当前显示任务媒体信息）\n' + props.task.runs[0].cmdData;
+			} else if (currentRun.value.cmdData.length >= 12000) {
+				return '（此处只显示最后 120 行。请双击此处打开”输出日志”面板查看全文）\n' + lastNLines(currentRun.value.cmdData, 120);
+			} else {
+				return currentRun.value.cmdData;
+			}
+		}
+	});
+	watch(() => currentRun.value.cmdData, () => {
 		const elem = cmdRef.value;
 		if (elem) {
 			const scrollBottom = elem?.scrollTop + elem.getBoundingClientRect().height;
@@ -368,11 +387,11 @@ export const TaskItem = defineComponent((props: Props) => {
 			nodeBridge.openFile(`"${filePath}"`);
 		} else {
 			const task = props.task;
-			const newFileBaseName = getOutputFileBaseName(props.task.after.outputs[outputIndex].mux, task.taskName, { taskId: task.id, outputIndex });
+			const newFileBaseName = getOutputFileBaseName(currentAfter.value.outputs[outputIndex].mux, task.taskName, { taskId: task.id, outputIndex });
 			const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 			if (nodeBridge.env === 'electron') {
 				let fileTime = undefined;
-				const output = task.after.outputs[outputIndex];
+				const output = currentAfter.value.outputs[outputIndex];
 				const mux = output.mux;
 				if (mux.keepFileTime) {
 					let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, outputIndex);
@@ -450,9 +469,9 @@ export const TaskItem = defineComponent((props: Props) => {
 				} },
 				{ type: 'separator' as const },
 				{ type: 'normal' as const, icon: <span>📈</span>, label: '查看任务信息', value: '查看任务信息', onClick: () => appStore.showTaskInfo = [props.id, 0] },
-				...(props.task.outputFiles?.length && [TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
+				...(currentRun.value.outputFiles?.length && [TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
 					{ type: 'separator' as const },
-					{ type: 'submenu' as const, label: entity.ip === 'localhost' ? '打开输出文件' : '下载输出文件', subMenu: props.task.outputFiles.map((file, index) => ({
+					{ type: 'submenu' as const, label: entity.ip === 'localhost' ? '打开输出文件' : '下载输出文件', subMenu: currentRun.value.outputFiles.map((file, index) => ({
 						type: 'normal' as const, label: file, value: file, onClick: () => openFile(file, index)
 					})) },
 				] : []),
@@ -478,7 +497,7 @@ export const TaskItem = defineComponent((props: Props) => {
 	const handleParaAreaMouseEnter = (event: MouseEvent) => {
 		const paramAreaPos = (event.target as HTMLElement).getBoundingClientRect();
 		const position = window.innerWidth >= 920 ? { right: `${Math.min(window.innerWidth - event.pageX, window.innerWidth - 400)}px`, top: `${paramAreaPos.top}px` } : { right: '48px', top: `${paramAreaPos.top}px` };
-		const firstOutput = props.task.after.outputs[0];
+		const firstOutput = currentAfter.value.outputs[0];
 		Tooltip.show({
 			content: <span>
 				时长：{durationBefore.value} → {durationAfter.value}<br />
@@ -486,7 +505,7 @@ export const TaskItem = defineComponent((props: Props) => {
 				规格：{defaultVideo.value ? smpteBefore.value : '🈚'} → {firstOutput.video.resolution}@{firstOutput.video.framerate}<br />
 				视频：{defaultVideo.value ? `${defaultVideo.value.codec}${videoInputBitrate.value}` : '🈚'} → {firstOutput.video.vcodec}{videoRateControl.value}<br />
 				音频：{defaultAudio.value ? `${defaultAudio.value.codec}${audioInputBitrate.value}` : '🈚'} → {firstOutput.audio.acodec}{audioRateControl.value}<br />
-				{props.task.before.length > 1 || props.task.after.outputs.length > 1 ? '以上信息仅显示默认输入和首个输出，并不代表完整情况' : null}
+				{props.task.before.length > 1 || currentAfter.value.outputs.length > 1 ? '以上信息仅显示默认输入和首个输出，并不代表完整情况' : null}
 			</span>,
 			style: position,
 			class: css.paraAreaTip,
@@ -551,7 +570,7 @@ export const TaskItem = defineComponent((props: Props) => {
 						onMouseenter={handleParaAreaMouseEnter}
 						onMouseleave={() => Tooltip.hide()}
 					>
-						{props.task.after.input.files.length === 1 && props.task.after.outputs.length === 1 ? (
+						{currentAfter.value.input.files.length === 1 && currentAfter.value.outputs.length === 1 ? (
 							windowWidth.value >= 930 ? (
 								<>
 									{/* 时间 */}
@@ -569,7 +588,7 @@ export const TaskItem = defineComponent((props: Props) => {
 									{settings.paramsVisibility.format === 'all' && (
 										<>
 											<div class={css.formatTo}><IconRightArrow /></div>
-											<div class={css.formatAfter}>{props.task.after.outputs[0].mux.format}</div>
+											<div class={css.formatAfter}>{currentAfter.value.outputs[0].mux.format}</div>
 										</>
 									)}
 									{/* 分辨率码率 */}
@@ -580,7 +599,7 @@ export const TaskItem = defineComponent((props: Props) => {
 											{settings.paramsVisibility.smpte === 'all' && (
 												<>
 													<div class={css.smpteTo}><IconRightArrow /></div>
-													<div class={css.smpteAfter}>{props.task.after.outputs[0].video.resolution}@{props.task.after.outputs[0].video.framerate}</div>
+													<div class={css.smpteAfter}>{currentAfter.value.outputs[0].video.resolution}@{currentAfter.value.outputs[0].video.framerate}</div>
 												</>
 											)}
 										</>
@@ -593,7 +612,7 @@ export const TaskItem = defineComponent((props: Props) => {
 											{settings.paramsVisibility.video === 'all' && (
 												<>
 													<div class={css.videoTo}><IconRightArrow /></div>
-													<div class={css.videoAfter}>{props.task.after.outputs[0].video.vcodec}{videoRateControl.value}</div>
+													<div class={css.videoAfter}>{currentAfter.value.outputs[0].video.vcodec}{videoRateControl.value}</div>
 												</>
 											)}
 										</>
@@ -606,7 +625,7 @@ export const TaskItem = defineComponent((props: Props) => {
 											{settings.paramsVisibility.audio === 'all' && (
 												<>
 													<div class={css.audioTo}><IconRightArrow /></div>
-													<div class={css.audioAfter}>{props.task.after.outputs[0].audio.acodec}{audioRateControl.value}</div>
+													<div class={css.audioAfter}>{currentAfter.value.outputs[0].audio.acodec}{audioRateControl.value}</div>
 												</>
 											)}
 										</>
@@ -616,13 +635,13 @@ export const TaskItem = defineComponent((props: Props) => {
 								<>
 									{/* 预设 */}
 									<div class={css.divider}><div></div></div>
-									<div class={css.videoBefore}>{props.task.after.extra?.presetName === undefined ? '查看配置' : props.task.after.extra.presetName || '自定义配置'}</div>
+									<div class={css.videoBefore}>{currentAfter.value.extra?.presetName === undefined ? '查看配置' : currentAfter.value.extra.presetName || '自定义配置'}</div>
 								</>
 							)
 						) : (
 							<>
 								<div class={css.divider}><div></div></div>
-								<div class={css.videoBefore}>{`${props.task.after.input.files.length} 个输入，${props.task.after.outputs.length} 个输出`}</div>
+								<div class={css.videoBefore}>{`${currentAfter.value.input.files.length} 个输入，${currentAfter.value.outputs.length} 个输出`}</div>
 							</>
 						)}
 					</div>
@@ -638,7 +657,7 @@ export const TaskItem = defineComponent((props: Props) => {
 											<span class={css.description}>时间</span>
 										</div>
 										<div class={css.linearGraphItem}>
-											<span class={css.data}>{ props.task.dashboard_smooth.frame.toFixed(0) }</span>
+											<span class={css.data}>{ currentRun.value.dashboard_smooth.frame.toFixed(0) }</span>
 											<span class={css.description}>帧</span>
 										</div>
 									</div>
@@ -702,6 +721,15 @@ export const TaskItem = defineComponent((props: Props) => {
 									onMousedown={() => settings.cmdDisplay = 'output'}
 								>
 									输出
+								</button>
+							</div>
+							<div class={css.runIndexController}>
+								<button class={css.runIndexBtn} disabled={runIndex.value <= 1} onClick={(e) => { runIndex.value = Math.max(runIndex.value - 1, 1); e.stopPropagation(); }}>
+									◀
+								</button>
+								<div class={css.runIndexDisplay}>{runIndex.value}</div>
+								<button class={css.runIndexBtn} disabled={runIndex.value >= props.task.runs.length - 1} onClick={(e) => { runIndex.value = Math.min(runIndex.value + 1, props.task.runs.length - 1); e.stopPropagation(); }}>
+									▶
 								</button>
 							</div>
 							<div class={css.code}>

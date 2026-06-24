@@ -138,12 +138,15 @@ export function handleTaskUpdate(server: Server, id: number, content: Task) {
 	const localTask = serverData.tasks[arrayIndex];
 	const task = mergeTaskFromService(localTask, content);
 	serverData.tasks[arrayIndex] = task;
-	// Object.assign(serverData.tasks[id], task);
 	// timer 相关处理（开始运行时添加定时器，结束或暂停运行时取消定时器）
-	if (task.status === TaskStatus.running && !task.dashboardTimer) {
-		task.dashboardTimer = setInterval(dashboardTimer, 50, task) as any;
-		if (task.progressLog.time.length <= 1) {
-			task.dashboard_smooth = {
+	// 找到当前正在运行的 run（从后往前找第一个 running 状态的）
+	const activeRun = [...task.runs].reverse().find(r => r.status === TaskStatus.running);
+	const latestRun = task.runs[task.runs.length - 1];
+	const displayRun = activeRun || latestRun;
+	if (task.status === TaskStatus.running && !displayRun.dashboardTimer) {
+		displayRun.dashboardTimer = setInterval(dashboardTimer, 50, task) as any;
+		if (displayRun.progressLog.time.length <= 1) {
+			displayRun.dashboard_smooth = {
 				progress: 0,
 				bitrate: 0,
 				speed: 0,
@@ -152,47 +155,50 @@ export function handleTaskUpdate(server: Server, id: number, content: Task) {
 				size: 0,
 			}
 		}
-	} else if (task.status !== TaskStatus.running && task.dashboardTimer) {
-		clearInterval(task.dashboardTimer);
-		task.dashboardTimer = NaN;
+	} else if (task.status !== TaskStatus.running && displayRun.dashboardTimer) {
+		clearInterval(displayRun.dashboardTimer);
+		displayRun.dashboardTimer = NaN;
 	}
 	// 进度条相关处理
 	if (task.status === TaskStatus.finished || task.status === TaskStatus.error) {
-		task.dashboard.progress = 1;
-		task.dashboard_smooth.progress = 1;
+		displayRun.dashboard.progress = 1;
+		displayRun.dashboard_smooth.progress = 1;
 	} else if (task.status === TaskStatus.idle) {
-		task.dashboard.progress = 0;
-		task.dashboard_smooth.progress = 0;
+		displayRun.dashboard.progress = 0;
+		displayRun.dashboard_smooth.progress = 0;
 	}
-	// serverData.tasks = Object.assign({}, serverData.tasks);
 };
 /**
  * 增量更新 cmdData
  */
-export function handleCmdUpdate(server: Server, id: number, content: string, append: boolean) {
+export function handleCmdUpdate(server: Server, id: number, runIndex: number, content: string, append: boolean) {
 	const arrayIndex = server.data.taskIdToIndex.get(id);
 	if (arrayIndex === undefined) return;
 	let task = server.data.tasks[arrayIndex];
+	const run = task.runs[runIndex];
+	if (!run) return;
 	if (append) {
-		task.cmdData += content;
+		run.cmdData += content;
 	} else {
-		task.cmdData = content;
+		run.cmdData = content;
 	}
 };
 /**
  * 增量更新 progressLog
  */
-export function handleProgressUpdate(server: Server, id: number, time: number, status: FFmpegProgress | undefined, functionLevel: number) {
+export function handleProgressUpdate(server: Server, id: number, runIndex: number, time: number, status: FFmpegProgress | undefined, functionLevel: number) {
 	const arrayIndex = server.data.taskIdToIndex.get(id);
 	if (arrayIndex === undefined) return;
 	const task = server.data.tasks[arrayIndex];
+	const run = task.runs[runIndex];
+	if (!run) return;
 	if (status) {
 		for (const parameter of ['time', 'frame', 'size']) {
 			const _parameter = parameter as 'time' | 'frame' | 'size';
-			task.progressLog[_parameter].push([time, status[_parameter]]);
+			run.progressLog[_parameter].push([time, status[_parameter]]);
 		}
 	} else {
-		task.progressLog = {
+		run.progressLog = {
 			time: [],
 			frame: [],
 			size: [],
@@ -202,15 +208,15 @@ export function handleProgressUpdate(server: Server, id: number, time: number, s
 		};
 	}
 	// server.data.tasks[id].progressLog = progressLog;
-	if (functionLevel < 50 && task.progressLog.time.length > 0) {
-		if (task.progressLog.time.slice(-1)[0][1] > 671) {
+	if (functionLevel < 50 && run.progressLog.time.length > 0) {
+		if (run.progressLog.time.slice(-1)[0][1] > 671) {
 			server.entity.trailLimit_stopTranscoding(id, 'media');
 			return;
 		}
 	}
 	const maxWorkingDuration = getLimitaion('maxWorkingDuration');
-	if (task.progressLog.time.length > 0) {
-		if (task.progressLog.elapsed + new Date().getTime() / 1000 - task.progressLog.lastStarted > maxWorkingDuration) {
+	if (run.progressLog.time.length > 0) {
+		if (run.progressLog.elapsed + new Date().getTime() / 1000 - run.progressLog.lastStarted > maxWorkingDuration) {
 			server.entity.trailLimit_stopTranscoding(id, 'working');
 			return;
 		}

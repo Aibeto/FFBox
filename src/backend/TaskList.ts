@@ -225,7 +225,7 @@ export class TaskList {
 	}
 
 	/**
-	 * 更新任务状态，自动维护 statusSets
+	 * 更新任务状态，自动维护 statusSets，并同步到 runs 最新条目
 	 */
 	setStatus(taskId: number, newStatus: TaskStatus): void {
 		const task = this.taskIdToTask.get(taskId);
@@ -235,6 +235,10 @@ export class TaskList {
 		this.statusSets[oldStatus].delete(taskId);
 		this.statusSets[newStatus].add(taskId);
 		task.status = newStatus;
+		// 同步到 runs 最新条目
+		if (task.runs && task.runs.length > 0) {
+			task.runs[task.runs.length - 1].status = newStatus;
+		}
 	}
 
 	/**

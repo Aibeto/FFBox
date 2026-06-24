@@ -5,7 +5,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { NotificationLevel } from '@common/types';
 import { UITask } from '@renderer/types';
 import { getOutputFileBaseName } from '@common/params/formats';
-import { getOutputFileTime } from '@common/utils';
+import { getOutputFileTime, getTaskLatestOutputParams } from '@common/utils';
 import { useScrollStop } from './useScrollStop';
 import CoarseSlider from './CoarseSlider.vue';
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
@@ -144,11 +144,13 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 					if (nodeBridge.env === 'electron') {
 						const downloadList = [];
 						for (const task of tasks) {
-							for (const [s_index, filePath] of Object.entries(task.outputFiles)) {
-								const newFileBaseName = getOutputFileBaseName(task.after.outputs[+s_index].mux, task.taskName, { taskId: task.id, outputIndex: +s_index });
+							const latestRun = task.runs[task.runs.length - 1];
+							for (const [s_index, filePath] of Object.entries(latestRun.outputFiles)) {
+								const after = getTaskLatestOutputParams(task);
+								const newFileBaseName = getOutputFileBaseName(after.outputs[+s_index].mux, task.taskName, { taskId: task.id, outputIndex: +s_index });
 								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 								let fileTime = undefined;
-								const output = task.after.outputs[+s_index];
+								const output = after.outputs[+s_index];
 								const mux = output.mux;
 								if (mux.keepFileTime) {
 									let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, +s_index);
@@ -156,13 +158,15 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 								}
 								downloadList.push({ url, finalFileBaseName: newFileBaseName, fileTime });
 								appStore.downloadMap.set(url, data.id);
-							}							
+							}
 						}
 						nodeBridge.ipcRenderer?.send('downloadFiles', { sessionId: entity.sessionId, files: downloadList });
 					} else {
 						for (const task of tasks) {
-							for (const [s_index, filePath] of Object.entries(task.outputFiles)) {
-								const newFileBaseName = getOutputFileBaseName(task.after.outputs[+s_index].mux, task.taskName, { taskId: task.id, outputIndex: +s_index });
+							const latestRun = task.runs[task.runs.length - 1];
+							for (const [s_index, filePath] of Object.entries(latestRun.outputFiles)) {
+								const after = getTaskLatestOutputParams(task);
+								const newFileBaseName = getOutputFileBaseName(after.outputs[+s_index].mux, task.taskName, { taskId: task.id, outputIndex: +s_index });
 								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 								const elem = document.createElement('a');
 								elem.href = `${url}?fileBaseName=${newFileBaseName}`;	// 目前只对浏览器环境添加此参数控制响应的 header。electron 环境会涉及 encodeURI 的操作，因此较方便的做法是分开处理

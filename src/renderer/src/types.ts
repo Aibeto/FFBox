@@ -1,9 +1,8 @@
-import { Task, WorkingStatus, Notification, FFmpegInfo } from '@common/types';
+import { Task, Run, WorkingStatus, Notification, FFmpegInfo } from '@common/types';
 import { ServiceBridge } from '@renderer/bridges/serviceBridge'
 import { SingleTaskScheduler } from './logic/transferManager2';
 
-export interface UITask extends Task {
-	taskIndex: number;	// 全局序号，在 updateTaskList 获取后写入
+export interface UIRun extends Run {
 	dashboard: {
 		progress: number;
 		bitrate: number;
@@ -21,6 +20,11 @@ export interface UITask extends Task {
 		size: number;	// kB
 	};
 	dashboardTimer: number;
+}
+
+export interface UITask extends Omit<Task, 'runs'> {
+	taskIndex: number;	// 全局序号，在 updateTaskList 获取后写入
+	runs: UIRun[];
 }
 
 export interface UploadFile {

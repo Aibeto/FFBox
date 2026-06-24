@@ -1,6 +1,6 @@
 /* eslint-disable no-fallthrough */
-import { OutputParams, ServiceTask, Task, TaskStatus } from '@common/types';
-import { UITask } from '@renderer/types';
+import { OutputParams, Run, ServiceTask, Task, TaskStatus } from '@common/types';
+import { UIRun, UITask } from '@renderer/types';
 import { deleteNode } from './params/filter';
 
 // #region 格式转换区
@@ -285,40 +285,44 @@ export function randomString(length = 6, dictionary = 'abcdefghijklmnopqrstuvwxy
 
 // #region 任务转换区
 
-export function getInitialTask(id: number, fileName: string, outputParams?: OutputParams): Task {
-	const task: Task = {
-		id,
-		taskName: fileName,
-		before: [],
-		after: {
-			input: {
-				files: [],
-			},
-			filter: {
-				nodes: [],
-				lines: [],
-			},
-			outputs: [
-				{
-					video: {
-						vcodec: '自动',
-						detail: {}
-					},
-					audio: {
-						acodec: '',
-						detail: {}
-					},
-					mux: {
-						format: '',
-						moveflags: false,
-						filePath: '',
-						detail: {},
-					},
-				}
-			],
-			extra: {},
+// 创建默认的 OutputParams
+function getDefaultOutputParams(): OutputParams {
+	return {
+		input: {
+			files: [],
 		},
+		filter: {
+			nodes: [],
+			lines: [],
+		},
+		outputs: [
+			{
+				video: {
+					vcodec: '自动',
+					detail: {}
+				},
+				audio: {
+					acodec: '',
+					detail: {}
+				},
+				mux: {
+					format: '',
+					moveflags: false,
+					filePath: '',
+					detail: {},
+				},
+			}
+		],
+		extra: {},
+	};
+}
+
+// 创建默认的 Run 快照
+export function getDefaultRun(after?: OutputParams): Run {
+	return {
+		after: after || getDefaultOutputParams(),
 		paraArray: [],
+		outputFiles: [],
 		status: TaskStatus.idle,
 		progressLog: {
 			time: [],
@@ -326,17 +330,68 @@ export function getInitialTask(id: number, fileName: string, outputParams?: Outp
 			size: [],
 			lastStarted: new Date().getTime() / 1000,
 			elapsed: 0,
-			lastPaused: new Date().getTime() / 1000,	// 用于暂停后恢复时计算速度
+			lastPaused: new Date().getTime() / 1000,
 		},
 		cmdData: '',
 		errorInfo: [],
-		// notifications: [],
-		outputFiles: [],
+	};
+}
+
+// 创建默认的 UIRun 快照（含前端 dashboard 数据） TODO 为啥没用上
+// function getDefaultUIRun(status: TaskStatus = TaskStatus.idle): UIRun {
+// 	return {
+// 		...getDefaultRun(status),
+// 		dashboard: {
+// 			progress: 0,
+// 			bitrate: 0,
+// 			speed: 0,
+// 			time: 0,
+// 			frame: 0,
+// 			size: 0,
+// 		},
+// 		dashboard_smooth: {
+// 			progress: 0,
+// 			bitrate: 0,
+// 			speed: 0,
+// 			time: 0,
+// 			frame: 0,
+// 			size: 0,
+// 		},
+// 		dashboardTimer: NaN,
+// 	};
+// }
+
+// 获取 Task 中当前正在运行的 Run（正在运行的条目，优先返回最新条目）
+export function getCurrentRun(task: Task): Run {
+	// 从后往前找第一个 status 为运行态的条目；若无则返回最新条目
+	for (let i = task.runs.length - 1; i >= 0; i--) {
+		const run = task.runs[i];
+		if ([TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(run.status)) {
+			return run;
+		}
 	}
+	return task.runs[task.runs.length - 1];
+}
+
+// 获取 Task 的当前 after（从最新 run 中读取）
+export function getTaskLatestOutputParams(task: Task): OutputParams {
+	return task.runs[task.runs.length - 1].after;
+}
+
+export function getInitialTask(id: number, fileName: string, outputParams?: OutputParams): Task {
+	const mediaInfoRun = getDefaultRun();
+	mediaInfoRun.cmdData = '(等待媒体信息扫描)';
+	const firstRun = getDefaultRun();
 	if (outputParams) {
-		Object.assign(task, { after: outputParams });
+		firstRun.after = outputParams;
 	}
-	return task;
+	return {
+		id,
+		taskName: fileName,
+		before: [],
+		status: TaskStatus.idle,
+		runs: [mediaInfoRun, firstRun],
+	};
 }
 
 export function getInitialServiceTask(id: number, fileName: string, outputParams?: OutputParams): ServiceTask {
@@ -345,35 +400,40 @@ export function getInitialServiceTask(id: number, fileName: string, outputParams
 		...{
 			ffmpeg: null,
 			remoteTask: false,
+			activeRunIndex: 1,	// 默认第一个运行条目在 index 1
 		},
 	};
 	return task;
 }
 
 export function getInitialUITask(id: number, fileName: string, outputParams?: OutputParams): UITask {
-	const task: UITask = {
-		...getInitialTask(id, fileName, outputParams),
-		...{
-			dashboard: {
-				progress: 0,
-				bitrate: 0,
-				speed: 0,
-				time: 0,
-				frame: 0,
-				size: 0,
-			},
-			dashboard_smooth: {
-				progress: 0,
-				bitrate: 0,
-				speed: 0,
-				time: 0,
-				frame: 0,
-				size: 0,
-			},
-			dashboardTimer: NaN,
+	const baseTask = getInitialTask(id, fileName, outputParams);
+	// 将 Task 的 Run[] 转换为 UIRun[]（添加 dashboard 数据）
+	const uiRuns: UIRun[] = baseTask.runs.map((run) => ({
+		...run,
+		dashboard: {
+			progress: 0,
+			bitrate: 0,
+			speed: 0,
+			time: 0,
+			frame: 0,
+			size: 0,
 		},
+		dashboard_smooth: {
+			progress: 0,
+			bitrate: 0,
+			speed: 0,
+			time: 0,
+			frame: 0,
+			size: 0,
+		},
+		dashboardTimer: NaN,
+	}));
+	return {
+		...baseTask,
+		runs: uiRuns,
+		taskIndex: 0,
 	};
-	return task;
 }
 
 export function getOutputDuration(task: Task): number {
@@ -381,8 +441,9 @@ export function getOutputDuration(task: Task): number {
 	if (isNaN(duration)) {
 		return NaN;
 	}
-	const firstInput = task.after.input.files[0];
-	const firstOutput = task.after.outputs[0].mux;
+	const after = getTaskLatestOutputParams(task);
+	const firstInput = after.input.files[0];
+	const firstOutput = after.outputs[0].mux;
 	if (!firstInput || !firstOutput) {
 		return NaN;
 	}
@@ -419,13 +480,14 @@ export function getDefaultInputAudio(task: Task) {
  */
 export function getOutputFileTime(task: Task, index: number) {
 	let ok = true;	// 仅代表计算是否成功，不代表是否已修改时间
-	const output = task.after.outputs[index];
+	const after = getTaskLatestOutputParams(task);
+	const output = after.outputs[index];
 	const mux = output.mux;
 	let { accessTime, createTime, modifyTime, duration: originalDuration } = task.before[0] || { accessTime: 0, createTime: 0, modifyTime: 0, duration: 0 };
 
 	if (mux.keepFileTime === 'original') {
 	} else {
-		const startTime1 = parseTimeString(task.after.input.files[0].begin || '');
+		const startTime1 = parseTimeString(after.input.files[0].begin || '');
 		const startTime2 = parseTimeString(mux.begin || '');
 		const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
 		const duration = (getOutputDuration(task) || 0) * 1000; // 假设 getOutputDuration 可接收 index
@@ -440,7 +502,7 @@ export function getOutputFileTime(task: Task, index: number) {
 			const newModifyTime = (modifyTime || 0) - (originalDuration || 0) * 1000 + startTime + duration;
 			[createTime, modifyTime] = [newCreateTime, newModifyTime];
 		} else if (mux.keepFileTime === 'fixByFilenameAndShift') {
-			const originalFilePath = task.after.input.files[0]?.filePath;
+			const originalFilePath = after.input.files[0]?.filePath;
 			// 根据文件名修正新文件时间。用于修复文件时间丢失的问题，将通过文件名作为创建时间，根据剪裁位置自动调整后进行修改
 			const regExp1 = /(\d\d\d\d).?([01]\d).?([0123]\d).?([012]\d).?([0-5]\d).?([0-5]\d)?/;
 			const regExp2 = /(\d\d\d\d) ?年? ?([01]?\d) ?月? ?([0123]?\d) ?日? ?([012]?\d) ?时? ?([0-5]?\d) ?分? ?([0-5]?\d)? ?秒? ?/;
@@ -469,7 +531,33 @@ export function getOutputFileTime(task: Task, index: number) {
  */
 export function mergeTaskFromService(self: UITask, remote: Task): UITask {
     const ret = self;
-    Object.assign(ret, JSON.parse(JSON.stringify(remote)));
+    // 深拷贝 remote 中除 runs 以外的字段
+    const remoteCopy = JSON.parse(JSON.stringify(remote));
+    const remoteRuns: Run[] = remoteCopy.runs || [];
+    delete remoteCopy.runs;
+    Object.assign(ret, remoteCopy);
+    // 合并 runs：保留已有 UIRun 的 dashboard 数据，更新 Run 层的字段
+    while (ret.runs.length < remoteRuns.length) {
+        // 远端有更多 run 条目，补充 UIRun
+        ret.runs.push({
+            ...remoteRuns[ret.runs.length],
+            dashboard: { progress: 0, bitrate: 0, speed: 0, time: 0, frame: 0, size: 0 },
+            dashboard_smooth: { progress: 0, bitrate: 0, speed: 0, time: 0, frame: 0, size: 0 },
+            dashboardTimer: NaN,
+        });
+    }
+    for (let i = 0; i < remoteRuns.length; i++) {
+        const remoteRun = remoteRuns[i];
+        const localRun = ret.runs[i];
+        // 更新 Run 层字段，保留 UIRun 特有字段
+        localRun.after = remoteRun.after;
+        localRun.paraArray = remoteRun.paraArray;
+        localRun.outputFiles = remoteRun.outputFiles;
+        localRun.status = remoteRun.status;
+        localRun.progressLog = remoteRun.progressLog;
+        localRun.cmdData = remoteRun.cmdData;
+        localRun.errorInfo = remoteRun.errorInfo;
+    }
     return ret;
 }
 
