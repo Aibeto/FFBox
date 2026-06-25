@@ -12,7 +12,7 @@ import i11n from '@common/i11n/i11n';
 import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import localConfig from '@common/localConfig';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
-import { getInitialServiceTask, TypedEventEmitter, replaceOutputParams, getOutputDuration, getOutputFileTime, getTaskLatestOutputParams, getDefaultRun } from '@common/utils';
+import { getInitialServiceTask, TypedEventEmitter, replaceOutputParams, getOutputDuration, getOutputFileTime, getTaskLatestOutputParams, getDefaultRun, getTimeString } from '@common/utils';
 import { getMachineId, log } from './utils';
 import { FFmpeg } from './FFmpegInvoke';
 import { YieldManager } from './YieldManager';
@@ -672,7 +672,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				ffmpeg.on('data', ({ content }) => {
 					if (!firstDataArrived) {
 						firstDataArrived = true;
-						task.runs[0].cmdData = '';
+						task.runs[0].cmdData = `· 媒体信息获取于 ${getTimeString(new Date())}。`;
 						this.setCmdText(task, content, true, 0);	// getFileMetadata 写入 runs[0]
 					}
 					this.setCmdText(task, content, true, 0);	// getFileMetadata 写入 runs[0]
@@ -926,7 +926,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			runIndex,
 			time: new Date().getTime() / 1000,
 		});
-		this.setCmdText(task, '', false, runIndex);
+		task.runs[runIndex].cmdData = `· 任务已于 ${getTimeString(new Date(), true)} 开始运行。`;
+		this.setCmdText(task, '', true, runIndex);
 		let newFFmpeg: FFmpeg;
 		const taskIndex = this.taskList.getIndexById(id);
 		if (task.remoteTask) {
@@ -1141,6 +1142,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		} else {
 			log.info(`[任务 ${id}] 暂停。`);
 		}
+		this.setCmdText(task, `· 任务已于 ${getTimeString(new Date(), true)} 暂停。`, true);
 		this.taskList.setStatus(id, TaskStatus.paused);
 		task.ffmpeg!.pause();
 		const activeRun = task.runs[task.runs.length - 1];
@@ -1208,6 +1210,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			return;
 		}
 
+		this.setCmdText(task, `· 任务已于 ${getTimeString(new Date(), true)} 继续。`, true);
 		this.taskList.setStatus(id, TaskStatus.running);
 		const nowRealTime = new Date().getTime() / 1000;
 		const activeRun = task.runs[task.runs.length - 1];
@@ -1267,6 +1270,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		if ([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(task.status)) {
 			// 暂停状态下重置或运行状态下达到限制停止工作
 			log.info(`[任务 ${id}] 重置——软停止。`);
+			this.setCmdText(task, `· 任务已于 ${getTimeString(new Date(), true)} 软停止。`, true);
 			this.taskList.setStatus(id, TaskStatus.stopping);
 			task.ffmpeg!.exit(() => {
 				this.taskList.setStatus(id, TaskStatus.idle);
@@ -1279,6 +1283,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		} else if (task.status === TaskStatus.stopping) {
 			// 正在停止状态下强制重置
 			log.info(`[任务 ${id}] 重置——硬停止。`);
+			this.setCmdText(task, `· 任务已于 ${getTimeString(new Date(), true)} 硬停止。`, true);
 			this.taskList.setStatus(id, TaskStatus.stopping);
 			task.ffmpeg!.forceKill(() => {
 				this.taskList.setStatus(id, TaskStatus.idle);

@@ -80,7 +80,7 @@ const handleTransferCenterButtonClicked = () => {
 			</div>
 			<div v-if="appStore.currentServer?.data.asyncList.length" v-bind="useTooltip((appStore.currentServer?.data.asyncList || []).map((item) => item.type).join('\n'), 't')">
 				<IconLoadingCircle />
-				<span class="async-count">{{ appStore.currentServer?.data.asyncList.length }}</span>
+				{{ appStore.currentServer?.data.asyncList.length }}
 			</div>
 			<!-- <div @click="handleThemeButtonClicked">{{ appStore.frontendSettings.colorTheme }}</div> -->
 		</div>
@@ -129,11 +129,6 @@ const handleTransferCenterButtonClicked = () => {
 					width: 12px;
 					height: 12px;
 					margin-right: 6px;
-				}
-				.async-count {
-					font-size: 12px;
-					margin-left: -4px;
-					margin-right: -4px;
 				}
 				.version {
 					position: relative;

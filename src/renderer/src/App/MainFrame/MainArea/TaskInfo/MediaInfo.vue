@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { Task, TaskStatus } from '@common/types';
-import { formatTimeToFFmpegStyle, getOutputFileTime, getTimeString, getTaskLatestOutputParams } from '@common/utils';
+import { UITask } from '@renderer/types.js';
+import { formatTimeToFFmpegStyle, getOutputFileTime, getTimeString, getTaskOutputParams } from '@common/utils';
 import { getOutputFileBaseName } from '@common/params/formats';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import { useAppStore } from '@renderer/stores/appStore';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import Popup from '@renderer/components/Popup/Popup';
+import TaskInfoTitle from './TaskInfoTitle.vue';
 
 const appStore = useAppStore();
 const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appStore.currentServer
@@ -14,23 +16,42 @@ const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appSto
 	: { task: appStore.getTaskById([...appStore.selectedTask][0]), count: appStore.selectedTask.size }
 );
 
-const centerDraggerPos = ref(50);
+// 获取当前选中的 run（使用任务的 selectedRunIndex）
+const activeTitleAndRun = computed(() => {
+	const task = selectedTasks.value.task;
+	if (!task) return {
+		title: '您未选择任务',
+		titleSecondary: '',
+		run: undefined,
+		runIndex: 0,
+	};
+	const run = task.runs[task.selectedRunIndex];
+	return {
+		title: task.taskName,
+		titleSecondary: task.selectedRunIndex === 0 ? '（已扫描的媒体信息）' : `（第 ${task.selectedRunIndex} 次运行）`,
+		run: run,
+		runIndex: task.selectedRunIndex,
+	};
+});
+const openFile = (filePath: string, outputIndex: number) => {
+	const task = selectedTasks.value.task;
+	if (!appStore.currentServer || !task) { debugger; throw 'ub'; }
 
-const openFile = (task: Task, filePath: string, outputIndex: number) => {
-	if (!appStore.currentServer) { debugger; throw 'ub'; }
 	const entity = appStore.currentServer.entity;
-	if ([TaskStatus.finished, TaskStatus.error].includes(task.status)) {
+	if ([TaskStatus.finished, TaskStatus.error].includes(activeTitleAndRun.value.run?.status!)) {
 		if (entity.ip === 'localhost') {
 			nodeBridge.openFile(`"${filePath}"`);
 		} else {
-			const newFileBaseName = getOutputFileBaseName(getTaskLatestOutputParams(task).outputs[outputIndex].mux, task.taskName, { taskId: task.id, outputIndex });
+			const runIndex = task.selectedRunIndex;
+			const after = getTaskOutputParams(task, runIndex);
+			const newFileBaseName = getOutputFileBaseName(after.outputs[outputIndex].mux, task.taskName, { taskId: task.id, outputIndex });
 			const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 			if (nodeBridge.env === 'electron') {
 				let fileTime = undefined;
-				const output = getTaskLatestOutputParams(task).outputs[outputIndex];
+				const output = after.outputs[outputIndex];
 				const mux = output.mux;
 				if (mux.keepFileTime) {
-					let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, outputIndex);
+					let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, outputIndex, runIndex);
 					fileTime = { accessTime, createTime, modifyTime };
 				}
 				nodeBridge.ipcRenderer?.send('downloadFile', { url, sessionId: entity.sessionId, finalFileBaseName: newFileBaseName, fileTime });
@@ -46,8 +67,8 @@ const openFile = (task: Task, filePath: string, outputIndex: number) => {
 	}
 };
 
-const getOutputFileTimeString = (task: Task, index: number, type: 'createTime' | 'modifyTime') => {
-	const result = getOutputFileTime(task, index);
+const getOutputFileTimeString = (task: UITask, index: number, type: 'createTime' | 'modifyTime') => {
+	const result = getOutputFileTime(task, index, task.selectedRunIndex);
 	if (result.ok) {
 		return getTimeString(new Date(result[type]!));
 	} else {
@@ -55,6 +76,7 @@ const getOutputFileTimeString = (task: Task, index: number, type: 'createTime' |
 	}
 }
 
+const centerDraggerPos = ref(50);
 const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 	const draggerRect = (event.target as HTMLElement).getBoundingClientRect();
 	const mainAreaRect = (event.target as HTMLElement).parentElement!.getBoundingClientRect();
@@ -82,7 +104,7 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 
 <template>
 	<div class="mediaInfo">
-		<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task!.taskName }}</div>
+		<TaskInfoTitle :task="selectedTasks.task" />
 		<div class="container" :data-color_theme="appStore.frontendSettings.colorTheme">
             <div class="left" :style="{ width: `${centerDraggerPos}%` }">
 				<div class="title">
@@ -211,8 +233,8 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 					<button
 						class="node outputNode"
 						v-if="selectedTasks.task"
-						v-for="(outputFile, index) in (selectedTasks.task?.runs?.[selectedTasks.task.runs.length - 1]?.outputFiles ?? [])"
-						@click="openFile(selectedTasks.task, outputFile, index)"
+						v-for="(outputFile, index) in (activeTitleAndRun.run?.outputFiles ?? [])"
+						@click="openFile(outputFile, index)"
 						v-bind="useTooltip(appStore.currentServer?.entity.ip === 'localhost' ? '点击打开输出文件' : '点击下载输出文件', 'tr')"
 					>
 						<div class="fileName">{{ outputFile }}</div>
@@ -243,23 +265,16 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 		height: 100%;
 		display: flex;
 		flex-direction: column;
-		&>.title {
-			height: 18px;
-			box-sizing: border-box;
-			font-size: 14px;
-			padding: 4px;
-			// margin-bottom: -8px;
-		}
 		.container {
 			width: 100%;
-			height: calc(100% - 18px);
+			height: calc(100% - 26px);
 			display: flex;
 			justify-content: center;
 			font-size: 14px;
             &>.left, &>.right {
 				height: 100%;
 				box-sizing: border-box;
-				padding: 10px 12px;
+				padding: 0 12px;
 				text-align: left;
 				// outline: red 1px solid;
 				.title {

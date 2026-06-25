@@ -373,6 +373,13 @@ export function getCurrentRun(task: Task): Run {
 	return task.runs[task.runs.length - 1];
 }
 
+/**
+ * 根据 runIndex 获取 Task 的 OutputParams，不传则取最新
+ */
+export function getTaskOutputParams(task: Task, runIndex?: number): OutputParams {
+	return task.runs[runIndex ?? task.runs.length - 1].after;
+}
+
 // 获取 Task 的当前 after（从最新 run 中读取）
 export function getTaskLatestOutputParams(task: Task): OutputParams {
 	return task.runs[task.runs.length - 1].after;
@@ -433,15 +440,20 @@ export function getInitialUITask(id: number, fileName: string, outputParams?: Ou
 		...baseTask,
 		runs: uiRuns,
 		taskIndex: 0,
+		selectedRunIndex: 1,
 	};
 }
 
-export function getOutputDuration(task: Task): number {
+/**
+ * 计算输出时长
+ * @param runIndex 索引值，不传则取最新
+ */
+export function getOutputDuration(task: Task, runIndex?: number): number {
 	let duration = task.before[0]?.duration || NaN;
 	if (isNaN(duration)) {
 		return NaN;
 	}
-	const after = getTaskLatestOutputParams(task);
+	const after = getTaskOutputParams(task, runIndex);
 	const firstInput = after.input.files[0];
 	const firstOutput = after.outputs[0].mux;
 	if (!firstInput || !firstOutput) {
@@ -477,11 +489,12 @@ export function getDefaultInputAudio(task: Task) {
 
 /**
  * 根据任务配置返回新文件时间（仅计算，不进行文件操作）
+ * @param runIndex 索引值，不传则取最新
  */
-export function getOutputFileTime(task: Task, index: number) {
+export function getOutputFileTime(task: Task, outputIndex: number, runIndex?: number) {
 	let ok = true;	// 仅代表计算是否成功，不代表是否已修改时间
-	const after = getTaskLatestOutputParams(task);
-	const output = after.outputs[index];
+	const after = getTaskOutputParams(task, runIndex);
+	const output = after.outputs[outputIndex];
 	const mux = output.mux;
 	let { accessTime, createTime, modifyTime, duration: originalDuration } = task.before[0] || { accessTime: 0, createTime: 0, modifyTime: 0, duration: 0 };
 

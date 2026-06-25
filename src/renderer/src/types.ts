@@ -24,6 +24,7 @@ export interface UIRun extends Run {
 
 export interface UITask extends Omit<Task, 'runs'> {
 	taskIndex: number;	// 全局序号，在 updateTaskList 获取后写入
+	selectedRunIndex: number;	// 当前选中的 run 索引，范围 [1, runs.length - 1]
 	runs: UIRun[];
 }
 

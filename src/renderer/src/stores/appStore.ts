@@ -554,8 +554,8 @@ export const useAppStore = defineStore('app', {
 					const index = data.taskIdToIndex.get(id);
 					if (index !== undefined) {
 						const task = data.tasks[index];
-						const latestRun = task.runs[task.runs.length - 1];	// TODO 选取当前而不是 latest
-						this.globalParams = replaceOutputParams(latestRun.after, this.globalParams, true);
+						const run = task.runs[task.selectedRunIndex];
+						this.globalParams = replaceOutputParams(run.after, this.globalParams, true);
 					}
 				}
 			}
@@ -813,7 +813,8 @@ export const useAppStore = defineStore('app', {
 				const fisrtSelectedTaskId = [...this.selectedTask][0];
 				const taskIndex = this.currentServer.data.taskIdToIndex.get(fisrtSelectedTaskId);
 				if (taskIndex !== undefined) {
-					this.globalParams = replaceOutputParams(this.currentServer.data.tasks[taskIndex].after, this.globalParams, true);
+					const task = this.currentServer.data.tasks[taskIndex];
+					this.globalParams = replaceOutputParams(task.runs[task.runs.length - 1].after, this.globalParams, true);
 				}
 			}
 		},

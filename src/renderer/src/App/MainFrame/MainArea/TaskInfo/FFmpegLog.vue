@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
-import { TaskStatus } from '@common/types';
+import TaskInfoTitle from './TaskInfoTitle.vue';
 
 const appStore = useAppStore();
 const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appStore.currentServer
@@ -9,12 +9,11 @@ const selectedTasks = computed(() => appStore.selectedTask.size === 0 || !appSto
 	: { task: appStore.getTaskById([...appStore.selectedTask][0]), count: appStore.selectedTask.size }
 );
 
-// 获取当前正在运行的 run 或最新 run 的 cmdData
+// 获取当前选中的 run 的 cmdData（使用任务的 selectedRunIndex）
 const activeCmdData = computed(() => {
 	const task = selectedTasks.value.task;
 	if (!task) return '';
-	const activeRun = [...task.runs].reverse().find(r => r.status === TaskStatus.running) || task.runs[task.runs.length - 1];
-	return activeRun?.cmdData ?? '';
+	return task.runs[task.selectedRunIndex]?.cmdData || task.runs[0]?.cmdData;
 });
 
 const cmdRef = ref<HTMLTextAreaElement | null>(null);
@@ -43,7 +42,7 @@ onMounted(() => {
 
 <template>
 	<div class="ffmpegLog">
-		<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task!.taskName }}</div>
+		<TaskInfoTitle :task="selectedTasks.task" :fallbackToGloabl="true" />
 		<div class="code">
 			<textarea
 				aria-label="任务命令行"
@@ -61,10 +60,6 @@ onMounted(() => {
 		height: 100%;
 		display: flex;
 		flex-direction: column;
-		.title {
-			font-size: 14px;
-			padding: 4px;
-		}
 		.code {
 			width: 100%;
 			height: 100%;

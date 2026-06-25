@@ -413,21 +413,19 @@
 					color: var(--66);
 					background-color: hwb(var(--bg99) / 0.8);
 					border-radius: 2px;
-					box-shadow: 0 0 1px 0.5px hwb(var(--bg99)),
+					box-shadow: 0 0 1px 0.5px hwb(var(--bg99)),	// 柔边
 								0 1px 2px 0 hwb(0 0% 100% / 0.15);
-					cursor: pointer;
-					user-select: none;
-					transition: all 0.2s ease;
 					&:hover:not(:disabled) {
-						background-color: hwb(var(--bg97) / 0.9);
-						color: var(--33);
+						box-shadow: 0 0 1px 0.5px hwb(var(--bg99)),	// 柔边
+									0 1px 3px 0 hwb(0 0% 100% / 0.25);
 					}
 					&:active:not(:disabled) {
-						box-shadow: 0 1px 2px hwb(0 0% 100% / 0.1) inset;
+						box-shadow: 0 0 2px 1px hwb(0 0% 100% / 0.05), // 外部阴影
+									0 2px 4px hwb(0 0% 100% / 0.1) inset; // 内部凹陷阴影
+						transform: translateY(0.5px);
 					}
 					&:disabled {
 						opacity: 0.4;
-						cursor: default;
 					}
 				}
 				.runIndexDisplay {

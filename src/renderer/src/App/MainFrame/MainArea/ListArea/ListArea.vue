@@ -5,7 +5,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { NotificationLevel } from '@common/types';
 import { UITask } from '@renderer/types';
 import { getOutputFileBaseName } from '@common/params/formats';
-import { getOutputFileTime, getTaskLatestOutputParams } from '@common/utils';
+import { getOutputFileTime, getTaskOutputParams } from '@common/utils';
 import { useScrollStop } from './useScrollStop';
 import CoarseSlider from './CoarseSlider.vue';
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
@@ -133,7 +133,7 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 				appStore.deleteTasks([...appStore.selectedTask]);
 			} },
 			...(appStore.currentServer?.entity.ip !== 'localhost' ? [
-				{ type: 'normal' as const, icon: <span>⬇️</span>, label: '下载输出文件', value: '下载输出文件', tooltip: '将所有已完成任务输出文件下载到指定文件夹', onClick: () => {
+				{ type: 'normal' as const, icon: <span>⬇️</span>, label: '下载输出文件', value: '下载输出文件', tooltip: '将所有已完成任务输出文件下载到指定文件夹\n。输出文件取决于当前界面上显示的运行次序。', onClick: () => {
 					if (!appStore.currentServer) { debugger; throw 'ub'; }
 					const entity = appStore.currentServer.entity;
 					const data = appStore.currentServer.data;
@@ -144,16 +144,16 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 					if (nodeBridge.env === 'electron') {
 						const downloadList = [];
 						for (const task of tasks) {
-							const latestRun = task.runs[task.runs.length - 1];
-							for (const [s_index, filePath] of Object.entries(latestRun.outputFiles)) {
-								const after = getTaskLatestOutputParams(task);
+							const currentRun = task.runs[task.selectedRunIndex];
+							for (const [s_index, filePath] of Object.entries(currentRun.outputFiles)) {
+								const after = getTaskOutputParams(task, task.selectedRunIndex);
 								const newFileBaseName = getOutputFileBaseName(after.outputs[+s_index].mux, task.taskName, { taskId: task.id, outputIndex: +s_index });
 								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 								let fileTime = undefined;
 								const output = after.outputs[+s_index];
 								const mux = output.mux;
 								if (mux.keepFileTime) {
-									let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, +s_index);
+									let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, +s_index, task.selectedRunIndex);
 									fileTime = { accessTime, createTime, modifyTime };
 								}
 								downloadList.push({ url, finalFileBaseName: newFileBaseName, fileTime });
@@ -163,9 +163,9 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 						nodeBridge.ipcRenderer?.send('downloadFiles', { sessionId: entity.sessionId, files: downloadList });
 					} else {
 						for (const task of tasks) {
-							const latestRun = task.runs[task.runs.length - 1];
-							for (const [s_index, filePath] of Object.entries(latestRun.outputFiles)) {
-								const after = getTaskLatestOutputParams(task);
+							const currentRun = task.runs[task.selectedRunIndex];
+							for (const [s_index, filePath] of Object.entries(currentRun.outputFiles)) {
+								const after = getTaskOutputParams(task, task.selectedRunIndex);
 								const newFileBaseName = getOutputFileBaseName(after.outputs[+s_index].mux, task.taskName, { taskId: task.id, outputIndex: +s_index });
 								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 								const elem = document.createElement('a');

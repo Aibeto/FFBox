@@ -6,6 +6,7 @@ import { getOutputDuration } from '@common/utils';
 import { calcDashboard } from '@renderer/common/dashboardCalc';
 import { getScaleUnit } from '@renderer/common/utils';
 import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
+import TaskInfoTitle from './TaskInfoTitle.vue';
 
 type ChartType = 'progress' | 'size' | 'bitrate' | 'speed';
 
@@ -26,12 +27,11 @@ let rendering = 0;	// 0: 空闲　1: 渲染中　2: 渲染中重复调用 render
 
 const outputDuration = computed(() => selectedTasks.value.task ? getOutputDuration(selectedTasks.value.task) : 0);
 const isDark = computed(() => appStore.frontendSettings.colorTheme === 'themeDark');
-// 获取当前正在运行的 run 或最新 run 的 progressLog
+// 获取当前选中的 run 的 progressLog（使用任务的 selectedRunIndex）
 const activeProgressLog = computed(() => {
 	const task = selectedTasks.value.task;
 	if (!task) return undefined;
-	const activeRun = [...task.runs].reverse().find(r => r.status === TaskStatus.running) || task.runs[task.runs.length - 1];
-	return activeRun?.progressLog;
+	return task.runs[task.selectedRunIndex]?.progressLog;
 });
 const selectionList = computed(() => {
 	const disableNormalChart = !selectedTasks.value.task || (activeProgressLog.value?.time.length ?? 0) <= 1;
@@ -45,8 +45,8 @@ const selectionList = computed(() => {
 });
 /** [转码时间, 媒体时间, 尺寸] */
 const dedupProgressLogSize = computed(() => {
-	const progressLog = selectedTasks.value.task!.progressLog;
-	if (!progressLog.size.length) {
+	const progressLog = activeProgressLog.value;
+	if (!progressLog?.size.length) {
 		return [];
 	}
 	const ret: [number, number, number][] = [[progressLog.size[0][0], progressLog.time[0][1], progressLog.size[0][1]]];
@@ -79,7 +79,8 @@ const bitrateGraphData = computed(() => {
 /** y 为 / progressLog.time[][0] 两点之间的 diff（转码这么多花费了多少实际时间，倒数就是速度），x 为 progressLog.time[][1] 两点的中间值 */
 const speedGraphData = computed(() => {
 	const data: [number, number][] = [];
-	const logTime = selectedTasks.value.task!.progressLog.time;
+	const logTime = activeProgressLog.value?.time;
+	if (!logTime?.length) return { data, maxY: 0 };
 	let maxYDiff = 0;
 	for (let i = 1; i < logTime.length; i++) {
 		const xDiff = logTime[i][1] - logTime[i - 1][1];	// 两记录点之间的媒体时间差
@@ -173,11 +174,12 @@ const timeFilter = (value: number, withDecimal = true) => {
 // #endregion
 
 const getLastSpeedBitrate = () => {
-	const { progressLog, before, after } = selectedTasks.value.task!;
+	const task = selectedTasks.value.task!;
+	const progressLog = activeProgressLog.value!;
 	const { K: frameK, B: frameB, currentValue: currentFrame } = calcDashboard(progressLog.frame.slice(-5), 0);
 	const { K: timeK, B: timeB, currentValue: currentTime } = calcDashboard(progressLog.time.slice(-5), 0);
 	const { K: sizeK, B: sizeB, currentValue: currentSize } = calcDashboard(dedupProgressLogSize.value.slice(-5).map((value) => [value[1], value[2]]), 0);
-	// const afterFramerate = after.outputs[0]?.video.framerate === '不改变' ? before.vframerate : +after.outputs[0]?.video.framerate;
+	// const afterFramerate = task.after.outputs[0]?.video.framerate === '不改变' ? task.before[0]?.vframerate : +task.after.outputs[0]?.video.framerate;
 	return {
 		// speed: frameK / afterFramerate || timeK,	// 媒体时间相对真实时间。如果可以读出帧速，或者输出的是视频，用帧速算 speed 更准确；否则用时间算 speed
 		speed: timeK,
@@ -187,8 +189,9 @@ const getLastSpeedBitrate = () => {
 /** 最大时间/尺寸的计算方法是：现在已经累积的转码时长/输出尺寸 + 根据最新速度和剩余任务时长算出的预计增量 */
 const getEstimatedMaxTimeSize = () => {
 	const lastSpeedBitrate = getLastSpeedBitrate();
-	const { progressLog, status } = selectedTasks.value.task!;
-	const elapsedTime = progressLog.elapsed + (status === TaskStatus.running ? new Date().getTime() / 1000 - progressLog.lastStarted : 0);
+	const task = selectedTasks.value.task!;
+	const progressLog = activeProgressLog.value!;
+	const elapsedTime = progressLog.elapsed + (task.status === TaskStatus.running ? new Date().getTime() / 1000 - progressLog.lastStarted : 0);
 	// 任务最新进度的时间和大小
 	const currentTime = progressLog.time.length > 0 ? progressLog.time[progressLog.time.length - 1][1] : 0;
 	const currentSize = progressLog.size.length > 0 ? progressLog.size[progressLog.size.length - 1][1] : 0;
@@ -202,6 +205,7 @@ const render = () => {
 	const canvasWidth = canvasRef.value!.width / window.devicePixelRatio;
 	const canvasHeight = canvasRef.value!.height / window.devicePixelRatio;
 	const context = canvasRef.value!.getContext('2d')!;
+	const progressLog = activeProgressLog.value!;
 
 	const task = selectedTasks.value.task;
 	if (!task) {
@@ -217,7 +221,7 @@ const render = () => {
 	rendering = 1;
 
 	// 更新横纵轴端点
-	if ((activeProgressLog.value?.frame.length ?? 0) >= 5 && (activeProgressLog.value?.size.length ?? 0) >= 2) {
+	if ((progressLog?.frame.length ?? 0) >= 5 && (progressLog?.size.length ?? 0) >= 2) {
 		const latestMaxTimeSize = getEstimatedMaxTimeSize();
 		totalTime_smooth.value = totalTime_smooth.value * 0.92 + latestMaxTimeSize.time * 0.08;
 		totalSize_smooth.value = totalSize_smooth.value * 0.92 + latestMaxTimeSize.size * 0.08;
@@ -270,14 +274,14 @@ const render = () => {
 		context.fillStyle = '#4499EE33';
 		context.strokeStyle = '#4499EE';
 		context.beginPath();
-		for (let i = 0; i < (activeProgressLog.value?.time.length ?? 0); i++) {
-			const elem = activeProgressLog.value!.time[i];
+		for (let i = 0; i < (progressLog?.time.length ?? 0); i++) {
+			const elem = progressLog!.time[i];
 			const x = (elem[0] / horizontalMax) * (canvasWidth - 100) + 100;
 			const y = (1 - elem[1] / outputDuration.value) * (canvasHeight - 30);
 			context.lineTo(x, y);
 		}
 		context.stroke();
-		const lastX = activeProgressLog.value!.time[activeProgressLog.value!.time.length - 1][0] / horizontalMax * (canvasWidth - 100) + 100;
+		const lastX = progressLog!.time[progressLog!.time.length - 1][0] / horizontalMax * (canvasWidth - 100) + 100;
 		context.lineTo(lastX, canvasHeight - 30);
 		context.lineTo(100, canvasHeight - 30);
 		context.fill();
@@ -356,8 +360,9 @@ const updateSize = () => {
 
 onMounted(async () => {
 	// 如果打开弹窗时已经有足够数据，那么马上算一下预计转码耗时，否则保持 10s、1000B 的初始大小
+	const progressLog = activeProgressLog.value!;
 	// @ts-ignore
-	if (selectedTasks.value.task?.progressLog.frame.length >= 5 && selectedTasks.value.task?.progressLog.size.length >= 2) {
+	if (progressLog?.frame.length >= 5 && progressLog?.size.length >= 2) {
 		const latestMaxTimeSize = getEstimatedMaxTimeSize();
 		totalTime_smooth.value = latestMaxTimeSize.time;
 		totalSize_smooth.value = latestMaxTimeSize.size;
@@ -395,7 +400,7 @@ onBeforeUnmount(() => {
 
 <template>
 	<div class="ffmpegLog">
-		<div class="title">{{ selectedTasks.count === 0 ? '您未选择任务' : selectedTasks.task!.taskName }}</div>
+		<TaskInfoTitle :task="selectedTasks.task" />
 		<div class="container">
 			<div class="canvasContainer">
 				<canvas ref="canvasRef" />
@@ -411,10 +416,6 @@ onBeforeUnmount(() => {
 		height: 100%;
 		display: flex;
 		flex-direction: column;
-		.title {
-			font-size: 14px;
-			padding: 4px;
-		}
 		.container {
 			position: relative;
 			width: 100%;

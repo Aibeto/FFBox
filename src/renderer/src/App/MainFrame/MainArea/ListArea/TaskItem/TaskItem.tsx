@@ -37,14 +37,15 @@ export const TaskItem = defineComponent((props: Props) => {
 	const appStore = useAppStore();
 	const settings = appStore.taskViewSettings;
 
-	// runIndex 控制器：用于切换查看不同的 runs 条目
-	const runIndex = ref(props.task.runs.length - 1);
 	// 当用户调整参数使 runs 产生新条目时，自动跳到最新 index
-	watch(() => props.task.runs.length, (newLen) => {
-		runIndex.value = newLen - 1;
+	watch(() => props.task.runs.length, (newLen, oldLen) => {
+		if (newLen > oldLen) {
+			props.task.selectedRunIndex = newLen - 1;
+			appStore.applySelectedTask();
+		}
 	});
 	// 当前正在显示的 run
-	const currentRun = computed(() => props.task.runs[runIndex.value]);
+	const currentRun = computed(() => props.task.runs[props.task.selectedRunIndex]);
 	const currentAfter = computed(() => currentRun.value.after);
 
 	// const usedKeys = new Set();
@@ -212,7 +213,7 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	// #region 其他样式
 
-	const showDashboard = computed(() => [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(props.task.status) || uploadStatus.value !== 'fine');
+	const showDashboard = computed(() => [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(currentRun.value.status) || uploadStatus.value !== 'fine');
 	const dashboardType = computed(() => showDashboard ? (uploadStatus.value !== 'fine' ? 'transfer' : 'convert') : 'none');
 
 	const taskNameStyle = computed(() => {
@@ -277,10 +278,10 @@ export const TaskItem = defineComponent((props: Props) => {
 		const taskProgress = (currentRun.value.dashboard_smooth.progress) * 100 + '%';
 		const transferProgress = ((transferInfo.value.totalRead * 0.1 + transferInfo.value.totalHash * 0.1 + transferInfo.value.totalUpload * 0.8) / transferInfo.value.totalSize) * 100 + '%';
 		return {
-			green: { width: taskProgress, opacity: [TaskStatus.running, TaskStatus.finishing].includes(props.task.status) ? 1 : 0},
-			yellow: { width: taskProgress, opacity: [TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping].includes(props.task.status) ? 1 : 0},
-			gray: { width: taskProgress, opacity: [TaskStatus.finished, TaskStatus.idle].includes(props.task.status) ? 1 : 0},
-			red: { width: uploadStatus.value === 'error' ? transferProgress : taskProgress, opacity: uploadStatus.value === 'error' || props.task.status === TaskStatus.error ? 1 : 0},
+			green: { width: taskProgress, opacity: [TaskStatus.running, TaskStatus.finishing].includes(currentRun.value.status) ? 1 : 0},
+			yellow: { width: taskProgress, opacity: [TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping].includes(currentRun.value.status) ? 1 : 0},
+			gray: { width: taskProgress, opacity: [TaskStatus.finished, TaskStatus.idle].includes(currentRun.value.status) ? 1 : 0},
+			red: { width: uploadStatus.value === 'error' ? transferProgress : taskProgress, opacity: uploadStatus.value === 'error' || currentRun.value.status === TaskStatus.error ? 1 : 0},
 			blue: { width: transferProgress, opacity: uploadStatus.value === 'uploading' ? 1 : 0 },
 		} as { [key: string]: StyleValue };
 	});
@@ -305,7 +306,7 @@ export const TaskItem = defineComponent((props: Props) => {
 				enterToClass={css['statusIconAnimation-enter-to']}
 				enterActiveClass={css['statusIconAnimation-enter-active']}
 			>
-				{props.task.status === taskStatus ? icon : null}
+				{currentRun.value.status === taskStatus ? icon : null}
 			</Transition>
 		))
 	));
@@ -326,13 +327,13 @@ export const TaskItem = defineComponent((props: Props) => {
 			i--;
 		}
 		return str.slice(i + 1);
-	}	
+	};
 	const cmdText = computed(() => {
 		if (settings.cmdDisplay === 'input') {
 			return ['ffmpeg', ...currentRun.value.paraArray].join(' ')
 		} else {
 			if (!currentRun.value.cmdData) {
-				return '（任务未运行，当前显示任务媒体信息）\n' + props.task.runs[0].cmdData;
+				return props.task.runs[0].cmdData;
 			} else if (currentRun.value.cmdData.length >= 12000) {
 				return '（此处只显示最后 120 行。请双击此处打开”输出日志”面板查看全文）\n' + lastNLines(currentRun.value.cmdData, 120);
 			} else {
@@ -724,11 +725,11 @@ export const TaskItem = defineComponent((props: Props) => {
 								</button>
 							</div>
 							<div class={css.runIndexController}>
-								<button class={css.runIndexBtn} disabled={runIndex.value <= 1} onClick={(e) => { runIndex.value = Math.max(runIndex.value - 1, 1); e.stopPropagation(); }}>
+								<button class={css.runIndexBtn} disabled={props.task.selectedRunIndex <= 1} onClick={(e) => { props.task.selectedRunIndex = props.task.selectedRunIndex - 1; appStore.applySelectedTask(); e.stopPropagation(); }}>
 									◀
 								</button>
-								<div class={css.runIndexDisplay}>{runIndex.value}</div>
-								<button class={css.runIndexBtn} disabled={runIndex.value >= props.task.runs.length - 1} onClick={(e) => { runIndex.value = Math.min(runIndex.value + 1, props.task.runs.length - 1); e.stopPropagation(); }}>
+								<div class={css.runIndexDisplay} style={settings.cmdDisplay === 'output' && !currentRun.value.cmdData ? { textDecoration: 'line-through' } : {}}>{props.task.selectedRunIndex}</div>
+								<button class={css.runIndexBtn} disabled={props.task.selectedRunIndex >= props.task.runs.length - 1} onClick={(e) => { props.task.selectedRunIndex = props.task.selectedRunIndex + 1; appStore.applySelectedTask(); e.stopPropagation(); }}>
 									▶
 								</button>
 							</div>
