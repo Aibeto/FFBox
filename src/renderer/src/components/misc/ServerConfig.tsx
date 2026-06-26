@@ -2,6 +2,7 @@ import { computed, defineComponent, onMounted, ref } from "vue";
 import { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import { useTooltip } from "@renderer/common/tooltipUtil";
+import { getLimitaion } from '@renderer/logic/limitaions';
 import nodeBridge from "@renderer/bridges/nodeBridge";
 import { showServerUserConfig } from "./ServerUserConfig";
 import { showServerCacheInfo } from "./ServerCacheInfo";
@@ -63,7 +64,7 @@ const Comp = defineComponent((props: P) => {
 		}
 	};
 
-	const maxThreadsLimit = computed(() => appStore.functionLevel < 40 ? 6 : appStore.functionLevel < 60 ? 9 : 0);
+	const maxThreadsLimit = computed(() => getLimitaion('maxThreads', appStore.functionLevel));
 
 	onMounted(() => {
 		props.exportFunctions(exports);

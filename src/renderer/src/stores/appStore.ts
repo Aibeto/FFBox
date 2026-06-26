@@ -3,7 +3,7 @@ import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
 import gsap from 'gsap';
 import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, TaskStatus, WorkingStatus } from '@common/types';
-import { version } from '@common/constants';
+import { validUntil, version } from '@common/constants';
 import { Server, UITask } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
@@ -1088,6 +1088,11 @@ export const useAppStore = defineStore('app', {
 			return false;
 		},
 		async activateFrontend(userInput: string): Promise<number | false> {
+			if (validUntil !== undefined && new Date() > validUntil) {
+				this.pushMsg('FFBox 内部版本已过期，当前版本功能受限，请更新版本后使用。', NotificationLevel.warning);
+				this.functionLevel = 0;
+				return 0;
+			}
 			if (nodeBridge.env === 'electron') {
 				/**
 				 * 客户端和管理端均使用机器码 + 固定码共 32 位作为 key

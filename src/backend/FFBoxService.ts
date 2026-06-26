@@ -7,6 +7,7 @@ import fsPromise from 'fs/promises';
 import { utimes } from 'utimes';
 import path from 'path';
 import { ServiceTask, Task, TaskStatus, OutputParams, FFBoxServiceEvent, Notification, NotificationLevel, FFmpegProgress, WorkingStatus, FFBoxServiceInterface, FFmpegInfo, EncoderDetail, FFmpegCodecDetail, FFmpegFilterDetail, FFmpegMuxerDetail, FFmpegDemuxerDetail, Frame, Run } from '@common/types';
+import { validUntil } from '@common/constants';
 import { TaskList } from './TaskList';
 import i11n from '@common/i11n/i11n';
 import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArray';
@@ -14,6 +15,7 @@ import localConfig from '@common/localConfig';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
 import { getInitialServiceTask, TypedEventEmitter, replaceOutputParams, getOutputDuration, getOutputFileTime, getTaskLatestOutputParams, getDefaultRun, getTimeString } from '@common/utils';
 import { getMachineId, log } from './utils';
+import { getLimitaion } from '@common/limitaions';
 import { FFmpeg } from './FFmpegInvoke';
 import { YieldManager } from './YieldManager';
 import { webhookManager } from './utils/webhookManager';
@@ -98,12 +100,18 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 	private async initActivationInfo() {
 		this.machineId = getMachineId();
-		const activationCode = await localConfig.get('userInfo.activationCode') as string;
-		let result;
-		if (activationCode) {
-			result = this.activate(activationCode);
+		if (validUntil !== undefined && new Date() > validUntil) {
+			this.setNotification(undefined, 'FFBox 内部版本已过期，当前版本功能受限，请更新版本后使用。', NotificationLevel.warning);
+			log.warn('FFBox 内部版本已过期，当前版本功能受限，请更新版本后使用。');
+			this.functionLevel = 0;
+		} else {
+			const activationCode = await localConfig.get('userInfo.activationCode') as string;
+			let result;
+			if (activationCode) {
+				result = this.activate(activationCode);
+			}
+			log.info(activationCode ? (result ? '已读取激活信息' : '激活信息无效') : '未读取到激活信息');
 		}
-		log.info(activationCode ? (result ? '已读取激活信息' : '激活信息无效') : '未读取到激活信息');
 	}
 
 	/**
@@ -504,7 +512,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits tasklistUpdate（当 silent 为 false 时）
 	 */
 	private taskAdd(taskName: string, outputParams: OutputParams, isRemote?: boolean, silent?: boolean, skipMetadataScan?: boolean): Promise<number | null> {
-		const maxTaskCount = this.functionLevel < 40 ? 66 : this.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
+		const maxTaskCount = getLimitaion('maxTaskListCount', this.functionLevel);
 		if (this.taskList.count() >= maxTaskCount) {
 			if (!silent) {
 				this.setNotification(
@@ -554,7 +562,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @returns 所有新创建的任务 ID
 	 */
 	public async taskAddBatch(filePaths: string[], outputParams: OutputParams, isRemote?: boolean): Promise<number[]> {
-		const maxTaskCount = this.functionLevel < 40 ? 66 : this.functionLevel < 60 ? 99 : Number.MAX_SAFE_INTEGER;
+		const maxTaskCount = getLimitaion('maxTaskListCount', this.functionLevel);
 		const remaining = maxTaskCount - this.taskList.count();
 		if (filePaths.length > remaining) {
 			this.setNotification(
@@ -1400,7 +1408,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			const asyncEntry = { type: `排队任务分配执行` };
 			this.asyncListOp('+', asyncEntry);
 
-			const maxThreads = Math.min(this.maxThreads, this.functionLevel < 20 ? 4 : this.functionLevel < 35 ? 6 : this.functionLevel < 50 ? 9 : this.functionLevel < 70 ? 99 : 256);
+			const maxThreads = Math.min(this.maxThreads, getLimitaion('maxThreads', this.functionLevel));
 			let runningCount = this.taskList.getTaskCountByStatus(TaskStatus.running);
 
 			// 根据 runningCount 分配任务
@@ -1669,15 +1677,21 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	private activate(activationCode: string): boolean {
-		const fixedCode = 'd324c697ebfc42b7';
-		const key = this.machineId + fixedCode;
-		const decrypted = CryptoJS.AES.decrypt(activationCode, key);
-		const decryptedString = CryptoJS.enc.Utf8.stringify(decrypted);
-		if (parseInt(decryptedString).toString() === decryptedString) {
-			this.functionLevel = parseInt(decryptedString);
-			return true;
-		} else {
+		if (validUntil !== undefined && new Date() > validUntil) {
+			this.setNotification(undefined, 'FFBox 内部版本已过期，当前版本功能受限，请更新版本后使用。', NotificationLevel.warning);
+			this.functionLevel = 0;
 			return false;
+		} else {
+			const fixedCode = 'd324c697ebfc42b7';
+			const key = this.machineId + fixedCode;
+			const decrypted = CryptoJS.AES.decrypt(activationCode, key);
+			const decryptedString = CryptoJS.enc.Utf8.stringify(decrypted);
+			if (parseInt(decryptedString).toString() === decryptedString) {
+				this.functionLevel = parseInt(decryptedString);
+				return true;
+			} else {
+				return false;
+			}
 		}
 	}
 
@@ -1686,12 +1700,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		if (!activeRun) return false;
 		const progressLog = activeRun.progressLog;
 		if (this.functionLevel < 50) {
-			if (progressLog.time[progressLog.time.length - 1][1] > 671) {
+			if (progressLog.time[progressLog.time.length - 1][1] > getLimitaion('maxMediaDuration', this.functionLevel)) {
 				this.trailLimit_stopTranscoding(id, 'media');
 				return true;
 			}
 		}
-		const maxWorkingDuration = this.functionLevel < 45 ? 671 : 40271;
+		const maxWorkingDuration = getLimitaion('maxWorkingDuration', this.functionLevel);
 		if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > maxWorkingDuration) {
 			this.trailLimit_stopTranscoding(id, 'working');
 			return true;
