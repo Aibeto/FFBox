@@ -405,10 +405,7 @@ export interface Task {
 
 export interface ServiceTask extends Task {
 	ffmpeg: FFmpeg | null;
-	// TODO
-	// ffmpeg: any | null;
 	remoteTask: boolean;	// 本地/远程任务对于 service 来说，对输出文件名的处理方式不同；对于 UI 来说，只需要判断 IP 是否为 localhost 即决定是下载还是直接打开了
-	activeRunIndex: number;	// 当前正在运行的 run 索引（taskStart 时设置，用于进度/cmd 写入）（当然从设计逻辑来说，似乎取倒数第一个就可以了）
 }
 
 export enum WorkingStatus {

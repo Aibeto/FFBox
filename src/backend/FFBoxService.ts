@@ -13,7 +13,7 @@ import i11n from '@common/i11n/i11n';
 import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArray';
 import localConfig from '@common/localConfig';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
-import { getInitialServiceTask, TypedEventEmitter, replaceOutputParams, getOutputDuration, getOutputFileTime, getTaskLatestOutputParams, getDefaultRun, getTimeString } from '@common/utils';
+import { getInitialServiceTask, TypedEventEmitter, replaceOutputParams, getOutputDuration, getOutputFileTime, getTaskLatestOutputParams, getNewRun, getTimeString } from '@common/utils';
 import { getMachineId, log } from './utils';
 import { getLimitaion } from '@common/limitaions';
 import { FFmpeg } from './FFmpegInvoke';
@@ -525,7 +525,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 
 		const firstFilePath = outputParams.input.files?.[0]?.filePath;
-		const task = getInitialServiceTask(-1, taskName, outputParams);	// id 由 taskList.add 分配
+		const task = getInitialServiceTask(taskName, outputParams);
 		const id = this.taskList.add(task);
 
 		// 更新命令行参数（写入 runs[1]，即首个运行条目）
@@ -918,7 +918,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 		// 确定要运行的 run（使用最新条目）
 		const runIndex = task.runs.length - 1;
-		task.activeRunIndex = runIndex;
 		const run = task.runs[runIndex];
 		this.taskList.setStatus(id, TaskStatus.running);
 		run.progressLog = {
@@ -934,7 +933,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			runIndex,
 			time: new Date().getTime() / 1000,
 		});
-		task.runs[runIndex].cmdData = `· 任务已于 ${getTimeString(new Date(), true)} 开始运行。`;
+		task.runs[runIndex].cmdData = `▶️ 任务已于 ${getTimeString(new Date(), true)} 开始运行。`;
 		this.setCmdText(task, '', true, runIndex);
 		let newFFmpeg: FFmpeg;
 		const taskIndex = this.taskList.getIndexById(id);
@@ -973,6 +972,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			} else {
 				if (task.status !== TaskStatus.stopping) {
 					log.info(`[任务 ${id}] 完成：${task.taskName}。`);
+					this.setCmdText(task, `✅️ 任务已于 ${getTimeString(new Date(), true)} 完成。`, true);
+
 					const hasTimeError: string[] = [];
 					// 对每个输出文件进行时间修改。但暂不支持多输入，会按第一个输入进行修改
 					for (let i = 0; i < (task.remoteTask ? 0 : run.after.outputs.length); i++) {
@@ -1150,7 +1151,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		} else {
 			log.info(`[任务 ${id}] 暂停。`);
 		}
-		this.setCmdText(task, `· 任务已于 ${getTimeString(new Date(), true)} 暂停。`, true);
+		this.setCmdText(task, `⏸️ 任务已于 ${getTimeString(new Date(), true)} 暂停。`, true);
 		this.taskList.setStatus(id, TaskStatus.paused);
 		task.ffmpeg!.pause();
 		const activeRun = task.runs[task.runs.length - 1];
@@ -1218,7 +1219,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			return;
 		}
 
-		this.setCmdText(task, `· 任务已于 ${getTimeString(new Date(), true)} 继续。`, true);
+		this.setCmdText(task, `▶️ 任务已于 ${getTimeString(new Date(), true)} 继续。`, true);
 		this.taskList.setStatus(id, TaskStatus.running);
 		const nowRealTime = new Date().getTime() / 1000;
 		const activeRun = task.runs[task.runs.length - 1];
@@ -1275,75 +1276,59 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			log.error(`[任务 ${id}] 重置：任务不存在！`);
 			return;
 		}
+		const taskIndex = this.taskList.getIndexById(id);
+
+		function createNewRun(task: ServiceTask) {
+			const latestRun = task.runs[task.runs.length - 1];
+			const newRun = getNewRun(JSON.parse(JSON.stringify(latestRun.after)));
+			task.runs.push(newRun);
+			if (task.remoteTask) {
+				newRun.outputFiles = genTaskOutputFiles(newRun.after, ``, { taskId: id, taskIndex });
+				newRun.paraArray = getFFmpegParaArray({ outputParams: newRun.after, withQuotes: true, overrideFilePaths: newRun.outputFiles, taskId: id, taskIndex });
+			} else {
+				newRun.paraArray = getFFmpegParaArray({ outputParams: newRun.after, withQuotes: true, taskId: id, taskIndex });
+			}
+		}
+
 		if ([TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running].includes(task.status)) {
-			// 暂停状态下重置或运行状态下达到限制停止工作
 			log.info(`[任务 ${id}] 重置——软停止。`);
-			this.setCmdText(task, `· 任务已于 ${getTimeString(new Date(), true)} 软停止。`, true);
+			this.setCmdText(task, `🛑 任务已于 ${getTimeString(new Date(), true)} 软停止。`, true);
 			this.taskList.setStatus(id, TaskStatus.stopping);
 			task.ffmpeg!.exit(() => {
+				this.setCmdText(task, `🛑 ffmpeg 进程已于 ${getTimeString(new Date(), true)} 结束。`, true);
 				this.taskList.setStatus(id, TaskStatus.idle);
 				task.ffmpeg = null;
-				this.afterReset(task);
+				createNewRun(task);
 				this.emitTaskUpdate(id, task);
 				this.queueAssign();
 				this.storeUnfinishedTask();
 			});
 		} else if (task.status === TaskStatus.stopping) {
-			// 正在停止状态下强制重置
 			log.info(`[任务 ${id}] 重置——硬停止。`);
-			this.setCmdText(task, `· 任务已于 ${getTimeString(new Date(), true)} 硬停止。`, true);
+			this.setCmdText(task, `⛔ 任务已于 ${getTimeString(new Date(), true)} 硬停止。`, true);
 			this.taskList.setStatus(id, TaskStatus.stopping);
 			task.ffmpeg!.forceKill(() => {
+				this.setCmdText(task, `⛔ ffmpeg 进程已于 ${getTimeString(new Date(), true)} 结束。`, true);
 				this.taskList.setStatus(id, TaskStatus.idle);
 				task.ffmpeg = null;
-				this.afterReset(task);
+				createNewRun(task);
 				this.emitTaskUpdate(id, task);
 				this.queueAssign();
 				this.storeUnfinishedTask();
 			});
-		} else if ([TaskStatus.idle_queued, TaskStatus.finished, TaskStatus.error].includes(task.status)) {
-			// 完成状态下或队列中仍未开始状态下重置
-			log.info(`[任务 ${id}] 重置到初始状态。`);
+		} else if ([TaskStatus.idle_queued].includes(task.status)) {
+			log.info(`[任务 ${id}] 取消排队。`);
 			this.taskList.setStatus(id, TaskStatus.idle);
-			this.afterReset(task);
+			this.queueAssign();
+		} else if ([TaskStatus.finished, TaskStatus.error].includes(task.status)) {
+			log.info(`[任务 ${id}] 重置到新运行记录初始状态。`);
+			createNewRun(task);
+			this.taskList.setStatus(id, TaskStatus.idle);
 			this.queueAssign();
 		} else {
 			log.error(`[任务 ${id}] 重置：任务当前状态为 ${task.status}，操作不合法！`);
 		}
 		this.emitTaskUpdate(id, task);
-	}
-
-	/**
-	 * 重置任务后处理 runs 条目
-	 * 若最新条目已运行过（cmdData 非空且非占位符），则创建新条目
-	 * 否则清空当前条目的 cmdData，保证调整的是未运行的条目
-	 */
-	private afterReset(task: ServiceTask): void {
-		const latestRun = task.runs[task.runs.length - 1];
-		const isPlaceholder = latestRun.cmdData === '(等待媒体信息扫描)';
-		if (latestRun.cmdData && !isPlaceholder) {
-			// 最新条目已运行过，创建新的空条目
-			const newRun: Run = {
-				after: JSON.parse(JSON.stringify(latestRun.after)),
-				paraArray: [],
-				outputFiles: [],
-				status: TaskStatus.idle,
-				progressLog: {
-					time: [],
-					frame: [],
-					size: [],
-					lastStarted: new Date().getTime() / 1000,
-					elapsed: 0,
-					lastPaused: new Date().getTime() / 1000,
-				},
-				cmdData: '',
-				errorInfo: [],
-			};
-			task.runs.push(newRun);
-		} else {
-			// 最新条目未运行过，清空 cmdData
-			latestRun.cmdData = '';
-		}
 	}
 
 	/**
@@ -1543,25 +1528,30 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	/**
-	 * 批量设置任务的输出参数，将算出的 paraArray 通过 taskUpdate 传回（这样对性能不太好）
+	 * 批量设置任务最新运行记录的输出参数，将算出的 paraArray 通过 taskUpdate 传回（这样对性能不太好）
+	 * 当最新运行记录状态为【初始化】【空闲】【空闲_已排队】时，cmdData 为空，修改当前任务参数
+	 * 当最新运行记录状态为【已完成】【错误】时，cmdData 有数据，创建新的 run，再修改任务参数
+	 * 当最新运行记录状态为【正在运行】【已暂停】【已暂停_已排队】【正在停止】【正在完成】时，cmdData 有数据，但不允许修改参数
 	 * @param ids 任务 ID 列表
 	 * @param params 统一的输出参数配置
 	 * @param fullyReplace 是否全量替换（true 为单个任务修改，false 为批量修改）
 	 * @emits taskUpdate
 	 */
 	public async setParameters(ids: number[], params: OutputParams, fullyReplace: boolean): Promise<void> {
+		const asyncEntry = { type: `设置任务参数 ${ids.length} 个` };
+		this.asyncListOp('+', asyncEntry);
+
 		for (const id of ids) {
 			const task = this.taskList.getById(id)!;
 			const latestRun = task.runs[task.runs.length - 1];
-			const isPlaceholder = latestRun.cmdData === '(等待媒体信息扫描)';
+			const isRunning = [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(task.status);
+			if (isRunning) continue;
+
 			// 若最新条目已运行过（cmdData 非空且非占位符），创建新条目
-			if (latestRun.cmdData && !isPlaceholder) {
-				const newRun = getDefaultRun(JSON.parse(JSON.stringify(latestRun.after)));
+			if (latestRun.cmdData) {
+				const newRun = getNewRun(JSON.parse(JSON.stringify(latestRun.after)));
 				task.runs.push(newRun);
-				// 重置外层 status
-				if ([TaskStatus.finished, TaskStatus.error].includes(task.status)) {
-					this.taskList.setStatus(id, TaskStatus.idle);
-				}
+				this.taskList.setStatus(id, TaskStatus.idle);	// 重置外层 status
 			}
 			const targetRun = task.runs[task.runs.length - 1];
 			targetRun.after = replaceOutputParams(params, targetRun.after, fullyReplace);
@@ -1574,6 +1564,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			}
 			this.emitTaskUpdate(id, task);
 		}
+		this.asyncListOp('-', asyncEntry);
 	}
 
 	private cmdUpdateThrottleTimers: Map<number, { start: number, timer: number }> = new Map();
@@ -1582,11 +1573,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @param task 任务对象
 	 * @param content 文本
 	 * @param append 附加到末尾，默认 true
-	 * @param runIndex 目标 run 索引，默认使用 activeRunIndex（正在运行的条目）。getFileMetadata 调用时传入 0
+	 * @param runIndex 目标 run 索引，默认使用最新条目。getFileMetadata 调用时传入 0
 	 */
 	private setCmdText(task: ServiceTask, content: string, append = true, runIndex?: number): void {
 		const taskId = task.id;
-		const targetIndex = runIndex ?? task.activeRunIndex;
+		const targetIndex = runIndex ?? task.runs.length - 1;
 		const targetRun = task.runs[targetIndex];
 		if (!targetRun) return;
 		if (!append) {
@@ -1696,7 +1687,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	private trailLimit_checkIsMediaWorkingTimeExceeded(id: number, task: ServiceTask): boolean {
-		const activeRun = task.runs[task.activeRunIndex];
+		const activeRun = task.runs[task.runs.length - 1];
 		if (!activeRun) return false;
 		const progressLog = activeRun.progressLog;
 		if (this.functionLevel < 50) {

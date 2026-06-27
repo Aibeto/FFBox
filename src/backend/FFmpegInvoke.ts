@@ -77,7 +77,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 	private formatsResult: FormatsResult = { muxers: [], demuxers: [] };
 	private filtersResult: FilterResult[] = [];
 	private framesResult: Frame[] = [];
-	private readingAVOption: EncoderDetail['options'][number];
+	private readingAVOption: EncoderDetail['options'][number] | undefined;
 	private readingInputsInfoBuffer: string[] = [];
 	private inputsInfo: InputInfo[] = [];
 
@@ -117,6 +117,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 			this.stdoutProcessing(data);
 		});
 		this.process!.on('close', (code, signal) => {
+			this.process = null;
 			setTimeout(() => {
 				this.emit('closed', code, this.runningResult);
 				if (this.mode === 'getCodecs') {
@@ -128,7 +129,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				} else if (this.mode === 'getFrameInfo') {
 					this.emit('frameInfo', { frames: this.framesResult });
 				}
-			}, 10);
+			}, 10);	// 这是为啥
 		});
 	}
 	stdoutProcessing(data: string): void {
@@ -641,17 +642,24 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 			this.dataProcessing();
 		}, 0);
 	}
+	// 向 ffmpeg 发出停止信号
 	kill(callback: () => void): void {
 		if (!this.process) {
+			if (this.requireStop) callback();
 			return;
 		}
-		this.addListener('closed', callback);
+
+		this.requireStop = true;
+		this.once('closed', callback);
 		this.process.kill();
 	}
+	// 调用系统强制终止 ffmpeg 进程
 	forceKill(callback: () => void): void {
 		if (!this.process) {
+			if (this.requireStop) callback();
 			return;
 		}
+
 		this.requireStop = true;
 		switch (process.platform) {
 			case 'win32':
@@ -669,23 +677,23 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				break;
 			default:
 		}
-		this.addListener('closed', callback);
+		this.once('closed', callback);
 	}
+	// 向 ffmpeg 发送退出请求
 	exit(callback: () => void): void {
 		if (!this.process) {
+			if (this.requireStop) callback();
 			return;
 		}
-		if (this.paused) {
-			this.resume();
-		}
+
+		if (this.paused) this.resume();
 		this.requireStop = true;
-		this.addListener('closed', callback);
+		this.once('closed', callback);
 		this.process.stdin!.write('q');
 	}
 	pause(): void {
-		if (!this.process || this.paused) {
-			return;
-		}
+		if (!this.process || this.paused) return;
+
 		switch (process.platform) {
 			case 'win32':
 				osBridge.pauseNresumeProcess(true, this.process.pid!);
@@ -702,9 +710,8 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 		this.paused = true;
 	}
 	resume(): void {
-		if (!this.process) {
-			return;
-		}
+		if (!this.process) return;
+
 		switch (process.platform) {
 			case 'win32':
 				osBridge.pauseNresumeProcess(false, this.process.pid!);
@@ -721,15 +728,13 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 		this.paused = false;
 	}
 	sendKey(key: string): void {
-		if (!this.process) {
-			return;
-		}
+		if (!this.process) return;
+
 		this.process.stdin!.write(key);
 	}
 	sendSig(str: number): void {
-		if (!this.process) {
-			return;
-		}
+		if (!this.process) return;
+
 		this.process.kill(str);
 	}
 }

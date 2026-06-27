@@ -7,7 +7,7 @@ import { validUntil, version } from '@common/constants';
 import { Server, UITask } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
 import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
-import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromService, getTaskLatestOutputParams } from '@common/utils';
+import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromService, getTaskLatestOutputParams, getNewUIRun } from '@common/utils';
 import { getMenuItemByValue } from '@common/menu';
 import { allVcodecs, builtInVcodecs } from '@common/params/vcodecs';
 import { allAcodecs, builtInAcodecs } from '@common/params/acodecs';
@@ -601,11 +601,26 @@ export const useAppStore = defineStore('app', {
 				const isSingleTaskModify = behavior === 'modifyTask' && this.selectedTask.size === 1;
 
 				// 本地更新缓冲区中的任务
-				for (const id of targetIds) {
+				for (let i = 0; i < targetIds.length; i++) {
+					const id = targetIds[i];
 					const taskIndex = data.taskIdToIndex.get(id);
 					if (taskIndex === undefined) continue;
+
 					let task = data.tasks[taskIndex];
-					const latestRun = task.runs[task.runs.length - 1];
+					let latestRun = task.runs[task.runs.length - 1];
+					const isRunning = [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing].includes(task.status);
+					if (isRunning) {
+						targetIds.splice(i, 1);
+						i--;
+						continue;
+					}
+					const hasRunFinished = [TaskStatus.finished, TaskStatus.error].includes(task.status);
+					if (hasRunFinished) {
+						const newRun = getNewUIRun(JSON.parse(JSON.stringify(latestRun.after)));
+						task.runs.push(newRun);
+						latestRun = newRun;
+						task.status = TaskStatus.idle;		
+					}
 					latestRun.after = replaceOutputParams(this.globalParams, latestRun.after, isSingleTaskModify);	// TODO：这里的 index 是不对的
 				}
 				if (targetIds.length) {

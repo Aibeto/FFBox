@@ -285,42 +285,37 @@ export function randomString(length = 6, dictionary = 'abcdefghijklmnopqrstuvwxy
 
 // #region 任务转换区
 
-// 创建默认的 OutputParams
-function getDefaultOutputParams(): OutputParams {
-	return {
-		input: {
-			files: [],
-		},
-		filter: {
-			nodes: [],
-			lines: [],
-		},
-		outputs: [
-			{
-				video: {
-					vcodec: '自动',
-					detail: {}
-				},
-				audio: {
-					acodec: '',
-					detail: {}
-				},
-				mux: {
-					format: '',
-					moveflags: false,
-					filePath: '',
-					detail: {},
-				},
-			}
-		],
-		extra: {},
-	};
-}
-
 // 创建默认的 Run 快照
-export function getDefaultRun(after?: OutputParams): Run {
+export function getNewRun(after?: OutputParams): Run {
 	return {
-		after: after || getDefaultOutputParams(),
+		after: after || {
+			input: {
+				files: [],
+			},
+			filter: {
+				nodes: [],
+				lines: [],
+			},
+			outputs: [
+				{
+					video: {
+						vcodec: '自动',
+						detail: {}
+					},
+					audio: {
+						acodec: '',
+						detail: {}
+					},
+					mux: {
+						format: '',
+						moveflags: false,
+						filePath: '',
+						detail: {},
+					},
+				}
+			],
+			extra: {},
+		},
 		paraArray: [],
 		outputFiles: [],
 		status: TaskStatus.idle,
@@ -338,28 +333,28 @@ export function getDefaultRun(after?: OutputParams): Run {
 }
 
 // 创建默认的 UIRun 快照（含前端 dashboard 数据） TODO 为啥没用上
-// function getDefaultUIRun(status: TaskStatus = TaskStatus.idle): UIRun {
-// 	return {
-// 		...getDefaultRun(status),
-// 		dashboard: {
-// 			progress: 0,
-// 			bitrate: 0,
-// 			speed: 0,
-// 			time: 0,
-// 			frame: 0,
-// 			size: 0,
-// 		},
-// 		dashboard_smooth: {
-// 			progress: 0,
-// 			bitrate: 0,
-// 			speed: 0,
-// 			time: 0,
-// 			frame: 0,
-// 			size: 0,
-// 		},
-// 		dashboardTimer: NaN,
-// 	};
-// }
+export function getNewUIRun(after?: OutputParams): UIRun {
+	return {
+		...getNewRun(after),
+		dashboard: {
+			progress: 0,
+			bitrate: 0,
+			speed: 0,
+			time: 0,
+			frame: 0,
+			size: 0,
+		},
+		dashboard_smooth: {
+			progress: 0,
+			bitrate: 0,
+			speed: 0,
+			time: 0,
+			frame: 0,
+			size: 0,
+		},
+		dashboardTimer: NaN,
+	};
+}
 
 // 获取 Task 中当前正在运行的 Run（正在运行的条目，优先返回最新条目）
 export function getCurrentRun(task: Task): Run {
@@ -386,9 +381,9 @@ export function getTaskLatestOutputParams(task: Task): OutputParams {
 }
 
 export function getInitialTask(id: number, fileName: string, outputParams?: OutputParams): Task {
-	const mediaInfoRun = getDefaultRun();
+	const mediaInfoRun = getNewRun();
 	mediaInfoRun.cmdData = '(等待媒体信息扫描)';
-	const firstRun = getDefaultRun();
+	const firstRun = getNewRun();
 	if (outputParams) {
 		firstRun.after = outputParams;
 	}
@@ -401,9 +396,9 @@ export function getInitialTask(id: number, fileName: string, outputParams?: Outp
 	};
 }
 
-export function getInitialServiceTask(id: number, fileName: string, outputParams?: OutputParams): ServiceTask {
+export function getInitialServiceTask(fileName: string, outputParams?: OutputParams): ServiceTask {
 	const task: ServiceTask = {
-		...getInitialTask(id, fileName, outputParams),
+		...getInitialTask(-1, fileName, outputParams),
 		...{
 			ffmpeg: null,
 			remoteTask: false,
