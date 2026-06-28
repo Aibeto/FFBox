@@ -1246,6 +1246,49 @@ function getRouter(): Router {
 
 	/**
 	 * @openapi
+	 * /api/v1/tasks/output-files:
+	 *   post:
+	 *     summary: 批量获取任务的输出文件信息（用于批量下载）
+	 *     description: 接收任务 ID 和可选的 runIndex 列表，返回每个任务的输出文件路径和参数。runIndex 未指定时默认取最后一个 run。
+	 *     security:
+	 *       - bearerAuth: []
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               taskRunEntries:
+	 *                 type: array
+	 *                 items:
+	 *                   type: object
+	 *                   properties:
+	 *                     taskId:
+	 *                       type: integer
+	 *                     runIndex:
+	 *                       type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 输出文件信息列表
+	 */
+	router.post('/api/v1/tasks/output-files', optionalAuth, async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		const { taskRunEntries } = ctx.request.body;
+		if (!Array.isArray(taskRunEntries)) {
+			ctx.status = 400;
+			ctx.body = { error: 'taskRunEntries must be an array' };
+			return;
+		}
+		ctx.body = await ffboxService!.getTaskOutputFiles(taskRunEntries);
+	});
+
+	/**
+	 * @openapi
 	 * /api/v1/tasks/{id}/merge-upload:
 	 *   post:
 	 *     summary: 合并上传的文件

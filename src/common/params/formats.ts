@@ -516,7 +516,7 @@ export const keepFileTimeList: NarrowedMenuItem[] = [
 /**
  * 获取输出参数的命令行（对每个输出均需调用一次）
  * @param overrideFilePath 代替 muxParams.filePath 的文件路径，不进行扩展名等替换，只做引号处理
- * @param replaceContext 占位符替换上下文（taskId、taskIndex、outputIndex 等）
+ * @param replaceContext 占位符替换上下文（taskId、taskIndex、runIndex、outputIndex 等）
  */
 export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, fileName: string, withQuotes = false, overrideFilePath?: string, replaceContext?: FilePathReplaceContext) {
 	let ret = [];
@@ -610,6 +610,7 @@ export function getMuxFFmpegParam(muxParams: OutputParams_mux, filedir: string, 
 				fileExt: extension,
 				taskId: replaceContext?.taskId,
 				taskIndex: replaceContext?.taskIndex,
+				runIndex: replaceContext?.runIndex,
 				outputIndex: replaceContext?.outputIndex,
 			});
 		}
@@ -690,7 +691,7 @@ export function getInputFFmpegParam(inputParams: OutputParams_input, withQuotes 
  * 获取不包含目录信息的输出文件名
  * 用于前端在下载时恢复输出文件名信息
  */
-export function getOutputFileBaseName(muxParams: OutputParams_mux, fileName: string, replaceContext?: FilePathReplaceContext) {
+export function getOutputFileBaseName(muxParams: OutputParams_mux, replaceContext?: FilePathReplaceContext) {
 	let extension = '';
 
 	if (muxParams.format?.length && muxParams.format !== '无') {
@@ -703,10 +704,11 @@ export function getOutputFileBaseName(muxParams: OutputParams_mux, fileName: str
 
 	let outputFilePath = applyFilePathReplace(muxParams.filePath, {
 		fileDir: '',
-		fileName: fileName,
+		fileName: replaceContext?.fileName,
 		fileExt: extension,
 		taskId: replaceContext?.taskId,
 		taskIndex: replaceContext?.taskIndex,
+		runIndex: replaceContext?.runIndex,
 		outputIndex: replaceContext?.outputIndex,
 	});
 	outputFilePath = outputFilePath.replace(/^[/\\]+/, "");	// 去除开头斜杠

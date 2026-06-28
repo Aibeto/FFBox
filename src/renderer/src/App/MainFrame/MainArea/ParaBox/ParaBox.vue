@@ -39,7 +39,7 @@ const outputSelectionList = computed(() => appStore.globalParams.outputs.map((ou
 
 const globalParamsText = computed(() => {
 	try {
-		const globalparamsArray = getFFmpegParaArray({ outputParams: appStore.globalParams, withQuotes: true, taskId: '[任务 ID]' as any, taskIndex: '[任务序号]' as any });
+		const globalparamsArray = getFFmpegParaArray({ outputParams: appStore.globalParams, withQuotes: true, taskId: '[任务 ID]' as any, taskIndex: '[任务序号]' as any, runIndex: '[运行次序]' as any });
 		return ['ffmpeg', ...globalparamsArray].join(' ');
 	} catch (e) {
 		console.error(e);

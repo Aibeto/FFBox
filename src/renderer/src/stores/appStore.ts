@@ -411,6 +411,7 @@ export const useAppStore = defineStore('app', {
 						const uiTask = getInitialUITask(task.id, '');
 						mergeTaskFromService(uiTask, task);
 						uiTask.taskIndex = newStart + merged.length;
+						uiTask.selectedRunIndex = uiTask.runs.length - 1;
 						merged.push(uiTask);
 					}
 					for (const task of existingInRange) {
@@ -420,6 +421,7 @@ export const useAppStore = defineStore('app', {
 						const uiTask = getInitialUITask(task.id, '');
 						mergeTaskFromService(uiTask, task);
 						uiTask.taskIndex = newStart + merged.length;
+						uiTask.selectedRunIndex = uiTask.runs.length - 1;
 						merged.push(uiTask);
 					}
 
@@ -464,6 +466,7 @@ export const useAppStore = defineStore('app', {
 					const uiTask = getInitialUITask(task.id, '');
 					mergeTaskFromService(uiTask, task);
 					uiTask.taskIndex = globalIndex;
+					uiTask.selectedRunIndex = uiTask.runs.length - 1;
 					newTasks.push(uiTask);
 				}
 				newMap.set(task.id, i);

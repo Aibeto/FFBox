@@ -1,6 +1,6 @@
 /**
  * 输出文件路径替换上下文
- * 供 [filedir]、[filename]、[fileext]、[taskId]、[taskIndex]、[outputIndex] 等占位符使用
+ * 供 [filedir]、[filename]、[fileext]、[taskId]、[taskIndex]、[runIndex]、[outputIndex] 等占位符使用
  */
 export interface FilePathReplaceContext {
 	fileDir?: string;
@@ -8,6 +8,7 @@ export interface FilePathReplaceContext {
 	fileExt?: string;
 	taskId?: number;
 	taskIndex?: number;
+	runIndex?: number;
 	outputIndex?: number;
 }
 
@@ -20,6 +21,7 @@ export function applyFilePathReplace(filePath: string, ctx: FilePathReplaceConte
 	filePath = filePath.replace(/\[fileext\]/g, ctx.fileExt ?? '');
 	filePath = filePath.replace(/\[taskId\]/g, ctx.taskId !== undefined ? String(ctx.taskId) : '');
 	filePath = filePath.replace(/\[taskIndex\]/g, ctx.taskIndex !== undefined ? String(ctx.taskIndex) : '');
+	filePath = filePath.replace(/\[runIndex\]/g, ctx.runIndex !== undefined ? String(ctx.runIndex) : '');
 	filePath = filePath.replace(/\[outputIndex\]/g, ctx.outputIndex !== undefined ? String(ctx.outputIndex) : '');
 	return filePath;
 }

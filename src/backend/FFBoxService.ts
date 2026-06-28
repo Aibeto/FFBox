@@ -532,12 +532,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const taskIndex = this.taskList.getIndexById(id);
 		const run = task.runs[1];
 		if (isRemote) {
-			run.outputFiles = genTaskOutputFiles(run.after, ``, { taskId: id, taskIndex });
-			run.paraArray = getFFmpegParaArray({ outputParams: run.after, withQuotes: true, overrideFilePaths: run.outputFiles, taskId: id, taskIndex });
+			run.outputFiles = genTaskOutputFiles(run.after, ``, { taskId: id, taskIndex, runIndex: 1 });
+			run.paraArray = getFFmpegParaArray({ outputParams: run.after, withQuotes: true, overrideFilePaths: run.outputFiles, taskId: id, taskIndex, runIndex: 1 });
 			this.taskList.setStatus(id, TaskStatus.initializing);
 			task.remoteTask = true;
 		} else {
-			run.paraArray = getFFmpegParaArray({ outputParams: run.after, withQuotes: true, taskId: id, taskIndex });
+			run.paraArray = getFFmpegParaArray({ outputParams: run.after, withQuotes: true, taskId: id, taskIndex, runIndex: 1 });
 			if (firstFilePath?.length && !skipMetadataScan) {
 				this.getFileMetadata(id, task);
 			}
@@ -779,7 +779,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			}
 		}
 		const latestRun = task.runs[task.runs.length - 1];
-		latestRun.paraArray = getFFmpegParaArray({ outputParams: after, withQuotes: true, overrideFilePaths: latestRun.outputFiles, taskId: id, taskIndex: this.taskList.getIndexById(id) });
+		latestRun.paraArray = getFFmpegParaArray({ outputParams: after, withQuotes: true, overrideFilePaths: latestRun.outputFiles, taskId: id, taskIndex: this.taskList.getIndexById(id), runIndex: task.runs.length - 1 });
 		this.setNotification(id, `任务「${task.taskName}」输入文件「${fileBaseName}」上传完成`, NotificationLevel.info);
 		this.emitTaskUpdate(id, task);
 	}
@@ -941,11 +941,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			newFFmpeg = new FFmpeg(
 				this.ffmpegPath,
 				0,
-				getFFmpegParaArray({ outputParams: run.after, inputDir: `${os.tmpdir()}/FFBoxUploadCache`, overrideFilePaths: run.outputFiles.map((fileBaseName) => `${os.tmpdir()}/FFBoxDownloadCache/${fileBaseName}`), taskId: id, taskIndex })
+				getFFmpegParaArray({ outputParams: run.after, inputDir: `${os.tmpdir()}/FFBoxUploadCache`, overrideFilePaths: run.outputFiles.map((fileBaseName) => `${os.tmpdir()}/FFBoxDownloadCache/${fileBaseName}`), taskId: id, taskIndex, runIndex })
 			);
 		} else {
-			run.outputFiles = genTaskOutputFiles(run.after, undefined, { taskId: id, taskIndex });	// 本地任务的 outputFiles 在任务开始时才生成，而远程任务则是在添加和修改参数时就刷新
-			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray({ outputParams: run.after, taskId: id, taskIndex }));
+			run.outputFiles = genTaskOutputFiles(run.after, undefined, { taskId: id, taskIndex, runIndex });	// 本地任务的 outputFiles 在任务开始时才生成，而远程任务则是在添加和修改参数时就刷新
+			newFFmpeg = new FFmpeg(this.ffmpegPath, 0, getFFmpegParaArray({ outputParams: run.after, taskId: id, taskIndex, runIndex }));
 		}
 		newFFmpeg.on('closed', async (errorCode, runningResult) => {
 			if (errorCode) {
@@ -1283,10 +1283,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			const newRun = getNewRun(JSON.parse(JSON.stringify(latestRun.after)));
 			task.runs.push(newRun);
 			if (task.remoteTask) {
-				newRun.outputFiles = genTaskOutputFiles(newRun.after, ``, { taskId: id, taskIndex });
-				newRun.paraArray = getFFmpegParaArray({ outputParams: newRun.after, withQuotes: true, overrideFilePaths: newRun.outputFiles, taskId: id, taskIndex });
+				newRun.outputFiles = genTaskOutputFiles(newRun.after, ``, { taskId: id, taskIndex, runIndex: task.runs.length - 1 });
+				newRun.paraArray = getFFmpegParaArray({ outputParams: newRun.after, withQuotes: true, overrideFilePaths: newRun.outputFiles, taskId: id, taskIndex, runIndex: task.runs.length - 1 });
 			} else {
-				newRun.paraArray = getFFmpegParaArray({ outputParams: newRun.after, withQuotes: true, taskId: id, taskIndex });
+				newRun.paraArray = getFFmpegParaArray({ outputParams: newRun.after, withQuotes: true, taskId: id, taskIndex, runIndex: task.runs.length - 1 });
 			}
 		}
 
@@ -1557,10 +1557,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			targetRun.after = replaceOutputParams(params, targetRun.after, fullyReplace);
 			const taskIndex = this.taskList.getIndexById(id);
 			if (task.remoteTask) {
-				targetRun.outputFiles = genTaskOutputFiles(targetRun.after, ``, { taskId: id, taskIndex });
-				targetRun.paraArray = getFFmpegParaArray({ outputParams: targetRun.after, withQuotes: true, overrideFilePaths: targetRun.outputFiles, taskId: id, taskIndex });
+				targetRun.outputFiles = genTaskOutputFiles(targetRun.after, ``, { taskId: id, taskIndex, runIndex: task.runs.length - 1 });
+				targetRun.paraArray = getFFmpegParaArray({ outputParams: targetRun.after, withQuotes: true, overrideFilePaths: targetRun.outputFiles, taskId: id, taskIndex, runIndex: task.runs.length - 1 });
 			} else {
-				targetRun.paraArray = getFFmpegParaArray({ outputParams: targetRun.after, withQuotes: true, taskId: id, taskIndex });
+				targetRun.paraArray = getFFmpegParaArray({ outputParams: targetRun.after, withQuotes: true, taskId: id, taskIndex, runIndex: task.runs.length - 1 });
 			}
 			this.emitTaskUpdate(id, task);
 		}
@@ -1648,25 +1648,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.notifications[notificationId] = notification;
 	}
 
-	/**
-	 * 任务区段查询：返回 [offset, offset+size) 范围内的任务列表或 ID 列表
-	 */
-	public async getTaskList(offset: number, size: number): Promise<Task[]>;
-	public async getTaskList(offset: number, size: number, idOnly: true): Promise<number[]>;
-	public async getTaskList(offset: number, size: number, idOnly?: boolean): Promise<Task[] | number[]> {
-		if (idOnly) {
-			return this.taskList.getRangeIds(offset, size);
-		}
-		return this.taskList.getRange(offset, size);
-	}
-
-	/**
-	 * 按状态筛选任务 ID 列表
-	 */
-	public getTaskIdsByStatus(status: TaskStatus): number[] {
-		return this.taskList.getIdsByStatus(status);
-	}
-
 	private activate(activationCode: string): boolean {
 		if (validUntil !== undefined && new Date() > validUntil) {
 			this.setNotification(undefined, 'FFBox 内部版本已过期，当前版本功能受限，请更新版本后使用。', NotificationLevel.warning);
@@ -1720,6 +1701,56 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				NotificationLevel.warning,
 			);
 		}
+	}
+
+	/**
+	 * 任务区段查询：返回 [offset, offset+size) 范围内的任务列表或 ID 列表
+	 */
+	public async getTaskList(offset: number, size: number): Promise<Task[]>;
+	public async getTaskList(offset: number, size: number, idOnly: true): Promise<number[]>;
+	public async getTaskList(offset: number, size: number, idOnly?: boolean): Promise<Task[] | number[]> {
+		if (idOnly) {
+			return this.taskList.getRangeIds(offset, size);
+		}
+		return this.taskList.getRange(offset, size);
+	}
+
+	/**
+	 * 按状态筛选任务 ID 列表
+	 */
+	public getTaskIdsByStatus(status: TaskStatus): number[] {
+		return this.taskList.getIdsByStatus(status);
+	}
+
+	/**
+	 * 批量获取任务的输出文件信息（用于批量下载）
+	 * @param taskRunEntries 每个任务的 { taskId, runIndex? }。runIndex 未指定时默认取最后一个 run
+	 * @returns 每个任务的 { taskId, taskIndex, taskName, outputFiles, after, before }
+	 */
+	public async getTaskOutputFiles(taskRunEntries: { taskId: number; runIndex?: number }[]): Promise<{ taskId: number; taskIndex: number; runIndex: number; taskName: string; outputFiles: string[]; after: OutputParams; before: ServiceTask['before'] }[]> {
+		const result: { taskId: number; taskIndex: number; runIndex: number; taskName: string; outputFiles: string[]; after: OutputParams; before: ServiceTask['before'] }[] = [];
+		for (const entry of taskRunEntries) {
+			const task = this.taskList.getById(entry.taskId);
+			if (!task) continue;
+			const runIndex = entry.runIndex ?? task.runs.length - 1;
+			const run = task.runs[runIndex];
+			if (!run) continue;
+			// 如果 outputFiles 为空（本地任务尚未启动），不要即时计算，而是跳过
+			let outputFiles = run.outputFiles;
+			if (!outputFiles || outputFiles.length === 0) {
+				continue;
+			}
+			result.push({
+				taskId: entry.taskId,
+				taskIndex: this.taskList.getIndexById(entry.taskId),
+				runIndex,
+				taskName: task.taskName,
+				outputFiles,
+				after: run.after,
+				before: task.before,
+			});
+		}
+		return result;
 	}
 
 	/**

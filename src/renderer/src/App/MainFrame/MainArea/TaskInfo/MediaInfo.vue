@@ -44,7 +44,7 @@ const openFile = (filePath: string, outputIndex: number) => {
 		} else {
 			const runIndex = task.selectedRunIndex;
 			const after = getTaskOutputParams(task, runIndex);
-			const newFileBaseName = getOutputFileBaseName(after.outputs[outputIndex].mux, task.taskName, { taskId: task.id, outputIndex });
+			const newFileBaseName = getOutputFileBaseName(after.outputs[outputIndex].mux, { fileName: task.taskName, taskId: task.id, taskIndex: task.taskIndex, runIndex, outputIndex });
 			const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 			if (nodeBridge.env === 'electron') {
 				let fileTime = undefined;

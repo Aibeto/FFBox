@@ -73,54 +73,10 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 
 	// 处理新增
 	if (data.added) {
-		let hasOutsideBuffer = false;
-		for (const { taskId, index } of data.added) {
-			// 全选模式下，新任务也自动加入选中集合
-			if (store.isAllSelected) {
-				store.selectedTask.add(taskId);
-			}
-			// 检查新增任务是否落在当前缓冲区范围内
-			if (index >= serverData.bufferStart && index < serverData.bufferEnd) {
-				const uiTask = getInitialUITask(taskId, '');
-				uiTask.taskIndex = index;
-				// 按全局序号找到正确的插入位置
-				let insertPos = serverData.tasks.length;
-				for (let i = 0; i < serverData.tasks.length; i++) {
-					if (serverData.tasks[i].taskIndex! > index) {
-						insertPos = i;
-						break;
-					}
-				}
-				serverData.tasks.splice(insertPos, 0, uiTask);
-				// 修正被 splice 影响的后续元素的索引
-				for (const [id, idx] of serverData.taskIdToIndex) {
-					if (idx >= insertPos) {
-						serverData.taskIdToIndex.set(id, idx + 1);
-					}
-				}
-				serverData.taskIdToIndex.set(taskId, insertPos);
-				// 更新缓冲区边界
-				serverData.bufferEnd++;
-				// 异步获取完整任务数据
-				setTimeout(() => {
-					store.updateTask(taskId);
-				}, 20);
-			} else {
-				hasOutsideBuffer = true;
-			}
-		}
-		// 如果新任务落在缓冲区外
-		if (hasOutsideBuffer) {
-			if (serverData.bufferStart + pageSize > serverData.totalCount) {
-				// 缓冲区起点 + 分页大小大于新任务总数，说明列表基本拉到了末尾
-				// 扩展边界末尾，拉取新任务信息
-				store.updateTaskList(Math.round(serverData.bufferStart + pageSize / 2), serverData.totalCount - 1, false);
-			} else {
-				// 以当前第一个可见任务为参考点，保持用户视图位置
-				// const firstTask = serverData.tasks[0];
-				// const refIndex = firstTask ? firstTask.taskIndex! : 0;
-				// 这.updateTaskList(server, refIndex);
-			}
+		const minTaskIndex = data.added.reduce((min, { taskId }) => Math.min(min, taskId), 0);
+		if (minTaskIndex < serverData.bufferEnd + pageSize) {
+			// 新任务在缓冲区范围内，那么对超过 bufferEnd 范围的任务进行拉取
+			store.updateTaskList(serverData.bufferStart + Math.round(pageSize / 2), undefined, false)
 		}
 	}
 };

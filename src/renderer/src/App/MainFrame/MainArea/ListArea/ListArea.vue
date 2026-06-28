@@ -2,10 +2,9 @@
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
-import { NotificationLevel } from '@common/types';
-import { UITask } from '@renderer/types';
+import { NotificationLevel, Task } from '@common/types';
 import { getOutputFileBaseName } from '@common/params/formats';
-import { getOutputFileTime, getTaskOutputParams } from '@common/utils';
+import { getOutputFileTime } from '@common/utils';
 import { useScrollStop } from './useScrollStop';
 import CoarseSlider from './CoarseSlider.vue';
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
@@ -133,27 +132,31 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 				appStore.deleteTasks([...appStore.selectedTask]);
 			} },
 			...(appStore.currentServer?.entity.ip !== 'localhost' ? [
-				{ type: 'normal' as const, icon: <span>⬇️</span>, label: '下载输出文件', value: '下载输出文件', tooltip: '将所有已完成任务输出文件下载到指定文件夹\n。输出文件取决于当前界面上显示的运行次序。', onClick: () => {
+				{ type: 'normal' as const, icon: <span>⬇️</span>, label: '下载输出文件', value: '下载输出文件', tooltip: '将所有已完成任务输出文件下载到指定文件夹\n。输出文件取决于当前界面上显示的运行次序。', onClick: async () => {
 					if (!appStore.currentServer) { debugger; throw 'ub'; }
 					const entity = appStore.currentServer.entity;
 					const data = appStore.currentServer.data;
-					const tasks = [...appStore.selectedTask].map((taskId) => {
+					// 构建 taskRunEntries：缓冲区内的任务带上 selectedRunIndex，缓冲区外的不带（后端默认取最后一个 run）
+					const taskRunEntries = [...appStore.selectedTask].map((taskId) => {
 						const idx = data.taskIdToIndex.get(taskId);
-						return idx !== undefined ? data.tasks[idx] : undefined;
-					}).filter(Boolean) as UITask[];
+						const entry: { taskId: number; runIndex?: number } = { taskId };
+						if (idx !== undefined) entry.runIndex = data.tasks[idx].selectedRunIndex;
+						return entry;
+					});
+					// 调用后端接口获取所有任务的输出文件信息
+					const result = await entity.getTaskOutputFiles(taskRunEntries);
 					if (nodeBridge.env === 'electron') {
 						const downloadList = [];
-						for (const task of tasks) {
-							const currentRun = task.runs[task.selectedRunIndex];
-							for (const [s_index, filePath] of Object.entries(currentRun.outputFiles)) {
-								const after = getTaskOutputParams(task, task.selectedRunIndex);
-								const newFileBaseName = getOutputFileBaseName(after.outputs[+s_index].mux, task.taskName, { taskId: task.id, outputIndex: +s_index });
+						for (const item of result) {
+							for (const [s_index, filePath] of Object.entries(item.outputFiles)) {
+								const newFileBaseName = getOutputFileBaseName(item.after.outputs[+s_index].mux, { fileName: item.taskName, taskId: item.taskId, taskIndex: item.taskIndex, runIndex: item.runIndex, outputIndex: +s_index });
 								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 								let fileTime = undefined;
-								const output = after.outputs[+s_index];
+								const output = item.after.outputs[+s_index];
 								const mux = output.mux;
-								if (mux.keepFileTime) {
-									let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, +s_index, task.selectedRunIndex);
+								if (mux.keepFileTime && item.before) {
+									const pseudoTask = { before: item.before } as Task;
+									let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(pseudoTask, +s_index);
 									fileTime = { accessTime, createTime, modifyTime };
 								}
 								downloadList.push({ url, finalFileBaseName: newFileBaseName, fileTime });
@@ -162,14 +165,12 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 						}
 						nodeBridge.ipcRenderer?.send('downloadFiles', { sessionId: entity.sessionId, files: downloadList });
 					} else {
-						for (const task of tasks) {
-							const currentRun = task.runs[task.selectedRunIndex];
-							for (const [s_index, filePath] of Object.entries(currentRun.outputFiles)) {
-								const after = getTaskOutputParams(task, task.selectedRunIndex);
-								const newFileBaseName = getOutputFileBaseName(after.outputs[+s_index].mux, task.taskName, { taskId: task.id, outputIndex: +s_index });
+						for (const item of result) {
+							for (const [s_index, filePath] of Object.entries(item.outputFiles)) {
+								const newFileBaseName = getOutputFileBaseName(item.after.outputs[+s_index].mux, { fileName: item.taskName, taskId: item.taskId, taskIndex: item.taskIndex, runIndex: item.runIndex, outputIndex: +s_index });
 								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 								const elem = document.createElement('a');
-								elem.href = `${url}?fileBaseName=${newFileBaseName}`;	// 目前只对浏览器环境添加此参数控制响应的 header。electron 环境会涉及 encodeURI 的操作，因此较方便的做法是分开处理
+								elem.href = `${url}?fileBaseName=${newFileBaseName}`;
 								elem.click();
 							}
 						}

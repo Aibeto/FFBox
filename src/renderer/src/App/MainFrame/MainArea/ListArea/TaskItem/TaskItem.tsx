@@ -388,7 +388,7 @@ export const TaskItem = defineComponent((props: Props) => {
 			nodeBridge.openFile(`"${filePath}"`);
 		} else {
 			const task = props.task;
-			const newFileBaseName = getOutputFileBaseName(currentAfter.value.outputs[outputIndex].mux, task.taskName, { taskId: task.id, outputIndex });
+			const newFileBaseName = getOutputFileBaseName(currentAfter.value.outputs[outputIndex].mux, { fileName: task.taskName, taskId: task.id, taskIndex: props.index, runIndex: task.selectedRunIndex, outputIndex });
 			const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
 			if (nodeBridge.env === 'electron') {
 				let fileTime = undefined;

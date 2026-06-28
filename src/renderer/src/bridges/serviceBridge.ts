@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import CryptoJS from 'crypto-js';
 import { TypedEventEmitter } from '@common/utils';
-import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, Notification, OutputParams, Task, TaskStatus } from '@common/types';
+import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, InputInfo, Notification, OutputParams, Task, TaskStatus } from '@common/types';
 
 export interface ServeiceBridgeEvent {
 	connected: () => void;
@@ -267,14 +267,6 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/stop`, { reason });
 	}
 
-	public getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<Frame[]> {
-		return this.httpRequest<Frame[]>('POST', `/api/v1/tasks/${id}/frame-info`, { fileIndex, videoStreamIndex, type });
-	}
-
-	public getThumbnailStream(id: number, fileIndex: number, videoStreamIndex: number, width: number, height: number, density: 'M' | 'H', abortSignal: AbortSignal): Promise<Response> {
-		return this.fetchHttp(`/api/v1/tasks/${id}/thumbnail-stream?fileIndex=${fileIndex}&videoStreamIndex=${videoStreamIndex}&width=${width}&height=${height}&density=${density}`, abortSignal);
-	}
-
 	// #endregion
 
 	// #region 队列管理
@@ -320,6 +312,18 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	 */
 	public getTaskIdsByStatus(status: TaskStatus): Promise<{ taskIds: number[], totalCount: number }> {
 		return this.httpRequest<any>('GET', `/api/v1/tasks?status=${status}`);
+	}
+
+	public getTaskOutputFiles(taskRunEntries: { taskId: number; runIndex?: number }[]): Promise<{ taskId: number; taskIndex: number; runIndex: number; taskName: string; outputFiles: string[]; after: OutputParams; before: InputInfo[] }[]> {
+		return this.httpRequest<any>('POST', '/api/v1/tasks/output-files', { taskRunEntries });
+	}
+
+	public getMediaFrameInfo(id: number, fileIndex: number, videoStreamIndex: number, type?: 'fast' | 'full' | 'stop'): Promise<Frame[]> {
+		return this.httpRequest<Frame[]>('POST', `/api/v1/tasks/${id}/frame-info`, { fileIndex, videoStreamIndex, type });
+	}
+
+	public getThumbnailStream(id: number, fileIndex: number, videoStreamIndex: number, width: number, height: number, density: 'M' | 'H', abortSignal: AbortSignal): Promise<Response> {
+		return this.fetchHttp(`/api/v1/tasks/${id}/thumbnail-stream?fileIndex=${fileIndex}&videoStreamIndex=${videoStreamIndex}&width=${width}&height=${height}&density=${density}`, abortSignal);
 	}
 
 	public subscribeTasks(taskIds: number[]): void {
