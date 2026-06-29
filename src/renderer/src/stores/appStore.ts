@@ -348,16 +348,17 @@ export const useAppStore = defineStore('app', {
 		/**
 		 * 获取 service 的 taskList 更新到本地（基于缓冲区范围）
 		 * 既是初始化加载的入口，也是滚动停止/粗调跳转后的刷新方法
-		 * @param firstVisibleIndex 可见范围中第一个任务的全局序号（默认 0）
-		 * @param lastVisibleIndex 可见范围中最后一个任务的全局序号（默认 firstVisibleIndex）
+		 * @param firstVisibleIndex 可见范围中第一个任务的全局序号（默认取 viewRange）
+		 * @param lastVisibleIndex 可见范围中最后一个任务的全局序号（默认取 viewRange）
 		 * @param force 是否强制完整拉取（默认 true）。为 false 且处于无限滚动模式时，仅拉取缓冲区前后缺失的部分
 		 * 计算范围：firstVisibleIndex - pageSize/2 ~ lastVisibleIndex + pageSize/2
 		 */
-		async updateTaskList(firstVisibleIndex: number = 0, lastVisibleIndex?: number, force: boolean = true): Promise<void> {
+		async updateTaskList(firstVisibleIndex?: number, lastVisibleIndex?: number, force: boolean = true): Promise<void> {
 			const server = this.currentServer;
 			if (!server) { debugger; throw 'ub'; }
 			const totalCount = server.data.totalCount;
-			const _last = lastVisibleIndex ?? firstVisibleIndex;
+			const _first = firstVisibleIndex ?? server.data.viewRange.firstIndex;
+			const _last = lastVisibleIndex ?? _first ?? server.data.viewRange.lastIndex;
 			const halfPage = Math.round(this.frontendSettings.taskListPageSize / 2);
 			const threshold = this.frontendSettings.taskListInfiniteScrollThreshold;
 
@@ -371,7 +372,7 @@ export const useAppStore = defineStore('app', {
 				newEnd = totalCount > 0 ? totalCount : 0;	// TODO 任务数量为 0 时有可能是初次加载
 			} else {
 				// 无限滚动模式：基于可见范围前后各预加载 halfPage
-				newStart = Math.max(0, firstVisibleIndex - halfPage);
+				newStart = Math.max(0, _first - halfPage);
 				newEnd = Math.min(totalCount, _last + halfPage + 1);
 			}
 
@@ -504,17 +505,6 @@ export const useAppStore = defineStore('app', {
 			this.isAllSelected = false;
 			this.taskSelectionModified = false;
 			return response.taskIds;
-		},
-		/**
-		 * 跳转到指定范围（粗调滑动条松手后使用）
-		 * @param start 可见范围起始 index
-		 * @param end 可见范围结束 index
-		 */
-		jumpToRange(start: number, end: number) {
-			const totalCount = this.currentServer?.data.totalCount;
-			if (!totalCount) return;
-			console.log('粗调跳转', start, '~', end);
-			this.updateTaskList(start, end);
 		},
 		/**
 		 * 获取 service 的 task 更新到本地
@@ -977,6 +967,7 @@ export const useAppStore = defineStore('app', {
 					totalCount: 0,
 					bufferStart: 0,
 					bufferEnd: 0,
+					viewRange: { firstIndex: 0, lastIndex: 0 },
 					workingStatus: WorkingStatus.idle,
 					progress: 0,
 					asyncList: [],

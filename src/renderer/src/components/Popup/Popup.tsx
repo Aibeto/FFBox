@@ -43,8 +43,16 @@ const Popup = function (options: PopupOptions) {
 	render(vnode, DOM);
 	const instance = { id, vnode, DOM };
 	instances.unshift(instance);
-	// DOM 渲染完成
-	nextTick(reCalcVerticalOffset);
+	// console.log('气泡数量', instances.length, container.children.length);
+	if (instances.length >= 30) {
+		// 删除过多的气泡避免卡顿
+		const oldest = instances.pop()!;
+		// oldest.vnode.component!.props.show = false;	// 停止计时器
+		render(null, oldest.DOM);
+		container.removeChild(oldest.DOM);
+	}
+	
+	nextTick(reCalcVerticalOffset);	// 等待 Vue 将组件渲染到 DOM 上后修改其他气泡的偏移量
 	return instance;
 }
 
@@ -52,6 +60,7 @@ function handleOnWillClose(id: number, isUserInteraction?: boolean) {
 	let index = instances.findIndex((item) => {
 		return item.id === id;
 	});
+	// console.log('气泡 will close', id);
 	instances.splice(index, 1);
 	setTimeout(() => {
 		reCalcVerticalOffset();

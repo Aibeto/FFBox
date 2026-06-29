@@ -82,14 +82,14 @@ const Comp = defineComponent((props: P) => {
 		<div class={css.serverConfig}>
 			<BoxedNormalInput
 				title="同时转码任务数量" value={maxThreadsValue.value} onChange={(value) => maxThreadsValue.value = value} inputFixer={posIntegerFixer} placeholder="1"
-				{ ...useTooltip(`开始转码队列后，会使所有未完成任务进入排队状态，并持续挑选最靠前的任务开始运行。同时运行的任务数量受此控制${maxThreadsLimit.value ? `\n（您的用户等级最高支持同时运行 ${maxThreadsLimit.value} 个任务）` : ''}`, 't') }
+				{ ...useTooltip(`开始转码队列后，会使所有未完成任务进入排队状态，并持续挑选最靠前的任务开始运行。同时运行的任务数量受此控制。\n请量力而为。若同时运行任务数过多，可能会因为缓冲区溢出而导致部分任务状态异常（不影响 ffmpeg 工作）${maxThreadsLimit.value ? `\n（您的用户等级最高支持同时运行 ${maxThreadsLimit.value} 个任务）` : ''}`, 't') }
 			/>
 			<BoxedSwitch
-				title="保留未完成任务" checked={preserveUnfinishedTasksValue.value} onChange={(value) => preserveUnfinishedTasksValue.value = value}
+				title="保留未完成任务" checked={preserveUnfinishedTasksValue.value} onChange={(value) => preserveUnfinishedTasksValue.value = value!}
 				{ ...useTooltip('若转码服务意外退出，下次运行时将自动将转码途中未完成任务恢复到任务列表', 't')}
 			/>
 			<BoxedSwitch
-				title="任务完成自动移除" checked={deleteFinishedTasksValue.value} onChange={(value) => deleteFinishedTasksValue.value = value}
+				title="任务完成自动移除" checked={deleteFinishedTasksValue.value} onChange={(value) => deleteFinishedTasksValue.value = value!}
 				{ ...useTooltip('任务成功转码后自动从任务列表中移除。任务出错则不受此设置影响', 't')}
 			/>
 			<BoxedNormalInput

@@ -1,5 +1,5 @@
 <script setup lang="tsx">
-import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { NotificationLevel, Task } from '@common/types';
@@ -339,6 +339,7 @@ const handleCoarseSliderChange = (start: number, end: number) => {
 	isPassiveScrolling.value = true;
 
 	// 跳转后，传入 start/end 作为可见范围，updateTaskList 内部会按缓冲区大小进行数据更新
+	appStore.currentServer!.data.viewRange = { firstIndex: start, lastIndex: end };
 	appStore.updateTaskList(start, end, false).then(() => {
 		// 数据更新且 DOM 渲染后，居中滚动
 		setTimeout(() => {
@@ -382,6 +383,7 @@ watch(() => appStore.frontendSettings.taskListPageSize, (newPageSize) => {
 	fetchingListPreventAnimation.value = true;
 
 	// 传入首尾可见任务的 index，updateTaskList 内部会按缓冲区大小进行数据更新
+	appStore.currentServer!.data.viewRange = { firstIndex: range.firstIndex, lastIndex: range.lastIndex };
 	appStore.updateTaskList(range.firstIndex, range.lastIndex, true).then(() => {
 		setTimeout(() => {
 			fetchingListPreventAnimation.value = false;
@@ -392,6 +394,44 @@ watch(() => appStore.frontendSettings.taskListPageSize, (newPageSize) => {
 	// 同步粗调滚动条
 	coarseStart.value = range.firstIndex;
 	coarseEnd.value = range.lastIndex;
+});
+
+// 切换服务器标签页时，暂时禁用动画，并恢复列表的 scrollTop
+watch(() => appStore.currentServer, (newServer) => {
+	if (!newServer) return;
+	const { viewRange, bufferStart } = newServer.data;
+	if (viewRange.firstIndex === 0 && viewRange.lastIndex === 0) return;
+
+	fetchingListPreventAnimation.value = true;
+	// isPassiveScrolling.value = true;
+	nextTick(() => {
+		const container = listContainerRef.value;
+		const taskList = taskListRef.value;
+		if (!container || !taskList) return;
+
+		// 在 DOM 中查找 viewRange.firstIndex 对应的任务元素
+		for (let i = 0; i < taskList.children.length; i++) {
+			const el = taskList.children[i] as HTMLElement;
+			if (parseInt(el.dataset.taskindex ?? '') === viewRange.firstIndex) {
+				// 找到了：将该元素定位到视口顶部附近
+				container.scrollTop = el.offsetTop;
+				setTimeout(() => {
+					fetchingListPreventAnimation.value = false;
+					// isPassiveScrolling.value = false;
+				}, 0);
+				return;
+			}
+		}
+
+		// 未找到（目标不在当前缓冲区内），按平均任务高度估算（AI 写的，逻辑未校验）
+		const firstEl = taskList.children[0] as HTMLElement | undefined;
+		if (firstEl && taskList.children.length > 0) {
+			const avgHeight = taskList.offsetHeight / taskList.children.length;
+			container.scrollTop = (viewRange.firstIndex - bufferStart) * avgHeight;
+			console.warn('自上次离开标签页后，任务列表发生变化，原锚点已不存在，按平均任务高度估算滚动位置');
+		}
+
+	});
 });
 
 // 粗调面板鼠标进入时，显示浮标并且不消失
@@ -453,10 +493,13 @@ function handleListScroll() {
  */
  const handleScrollStop = () => {
 	if (!appStore.currentServer) return;
-	if (!showCoarseScrollbar.value) return;	// 无限滚动未启用时，不响应滚动停止事件
-
 	const range = getVisibleRange();
 	if (!range) return;
+
+	// 同步视区到 store，供其他地方调用 updateTaskList 时使用
+	appStore.currentServer!.data.viewRange = { firstIndex: range.firstIndex, lastIndex: range.lastIndex };
+
+	if (!showCoarseScrollbar.value) return;	// 无限滚动未启用时，不响应以下无限滚动停止事件
 
 	const requestId = ++latestRequestId.value;	// 递增 id
 

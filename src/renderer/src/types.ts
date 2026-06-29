@@ -76,6 +76,7 @@ export interface ServerData {
 	totalCount: number;		// 任务总数（来自后端）
 	bufferStart: number;	// 当前缓冲区起始的全局偏移（含）
 	bufferEnd: number;		// 当前缓冲区结束的全局偏移（不含）
+	viewRange: { firstIndex: number; lastIndex: number };	// 当前可见任务范围，由 ListArea 同步
 	workingStatus: WorkingStatus;
 	progress: number;	// 由后端 statusUpdate 事件推送
 	asyncList: { type: string }[];	// 异步操作列表，由 asyncListUpdate 事件推送

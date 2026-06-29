@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, Fragment, h, inject, onMounted, ref, watch } from 'vue';
+import { computed, Fragment, h, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { colorThemeKey } from '../injectionKeys';
 import IconX from '@renderer/assets/×.svg?component';
 
@@ -22,6 +22,7 @@ const timeLeft = ref(0);
 const mouseIn = ref(false);
 const delayedVerticalOffset = ref(0);
 const popupAnimateName = ref('popupanimate');	// 用户主动关闭时换一个动画
+let timerId: ReturnType<typeof setTimeout> | undefined;
 
 const newLinedMessage = computed(() => h(
 	Fragment,
@@ -86,7 +87,7 @@ onMounted(() => {
 		}
 		if (show.value) {
 			if (powerSave) {
-				setTimeout(count, 67);
+				timerId = setTimeout(count, 67);
 			} else {
 				requestAnimationFrame(count);
 			}
@@ -94,6 +95,11 @@ onMounted(() => {
 		lastTime = now;
 	}
 	count();
+});
+
+onBeforeUnmount(() => {
+	show.value = false;
+	if (timerId !== undefined) clearTimeout(timerId);
 });
 
 watch(() => props.verticalOffset, (newValue) => {
@@ -110,7 +116,7 @@ watch(() => props.verticalOffset, (newValue) => {
 		class="popup"
 		@mouseenter="mouseIn = true"
 		@mouseleave="mouseIn = false"
-		:style="{ transform: `translateY(${-delayedVerticalOffset}px)` }"
+		:style="{ transform: `translateY(${-delayedVerticalOffset}px)`, pointerEvents: show ? 'auto' : 'none' }"
 	>
 		<Transition :name="popupAnimateName" @after-leave="props.onClose()">
 			<div v-if="show" :class="bgClass" @mouseup="handleMouseUp">

@@ -31,7 +31,7 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 	serverData.totalCount = data.totalCount;
 
 	// 处理删除
-	if (data.removed) {
+	if (data.removed?.length) {
 		let deletedFromBuffer = false;
 		for (const { taskId } of data.removed) {
 			store.selectedTask.delete(taskId);
@@ -66,17 +66,17 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 				}
 			} else {
 				// 边界末尾不是列表末尾，保持边界不变，重新拉取数据填充
-				store.updateTaskList(Math.round(serverData.bufferStart + pageSize / 2), Math.round(serverData.bufferStart + pageSize / 2), false);
+				store.updateTaskList(undefined, undefined, false);
 			}
 		}
 	}
 
 	// 处理新增
-	if (data.added) {
-		const minTaskIndex = data.added.reduce((min, { taskId }) => Math.min(min, taskId), 0);
+	if (data.added?.length) {
+		const minTaskIndex = data.added.reduce((min, { index }) => Math.min(min, index), Number.MAX_SAFE_INTEGER);
 		if (minTaskIndex < serverData.bufferEnd + pageSize) {
 			// 新任务在缓冲区范围内，那么对超过 bufferEnd 范围的任务进行拉取
-			store.updateTaskList(serverData.bufferStart + Math.round(pageSize / 2), undefined, false)
+			store.updateTaskList(undefined, undefined, false)
 		}
 	}
 };

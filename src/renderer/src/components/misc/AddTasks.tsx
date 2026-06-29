@@ -124,7 +124,7 @@ const Comp = defineComponent((props: Props) => {
 				Popup({ message: '网页版无法将文件拖入文本框，请直接将文件拖入任务列表进行上传😊' });
 			}
 			for (const file of event.dataTransfer?.files || []) {
-				newPaths.push(file.path);
+				newPaths.push(file.path.replace(/\\/g, '/'));
 			}
 		} else if (event.dataTransfer?.items) {
 			const text = event.dataTransfer?.getData('text/plain');
