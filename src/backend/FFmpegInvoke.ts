@@ -64,6 +64,8 @@ interface FFmpegInvokerEvent {
 	warning: (arg: { content: string }) => void;
 }
 
+const yieldThreshold = 20;
+
 export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegInvokerEvent>) {
 	public process: ChildProcess | null = null;
 	private mode: 'direct' | 'version' | 'metadata' | 'getCodecs' | 'getFormats' | 'getFilters' | 'getFrameInfo';
@@ -118,7 +120,14 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 		});
 		this.process!.on('close', (code, signal) => {
 			this.process = null;
-			setTimeout(() => {
+			const onClose = () => {
+				const newLinePos = this.stdoutBuffer.indexOf('\n') >= 0 ? this.stdoutBuffer.indexOf('\n') : this.stdoutBuffer.indexOf(`\r`);
+				if (newLinePos > 0) {
+					return;	// 还有数据未处理完
+				} else {
+					clearInterval(closeTimer);
+				}
+
 				this.emit('closed', code, this.runningResult);
 				if (this.mode === 'getCodecs') {
 					this.emit('codecs', this.codecsResult, this.encoderDetail);
@@ -129,13 +138,15 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				} else if (this.mode === 'getFrameInfo') {
 					this.emit('frameInfo', { frames: this.framesResult });
 				}
-			}, 10);	// 这是为啥
+			};
+			const closeTimer = setInterval(onClose, 10);
 		});
 	}
 	stdoutProcessing(data: string): void {
 		this.stdoutBuffer += data.toString();
 		this.dataProcessing();
 	}
+	private lineCount = 0;
 	/**
 	 * FFmpeg 传回的数据处理总成
 	 */
@@ -636,11 +647,12 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 				break;
 			}
 
-		this.emit('data', { content: thisLine });	// 状态机运行过后再 emit，因为状态机内部可能会递归调用 dataProcessing()
-		setTimeout(() => {
-			// 约等于 while (true)，但加个延迟用于 doEvents
+		this.emit('data', { content: thisLine });	// 状态机运行过后再 emit，因为状态机内部可能会递归调用 dataProcessing()（这个好像是老注释）
+		if (++this.lineCount % yieldThreshold === 0) {
+			setTimeout(() => this.dataProcessing(), 0);
+		} else {
 			this.dataProcessing();
-		}, 0);
+		}
 	}
 	// 向 ffmpeg 发出停止信号
 	kill(callback: () => void): void {

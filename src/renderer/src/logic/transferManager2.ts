@@ -334,19 +334,14 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 		let content = JSON.parse(responseText) as number[];
 		if (content[0]) {
 			console.log(fileBaseName, '已缓存');
-			server.entity.mergeUploaded(taskId, file.chunks.map((chunk) => chunk.hash!).filter(Boolean), fileBaseName, inputName, { accessTime, createTime, modifyTime });
-			const taskUpdateHandler = (arg: { taskId: number }) => {
-				if (arg.taskId === taskId) {
-					server.entity.off('taskUpdate', taskUpdateHandler);
-					const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
-					if (!hasOtherUploadTask) {
-						server.entity.setUploadStatus(taskId, false);
-					}
-					// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
-					if (appStore.currentServer === server && appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
+			server.entity.mergeUploaded(taskId, file.chunks.map((chunk) => chunk.hash!).filter(Boolean), fileBaseName, inputName, { accessTime, createTime, modifyTime }).then(() => {
+				const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
+				if (!hasOtherUploadTask) {
+					server.entity.setUploadStatus(taskId, false);
 				}
-			};
-			server.entity.on('taskUpdate', taskUpdateHandler);
+				// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
+				if (appStore.currentServer === server && appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
+			});
 			for (const chunk of file.chunks) {
 				chunk.buffer = undefined;		// 释放内存
 				chunk.transferred = chunk.size;	// 显示上呈现完成状态
@@ -474,19 +469,14 @@ export async function addUploadTask(server: Server, input: string | File, taskId
 					// 全部上传完成
 					console.log(`【${file.fileBaseName}】文件上传完成`);
 					file.status = 'finished';
-					server.entity.mergeUploaded(file.taskId, file.chunks.map((chunk) => chunk.hash!).filter(Boolean), file.fileBaseName, inputName, { accessTime, createTime, modifyTime });
-					const taskUpdateHandler = (arg: { taskId: number }) => {
-						if (arg.taskId === taskId) {
-							server.entity.off('taskUpdate', taskUpdateHandler);
-							const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
-							if (!hasOtherUploadTask) {
-								server.entity.setUploadStatus(taskId, false);
-							}
-							// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
-							if (appStore.currentServer === server && appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
+					server.entity.mergeUploaded(file.taskId, file.chunks.map((chunk) => chunk.hash!).filter(Boolean), file.fileBaseName, inputName, { accessTime, createTime, modifyTime }).then(() => {
+						const hasOtherUploadTask = server.data.uploadFiles.some((uploadItem) => uploadItem.taskId === taskId && uploadItem.readTask);
+						if (!hasOtherUploadTask) {
+							server.entity.setUploadStatus(taskId, false);
 						}
-					};
-					server.entity.on('taskUpdate', taskUpdateHandler);
+						// 任务上传完成后，输入文件会被后端修改为文件名·hash，如果前端选中此文件，则需要刷新显示
+						if (appStore.currentServer === server && appStore.selectedTask.has(taskId)) appStore.applySelectedTask();
+					});
 					file.status = 'finished';
 					file.readTask = undefined;
 					file.hashTask = undefined;

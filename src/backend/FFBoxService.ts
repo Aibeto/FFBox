@@ -186,7 +186,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				};
 			}
 		}
-				
+
+		let asyncEntry = { type: `检查 ffmpeg 版本` };
+		this.asyncListOp('+', asyncEntry);
 		if (this.customFFmpegPath) {
 			log.info(`已手动指定 ffmpeg 路径为 ${this.customFFmpegPath}，检查版本。`);
 			const resolved = resolveFFmpegPaths(this.customFFmpegPath);
@@ -250,7 +252,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。缓存中的编码器和滤镜不可用，即将获取编码器信息。`);
 						setTimeout(() => {
 							this.getFFmpegCodecsAndFilters();
-						}, 100);							
+						}, 100);
 					}
 				} else {
 					log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。即将获取编码器信息。`);
@@ -263,7 +265,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				this.emitFFmpegInfo();
 			}
 		});
+		ffmpeg.once('closed', () => { 
+			this.asyncListOp('-', asyncEntry);
+		});
 		setTimeout(() => {
+			this.asyncListOp('-', asyncEntry);
 			if (!this.ffmpegInfo.version) {
 				log.error(`在检查 ffmpeg 版本时，ffmpeg 成功启动，但 stdio 中没有接收到任何消息。重试。`);
 				this.initFFmpeg();
@@ -274,25 +280,35 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	public async getFFmpegCodecsAndFilters(): Promise<void> {
 		this.ffmpegInfo.scanning = true;
 		this.emitFFmpegInfo();
+
+		const ffmpegPath = this.ffmpegPath;
 		await new Promise((resolve, reject) => {
 			// 获取 codecs
-			const ffmpeg = new FFmpeg(this.ffmpegPath, 3, ['-codecs']);
+			const asyncEntry = { type: `获取 ffmpeg 编码器` };
+			this.asyncListOp('+', asyncEntry);
+			const ffmpeg = new FFmpeg(ffmpegPath, 3, ['-codecs']);
 			ffmpeg.on('codecs', async (codecsResult) => {
 				if (!codecsResult) { debugger; throw 'ub'; }
 				log.info(`编码器概览扫描完成，支持视频编码 ${codecsResult.videoCodecs.length} 个、音频编码 ${codecsResult.audioCodecs.length} 个。即将扫描详细信息。`);
-				console.log(codecsResult);
+				// console.log(codecsResult);
 				const videoFinalResult: FFmpegCodecDetail[] = [];
 				const audioFinalResult: FFmpegCodecDetail[] = [];
 				let videoEncodersCount = 0;
 				let audioEncodersCount = 0;
+				const asyncEntryVideoEncoder = { type: `获取 ffmpeg 视频编码器（${codecsResult.videoCodecs.length} 个）详细参数` };
+				this.asyncListOp('+', asyncEntryVideoEncoder);
 				for (const codec of codecsResult.videoCodecs) {
 					const encoderNames = codec.encoders.length ? codec.encoders : [codec.name];
 					const encoderDetails: (EncoderDetail & { name: string; })[] = [];
 					videoEncodersCount += encoderNames.length;
 					for (const encoderName of encoderNames) {
+						if (this.ffmpegPath !== ffmpegPath) {
+							this.asyncListOp('-', asyncEntryVideoEncoder);
+							return;
+						}
 						// console.log(`正在读取 ${codec.name} ${encoder}`);
 						await new Promise((resolve, _) => {
-							const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
+							const ffmpeg2 = new FFmpeg(ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
 							ffmpeg2.on('codecs', (_, codecResult) => {
 								// console.log(codecResult);
 								encoderDetails.push({ name: encoderName, ...codecResult! });
@@ -306,17 +322,24 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						encoders: encoderDetails,
 					});
 				}
+				this.asyncListOp('-', asyncEntryVideoEncoder);
 				log.info('视频编码器扫描结果', videoFinalResult);
 				this.ffmpegInfo.videoEncodersCount = videoEncodersCount;
 				this.emitFFmpegInfo();
+				const asyncEntryAudioEncoder = { type: `获取 ffmpeg 音频编码器（${codecsResult.audioCodecs.length} 个）详细参数` };
+				this.asyncListOp('+', asyncEntryAudioEncoder);
 				for (const codec of codecsResult.audioCodecs) {
 					const encoderNames = codec.encoders.length ? codec.encoders : [codec.name];
 					const encoderDetails: (EncoderDetail & { name: string; })[] = [];
 					audioEncodersCount += encoderNames.length;
 					for (const encoderName of encoderNames) {
+						if (this.ffmpegPath !== ffmpegPath) {
+							this.asyncListOp('-', asyncEntryAudioEncoder);
+							return;
+						}
 						// console.log(`正在读取 ${codec.name} ${encoder}`);
 						await new Promise((resolve, _) => {
-							const ffmpeg2 = new FFmpeg(this.ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
+							const ffmpeg2 = new FFmpeg(ffmpegPath, 3, ['-hide_banner', '-h', `encoder=${encoderName}`]);
 							ffmpeg2.on('codecs', (_, codecResult) => {
 								// console.log(codecResult);
 								encoderDetails.push({ name: encoderName, ...codecResult! });
@@ -330,6 +353,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						encoders: encoderDetails,
 					});
 				}
+				this.asyncListOp('-', asyncEntryAudioEncoder);
 				log.info('音频编码器扫描结果', audioFinalResult);
 				this.ffmpegInfo.audioEncodersCount = audioEncodersCount;
 				this.emitFFmpegInfo();
@@ -337,20 +361,31 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				parseFFmpegCodecsToCodecsList(this.ffmpegCodecs);
 				resolve(0);
 			});
+			ffmpeg.once('closed', () => { 
+				this.asyncListOp('-', asyncEntry);
+			});	
 		});
 		await new Promise((resolve, reject) => {
 			// 获取 muxers/demuxers
-			const ffmpeg = new FFmpeg(this.ffmpegPath, 4, ['-formats']);
+			const asyncEntry = { type: `获取 ffmpeg 复用器、解复用器` };
+			this.asyncListOp('+', asyncEntry);
+			const ffmpeg = new FFmpeg(ffmpegPath, 4, ['-formats']);
 			ffmpeg.on('formats', async (formatsResult) => {
 				if (!formatsResult) { debugger; throw 'ub'; }
 				log.info(`格式概览扫描完成，支持复用器 ${formatsResult.muxers.length} 个、解复用器 ${formatsResult.demuxers.length} 个。即将扫描详细信息。`);
-				console.log(formatsResult);
+				// console.log(formatsResult);
 				const muxerFinalResult: FFmpegMuxerDetail[] = [];
 				const demuxerFinalResult: FFmpegDemuxerDetail[] = [];
+				const asyncEntryMuxer = { type: `获取 ffmpeg 复用器（${formatsResult.muxers.length} 个）详细参数` };
+				this.asyncListOp('+', asyncEntryMuxer);
 				for (const muxer of formatsResult.muxers) {
 					// console.log(`正在读取 ${filter.name}`);
+					if (this.ffmpegPath !== ffmpegPath) {
+						this.asyncListOp('-', asyncEntryMuxer);
+						return;
+					}
 					await new Promise((resolve, _) => {
-						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 4, ['-hide_banner', '-h', `muxer=${muxer.name}`]);
+						const ffmpeg2 = new FFmpeg(ffmpegPath, 4, ['-hide_banner', '-h', `muxer=${muxer.name}`]);
 						ffmpeg2.on('formats', (_, formatResult) => {
 							if (!formatResult) { debugger; throw 'ub'; }
 							muxerFinalResult.push({
@@ -365,13 +400,20 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						});
 					});
 				}
+				this.asyncListOp('-', asyncEntryMuxer);
 				log.info('复用器扫描结果', muxerFinalResult);
 				this.ffmpegInfo.muxersCount = muxerFinalResult.length;
 				this.emitFFmpegInfo();
+				const asyncEntryDemuxer = { type: `获取 ffmpeg 解复用器（${formatsResult.demuxers.length} 个）详细参数` };
+				this.asyncListOp('+', asyncEntryDemuxer);
 				for (const demuxer of formatsResult.demuxers) {
+					if (this.ffmpegPath !== ffmpegPath) {
+						this.asyncListOp('-', asyncEntryDemuxer);
+						return;
+					}
 					// console.log(`正在读取 ${filter.name}`);
 					await new Promise((resolve, _) => {
-						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 4, ['-hide_banner', '-h', `demuxer=${demuxer.name}`]);
+						const ffmpeg2 = new FFmpeg(ffmpegPath, 4, ['-hide_banner', '-h', `demuxer=${demuxer.name}`]);
 						ffmpeg2.on('formats', (_, formatResult) => {
 							if (!formatResult) { debugger; throw 'ub'; }
 							demuxerFinalResult.push({
@@ -385,6 +427,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						});
 					});
 				}
+				this.asyncListOp('-', asyncEntryDemuxer);
 				log.info('解复用器扫描结果', demuxerFinalResult);
 				this.ffmpegInfo.demuxersCount = demuxerFinalResult.length;
 				this.emitFFmpegInfo();
@@ -392,19 +435,30 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				parseFFmpegMuDeMuxersToList(this.ffmpegFormats);
 				resolve(0);
 			});
+			ffmpeg.once('closed', () => { 
+				this.asyncListOp('-', asyncEntry);
+			});
 		});
 		await new Promise((resolve, reject) => {
 			// 获取 filters
-			const ffmpeg = new FFmpeg(this.ffmpegPath, 5, ['-filters']);
+			const asyncEntry = { type: `获取 ffmpeg 滤镜` };
+			this.asyncListOp('+', asyncEntry);
+			const ffmpeg = new FFmpeg(ffmpegPath, 5, ['-filters']);
 			ffmpeg.on('filters', async (filtersResult) => {
 				if (!filtersResult) { debugger; throw 'ub'; }
 				log.info(`滤镜概览扫描完成，支持滤镜 ${filtersResult.length} 个。即将扫描详细信息。`);
-				console.log(filtersResult);
+				// console.log(filtersResult);
 				const result: FFmpegFilterDetail[] = [];
+				const asyncEntry = { type: `获取 ffmpeg 滤镜（${filtersResult.length} 个）详细参数` };
+				this.asyncListOp('+', asyncEntry);
 				for (const filter of filtersResult) {
+					if (this.ffmpegPath !== ffmpegPath) {
+						this.asyncListOp('-', asyncEntry);
+						return;
+					}
 					// console.log(`正在读取 ${filter.name}`);
 					await new Promise((resolve, _) => {
-						const ffmpeg2 = new FFmpeg(this.ffmpegPath, 5, ['-hide_banner', '-h', `filter=${filter.name}`]);
+						const ffmpeg2 = new FFmpeg(ffmpegPath, 5, ['-hide_banner', '-h', `filter=${filter.name}`]);
 						ffmpeg2.on('filters', (_, codecResult) => {
 							if (!codecResult) { debugger; throw 'ub'; }
 							result.push({
@@ -418,6 +472,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						});
 					});
 				}
+				this.asyncListOp('-', asyncEntry);
 				log.info('滤镜扫描结果', result);
 				this.ffmpegFilters = result;
 				this.ffmpegInfo.scanning = false;
@@ -425,6 +480,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				this.emitFFmpegInfo();
 				resolve(0);
 			});	
+			ffmpeg.once('closed', () => { 
+				this.asyncListOp('-', asyncEntry);
+			});
 		});
 		localConfig.set('ffmpegInfo', {
 			version: this.ffmpegInfo.version,
@@ -680,7 +738,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				ffmpeg.on('data', ({ content }) => {
 					if (!firstDataArrived) {
 						firstDataArrived = true;
-						task.runs[0].cmdData = `· 媒体信息获取于 ${getTimeString(new Date())}。`;
+						task.runs[0].cmdData = `ℹ️ 媒体信息获取于 ${getTimeString(new Date())}。`;
 						this.setCmdText(task, content, true, 0);	// getFileMetadata 写入 runs[0]
 					}
 					this.setCmdText(task, content, true, 0);	// getFileMetadata 写入 runs[0]
@@ -747,22 +805,22 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const destPath = `${uploadDir}/${destName}`;
 		let fileExists = false;
 		try {
-			await fs.accessSync(destPath, fs.constants.R_OK);	
+			await fs.accessSync(destPath, fs.constants.R_OK);
 			fileExists = true;
 		} catch (error) {}
 		if (!fileExists) {
 			// 将分片合并为一个文件（无论分片数量均会执行此逻辑，因此即使 1 个分片，最终文件名也是按分片 hash 的 hash 命名）
-			fs.writeFile(destPath, '', (err) => {
-				if (err) {
-					this.setNotification(id, task.taskName + '：合并文件写入失败', NotificationLevel.error);
-					return;
-				}
+			try {
+				await fs.promises.writeFile(destPath, '');
 				for (const hash of hashs) {
 					const source = uploadDir + '/' + hash;
-					fs.appendFileSync(destPath, fs.readFileSync(source) as any);
-					fs.rmSync(source);
+					await fs.promises.appendFile(destPath, await fs.promises.readFile(source));
+					await fs.promises.rm(source);
 				}
-			});
+			} catch (error) {
+				this.setNotification(id, task.taskName + '：合并文件写入失败', NotificationLevel.error);
+				log.error(`[任务 ${id}] 文件合并失败：${error}`);
+			}
 		}
 		// 将 inputName 占位符改成 destName 真实文件名
 		const after = getTaskLatestOutputParams(task);
@@ -795,9 +853,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		} else if (!isUploading && task.status === TaskStatus.initializing) {
 			this.taskList.setStatus(id, TaskStatus.idle);
 			this.emitTaskUpdate(id, task);
-			setTimeout(() => {
-				this.getFileMetadata(id, task);
-			}, 150);	// 正常顺序是 mergeUploaded -> setUploadStatus，但函数并不等待而是接连调用，再考虑网络因素，稍微等待再 getFileMetadata 可避免输入文件名还没改过来就进行信息读取
+			this.getFileMetadata(id, task);
 		}
 	}
 
