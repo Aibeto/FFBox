@@ -62,7 +62,7 @@ export interface FFBoxServiceEventParam {
 	ffmpegInfo: FFmpegInfo;
 	statusUpdate: { workingStatus?: 'start' | 'stop' | 'pause'; progress: number };	// 合并原 workingStatusUpdate 与总进度推送。workingStatus 在队列状态变化时携带，progress 始终携带
 	tasklistUpdate: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number };
-	taskUpdate: { taskId: number; task: Task };
+	taskUpdate: { taskId: number; task: TaskForUpdate };
 	cmdUpdate: { taskId: number; runIndex: number; content: string; append: boolean };	// 由 append 确定是增量还是全量更新
 	progressUpdate: { taskId: number; runIndex: number; time: number; status?: FFmpegProgress };	// 增量更新（status 未定义则为清空）
 	notificationUpdate: { notificationId: number; notification?: Notification };	// 增量（notification 未定义则为删除）
@@ -372,18 +372,24 @@ export interface Run {
 	paraArray: Array<string>;
 	outputFiles: string[];		// 对于本地任务，表示生成文件的绝对路径；对于远程任务，则为 fileName（自动生成的字符串） + ext，在 taskAdd 和调节参数之后生成文件名，注意不包含目录。
 	status: TaskStatus;
+	// 运行时间相关字段（放在顶层以便 taskUpdate 传输）
+	lastStarted: number;		// 最近一次开始运行的时间戳（秒）
+	elapsed: number;			// 累计运行时间（秒），暂停时才更新
+	lastPaused: number;			// 最近一次暂停的时间戳（秒）
 	progressLog: {
 		time: SingleProgressLog;
 		frame: SingleProgressLog;
 		size: SingleProgressLog;
-		// 涉及到的时间单位均为 s
-		lastStarted: number;
-		elapsed: number;		// 暂停才更新一次，因此记录的并不是实时的任务时间
-		lastPaused: number;		// 既用于暂停后恢复时计算速度，也用于统计任务耗时
 	};
 	cmdData: string;
 	errorInfo: Array<string>;
 }
+
+// taskUpdate 中传输的 Run 快照（剥离 progressLog 和 cmdData 以减少数据量，二者分别由 progressUpdate 和 cmdUpdate 事件增量更新）
+export type RunForUpdate = Omit<Run, 'progressLog' | 'cmdData'>;
+
+// taskUpdate 中传输的 Task（runs 使用 RunForUpdate 类型）
+export type TaskForUpdate = Omit<Task, 'runs'> & { runs: RunForUpdate[] };
 
 /**
  * 文件路径处理规则：

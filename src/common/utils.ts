@@ -1,5 +1,5 @@
 /* eslint-disable no-fallthrough */
-import { OutputParams, Run, ServiceTask, Task, TaskStatus } from '@common/types';
+import { OutputParams, Run, ServiceTask, Task, TaskForUpdate, TaskStatus } from '@common/types';
 import { UIRun, UITask } from '@renderer/types';
 import { deleteNode } from './params/filter';
 
@@ -319,13 +319,13 @@ export function getNewRun(after?: OutputParams): Run {
 		paraArray: [],
 		outputFiles: [],
 		status: TaskStatus.idle,
+		lastStarted: new Date().getTime() / 1000,
+		elapsed: 0,
+		lastPaused: new Date().getTime() / 1000,
 		progressLog: {
 			time: [],
 			frame: [],
 			size: [],
-			lastStarted: new Date().getTime() / 1000,
-			elapsed: 0,
-			lastPaused: new Date().getTime() / 1000,
 		},
 		cmdData: '',
 		errorInfo: [],
@@ -352,7 +352,6 @@ export function getNewUIRun(after?: OutputParams): UIRun {
 			frame: 0,
 			size: 0,
 		},
-		dashboardTimer: NaN,
 	};
 }
 
@@ -429,7 +428,6 @@ export function getInitialUITask(id: number, fileName: string, outputParams?: Ou
 			frame: 0,
 			size: 0,
 		},
-		dashboardTimer: NaN,
 	}));
 	return {
 		...baseTask,
@@ -536,37 +534,50 @@ export function getOutputFileTime(task: Task, outputIndex: number, runIndex?: nu
 
 /**
  * 来自 FFBoxService 的任务信息自网络接收后与现存的 UITask 进行合并
+ * @param isComplete true 表示来自 getTask 等接口的完整 Task（包含 progressLog、cmdData），应完整替换
+ *                   false（默认）表示来自 taskUpdate 事件的 TaskForUpdate（剥离了 progressLog、cmdData），保留本地已有的值
  */
-export function mergeTaskFromService(self: UITask, remote: Task): UITask {
-    const ret = self;
-    // 深拷贝 remote 中除 runs 以外的字段
-    const remoteCopy = JSON.parse(JSON.stringify(remote));
-    const remoteRuns: Run[] = remoteCopy.runs || [];
-    delete remoteCopy.runs;
-    Object.assign(ret, remoteCopy);
-    // 合并 runs：保留已有 UIRun 的 dashboard 数据，更新 Run 层的字段
-    while (ret.runs.length < remoteRuns.length) {
-        // 远端有更多 run 条目，补充 UIRun
-        ret.runs.push({
-            ...remoteRuns[ret.runs.length],
-            dashboard: { progress: 0, bitrate: 0, speed: 0, time: 0, frame: 0, size: 0 },
-            dashboard_smooth: { progress: 0, bitrate: 0, speed: 0, time: 0, frame: 0, size: 0 },
-            dashboardTimer: NaN,
-        });
-    }
-    for (let i = 0; i < remoteRuns.length; i++) {
-        const remoteRun = remoteRuns[i];
-        const localRun = ret.runs[i];
-        // 更新 Run 层字段，保留 UIRun 特有字段
-        localRun.after = remoteRun.after;
-        localRun.paraArray = remoteRun.paraArray;
-        localRun.outputFiles = remoteRun.outputFiles;
-        localRun.status = remoteRun.status;
-        localRun.progressLog = remoteRun.progressLog;
-        localRun.cmdData = remoteRun.cmdData;
-        localRun.errorInfo = remoteRun.errorInfo;
-    }
-    return ret;
+export function mergeTaskFromService(self: UITask, remote: TaskForUpdate | Task, isComplete: boolean = false): UITask {
+	const ret = self;
+	// 深拷贝 remote 中除 runs 以外的字段
+	const remoteCopy = JSON.parse(JSON.stringify(remote));
+	const remoteRuns = (remoteCopy.runs || []) as Run[];
+	delete remoteCopy.runs;
+	Object.assign(ret, remoteCopy);
+	// 合并 runs：保留已有 UIRun 的 dashboard 数据，更新 Run 层的字段
+	while (ret.runs.length < remoteRuns.length) {
+		// 远端有更多 run 条目，补充 UIRun
+		ret.runs.push({
+			// @ts-ignore 非完整的 Task 不存在这两项，而出现新 run 代表这两项也是空的，所以直接写在这
+			progressLog: [],
+			// @ts-ignore
+			cmdData: '',
+			...remoteRuns[ret.runs.length],
+			dashboard: { progress: 0, bitrate: 0, speed: 0, time: 0, frame: 0, size: 0 },
+			dashboard_smooth: { progress: 0, bitrate: 0, speed: 0, time: 0, frame: 0, size: 0 },
+		});
+	}
+	for (let i = 0; i < remoteRuns.length; i++) {
+		const remoteRun = remoteRuns[i];
+		const localRun = ret.runs[i];
+		// 更新 Run 层字段
+		localRun.after = remoteRun.after;
+		localRun.paraArray = remoteRun.paraArray;
+		localRun.outputFiles = remoteRun.outputFiles;
+		localRun.status = remoteRun.status;
+		localRun.lastStarted = remoteRun.lastStarted;
+		localRun.elapsed = remoteRun.elapsed;
+		localRun.lastPaused = remoteRun.lastPaused;
+		localRun.errorInfo = remoteRun.errorInfo;
+		// progressLog 和 cmdData 的处理：完整 Task 时覆盖，部分 Task 时保留本地值
+		if (isComplete) {
+			// 当 isComplete 为 true 时，remote 实际上是 Task 类型，remoteRun 是 Run 类型
+			localRun.progressLog = remoteRun.progressLog;
+			localRun.cmdData = remoteRun.cmdData;
+		}
+		// else: 保留本地已有的 progressLog 和 cmdData（由增量事件更新）
+	}
+	return ret;
 }
 
 /**

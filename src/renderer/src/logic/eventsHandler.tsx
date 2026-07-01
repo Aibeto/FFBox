@@ -1,8 +1,8 @@
 import nodeBridge from '@renderer/bridges/nodeBridge';
-import { FFmpegInfo, FFmpegProgress, Notification, Task, TaskStatus, WorkingStatus } from '@common/types';
+import { FFmpegInfo, FFmpegProgress, Notification, Task, TaskForUpdate, TaskStatus, WorkingStatus } from '@common/types';
 import { Server, UITask } from '@renderer/types';
 import { getInitialUITask, mergeTaskFromService } from '@common/utils';
-import { dashboardTimer } from '@renderer/common/dashboardCalc';
+import { registerServerForDashboard } from '@renderer/common/dashboardCalc';
 import { useAppStore } from '../stores/appStore';
 import { getLimitaion } from './limitaions';
 import Popup from '@renderer/components/Popup/Popup';
@@ -15,12 +15,14 @@ import ImageExitConfirm from '@renderer/assets/cartoons/exitConfirm.svg';
 export function handleFFmpegInfo(server: Server, info: FFmpegInfo) {
 	server.data.ffmpegInfo = info;
 };
-export function handleStatusUpdate(server: Server, workingStatus: 'start' | 'stop' | 'pause') {
+export function handleStatusUpdate(server: Server, workingStatusCommit: 'start' | 'stop' | 'pause') {
 	const serverData = server.data;
-	serverData.workingStatus = workingStatus === 'start' ? WorkingStatus.running : WorkingStatus.idle;
-	if (workingStatus === 'stop') {
+	serverData.workingStatus = workingStatusCommit === 'start' ? WorkingStatus.running : WorkingStatus.idle;
+	if (workingStatusCommit === 'stop') {
 		nodeBridge.flashFrame(true);
 	}
+	// 根据队列状态启停全局 dashboardTimer
+	registerServerForDashboard(server, workingStatusCommit === 'start' ? 'start' : 'stop');
 };
 export function handleTasklistUpdate(server: Server, data: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number }) {
 	const store = useAppStore();
@@ -82,9 +84,10 @@ export function handleTasklistUpdate(server: Server, data: { added?: { taskId: n
 };
 /**
  * 更新整个 task
- * 通过广播事件收到的 task 有可能是不完整的，不包含 cmdData，mergeTaskFromService 只会进行 Object.assign，不会清空
+ * @param isComplete true 表示来自 getTask 等接口的完整 Task（包含 progressLog、cmdData），应完整替换
+ *                   false（默认）表示来自 taskUpdate 事件的 TaskForUpdate（剥离了 progressLog、cmdData），仅部分替换
  */
-export function handleTaskUpdate(server: Server, id: number, content: Task) {
+export function handleTaskUpdate(server: Server, id: number, content: TaskForUpdate, isComplete: boolean = false) {
 	const serverData = server.data;
 	const arrayIndex = serverData.taskIdToIndex.get(id);
 	if (arrayIndex === undefined) {
@@ -92,30 +95,13 @@ export function handleTaskUpdate(server: Server, id: number, content: Task) {
 		return;
 	}
 	const localTask = serverData.tasks[arrayIndex];
-	const task = mergeTaskFromService(localTask, content);
+	const task = mergeTaskFromService(localTask, content, isComplete);
 	serverData.tasks[arrayIndex] = task;
-	// timer 相关处理（开始运行时添加定时器，结束或暂停运行时取消定时器）
 	// 找到当前正在运行的 run（从后往前找第一个 running 状态的）
 	const activeRun = [...task.runs].reverse().find(r => r.status === TaskStatus.running);
 	const latestRun = task.runs[task.runs.length - 1];
 	const displayRun = activeRun || latestRun;
-	if (task.status === TaskStatus.running && !displayRun.dashboardTimer) {
-		displayRun.dashboardTimer = setInterval(dashboardTimer, 50, task) as any;
-		if (displayRun.progressLog.time.length <= 1) {
-			displayRun.dashboard_smooth = {
-				progress: 0,
-				bitrate: 0,
-				speed: 0,
-				time: 0,
-				frame: 0,
-				size: 0,
-			}
-		}
-	} else if (task.status !== TaskStatus.running && displayRun.dashboardTimer) {
-		clearInterval(displayRun.dashboardTimer);
-		displayRun.dashboardTimer = NaN;
-	}
-	// 进度条相关处理
+	// 进度条相关处理（smooth 初始化由全局 timer 的 updateTaskDashboard 负责）
 	if (task.status === TaskStatus.finished || task.status === TaskStatus.error) {
 		displayRun.dashboard.progress = 1;
 		displayRun.dashboard_smooth.progress = 1;
@@ -126,13 +112,22 @@ export function handleTaskUpdate(server: Server, id: number, content: Task) {
 };
 /**
  * 增量更新 cmdData
+ * 如果本地没有对应的 run，拉取完整任务并放 debugger
  */
 export function handleCmdUpdate(server: Server, id: number, runIndex: number, content: string, append: boolean) {
 	const arrayIndex = server.data.taskIdToIndex.get(id);
 	if (arrayIndex === undefined) return;
 	let task = server.data.tasks[arrayIndex];
 	const run = task.runs[runIndex];
-	if (!run) return;
+	if (!run) {
+		// 例外情况：本地没有对应的 run，拉取完整任务
+		debugger;
+		console.warn(`[handleCmdUpdate] 任务 ${id} 的 run ${runIndex} 不存在，拉取完整任务`);
+		server.entity.getTask(id).then((content) => {
+			handleTaskUpdate(server, id, content, true);
+		});
+		return;
+	}
 	if (append) {
 		run.cmdData += content;
 	} else {
@@ -141,26 +136,35 @@ export function handleCmdUpdate(server: Server, id: number, runIndex: number, co
 };
 /**
  * 增量更新 progressLog
+ * 如果本地没有对应的 run，拉取完整任务并放 debugger
  */
 export function handleProgressUpdate(server: Server, id: number, runIndex: number, time: number, status: FFmpegProgress | undefined, functionLevel: number) {
 	const arrayIndex = server.data.taskIdToIndex.get(id);
 	if (arrayIndex === undefined) return;
 	const task = server.data.tasks[arrayIndex];
 	const run = task.runs[runIndex];
-	if (!run) return;
+	if (!run) {
+		// 例外情况：本地没有对应的 run，拉取完整任务
+		debugger;
+		console.warn(`[handleProgressUpdate] 任务 ${id} 的 run ${runIndex} 不存在，拉取完整任务`);
+		server.entity.getTask(id).then((content) => {
+			handleTaskUpdate(server, id, content, true);
+		});
+		return;
+	}
 	if (status) {
 		for (const parameter of ['time', 'frame', 'size']) {
 			const _parameter = parameter as 'time' | 'frame' | 'size';
 			run.progressLog[_parameter].push([time, status[_parameter]]);
 		}
 	} else {
+		run.lastStarted = time;
+		run.elapsed = 0;
+		run.lastPaused = time;
 		run.progressLog = {
 			time: [],
 			frame: [],
 			size: [],
-			lastStarted: time,
-			elapsed: 0,
-			lastPaused: time,
 		};
 	}
 	// server.data.tasks[id].progressLog = progressLog;
@@ -172,7 +176,7 @@ export function handleProgressUpdate(server: Server, id: number, runIndex: numbe
 	}
 	const maxWorkingDuration = getLimitaion('maxWorkingDuration');
 	if (run.progressLog.time.length > 0) {
-		if (run.progressLog.elapsed + new Date().getTime() / 1000 - run.progressLog.lastStarted > maxWorkingDuration) {
+		if (run.elapsed + new Date().getTime() / 1000 - run.lastStarted > maxWorkingDuration) {
 			server.entity.trailLimit_stopTranscoding(id, 'working');
 			return;
 		}

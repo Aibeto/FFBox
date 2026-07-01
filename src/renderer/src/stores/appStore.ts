@@ -4,10 +4,8 @@ import CryptoJS from 'crypto-js';
 import gsap from 'gsap';
 import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, TaskStatus, WorkingStatus } from '@common/types';
 import { validUntil, version } from '@common/constants';
-import { Server, UITask } from '@renderer/types';
 import { defaultParams } from "@common/defaultParams";
-import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
-import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromService, getTaskLatestOutputParams, getNewUIRun } from '@common/utils';
+import { Server, UITask } from '@renderer/types';
 import { getMenuItemByValue } from '@common/menu';
 import { allVcodecs, builtInVcodecs } from '@common/params/vcodecs';
 import { allAcodecs, builtInAcodecs } from '@common/params/acodecs';
@@ -16,10 +14,13 @@ import { RateControl } from '@common/params/parameter';
 import path from '@common/path';
 import i11n from '@common/i11n/i11n';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
+import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
+import { registerServerForDashboard } from '@renderer/common/dashboardCalc';
+import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromService, getTaskLatestOutputParams, getNewUIRun } from '@common/utils';
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleStatusUpdate } from '@renderer/logic/eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
-import { addUploadTask } from '../logic/transferManager2';
-import { getLimitaion } from '../logic/limitaions';
+import { addUploadTask } from '@renderer/logic/transferManager2';
+import { getLimitaion } from '@renderer/logic/limitaions';
 import Popup from '@renderer/components/Popup/Popup';
 
 interface StoreState {
@@ -410,7 +411,7 @@ export const useAppStore = defineStore('app', {
 
 					for (const task of prefixResp?.tasks ?? []) {
 						const uiTask = getInitialUITask(task.id, '');
-						mergeTaskFromService(uiTask, task);
+						mergeTaskFromService(uiTask, task, true);
 						uiTask.taskIndex = newStart + merged.length;
 						uiTask.selectedRunIndex = uiTask.runs.length - 1;
 						merged.push(uiTask);
@@ -420,7 +421,7 @@ export const useAppStore = defineStore('app', {
 					}
 					for (const task of suffixResp?.tasks ?? []) {
 						const uiTask = getInitialUITask(task.id, '');
-						mergeTaskFromService(uiTask, task);
+						mergeTaskFromService(uiTask, task, true);
 						uiTask.taskIndex = newStart + merged.length;
 						uiTask.selectedRunIndex = uiTask.runs.length - 1;
 						merged.push(uiTask);
@@ -460,12 +461,12 @@ export const useAppStore = defineStore('app', {
 				const globalIndex = newStart + i;
 				const existing = oldTasksById.get(task.id);
 				if (existing) {
-					mergeTaskFromService(existing, task);
+					mergeTaskFromService(existing, task, true);
 					existing.taskIndex = globalIndex;
 					newTasks.push(existing);
 				} else {
 					const uiTask = getInitialUITask(task.id, '');
-					mergeTaskFromService(uiTask, task);
+					mergeTaskFromService(uiTask, task, true);
 					uiTask.taskIndex = globalIndex;
 					uiTask.selectedRunIndex = uiTask.runs.length - 1;
 					newTasks.push(uiTask);
@@ -513,7 +514,7 @@ export const useAppStore = defineStore('app', {
 			const server = this.currentServer;
 			if (!server) return;
 			server.entity.getTask(taskId).then((content) => {
-				handleTaskUpdate(server, taskId, content);
+				handleTaskUpdate(server, taskId, content, true);
 				this.recalcChangedParams();
 			});
 		},
@@ -945,6 +946,7 @@ export const useAppStore = defineStore('app', {
 				// workingStatus
 				if (workingStatus === WorkingStatus.idle || workingStatus === WorkingStatus.running) {
 					server.data.workingStatus = workingStatus;
+					if (workingStatus === WorkingStatus.running) registerServerForDashboard(server as any, 'start');
 				}
 			});
 		},

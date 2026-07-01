@@ -20,7 +20,7 @@ const serverStyle = computed(() => {
 		}
 	} = {};
 	for (const server of appStore.servers) {
-		const hasUndoneWork = server.data.tasks.some((task) => [TaskStatus.idle_queued, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.running, TaskStatus.stopping, TaskStatus.finishing].includes(task.status));
+		const hasUndoneWork = server.data.progress !== -1;
 		const obj = {
 			colorStyle: { width: hasUndoneWork ? `${server.data.progress * 100}%` : '0%' },
 			text: server.data.name + (hasUndoneWork ? ` (${(server.data.progress * 100).toFixed(0)}%)` : ''),

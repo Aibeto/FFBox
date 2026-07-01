@@ -1,6 +1,56 @@
 import { SingleProgressLog, TaskStatus } from '@common/types';
 import { getOutputDuration } from '@common/utils';
-import { ServerData, UITask } from '@renderer/types';
+import { Server, ServerData, UITask } from '@renderer/types';
+
+// #region 全局 dashboardTimer
+
+// 模块级全局 timer：同时最多一个，遍历所有 server 中正在运行的任务更新 dashboard
+let globalTimer: ReturnType<typeof setInterval> | undefined;
+const activeServers = new Set<Server>();
+
+function startDashboardTimer() {
+	if (globalTimer !== undefined) {
+		return;
+	}
+	globalTimer = setInterval(updateDashboard, 50);
+}
+
+function stopDashboardTimer() {
+	if (activeServers.size > 0) {
+		return;
+	}
+	if (globalTimer !== undefined) {
+		clearInterval(globalTimer);
+		globalTimer = undefined;
+	}
+}
+
+/**
+ * 向全局 timer 注册/注销一个 server
+ * 在 handleStatusUpdate 中根据 workingStatus 调用
+ */
+export function registerServerForDashboard(server: Server, workingStatusCommit: 'start' | 'stop') {
+	if (workingStatusCommit === 'start') {
+		activeServers.add(server);
+		startDashboardTimer();
+	} else {
+		activeServers.delete(server);
+		stopDashboardTimer();
+	}
+}
+
+/**
+ * 全局 timer tick：遍历所有已注册 server 的正在运行的任务，更新其 dashboard
+ */
+function updateDashboard() {
+	for (const server of activeServers) {
+		for (const task of server.data.tasks) {
+			if (task.status === TaskStatus.running) updateTaskDashboard(task);
+		}
+	}
+}
+
+// #endregion
 
 /**
  * 计算整体进度的 timer，根据计算结果修改 currentServer.progress
@@ -78,18 +128,25 @@ export function calcDashboard(progressLog: SingleProgressLog, elapsedTime: numbe
 }
 
 /**
- * 计算单个任务的 timer 函数，根据计算结果原地修改 progress 和 progress_smooth
+ * 计算单个任务的 dashboard 更新函数，根据计算结果原地修改 progress 和 progress_smooth
+ * 由全局 timer 调用
  */
-export function dashboardTimer(task: UITask) {
+export function updateTaskDashboard(task: UITask) {
 	// 找到当前正在运行的 run（从后往前找第一个 running 状态的），若无则使用最新条目
-	const activeRun = [...task.runs].reverse().find(r => r.status === TaskStatus.running) || task.runs[task.runs.length - 1];
+	const activeRun = task.runs[task.runs.length - 1];
 	const progressLog = activeRun.progressLog;
+	if (progressLog.time.length <= 1) {
+		// 任务刚开始，重置 smooth 数据
+		activeRun.dashboard_smooth = {
+			progress: 0, bitrate: 0, speed: 0, time: 0, frame: 0, size: 0,
+		};
+	}
 	if (progressLog.time.length <= 2) {
 		// 任务刚开始时显示的数据不准确
 		return;
 	}
 
-	const elapsedTime = new Date().getTime() / 1000 - progressLog.lastStarted + progressLog.elapsed;
+	const elapsedTime = new Date().getTime() / 1000 - activeRun.lastStarted + activeRun.elapsed;
 	const { K: frameK, B: frameB, currentValue: currentFrame } = calcDashboard(progressLog.frame.slice(-5), elapsedTime);
 	const { K: timeK, B: timeB, currentValue: currentTime } = calcDashboard(progressLog.time.slice(-5), elapsedTime);
 	const { K: sizeK, B: sizeB, currentValue: currentSize } = calcDashboard(progressLog.size.slice(-5), elapsedTime);

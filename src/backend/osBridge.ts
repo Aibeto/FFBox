@@ -36,7 +36,7 @@ function callHelper<T>(func: (helper: ChildProcess) => Promise<T> | T): Promise<
 			callCorrespondingFunction(helper);
 		} else {
 			if (!helperStartupPromise) log.info(getTimeString(new Date()), '正在启动 helper');
-			const currentPromise = helperStartupPromise || spawnInvoker('FFBoxHelper.exe', ['--standalone'], {
+			const currentPromise = helperStartupPromise || spawnInvoker('./FFBoxHelper.exe', ['--standalone'], {
 				detached: false,
 				shell: false,
 				// encoding: 'utf8'

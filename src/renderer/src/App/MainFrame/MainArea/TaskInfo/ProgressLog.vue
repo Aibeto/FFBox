@@ -27,11 +27,15 @@ let rendering = 0;	// 0: 空闲　1: 渲染中　2: 渲染中重复调用 render
 
 const outputDuration = computed(() => selectedTasks.value.task ? getOutputDuration(selectedTasks.value.task) : 0);
 const isDark = computed(() => appStore.frontendSettings.colorTheme === 'themeDark');
-// 获取当前选中的 run 的 progressLog（使用任务的 selectedRunIndex）
-const activeProgressLog = computed(() => {
+// 获取当前选中的 run（使用任务的 selectedRunIndex）
+const activeRun = computed(() => {
 	const task = selectedTasks.value.task;
 	if (!task) return undefined;
-	return task.runs[task.selectedRunIndex]?.progressLog;
+	return task.runs[task.selectedRunIndex];
+});
+// 获取当前选中的 run 的 progressLog
+const activeProgressLog = computed(() => {
+	return activeRun.value?.progressLog;
 });
 const selectionList = computed(() => {
 	const disableNormalChart = !selectedTasks.value.task || (activeProgressLog.value?.time.length ?? 0) <= 1;
@@ -190,8 +194,9 @@ const getLastSpeedBitrate = () => {
 const getEstimatedMaxTimeSize = () => {
 	const lastSpeedBitrate = getLastSpeedBitrate();
 	const task = selectedTasks.value.task!;
+	const run = activeRun.value!;
 	const progressLog = activeProgressLog.value!;
-	const elapsedTime = progressLog.elapsed + (task.status === TaskStatus.running ? new Date().getTime() / 1000 - progressLog.lastStarted : 0);
+	const elapsedTime = run.elapsed + (task.status === TaskStatus.running ? new Date().getTime() / 1000 - run.lastStarted : 0);
 	// 任务最新进度的时间和大小
 	const currentTime = progressLog.time.length > 0 ? progressLog.time[progressLog.time.length - 1][1] : 0;
 	const currentSize = progressLog.size.length > 0 ? progressLog.size[progressLog.size.length - 1][1] : 0;

@@ -509,14 +509,19 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 	/**
 	 * 计算总进度并发送 statusUpdate
+	 * 如果运行状态为停止（没有要继续完成的任务），progress 为 -1
 	 * @param workingStatus 队列状态变化时携带，仅状态变化时传入
 	 * @emits statusUpdate
 	 */
 	private emitStatusUpdate(workingStatus?: 'start' | 'stop' | 'pause'): void {
 		let totalTime = 0.000001;
 		let totalProcessedTime = 0;
+		if (workingStatus === 'stop') {
+			this.emit('statusUpdate', { workingStatus, progress: -1 });
+			return
+		}
 		// 使用状态集合直接遍历有进度贡献的状态（running/paused/finished/error），跳过 idle 等无贡献状态
-		for (const status of [TaskStatus.running, TaskStatus.paused, TaskStatus.finished, TaskStatus.error]) {
+		for (const status of [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing, TaskStatus.finished]) {
 			for (const taskId of this.taskList.statusSets[status]) {
 				const task = this.taskList.getById(taskId);
 				if (!task || !task.before[0]?.duration) continue;
@@ -543,6 +548,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 	/**
 	 * 向所有客户端更新单个任务
+	 * runs 剥离 progressLog 和 cmdData 以减少数据量，它们分别由 progressUpdate 和 cmdUpdate 事件增量更新
 	 * @param id 任务 id
 	 * @param task 直接传入 task 可减少一次内存查找
 	 */
@@ -556,8 +562,17 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					taskName: _task.taskName,
 					before: _task.before,
 					status: _task.status,
-					runs: _task.runs,
-				} as any,
+					runs: _task.runs.map((run) => ({
+						after: run.after,
+						paraArray: run.paraArray,
+						outputFiles: run.outputFiles,
+						status: run.status,
+						errorInfo: run.errorInfo,
+						lastStarted: run.lastStarted,
+						elapsed: run.elapsed,
+						lastPaused: run.lastPaused,
+					})),
+				},
 			});
 		}
 	}
@@ -976,13 +991,13 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const runIndex = task.runs.length - 1;
 		const run = task.runs[runIndex];
 		this.taskList.setStatus(id, TaskStatus.running);
+		run.lastStarted = new Date().getTime() / 1000;
+		run.elapsed = 0;
+		run.lastPaused = new Date().getTime() / 1000;
 		run.progressLog = {
 			time: [],
 			frame: [],
 			size: [],
-			lastStarted: new Date().getTime() / 1000,
-			elapsed: 0,
-			lastPaused: new Date().getTime() / 1000,
 		};
 		this.emit('progressUpdate', {
 			taskId: id,
@@ -1052,7 +1067,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						}
 					}
 					this.taskList.setStatus(id, TaskStatus.finished);
-					run.progressLog.elapsed = new Date().getTime() / 1000 - run.progressLog.lastStarted;
+					run.elapsed = new Date().getTime() / 1000 - run.lastStarted;
 					if (hasTimeError.length) {
 						this.setNotification(id, `任务「${task.taskName}」已转码完成，但修改第 ${hasTimeError.join(' ')} 个文件时间失败。`, NotificationLevel.warning);
 					} else {
@@ -1075,11 +1090,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.storeUnfinishedTask();
 		});
 		newFFmpeg.on('status', (status: FFmpegProgress) => {
-			const progressLog = run.progressLog;
-			const time = new Date().getTime() / 1000 - progressLog.lastStarted + progressLog.elapsed;
+			const time = new Date().getTime() / 1000 - run.lastStarted + run.elapsed;
 			for (const parameter of ['time', 'frame', 'size']) {
 				const _parameter = parameter as 'time' | 'frame' | 'size';
-				progressLog[_parameter].push([time, status[_parameter]]);
+				run.progressLog[_parameter].push([time, status[_parameter]]);
 			}
 			this.trailLimit_checkIsMediaWorkingTimeExceeded(id, task);
 			this.emit('progressUpdate', {
@@ -1099,7 +1113,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		});
 		for (const parameter of ['time', 'frame', 'size']) {
 			const _parameter = parameter as 'time' | 'frame' | 'size';
-			run.progressLog[_parameter].push([new Date().getTime() / 1000 - run.progressLog.lastStarted, 0]);
+			run.progressLog[_parameter].push([new Date().getTime() / 1000 - run.lastStarted, 0]);
 		}
 		task.ffmpeg = newFFmpeg;
 		this.emitTaskUpdate(id, task);
@@ -1212,8 +1226,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		task.ffmpeg!.pause();
 		const activeRun = task.runs[task.runs.length - 1];
 		if (activeRun) {
-			activeRun.progressLog.lastPaused = new Date().getTime() / 1000;
-			activeRun.progressLog.elapsed += activeRun.progressLog.lastPaused - activeRun.progressLog.lastStarted;
+			activeRun.lastPaused = new Date().getTime() / 1000;
+			activeRun.elapsed += activeRun.lastPaused - activeRun.lastStarted;
 		}
 		this.emitTaskUpdate(id, task);
 
@@ -1280,7 +1294,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		const nowRealTime = new Date().getTime() / 1000;
 		const activeRun = task.runs[task.runs.length - 1];
 		if (activeRun) {
-			activeRun.progressLog.lastStarted = nowRealTime;
+			activeRun.lastStarted = nowRealTime;
 		}
 		task.ffmpeg!.resume();
 		this.emitTaskUpdate(id, task);
@@ -1734,7 +1748,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			}
 		}
 		const maxWorkingDuration = getLimitaion('maxWorkingDuration', this.functionLevel);
-		if (progressLog.elapsed + new Date().getTime() / 1000 - progressLog.lastStarted > maxWorkingDuration) {
+		if (activeRun.elapsed + new Date().getTime() / 1000 - activeRun.lastStarted > maxWorkingDuration) {
 			this.trailLimit_stopTranscoding(id, 'working');
 			return true;
 		}

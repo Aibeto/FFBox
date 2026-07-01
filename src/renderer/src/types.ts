@@ -19,7 +19,6 @@ export interface UIRun extends Run {
 		frame: number;
 		size: number;	// kB
 	};
-	dashboardTimer: number;
 }
 
 export interface UITask extends Omit<Task, 'runs'> {
