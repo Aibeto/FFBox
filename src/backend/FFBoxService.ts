@@ -18,7 +18,9 @@ import { getMachineId, log } from './utils';
 import { getLimitaion } from '@common/limitaions';
 import { FFmpeg } from './FFmpegInvoke';
 import { YieldManager } from './YieldManager';
-import { webhookManager } from './utils/webhookManager';
+import { webhookManager } from './webhookManager';
+import { UserManager } from './userManager';
+import { ServerSettingsManager } from './ServerSettingsManager';
 
 const yieldThreshold = 50;
 
@@ -43,11 +45,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	private latestNotificationId = 0;
 	public functionLevel = 20;
 	public machineId: string | undefined;
-	// 设置部分
-	private maxThreads = 1;
-	private customFFmpegPath: string | undefined = undefined;
-	private preserveUnfinishedTasks = true;
-	private deleteFinishedTasks = false;
+	// 管理器
+	public userManager: UserManager = new UserManager();
+	public settings: ServerSettingsManager = new ServerSettingsManager();
 	// 帧扫描状态跟踪：key = `${id}_${fileIndex}_${videoStreamIndex}_${filePath}`
 	private frameScanStatus: Map<string, {
 		status: 'scanning' | 'completed' | 'stopped';
@@ -118,21 +118,16 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * 从本地存储初始化设置
 	 */
 	public async initSettings(): Promise<void> {
-		const currentMaxThreads = (await localConfig.get('service.maxThreads') as number) || 1;
-		this.maxThreads = currentMaxThreads;
-		log.info(`设定最大同时运行任务数为 ${this.maxThreads}`);
+		const settings = await this.settings.refresh();
+		log.info(`设定最大同时运行任务数为 ${settings.maxThreads}`);
 
-		const customFFmpegPath = await localConfig.get('service.customFFmpegPath');
 		// 发生了变更，或者初始化时 ffmpegPath 为空（如果之前已经初始化过，那么 customFFmpegPath 两者之一不为空）
-		if (this.customFFmpegPath !== customFFmpegPath || !this.ffmpegPath && !customFFmpegPath) {
-			this.customFFmpegPath = customFFmpegPath as any || undefined;
+		if (settings.customFFmpegPath || !this.ffmpegPath) {
 			this.initFFmpeg();
 		}
-		this.customFFmpegPath = customFFmpegPath as any || undefined;
 
-		const preserveUnfinishedTasks = await localConfig.get('service.preserveUnfinishedTasks') === false ? false : true;
 		const lastStatusTasks = await localConfig.get('lastStatus.tasks') as { taskName: string; after: OutputParams; }[];
-		if (preserveUnfinishedTasks) {
+		if (settings.preserveUnfinishedTasks) {
 			try {
 				if (lastStatusTasks.length) {
 					this.setNotification(undefined, `服务器上次退出时有未完成任务 ${lastStatusTasks.length} 个，正在重新添加到任务列表`, NotificationLevel.info);
@@ -150,8 +145,6 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				}
 			} catch (error) {}
 		}
-
-		this.deleteFinishedTasks = await localConfig.get('service.deleteFinishedTasks') === true ? true : false;
 	}
 
 	/**
@@ -189,9 +182,9 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 		let asyncEntry = { type: `检查 ffmpeg 版本` };
 		this.asyncListOp('+', asyncEntry);
-		if (this.customFFmpegPath) {
-			log.info(`已手动指定 ffmpeg 路径为 ${this.customFFmpegPath}，检查版本。`);
-			const resolved = resolveFFmpegPaths(this.customFFmpegPath);
+		if (this.settings.get().customFFmpegPath) {
+			log.info(`已手动指定 ffmpeg 路径为 ${this.settings.get().customFFmpegPath}，检查版本。`);
+			const resolved = resolveFFmpegPaths(this.settings.get().customFFmpegPath);
 			this.ffmpegPath = resolved.ffmpegPath;
 			this.ffprobePath = resolved.ffprobePath;
 		} else {
@@ -1076,7 +1069,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 					webhookManager.triggerTaskEvent('task.completed', id, { taskId: id, task: task as any });
 
-					if (this.deleteFinishedTasks) {
+					if (this.settings.get().deleteFinishedTasks) {
 						setTimeout(() => {
 							this.taskDeleteBatch([id]);
 						}, 0);
@@ -1429,7 +1422,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	private storeUnfinishedTask(): void {
-		if (!this.preserveUnfinishedTasks) {
+		if (!this.settings.get().preserveUnfinishedTasks) {
 			return;
 		}
 		const tasks: { taskName: string; after: OutputParams; }[] = [];
@@ -1463,7 +1456,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			const asyncEntry = { type: `排队任务分配执行` };
 			this.asyncListOp('+', asyncEntry);
 
-			const maxThreads = Math.min(this.maxThreads, getLimitaion('maxThreads', this.functionLevel));
+			const maxThreads = Math.min(this.settings.get().maxThreads, getLimitaion('maxThreads', this.functionLevel));
 			let runningCount = this.taskList.getTaskCountByStatus(TaskStatus.running);
 
 			// 根据 runningCount 分配任务

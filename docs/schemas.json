@@ -208,6 +208,15 @@
       "status": {
         "$ref": "#/components/schemas/TaskStatus"
       },
+      "lastStarted": {
+        "type": "number"
+      },
+      "elapsed": {
+        "type": "number"
+      },
+      "lastPaused": {
+        "type": "number"
+      },
       "progressLog": {
         "type": "object",
         "properties": {
@@ -219,24 +228,12 @@
           },
           "size": {
             "$ref": "#/components/schemas/SingleProgressLog"
-          },
-          "lastStarted": {
-            "type": "number"
-          },
-          "elapsed": {
-            "type": "number"
-          },
-          "lastPaused": {
-            "type": "number"
           }
         },
         "required": [
           "time",
           "frame",
-          "size",
-          "lastStarted",
-          "elapsed",
-          "lastPaused"
+          "size"
         ],
         "additionalProperties": false
       },
@@ -255,6 +252,9 @@
       "paraArray",
       "outputFiles",
       "status",
+      "lastStarted",
+      "elapsed",
+      "lastPaused",
       "progressLog",
       "cmdData",
       "errorInfo"

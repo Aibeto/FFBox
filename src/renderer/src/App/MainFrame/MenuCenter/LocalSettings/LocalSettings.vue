@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Permission } from '@common/types';
 import { useAppStore } from '@renderer/stores/appStore';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import { showServerConfig } from '@renderer/components/misc/ServerConfig';
+import { showServerUserConfig } from '@renderer/components/misc/ServerUserConfig';
+import { showServerCacheInfo } from '@renderer/components/misc/ServerCacheInfo';
 import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
 import Slider from '@renderer/components/Slider/Slider.vue';
 import Button from '@renderer/components/Button/Button';
@@ -36,14 +39,11 @@ const autoHideCoarseSliderList: RadioListProps['list'] = [
 	{ value: false, caption: '常驻显示' },
 ];
 
-const localServiceStatus = computed(() => {
-	if (appStore.servers[0]?.entity.ip === 'localhost') {
-		if (appStore.servers[0].entity.status === ServiceBridgeStatus.Connected) {
-			return 'ok';
-		}
-		return 'disconnected';
+const currentServiceStatus = computed(() => {
+	if (appStore.currentServer?.entity.status === ServiceBridgeStatus.Connected) {
+		return 'ok';
 	}
-	return 'notlocal';
+	return 'disconnected';
 });
 
 const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value: any) => {
@@ -92,10 +92,13 @@ const handleSettingChange = (key: keyof typeof appStore.frontendSettings, value:
 			/>
 		</div>
 		<div class="configArea">
-			<p>转码服务相关设置请到“服务器配置”页面配置</p>
-			<p v-if="localServiceStatus === 'disconnected'">连接本地服务器后方可设置</p>
-			<p v-if="localServiceStatus === 'notlocal'">仅支持在本地模式下进行服务器配置</p>
-			<Button :disabled="localServiceStatus !== 'ok'" size="large" @click="showServerConfig(appStore.servers[0].data.id)">服务器配置</Button>
+			<p>{{ appStore.currentServer?.data.name }} 转码服务相关设置请到以下页面配置</p>
+			<p v-if="currentServiceStatus === 'disconnected'">连接转码服务器后方可设置</p>
+			<div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+				<Button :disabled="currentServiceStatus !== 'ok' || !appStore.currentServer?.entity.permissions.includes(Permission.ServerSettings)" size="large" @click="showServerConfig(appStore.currentServer!.data.id)">转码服务设置</Button>
+				<Button :disabled="currentServiceStatus !== 'ok' || !appStore.currentServer?.entity.permissions.includes(Permission.UserManagement)" size="large" @click="showServerUserConfig(appStore.currentServer!.data.id)">用户配置</Button>
+				<Button :disabled="currentServiceStatus !== 'ok' || !appStore.currentServer?.entity.permissions.includes(Permission.CacheManagement)" size="large" @click="showServerCacheInfo(appStore.currentServer!.data.id)">缓存信息</Button>
+			</div>
 		</div>
 	</div>
 </template>

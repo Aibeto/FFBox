@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
-import { TaskStatus, WorkingStatus } from '@common/types';
+import { TaskStatus, WorkingStatus, Permission } from '@common/types';
 import { Server } from '@renderer/types';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import showMenu from '@renderer/components/Menu/Menu';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import { showServerConfig } from '@renderer/components/misc/ServerConfig';
+import { showServerUserConfig } from '@renderer/components/misc/ServerUserConfig';
+import { showServerCacheInfo } from '@renderer/components/misc/ServerCacheInfo';
 import IconX from '@renderer/assets/×.svg?component';
 
 const appStore = useAppStore();
@@ -85,9 +87,11 @@ const handleTabContextMenu = (event: MouseEvent, server: Server) => {
 				{ type: 'separator' as const },
 				{ type: 'normal' as const, label: server.entity.status === ServiceBridgeStatus.Idle ? '关闭' : '断开连接并关闭', value: '断开连接并关闭', onClick: () => handleTabCloseClicked(server, event) },
 			] : []),
-			...(server.entity.ip === 'localhost' ? [
+			...(server.entity.status === ServiceBridgeStatus.Connected ? [
 				{ type: 'separator' as const },
-				{ type: 'normal' as const, label: '服务器配置', value: '服务器配置', disabled: server.entity.status !== ServiceBridgeStatus.Connected, onClick: () => showServerConfig(server.data.id) },
+				{ type: 'normal' as const, label: '转码服务设置', value: '转码服务设置', disabled: !server.entity.permissions.includes(Permission.ServerSettings), onClick: () => showServerConfig(server.data.id) },
+				{ type: 'normal' as const, label: '用户配置', value: '用户配置', disabled: !server.entity.permissions.includes(Permission.UserManagement), onClick: () => showServerUserConfig(server.data.id) },
+				{ type: 'normal' as const, label: '缓存信息', value: '缓存信息', disabled: !server.entity.permissions.includes(Permission.CacheManagement), onClick: () => showServerCacheInfo(server.data.id) },
 			] : []),
 		],
 		type: 'action',

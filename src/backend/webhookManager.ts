@@ -13,7 +13,7 @@ import {
 	NotificationEventType,
 } from '@common/types';
 import localConfig from '@common/localConfig';
-import { log } from '../utils';
+import { log } from './utils';
 
 const WEBHOOK_CONFIG_KEY = 'webhooks';
 const MAX_RETRIES = 3;

@@ -3,12 +3,30 @@
 		margin: 0 0 8px;
 		tr {
 			line-height: 22px;
-		}
-		.editable {
-			cursor: pointer;
-			&:hover {
-				color: hwb(var(--primaryColor));
-				text-decoration: underline;
+			.permissionCell {
+				display: flex;
+				flex-wrap: wrap;
+				justify-content: center;
+				align-items: center;
+				button {
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					&:not(:nth-last-child(1)) {
+						margin-right: 0;
+					}
+					&>div {
+						transform: scale(0.7);
+						cursor: initia;
+					}
+				}
+			}
+			.editable {
+				cursor: pointer;
+				&:hover {
+					color: hwb(var(--primaryColor));
+					text-decoration: underline;
+				}
 			}
 		}
 	}

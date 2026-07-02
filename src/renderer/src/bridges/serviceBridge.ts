@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import CryptoJS from 'crypto-js';
 import { TypedEventEmitter } from '@common/utils';
-import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, InputInfo, Notification, OutputParams, Task, TaskStatus } from '@common/types';
+import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, InputInfo, Notification, OutputParams, Task, TaskStatus, Permission, UserConfig, ServerSettingsData } from '@common/types';
 
 export interface ServeiceBridgeEvent {
 	connected: () => void;
@@ -27,7 +27,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	public password: string | undefined;
 	public status = ServiceBridgeStatus.Idle;
 	public sessionId?: string;
-	public functionLevel: number = NaN;
+	public permissions: Permission[] = [];
 
 	constructor(ip?: string, port?: number) {
 		super();
@@ -130,8 +130,8 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			}
 
 			this.sessionId = loginResult.sessionId;
-			this.functionLevel = loginResult.functionLevel;
-			console.log(`serviceBridge: 登录成功，sessionId: ${this.sessionId}, functionLevel: ${this.functionLevel}`);
+			this.permissions = loginResult.permissions ?? [];
+			console.log(`serviceBridge: 登录成功，sessionId: ${this.sessionId}, permissions: ${JSON.stringify(this.permissions)}`);
 
 			// 3. 建立 WebSocket 连接（携带 sessionId）
 			console.log(`serviceBridge: 正在连接 WebSocket ws://${this.ip}:${this.port}/?sessionId=${this.sessionId}`);
@@ -155,7 +155,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 					// 未连接成功，由 onerror 处理过，这里不需处理
 				}
 				这.sessionId = undefined;
-				这.functionLevel = NaN;
+				这.permissions = [];
 				这.emit('disconnected');
 			};
 
@@ -377,14 +377,22 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 
 	// #endregion
 
-	// #region 初始化方法（后端内部调用，前端无需调用）
+	// #region 服务器配置与用户管理
 
-	public initSettings(): Promise<void> {
-		return this.httpRequest<void>('POST', '/api/v1/system/settings/reload');
+	public getServerSettings(): Promise<ServerSettingsData> {
+		return this.httpRequest<ServerSettingsData>('GET', '/api/v1/settings/server');
 	}
 
-	public initFFmpeg(): void {
-		// 后端内部调用，前端无需实现
+	public setServerSettings(settings: Partial<ServerSettingsData>): Promise<void> {
+		return this.httpRequest<void>('PUT', '/api/v1/settings/server', settings);
+	}
+
+	public getUsers(): Promise<UserConfig[]> {
+		return this.httpRequest<UserConfig[]>('GET', '/api/v1/settings/users');
+	}
+
+	public setUsers(users: UserConfig[]): Promise<void> {
+		return this.httpRequest<void>('PUT', '/api/v1/settings/users', users);
 	}
 
 	// #endregion

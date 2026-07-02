@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { TaskStatus, WorkingStatus, NotificationLevel } from '@common/types';
+import { TaskStatus, WorkingStatus, Permission } from '@common/types';
 import { version } from '@common/constants';
 import { useAppStore } from '@renderer/stores/appStore';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
@@ -10,10 +10,11 @@ import { handleCloseConfirm } from '@renderer/logic/eventsHandler';
 import { showEnvironmentInfo } from '@renderer/components/misc/EnvironmentInfo'
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
 import { showServerConfig } from '@renderer/components/misc/ServerConfig';
+import { showServerUserConfig } from '@renderer/components/misc/ServerUserConfig';
+import { showServerCacheInfo } from '@renderer/components/misc/ServerCacheInfo';
 import SponsorPanel from './SponsorPanel/SponsorPanel.vue';
 import LocalSettings from './LocalSettings/LocalSettings.vue';
 import Terms from './Terms/Terms.vue';
-import Popup from '@renderer/components/Popup/Popup';
 import IconSidebarSponsor from './sponsor.svg?component';
 import IconSidebarSettings from './settings.svg?component';
 import IconSidebarTerm from './term.svg?component';
@@ -82,9 +83,11 @@ const finalMenu = computed(() => {
 					} },
 					{ type: 'normal' as const, label: '从当前服务器获取 AVOptions 信息', value: '从当前服务器获取 AVOptions 信息', tooltip: '每次变更 ffmpeg 路径（版本）后，FFBox 服务会自动扫描编码器、解复用器和复用器、滤镜信息。通过此功能，可将扫描到的信息下载到前端', onClick: () => appStore.fetchAVOptions() },
 				] : []),
-				...(appStore.currentServer?.entity.ip === 'localhost' ? [
+				...(appStore.currentServer?.entity.status === ServiceBridgeStatus.Connected ? [
 					{ type: 'separator' as const },
-					{ type: 'normal' as const, label: '本地服务器配置', value: '本地服务器配置', disabled: appStore.currentServer?.entity.status !== ServiceBridgeStatus.Connected, onClick: () => showServerConfig(appStore.currentServer!.data.id!) },
+					{ type: 'normal' as const, label: '转码服务设置', value: '转码服务设置', disabled: !appStore.currentServer!.entity.permissions.includes(Permission.ServerSettings), onClick: () => showServerConfig(appStore.currentServer!.data.id!) },
+					{ type: 'normal' as const, label: '用户配置', value: '用户配置', disabled: !appStore.currentServer!.entity.permissions.includes(Permission.UserManagement), onClick: () => showServerUserConfig(appStore.currentServer!.data.id!) },
+					{ type: 'normal' as const, label: '缓存信息', value: '缓存信息', disabled: !appStore.currentServer!.entity.permissions.includes(Permission.CacheManagement), onClick: () => showServerCacheInfo(appStore.currentServer!.data.id!) },
 				] : []),
 			],
 		},

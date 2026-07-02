@@ -234,6 +234,15 @@
           "status": {
             "$ref": "#/components/schemas/TaskStatus"
           },
+          "lastStarted": {
+            "type": "number"
+          },
+          "elapsed": {
+            "type": "number"
+          },
+          "lastPaused": {
+            "type": "number"
+          },
           "progressLog": {
             "type": "object",
             "properties": {
@@ -245,24 +254,12 @@
               },
               "size": {
                 "$ref": "#/components/schemas/SingleProgressLog"
-              },
-              "lastStarted": {
-                "type": "number"
-              },
-              "elapsed": {
-                "type": "number"
-              },
-              "lastPaused": {
-                "type": "number"
               }
             },
             "required": [
               "time",
               "frame",
-              "size",
-              "lastStarted",
-              "elapsed",
-              "lastPaused"
+              "size"
             ],
             "additionalProperties": false
           },
@@ -281,6 +278,9 @@
           "paraArray",
           "outputFiles",
           "status",
+          "lastStarted",
+          "elapsed",
+          "lastPaused",
           "progressLog",
           "cmdData",
           "errorInfo"
@@ -1742,9 +1742,12 @@
                     "sessionId": {
                       "type": "string"
                     },
-                    "functionLevel": {
-                      "type": "integer",
-                      "description": "暂无实际作用"
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "用户权限列表。undefined/空表示未配置权限（全部开放）"
                     }
                   }
                 }
@@ -2371,6 +2374,48 @@
         }
       }
     },
+    "/api/v1/tasks/output-files": {
+      "post": {
+        "summary": "批量获取任务的输出文件信息（用于批量下载）",
+        "description": "接收任务 ID 和可选的 runIndex 列表，返回每个任务的输出文件路径和参数。runIndex 未指定时默认取最后一个 run。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskRunEntries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "taskId": {
+                          "type": "integer"
+                        },
+                        "runIndex": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "输出文件信息列表"
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}/merge-upload": {
       "post": {
         "summary": "合并上传的文件",
@@ -2920,6 +2965,125 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/server": {
+      "get": {
+        "summary": "获取服务器配置",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "服务器配置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerSettingsData"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "更新服务器配置",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerSettingsData"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足"
+          }
+        }
+      }
+    },
+    "/api/v1/settings/users": {
+      "get": {
+        "summary": "获取用户列表",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "用户列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserConfig"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "更新用户列表",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/UserConfig"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误（必须包含管理员账号）"
+          },
+          "403": {
+            "description": "权限不足"
           }
         }
       }

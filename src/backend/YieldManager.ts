@@ -50,7 +50,7 @@ export class YieldManager {
 	 * @throws 当该类型被 kill 后，下次 shift 时抛出 YieldKilledError
 	 */
 	yield(metadata: YieldItemMetadata): Promise<void> {
-		console.log('入队', metadata, this.pendingList);
+		// console.log('入队', metadata, this.pendingList);
 		return new Promise<void>((resolve, reject) => {
 			this.pendingList.push({ metadata, resolve, reject, killed: false });
 
@@ -76,10 +76,10 @@ export class YieldManager {
 
 		const task = this.pendingList.shift();
 		if (task?.killed) {
-			console.log('出队（中断）', task?.metadata, this.pendingList);
+			// console.log('出队（中断）', task?.metadata, this.pendingList);
 			task.reject(new YieldKilledError());
 		} else {
-			console.log('出队（正常）', task?.metadata, this.pendingList);
+			// console.log('出队（正常）', task?.metadata, this.pendingList);
 			task?.resolve();
 		}
 		if (this.pendingList.length > 0) {

@@ -1,4 +1,5 @@
 import { defineComponent, onMounted, ref } from "vue";
+import { NotificationLevel, Permission } from "@common/types";
 import { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import { formatSize } from "@common/utils";
@@ -10,7 +11,7 @@ export function showServerCacheInfo(serverId: string) {
 	(document.activeElement as any)?.blur();
 	Msgbox({
 		container: document.body,
-		title: '本地服务器缓存信息',
+		title: '服务器缓存信息',
 		content: <Comp serverId={serverId} />,
 		buttons: [
 			{ text: '关闭', role: 'cancel' },
@@ -27,10 +28,14 @@ const Comp = defineComponent((props: P) => {
 
 	const handleClearCache = async () => {
 		const server = appStore.servers.find((server) => server.data.id === props.serverId) as Server;
-		const result = await server.entity.getCacheInfo(true);
-		Popup({ message: `已清除上传缓存 ${result.uploadCount} 个文件，总计 ${formatSize(result.uploadSize)}；下载缓存 ${result.downloadCount} 个文件，总计 ${formatSize(result.downloadSize)}` })
-		const newResult = await server.entity.getCacheInfo(false);
-		cacheInfo.value = newResult;
+		try {
+			const result = await server.entity.getCacheInfo(true);
+			Popup({ message: `已清除上传缓存 ${result.uploadCount} 个文件，总计 ${formatSize(result.uploadSize)}；下载缓存 ${result.downloadCount} 个文件，总计 ${formatSize(result.downloadSize)}` });
+			const newResult = await server.entity.getCacheInfo(false);
+			cacheInfo.value = newResult;
+		} catch (e: any) {
+			Popup({ message: `清除失败：${e.message || '权限不足或网络错误'}`, level: NotificationLevel.error });
+		}
 	};
 
 	onMounted(async () => {
@@ -50,7 +55,11 @@ const Comp = defineComponent((props: P) => {
 				<div>暂无信息</div>
 			)}
 			<div style={{ height: '16px' }}></div>
-			<Button onClick={() => handleClearCache()}>清除缓存</Button>
+			{appStore.servers.find((s) => s.data.id === props.serverId)?.entity.permissions.includes(Permission.CacheManagement) ? (
+				<Button onClick={() => handleClearCache()}>清除缓存</Button>
+			) : (
+				<Button disabled={true}>清除缓存（无权限）</Button>
+			)}
 		</div>
 	);
 }, { props: ['serverId'] });

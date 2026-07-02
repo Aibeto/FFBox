@@ -1,17 +1,15 @@
 import { computed, defineComponent, onMounted, ref } from "vue";
+import { Permission } from "@common/types";
 import { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import { useTooltip } from "@renderer/common/tooltipUtil";
 import { getLimitaion } from '@renderer/logic/limitaions';
-import nodeBridge from "@renderer/bridges/nodeBridge";
-import { showServerUserConfig } from "./ServerUserConfig";
-import { showServerCacheInfo } from "./ServerCacheInfo";
-import Button from '@renderer/components/Button/Button';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import { posIntegerFixer } from "@renderer/components/validatorAndFixer";
 import { ButtonType } from "../Button/Button";
 import Msgbox from "../Msgbox/Msgbox";
+import Popup from "../Popup/Popup";
 import css from './ServerConfig.module.less';
 
 export function showServerConfig(serverId: string) {
@@ -22,20 +20,26 @@ export function showServerConfig(serverId: string) {
 	setTimeout(() => {
 		Msgbox({
 			container: document.body,
-			title: '本地服务器配置',
+			title: '转码服务设置',
 			content: <Comp exportFunctions={(fs) => compFuncs = fs} serverId={serverId} />,
 			buttons: [
-				{ text: '保存', role: 'confirm', type: ButtonType.Primary, callback: async () => {
-					const result = await compFuncs.exportData();
-					const { maxThreads, customFFmpegPath, preserveUnfinishedTasks, deleteFinishedTasks } = result;
-					const originalConfig = await nodeBridge.localConfig.get('service');
-					nodeBridge.localConfig.set('service', { ...originalConfig, maxThreads, customFFmpegPath, preserveUnfinishedTasks, deleteFinishedTasks });
-					const server = appStore.servers.find((server) => server.data.id === serverId) as Server;
-					setTimeout(() => {
-						// 留时间写盘完成后再通知服务器刷新
-						server.entity.initSettings();
-					}, 40);
-				} },
+				...(appStore.servers.find((s) => s.data.id === serverId)?.entity.permissions.includes(Permission.ServerSettings) ? [
+					{ text: '保存', role: 'confirm' as const, type: ButtonType.Primary, callback: async () => {
+						const result = await compFuncs.exportData();
+						const server = appStore.servers.find((server) => server.data.id === serverId) as Server;
+						try {
+							await server.entity.setServerSettings({
+								maxThreads: parseInt(result.maxThreads) || 1,
+								customFFmpegPath: result.customFFmpegPath,
+								preserveUnfinishedTasks: result.preserveUnfinishedTasks,
+								deleteFinishedTasks: result.deleteFinishedTasks,
+							});
+							Popup({ message: '服务器配置已保存' });
+						} catch (e: any) {
+							Popup({ message: `保存失败：${e.message || '权限不足或网络错误'}`, level: 'warning' as any });
+						}
+					} }
+				] : []),
 				{ text: '取消', role: 'cancel' },
 			]
 		});
@@ -69,12 +73,13 @@ const Comp = defineComponent((props: P) => {
 	onMounted(() => {
 		props.exportFunctions(exports);
 		(async () => {
-			const serviceSettings = await nodeBridge.localConfig.get('service') || {};
-			
+			const server = appStore.servers.find((server) => server.data.id === props.serverId) as Server;
+			const serviceSettings = await server.entity.getServerSettings();
+
 			maxThreadsValue.value = (serviceSettings.maxThreads || 1) + '';
 			customFFmpegPathValue.value = serviceSettings.customFFmpegPath || '';
-			preserveUnfinishedTasksValue.value = serviceSettings.preserveUnfinishedTasks === false ? false : true;
-			deleteFinishedTasksValue.value = serviceSettings.deleteFinishedTasks === true ? true : false;
+			preserveUnfinishedTasksValue.value = serviceSettings.preserveUnfinishedTasks !== false;
+			deleteFinishedTasksValue.value = serviceSettings.deleteFinishedTasks === true;
 		})();
     });
 
@@ -96,10 +101,6 @@ const Comp = defineComponent((props: P) => {
 				title="ffmpeg 路径" value={customFFmpegPathValue.value} onChange={(value) => customFFmpegPathValue.value = value} placeholder="建议留空，自动检测" long={true}
 				{ ...useTooltip('可填入 ffmpeg 可执行文件的完整路径，或其所在的文件夹路径。\n- 若填入文件夹，FFBox 将自动查找其中的 ffmpeg 和 ffprobe；\n- 若填入完整路径，FFBox 将从同目录下查找 ffprobe。\n留空则自动检测。', 't')}
 			/>
-			<div style={{ margin: '12px' }}>
-				<Button onClick={() => showServerUserConfig(props.serverId)}>用户配置</Button>
-				<Button onClick={() => showServerCacheInfo(props.serverId)}>缓存信息</Button>
-			</div>
 		</div>
 	);
 }, { props: ['serverId', 'exportFunctions'] });

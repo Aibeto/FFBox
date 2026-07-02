@@ -12,23 +12,37 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
-import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams, CreateWebhookRequest, UpdateWebhookRequest, WsClientMessage, TaskStatus } from '@common/types';
-import { getTaskLatestOutputParams } from '@common/utils';
+import { FFBoxServiceEventApi, FFBoxServiceEventParam, OutputParams, CreateWebhookRequest, UpdateWebhookRequest, WsClientMessage, TaskStatus, Permission, UserConfig } from '@common/types';
 import { version } from '@common/constants';
-import { getSingleArgvValue } from '@common/utils';
+import { getSingleArgvValue, randomString, getTaskLatestOutputParams } from '@common/utils';
 import localConfig from '@common/localConfig';
 import { FFBoxService } from './FFBoxService';
 import { getOs, log } from './utils';
-import { sessionManager } from './utils/sessionManager';
-import { webhookManager } from './utils/webhookManager';
-import { ControllableTransform } from './utils/ControllableTransform';
+import { webhookManager } from './webhookManager';
+import { ControllableTransform } from './ControllableTransform';
 
 interface Client {
-	ws: WebSocket;
+	ws?: WebSocket;
 	sessionId: string;
 	username: string;
-	functionLevel: number;
+	permissions: Permission[];
+	loginTime: number;
 	subscribedTaskIds: Set<number>;
+}
+
+/**
+ * 创建新会话（登录时调用），返回 sessionId
+ */
+function createSession(username: string, permissions: Permission[]): string {
+	const sessionId = randomString(32);
+	clients.set(sessionId, {
+		sessionId,
+		username,
+		permissions,
+		loginTime: Date.now(),
+		subscribedTaskIds: new Set(),
+	});
+	return sessionId;
 }
 
 let server: Http.Server | null;
@@ -219,30 +233,24 @@ function mountWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): voi
 		return;
 	}
 
-	const session = sessionManager.verifySession(sessionId);
-	if (!session) {
+	const client = clients.get(sessionId);
+	if (!client) {
 		log.warn(`客户端连接被拒绝：无效的 sessionId。地址：${address}`);
 		ws.close(4001, 'Invalid sessionId');
 		return;
 	}
 
-	// 检查是否已有该 sessionId 的连接，如果有则断开旧连接
-	const existingClient = clients.get(sessionId);
-	if (existingClient) {
+	// 检查是否已有该 sessionId 的 WebSocket 连接，如果有则断开旧连接
+	if (client.ws) {
+		debugger;
 		log.info(`客户端重复连接，断开旧连接。sessionId：${sessionId}`);
-		existingClient.ws.close(4002, 'Replaced by new connection');
+		client.ws.close(4002, 'Replaced by new connection');
 	}
 
-	// 连接成功，绑定 client
-	const client: Client = {
-		ws,
-		sessionId,
-		username: session.username,
-		functionLevel: session.functionLevel,
-		subscribedTaskIds: new Set(),
-	};
-	clients.set(sessionId, client);
-	log.info(`新客户端接入：${address}。sessionId：${sessionId}，用户：${session.username || '(匿名)'}。当前客户端数量：${clients.size}。`);
+	// 绑定 WebSocket 到已有会话
+	client.ws = ws;
+	client.subscribedTaskIds = new Set();
+	log.info(`新客户端接入：${address}。sessionId：${sessionId}，用户：${client.username || '(匿名)'}。当前客户端数量：${clients.size}。`);
 
 	// 处理客户端订阅消息
 	ws.on('message', (rawData: Buffer) => {
@@ -271,6 +279,8 @@ function mountWebSocketEvents(ws: WebSocket, request: Http.IncomingMessage): voi
 	ws.on('close', function (code: number, reason: Buffer) {
 		clients.delete(sessionId);
 		log.info(`客户端连接关闭：${address}。当前客户端数量：${clients.size}。`, code, reason.toString());
+		client.ws = undefined;
+		client.subscribedTaskIds.clear();
 	});
 	ws.on('error', function (err: Error) {
 		log.error(`客户端连接出错：${address}。`, err);
@@ -303,7 +313,7 @@ function mountEventFromService(): void {
 	for (const event of globalEvents) {
 		ffboxService.on(event, (payload: FFBoxServiceEventParam[keyof FFBoxServiceEventParam]) => {
 			for (const client of clients.values()) {
-				if (client.ws.readyState === WebSocket.OPEN) {
+				if (client.ws?.readyState === WebSocket.OPEN) {
 					const data: FFBoxServiceEventApi = {
 						event,
 						payload,
@@ -330,13 +340,13 @@ function mountEventFromService(): void {
 			};
 			const sendQueue = [];
 			for (const client of clients.values()) {
-				if (client.ws.readyState === WebSocket.OPEN && client.subscribedTaskIds.has(taskId)) {
+				if (client.ws?.readyState === WebSocket.OPEN && client.subscribedTaskIds.has(taskId)) {
 					sendQueue.push(client);
 				}
 			}
 			log.dev('触发信息：', data, `将发送给 ${sendQueue.length} 个客户端`);
 			for (const client of sendQueue) {
-				client.ws.send(JSON.stringify(data));
+				client.ws!.send(JSON.stringify(data));
 			}
 		});
 	}
@@ -588,10 +598,9 @@ async function optionalAuth(ctx: Koa.Context, next: () => Promise<void>): Promis
 	const sessionId = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
 	if (sessionId) {
-		const session = sessionManager.verifySession(sessionId);
-		if (session) {
-			ctx.state.session = session;
-			ctx.state.functionLevel = session.functionLevel;
+		const client = clients.get(sessionId);
+		if (client) {
+			ctx.state.session = client;
 			await next();
 			return;
 		}
@@ -601,21 +610,40 @@ async function optionalAuth(ctx: Koa.Context, next: () => Promise<void>): Promis
 	}
 
 	async function isPasswordlessAllowed(): Promise<boolean> {
-		const users = await localConfig.get('service.users') as any[];
-		const defaultAdmin = users?.find((u: any) => u.username === '');
+		const users = await ffboxService!.userManager.getUsers();
+		const defaultAdmin = users?.find((u) => u.username === '');
 		return !defaultAdmin || !defaultAdmin.passkey;
 	}
 	
 	// 无 sessionId 时检查是否允许无密码访问
 	if (await isPasswordlessAllowed()) {
 		ctx.state.isAnonymous = true;
-		ctx.state.functionLevel = 100;
 		await next();
 		return;
 	}
 
 	ctx.status = 401;
 	ctx.body = { error: 'Authentication required' };
+}
+
+/**
+ * 权限检查中间件工厂
+ */
+function requirePermission(permission: Permission) {
+	return async (ctx: Koa.Context, next: () => Promise<void>) => {
+		const session = ctx.state.session as Client;
+		if (!session) {
+			ctx.status = 401;
+			ctx.body = { error: 'Authentication required' };
+			return;
+		}
+		if (!session.permissions.includes(permission)) {
+			ctx.status = 403;
+			ctx.body = { error: 'Permission denied' };
+			return;
+		}
+		await next();
+	};
 }
 
 function getRouter(): Router {
@@ -655,9 +683,11 @@ function getRouter(): Router {
 	 *                   description: 密码不正确则失败
 	 *                 sessionId:
 	 *                   type: string
-	 *                 functionLevel:
-	 *                   type: integer
-	 *                   description: 暂无实际作用
+	 *                 permissions:
+	 *                   type: array
+	 *                   items:
+	 *                     type: string
+	 *                   description: 用户权限列表。undefined/空表示未配置权限（全部开放）
 	 */
 	router.post('/api/v1/auth/login', async function (ctx) {
 		if (!ctx.request.body) {
@@ -667,11 +697,10 @@ function getRouter(): Router {
 		}
 
 		const { username, passkey } = ctx.request.body;
-		const users = await localConfig.get('service.users') as any[]
-			|| [{ username: "", passkey: "", maxFunctionLevel: 100 }];
+		const users = await ffboxService!.userManager.getUsers();
 
 		// 查找用户（空用户名匹配默认管理员）
-		const user = users.find((u: any) => u.username === (username || ''));
+		const user = users.find((u) => u.username === (username || ''));
 
 		if (!user) {
 			ctx.body = { isUserExist: false, isSuccess: false };
@@ -680,12 +709,12 @@ function getRouter(): Router {
 
 		// 验证密码（空密码直接通过）
 		if (!user.passkey || user.passkey === passkey) {
-			const sessionId = sessionManager.createSession(user.username || '', user.maxFunctionLevel);
+			const sessionId = createSession(user.username || '', user.permissions);
 			ctx.body = {
 				isUserExist: true,
 				isSuccess: true,
 				sessionId,
-				functionLevel: user.maxFunctionLevel,
+				permissions: user.permissions,
 			};
 		} else {
 			ctx.body = { isUserExist: true, isSuccess: false };
@@ -1795,8 +1824,132 @@ function getRouter(): Router {
 	 *             schema:
 	 *               $ref: '#/components/schemas/SuccessResponse'
 	 */
-	router.post('/api/v1/system/settings/reload', optionalAuth, async function (ctx) {
+	router.post('/api/v1/system/settings/reload', optionalAuth, requirePermission(Permission.ServerSettings), async function (ctx) {
 		await ffboxService!.initSettings();
+		ctx.body = { success: true };
+	});
+
+	// #endregion
+
+	// #region 服务器配置与用户管理模块
+
+	/**
+	 * @openapi
+	 * /api/v1/settings/server:
+	 *   get:
+	 *     summary: 获取服务器配置
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 服务器配置
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/ServerSettingsData'
+	 */
+	router.get('/api/v1/settings/server', optionalAuth, async function (ctx) {
+		const settings = ffboxService!.settings.get();
+		ctx.body = settings;
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/settings/server:
+	 *   put:
+	 *     summary: 更新服务器配置
+	 *     security:
+	 *       - bearerAuth: []
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             $ref: '#/components/schemas/ServerSettingsData'
+	 *     responses:
+	 *       200:
+	 *         description: 更新成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
+	 *       403:
+	 *         description: 权限不足
+	 */
+	router.put('/api/v1/settings/server', optionalAuth, requirePermission(Permission.ServerSettings), async function (ctx) {
+		if (!ctx.request.body) {
+			ctx.status = 400;
+			ctx.body = { error: 'Missing request body' };
+			return;
+		}
+		await ffboxService!.settings.setSettings(ctx.request.body);
+		await ffboxService!.initSettings();
+		ctx.body = { success: true };
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/settings/users:
+	 *   get:
+	 *     summary: 获取用户列表
+	 *     security:
+	 *       - bearerAuth: []
+	 *     responses:
+	 *       200:
+	 *         description: 用户列表
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: array
+	 *               items:
+	 *                 $ref: '#/components/schemas/UserConfig'
+	 */
+	router.get('/api/v1/settings/users', optionalAuth, async function (ctx) {
+		const users = await ffboxService!.userManager.getUsers();
+		ctx.body = users;
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/settings/users:
+	 *   put:
+	 *     summary: 更新用户列表
+	 *     security:
+	 *       - bearerAuth: []
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: array
+	 *             items:
+	 *               $ref: '#/components/schemas/UserConfig'
+	 *     responses:
+	 *       200:
+	 *         description: 更新成功
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               $ref: '#/components/schemas/SuccessResponse'
+	 *       400:
+	 *         description: 请求参数错误（必须包含管理员账号）
+	 *       403:
+	 *         description: 权限不足
+	 */
+	router.put('/api/v1/settings/users', optionalAuth, requirePermission(Permission.UserManagement), async function (ctx) {
+		if (!ctx.request.body || !Array.isArray(ctx.request.body)) {
+			ctx.status = 400;
+			ctx.body = { error: 'Request body must be an array of UserConfig' };
+			return;
+		}
+		const users = ctx.request.body as UserConfig[];
+		// 必须包含管理员账号（username 为空字符串）
+		if (!users.some((u) => u.username === '')) {
+			ctx.status = 400;
+			ctx.body = { error: 'Must include admin user (username: "")' };
+			return;
+		}
+		await ffboxService!.userManager.setUsers(users);
 		ctx.body = { success: true };
 	});
 
@@ -1997,7 +2150,7 @@ function getRouter(): Router {
 	 *             schema:
 	 *               $ref: '#/components/schemas/CacheInfo'
 	 */
-	router.delete('/api/v1/cache', optionalAuth, async function (ctx) {
+	router.delete('/api/v1/cache', optionalAuth, requirePermission(Permission.CacheManagement), async function (ctx) {
 		ctx.body = await ffboxService!.getCacheInfo(true);
 	});
 

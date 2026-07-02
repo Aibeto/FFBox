@@ -526,6 +526,30 @@ export interface UpdateWebhookRequest {
 
 // #endregion
 
+// #region 权限、用户、转码设置
+
+export enum Permission {
+	UserManagement = 'userManagement',
+	ServerSettings = 'serverSettings',
+	CacheManagement = 'cacheManagement',
+	FileSystem = 'fileSystem',
+}
+
+export interface UserConfig {
+	username: string;           // 空字符串 = 管理员账号
+	passkey: string;            // SHA256 哈希后的密码
+	permissions: Permission[];   // 权限列表。空数组 = 已配置但无权限
+}
+
+export interface ServerSettingsData {
+	maxThreads: number;
+	customFFmpegPath: string;
+	preserveUnfinishedTasks: boolean;
+	deleteFinishedTasks: boolean;
+}
+
+// #endregion
+
 // #region 预览 WebSocket 消息协议
 
 // 前端 -> 后端
