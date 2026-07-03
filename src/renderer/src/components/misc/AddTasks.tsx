@@ -7,6 +7,7 @@ import Msgbox from '../Msgbox/Msgbox';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import Popup from '../Popup/Popup';
 import css from './AddTasks.module.less';
+import { Permission } from '@common/types';
 
 // const selectionList: RadioListProps['list'] = [
 // 	{ value: 'batch', caption: '分别处理' },
@@ -16,10 +17,11 @@ import css from './AddTasks.module.less';
 export function showAddTaskPrompt(initialValue?: string) {
 	let compFuncs: any;
 	const appStore = useAppStore();
+	const useManagedFilePaths = appStore.currentServer?.entity.permissions.includes(Permission.FileSystem);
     Msgbox({
 		container: document.body,
 		title: '添加任务',
-		content: <Comp exportFunctions={(fs) => compFuncs = fs} initialValue={initialValue || ''} />,
+		content: <Comp exportFunctions={(fs) => compFuncs = fs} initialValue={initialValue || ''} useManagedFilePaths={useManagedFilePaths} />,
 		buttons: [
 			{ text: '批量添加为多个任务', role: 'confirm', type: ButtonType.Primary, callback: async () => {
 				const result = await compFuncs.exportData();
@@ -36,6 +38,7 @@ export function showAddTaskPrompt(initialValue?: string) {
 interface Props {
 	initialValue: string;
     exportFunctions: (fs: any) => void;
+	useManagedFilePaths?: boolean;	// 通过服务器用户权限判断，具有 fileSystem 权限时为 true
 }
 const Comp = defineComponent((props: Props) => {
 	const text = ref('');
@@ -75,7 +78,7 @@ const Comp = defineComponent((props: Props) => {
 		showOpenFilePrompt().then((files) => {
 			let newPaths: string[] = [];
 			for (const file of files || []) {
-				newPaths.push(file.path);	// 只有 electron 环境有这个按钮，所以可以直接用 path
+				newPaths.push(file.path.replace(/\\/g, '/'));	// 只有 electron 环境有这个按钮，所以可以直接用 path
 			}
 			newPaths = newPaths.filter((line) => line !== '');
 			if (text.value.length && !text.value.endsWith('\n')) {
@@ -121,7 +124,7 @@ const Comp = defineComponent((props: Props) => {
 		let newPaths: string[] = [];
 		if (event.dataTransfer?.files?.length) {
 			if (nodeBridge.env === 'browser') {
-				Popup({ message: '网页版无法将文件拖入文本框，请直接将文件拖入任务列表进行上传😊' });
+				Popup({ message: `网页版无法将文件拖入文本框（受安全限制无法取到文件路径）\n${props.useManagedFilePaths ? '当前登录的用户支持上传下载方式使用，请直接将文件拖入任务列表进行上传' : '当前登录的用户支持直接使用服务器的文件系统路径，您可将路径粘贴于此'}😊` });
 			}
 			for (const file of event.dataTransfer?.files || []) {
 				newPaths.push(file.path.replace(/\\/g, '/'));
@@ -181,6 +184,9 @@ const Comp = defineComponent((props: Props) => {
 				<span>{statsText.value}</span>
 			</div>
             <textarea ref={inputRef} onInput={handleTextInputAndCategorize} onChange={handleTextInputAndCategorize} onDrop={handleTextDrop} />
+			{text.value.match(/\w:\\/) ? (
+				<div class={css.line3}>路径中可能包含不支持的反斜杠（\）</div>
+			) : null}
 			{/* <RadioList class={style.radioList} list={selectionList} value={type.value} onChange={(value: any) => type.value = value} /> */}
 		</div>
 	);

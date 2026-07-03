@@ -314,7 +314,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<any>('GET', `/api/v1/tasks?status=${status}`);
 	}
 
-	public getTaskOutputFiles(taskRunEntries: { taskId: number; runIndex?: number }[]): Promise<{ taskId: number; taskIndex: number; runIndex: number; taskName: string; outputFiles: string[]; after: OutputParams; before: InputInfo[] }[]> {
+	public getTaskOutputFiles(taskRunEntries: { taskId: number; runIndex?: number }[]): Promise<{ taskId: number; taskIndex: number; runIndex: number; outputIndex: number; filePath: string; fileBaseName: string; fileTime?: { accessTime: number; createTime: number; modifyTime: number } }[]> {
 		return this.httpRequest<any>('POST', '/api/v1/tasks/output-files', { taskRunEntries });
 	}
 

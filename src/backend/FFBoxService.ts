@@ -14,6 +14,7 @@ import { genTaskOutputFiles, getFFmpegParaArray } from '@common/getFFmpegParaArr
 import localConfig from '@common/localConfig';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
 import { getInitialServiceTask, TypedEventEmitter, replaceOutputParams, getOutputDuration, getOutputFileTime, getTaskLatestOutputParams, getNewRun, getTimeString } from '@common/utils';
+import { getOutputFileBaseName } from '@common/params/formats';
 import { getMachineId, log } from './utils';
 import { getLimitaion } from '@common/limitaions';
 import { FFmpeg } from './FFmpegInvoke';
@@ -572,12 +573,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 	/**
 	 * 新增单个任务（内部方法，由 taskAddBatch 和 taskCopy 调用）
-	 * @param isRemote 该值由 uiBridge 传入，前端无法指定
+	 * @param useManagedFilePaths true = 使用文件上传/改写路径模式（无 FileSystem 权限时，输出用 override、输入走上传缓存）；false = 直接使用 OutputParams 中的原路径（有 FileSystem 权限时）
 	 * @param silent 为 true 时不 emit tasklistUpdate、不触发 webhook，供批量调用使用
 	 * @param skipMetadataScan 为 true 时跳过 getFileMetadata，供批量调用由调度器统一处理
 	 * @emits tasklistUpdate（当 silent 为 false 时）
 	 */
-	private taskAdd(taskName: string, outputParams: OutputParams, isRemote?: boolean, silent?: boolean, skipMetadataScan?: boolean): Promise<number | null> {
+	private taskAdd(taskName: string, outputParams: OutputParams, useManagedFilePaths?: boolean, silent?: boolean, skipMetadataScan?: boolean): number | null {
 		const maxTaskCount = getLimitaion('maxTaskListCount', this.functionLevel);
 		if (this.taskList.count() >= maxTaskCount) {
 			if (!silent) {
@@ -587,7 +588,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					NotificationLevel.warning,
 				);
 			}
-			return Promise.resolve(null);
+			return null;
 		}
 
 		const firstFilePath = outputParams.input.files?.[0]?.filePath;
@@ -597,7 +598,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		// 更新命令行参数（写入 runs[1]，即首个运行条目）
 		const taskIndex = this.taskList.getIndexById(id);
 		const run = task.runs[1];
-		if (isRemote) {
+		if (useManagedFilePaths) {
 			run.outputFiles = genTaskOutputFiles(run.after, ``, { taskId: id, taskIndex, runIndex: 1 });
 			run.paraArray = getFFmpegParaArray({ outputParams: run.after, withQuotes: true, overrideFilePaths: run.outputFiles, taskId: id, taskIndex, runIndex: 1 });
 			this.taskList.setStatus(id, TaskStatus.initializing);
@@ -616,7 +617,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			webhookManager.triggerGlobalEvent('tasklist.added', { added: [{ taskId: id, index: this.taskList.count() - 1, task }] }).catch(() => {});
 		}
 
-		return Promise.resolve(id);
+		return id;
 	}
 
 	/**
@@ -624,10 +625,10 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * 后端负责从文件路径计算任务名称，前端无需传入 taskName
 	 * @param filePaths 文件路径数组，每个路径创建一个任务。路径为空字符串时使用默认名称
 	 * @param outputParams 输出参数模板，每个任务的 input.files[0].filePath 会被替换
-	 * @param isRemote 是否为远程任务
+	 * @param useManagedFilePaths true = 使用文件上传/改写路径模式；false = 直接使用 OutputParams 中的原路径
 	 * @returns 所有新创建的任务 ID
 	 */
-	public async taskAddBatch(filePaths: string[], outputParams: OutputParams, isRemote?: boolean): Promise<number[]> {
+	public async taskAddBatch(filePaths: string[], outputParams: OutputParams, useManagedFilePaths?: boolean): Promise<number[]> {
 		const maxTaskCount = getLimitaion('maxTaskListCount', this.functionLevel);
 		const remaining = maxTaskCount - this.taskList.count();
 		if (filePaths.length > remaining) {
@@ -659,7 +660,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				params.input.files[0].filePath = filePath || undefined;
 			}
 			// 本地批量任务跳过 getFileMetadata，由 scanTracker 统一调度
-			const id = await this.taskAdd(taskName, params, isRemote, true, !isRemote) as number;
+			const id = this.taskAdd(taskName, params, useManagedFilePaths, true, !useManagedFilePaths)!;
 			ids.push(id);
 			addedItems.push({ taskId: id, index: this.taskList.getIndexById(id) });
 		}
@@ -675,7 +676,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		}
 
 		// 对本地批量任务，低优先级进行媒体信息扫描
-		if (!isRemote && addedItems.length > 0) {
+		if (!useManagedFilePaths && addedItems.length > 0) {
 			(async () => {
 				const asyncEntry = { type: `批量任务媒体信息扫描 ${addedItems.length} 个任务` };
 				this.asyncListOp('+', asyncEntry);
@@ -719,7 +720,8 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 		for (let i = 0; i < count; i++) {
 			if (i % yieldThreshold === 0) await this.yieldManager.yield({ type: 'taskAdd' });
-			this.taskAdd(task.taskName, getTaskLatestOutputParams(task), task.remoteTask, false, true);
+			const newId = this.taskAdd(task.taskName, getTaskLatestOutputParams(task), task.remoteTask, false, true);
+			if (task.status === TaskStatus.idle) this.taskList.getById(newId!)!.status = TaskStatus.idle;	// 修复远程任务停留在 initialize 状态的问题
 		}
 		this.asyncListOp('-', asyncEntry);
 		return;
@@ -1788,10 +1790,11 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	/**
 	 * 批量获取任务的输出文件信息（用于批量下载）
 	 * @param taskRunEntries 每个任务的 { taskId, runIndex? }。runIndex 未指定时默认取最后一个 run
-	 * @returns 每个任务的 { taskId, taskIndex, taskName, outputFiles, after, before }
+	 * @returns 每个输出文件的 { taskId, taskIndex, runIndex, outputIndex, filePath, fileBaseName, fileTime? }
+	 *          在后端预先组装好文件名与时间信息，避免向前端传输完整的任务配置对象。
 	 */
-	public async getTaskOutputFiles(taskRunEntries: { taskId: number; runIndex?: number }[]): Promise<{ taskId: number; taskIndex: number; runIndex: number; taskName: string; outputFiles: string[]; after: OutputParams; before: ServiceTask['before'] }[]> {
-		const result: { taskId: number; taskIndex: number; runIndex: number; taskName: string; outputFiles: string[]; after: OutputParams; before: ServiceTask['before'] }[] = [];
+	public async getTaskOutputFiles(taskRunEntries: { taskId: number; runIndex?: number }[]): Promise<{ taskId: number; taskIndex: number; runIndex: number; outputIndex: number; filePath: string; fileBaseName: string; fileTime?: { accessTime: number; createTime: number; modifyTime: number } }[]> {
+		const result: { taskId: number; taskIndex: number; runIndex: number; outputIndex: number; filePath: string; fileBaseName: string; fileTime?: { accessTime: number; createTime: number; modifyTime: number } }[] = [];
 		for (const entry of taskRunEntries) {
 			const task = this.taskList.getById(entry.taskId);
 			if (!task) continue;
@@ -1803,15 +1806,35 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			if (!outputFiles || outputFiles.length === 0) {
 				continue;
 			}
-			result.push({
-				taskId: entry.taskId,
-				taskIndex: this.taskList.getIndexById(entry.taskId),
-				runIndex,
-				taskName: task.taskName,
-				outputFiles,
-				after: run.after,
-				before: task.before,
-			});
+			const taskIndex = this.taskList.getIndexById(entry.taskId);
+			const after = run.after;
+			for (let outputIndex = 0; outputIndex < outputFiles.length; outputIndex++) {
+				const filePath = outputFiles[outputIndex];
+				if (!filePath) continue;
+				const output = after.outputs[outputIndex];
+				if (!output) continue;
+				const fileBaseName = getOutputFileBaseName(output.mux, {
+					fileName: task.taskName,
+					taskId: task.id,
+					taskIndex,
+					runIndex,
+					outputIndex,
+				});
+				let fileTime: { accessTime: number | undefined; createTime: number | undefined; modifyTime: number | undefined } | undefined = undefined;
+				if (output.mux.keepFileTime && task.before && task.before.length > 0) {
+					const { accessTime, createTime, modifyTime, ok } = getOutputFileTime(task, outputIndex, runIndex);
+					if (ok) fileTime = { accessTime, createTime, modifyTime };
+				}
+				result.push({
+					taskId: task.id,
+					taskIndex,
+					runIndex,
+					outputIndex,
+					filePath,
+					fileBaseName,
+					fileTime,
+				});
+			}
 		}
 		return result;
 	}

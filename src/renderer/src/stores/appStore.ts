@@ -2,7 +2,7 @@ import { h, VNodeRef, nextTick } from 'vue';
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
 import gsap from 'gsap';
-import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, TaskStatus, WorkingStatus } from '@common/types';
+import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, Permission, TaskStatus, WorkingStatus } from '@common/types';
 import { validUntil, version } from '@common/constants';
 import { defaultParams } from "@common/defaultParams";
 import { Server, UITask } from '@renderer/types';
@@ -231,7 +231,15 @@ export const useAppStore = defineStore('app', {
 				server!.entity.on('taskUpdate', handler);
 			}
 
-			const isRemoteService = server.entity.ip !== 'localhost';
+			// 任务添加时是否需要上传文件：取决于用户是否具有 FileSystem 权限，而不是物理连接位置
+			// 有 FileSystem 权限 → 直接使用原路径（后端直接读取文件）
+			// 无 FileSystem 权限 → 需要上传文件到服务器缓存，使用改写路径模式
+			const hasFileSystemPermission = server.entity.permissions.includes(Permission.FileSystem);
+			const needUploadForFileSystem = !hasFileSystemPermission;
+			if (!needUploadForFileSystem && nodeBridge.env === 'browser') {
+				Popup({ message: '网页版受安全限制无法取到文件路径\n当前登录的用户具有文件系统权限，请双击任务列表或从主菜单中以文本方式添加任务😊', level: NotificationLevel.info });
+				return [];
+			}
 			const maxTaskCount = getLimitaion('maxTaskListCount');
 
 			if (type === 'multiTask') {
@@ -250,7 +258,7 @@ export const useAppStore = defineStore('app', {
 				for (const input of inputList) {
 					const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
 					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
-					const needUpload = fileType === 'lf' && isRemoteService;	// 网页版必定是 remoteService；如果拖入的是文件而不是字符串那么必定是 lf（以后再支持文件夹拖入）
+					const needUpload = fileType === 'lf' && needUploadForFileSystem;	// lf = 本地文件；无 FileSystem 权限时需上传，有则直接使用路径
 					if (needUpload) {
 						const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
 						const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
@@ -303,7 +311,7 @@ export const useAppStore = defineStore('app', {
 				for (const input of inputList) {
 					const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
 					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
-					const needUpload = fileType === 'lf' && isRemoteService;
+					const needUpload = fileType === 'lf' && needUploadForFileSystem;	// lf = 本地文件；无 FileSystem 权限时需上传
 					if (needUpload) {
 						const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
 						const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;

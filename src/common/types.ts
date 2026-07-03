@@ -411,7 +411,7 @@ export interface Task {
 
 export interface ServiceTask extends Task {
 	ffmpeg: FFmpeg | null;
-	remoteTask: boolean;	// 本地/远程任务对于 service 来说，对输出文件名的处理方式不同；对于 UI 来说，只需要判断 IP 是否为 localhost 即决定是下载还是直接打开了
+	remoteTask: boolean;	// true = 使用文件上传/改写路径模式（无 FileSystem 权限时）；false = 直接使用 OutputParams 中的原路径（有 FileSystem 权限时）。判断依据是用户的 FileSystem 权限，而非物理连接位置
 }
 
 export enum WorkingStatus {

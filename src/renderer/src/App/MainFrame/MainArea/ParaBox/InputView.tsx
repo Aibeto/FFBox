@@ -1,6 +1,6 @@
 import { computed, defineComponent, ref, Transition, TransitionGroup } from 'vue';
 import { deleteNode } from '@common/params/filter';
-import { NotificationLevel } from '@common/types';
+import { NotificationLevel, Permission } from '@common/types';
 import InputAutoSize from '@renderer/components/InputAutoSize/InputAutoSize.vue';
 import { durationFixer, durationValidator } from '../../../../components/validatorAndFixer';
 import { hwaccels, builtInDemuxers, allDemuxers, Demuxer, skipFrame } from '@common/params/formats'
@@ -316,7 +316,7 @@ const InputView = defineComponent((props: Props) => {
 								{file.filePath !== '' && (
 									<DropdownInput class={css.dropdownInput} list={combinedDemuxersList.value} text={file.demuxer} onChange={(value: string) => handleParamChange('demuxer', value)} />
 								)}
-								{editingIndex.value === index && appStore.currentServer?.entity.ip === 'localhost' ? (
+								{editingIndex.value === index && appStore.currentServer?.entity.permissions.includes(Permission.FileSystem) ? (
 									<InputAutoSize
 										class={css.inputAutoSize}
 										value={file.filePath}

@@ -470,7 +470,7 @@ export const TaskItem = defineComponent((props: Props) => {
 				} },
 				{ type: 'separator' as const },
 				{ type: 'normal' as const, icon: <span>📈</span>, label: '查看任务信息', value: '查看任务信息', onClick: () => appStore.showTaskInfo = [props.id, 0] },
-				...(currentRun.value.outputFiles?.length && [TaskStatus.finished, TaskStatus.error].includes(props.task.status) ? [
+				...(currentRun.value.outputFiles?.length && [TaskStatus.finished, TaskStatus.error].includes(currentRun.value.status) ? [
 					{ type: 'separator' as const },
 					{ type: 'submenu' as const, label: entity.ip === 'localhost' ? '打开输出文件' : '下载输出文件', subMenu: currentRun.value.outputFiles.map((file, index) => ({
 						type: 'normal' as const, label: file, value: file, onClick: () => openFile(file, index)

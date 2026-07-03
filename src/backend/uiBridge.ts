@@ -846,7 +846,17 @@ function getRouter(): Router {
 			return;
 		}
 		const { outputParams, filePaths } = ctx.request.body;
-		const isRemote = ctx.URL.hostname !== 'localhost';
+		// 判断文件路径模式：有 FileSystem 权限直接使用原路径，否则使用上传/改写路径模式
+		// 有 session 的用户：检查其权限
+		// 匿名用户（允许无密码访问时）：默认继承管理员权限（包含 FileSystem）
+		const session = ctx.state.session as Client | undefined;
+		let useManagedFilePaths = true;
+		if (session) {
+			useManagedFilePaths = !session.permissions.includes(Permission.FileSystem);
+		} else if (ctx.state.isAnonymous) {
+			// 匿名用户允许无密码访问 = 视为默认管理员（含 FileSystem 权限），直接使用原路径
+			useManagedFilePaths = false;
+		}
 		if (!Array.isArray(filePaths) || !filePaths.every((p: any) => typeof p === 'string')) {
 			ctx.status = 400;
 			ctx.body = { error: 'filePaths must be an array of strings' };
@@ -857,7 +867,7 @@ function getRouter(): Router {
 			ctx.body = { error: 'outputParams is required' };
 			return;
 		}
-		const result = await ffboxService!.taskAddBatch(filePaths, outputParams as OutputParams, isRemote);
+		const result = await ffboxService!.taskAddBatch(filePaths, outputParams, useManagedFilePaths);
 		ctx.body = result;
 	});
 

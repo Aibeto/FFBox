@@ -2,9 +2,7 @@
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
-import { NotificationLevel, Task } from '@common/types';
-import { getOutputFileBaseName } from '@common/params/formats';
-import { getOutputFileTime } from '@common/utils';
+import { NotificationLevel, Permission } from '@common/types';
 import { useScrollStop } from './useScrollStop';
 import CoarseSlider from './CoarseSlider.vue';
 import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
@@ -148,31 +146,17 @@ const handleTaskBatchContextMenu = (event: MouseEvent) => {
 					if (nodeBridge.env === 'electron') {
 						const downloadList = [];
 						for (const item of result) {
-							for (const [s_index, filePath] of Object.entries(item.outputFiles)) {
-								const newFileBaseName = getOutputFileBaseName(item.after.outputs[+s_index].mux, { fileName: item.taskName, taskId: item.taskId, taskIndex: item.taskIndex, runIndex: item.runIndex, outputIndex: +s_index });
-								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
-								let fileTime = undefined;
-								const output = item.after.outputs[+s_index];
-								const mux = output.mux;
-								if (mux.keepFileTime && item.before) {
-									const pseudoTask = { before: item.before } as Task;
-									let { accessTime, createTime, modifyTime, ok } = getOutputFileTime(pseudoTask, +s_index);
-									fileTime = { accessTime, createTime, modifyTime };
-								}
-								downloadList.push({ url, finalFileBaseName: newFileBaseName, fileTime });
-								appStore.downloadMap.set(url, data.id);
-							}
+							const url = `http://${entity.ip}:${entity.port}/download/${item.filePath}`;
+							downloadList.push({ url, finalFileBaseName: item.fileBaseName, fileTime: item.fileTime });
+							appStore.downloadMap.set(url, data.id);
 						}
 						nodeBridge.ipcRenderer?.send('downloadFiles', { sessionId: entity.sessionId, files: downloadList });
 					} else {
 						for (const item of result) {
-							for (const [s_index, filePath] of Object.entries(item.outputFiles)) {
-								const newFileBaseName = getOutputFileBaseName(item.after.outputs[+s_index].mux, { fileName: item.taskName, taskId: item.taskId, taskIndex: item.taskIndex, runIndex: item.runIndex, outputIndex: +s_index });
-								const url = `http://${entity.ip}:${entity.port}/download/${filePath}`;
-								const elem = document.createElement('a');
-								elem.href = `${url}?fileBaseName=${newFileBaseName}`;
-								elem.click();
-							}
+							const url = `http://${entity.ip}:${entity.port}/download/${item.filePath}`;
+							const elem = document.createElement('a');
+							elem.href = `${url}?fileBaseName=${item.fileBaseName}`;
+							elem.click();
 						}
 					}
 				} },
@@ -587,7 +571,7 @@ const { isScrolling } = useScrollStop({
 			class="dropfilesdiv"
 			@click="appStore.selectedTask = new Set(); appStore.isAllSelected = false; appStore.taskSelectionModified = false;"
 			@mousedown="debugLauncher($event)"
-			@dblclick="nodeBridge.env === 'electron' ? showAddTaskPrompt() : showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList))"
+			@dblclick="nodeBridge.env === 'electron' || appStore.currentServer.entity.permissions.includes(Permission.FileSystem) ? showAddTaskPrompt() : showOpenFilePrompt().then((fileList) => appStore.addTasks(fileList))"
 		>
 			<div class="dropfilesimage" :class="false ? 'imgDragging' : 'imgNormal'" />
 		</div>
