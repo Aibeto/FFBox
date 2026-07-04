@@ -952,9 +952,13 @@ export const useAppStore = defineStore('app', {
 				server.data.ffmpegInfo = properties.ffmpegInfo;
 
 				// workingStatus
-				if (workingStatus === WorkingStatus.idle || workingStatus === WorkingStatus.running) {
-					server.data.workingStatus = workingStatus;
-					if (workingStatus === WorkingStatus.running) registerServerForDashboard(server as any, 'start');
+				if (typeof workingStatus === 'object' && workingStatus !== null && (workingStatus as any).workingStatus !== undefined) {
+					const ws = workingStatus as { workingStatus: WorkingStatus; progress: number };
+					if (ws.workingStatus === WorkingStatus.idle || ws.workingStatus === WorkingStatus.running) {
+						server.data.workingStatus = ws.workingStatus;
+						if (ws.workingStatus === WorkingStatus.running) registerServerForDashboard(server as any, 'start');
+					}
+					server.data.progress = ws.progress;
 				}
 			});
 		},
@@ -979,7 +983,7 @@ export const useAppStore = defineStore('app', {
 					bufferEnd: 0,
 					viewRange: { firstIndex: 0, lastIndex: 0 },
 					workingStatus: WorkingStatus.idle,
-					progress: 0,
+					progress: -1,
 					asyncList: [],
 				},
 				entity: new ServiceBridge(),
@@ -994,9 +998,10 @@ export const useAppStore = defineStore('app', {
 		 */
 		removeServer(serverId: string) {
 			const index = this.servers.findIndex((server) => server.data.id === serverId);
-			if (index > -1) {
-				this.servers.splice(index, 1);
-			}
+			if (index === -1) return;
+			const server = this.servers[index];
+			server.entity.disconnect();
+			this.servers.splice(index, 1);
 			if (this.currentServerId === serverId) {
 				this.currentServerId = this.servers[index - 1].data.id;
 			}
@@ -1014,8 +1019,7 @@ export const useAppStore = defineStore('app', {
 			console.log('初始化服务器连接', server.data);
 
 			const destroy = () => {
-				// TODO 这里还没改
-				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegInfo', 'statusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'taskNotification'] as any[]) {
+				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegInfo', 'workingStatusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'notificationUpdate', 'asyncListUpdate'] as any[]) {
 					entity.removeAllListeners(eventName);
 				}
 			}
@@ -1060,7 +1064,7 @@ export const useAppStore = defineStore('app', {
 				entity.on('ffmpegInfo', (data) => {
 					handleFFmpegInfo(server, data);
 				});
-				entity.on('statusUpdate', (data) => {
+				entity.on('workingStatusUpdate', (data) => {
 					if (data.workingStatus) {
 						handleStatusUpdate(server, data.workingStatus);
 					}

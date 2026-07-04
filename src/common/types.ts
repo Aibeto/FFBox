@@ -60,7 +60,7 @@ export interface FFBoxServiceInterface {
 
 export interface FFBoxServiceEventParam {
 	ffmpegInfo: FFmpegInfo;
-	statusUpdate: { workingStatus?: 'start' | 'stop' | 'pause'; progress: number };	// 合并原 workingStatusUpdate 与总进度推送。workingStatus 在队列状态变化时携带，progress 始终携带
+	workingStatusUpdate: { workingStatus?: 'start' | 'stop' | 'pause'; progress: number };	// 合并原 workingStatusUpdate 与总进度推送。workingStatus 在队列状态变化时携带，progress 始终携带
 	tasklistUpdate: { added?: { taskId: number; index: number }[]; removed?: { taskId: number }[]; totalCount: number };
 	taskUpdate: { taskId: number; task: TaskForUpdate };
 	cmdUpdate: { taskId: number; runIndex: number; content: string; append: boolean };	// 由 append 确定是增量还是全量更新

@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import CryptoJS from 'crypto-js';
 import { TypedEventEmitter } from '@common/utils';
-import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, InputInfo, Notification, OutputParams, Task, TaskStatus, Permission, UserConfig, ServerSettingsData } from '@common/types';
+import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, InputInfo, Notification, OutputParams, Task, TaskStatus, Permission, UserConfig, ServerSettingsData, WorkingStatus } from '@common/types';
 
 export interface ServeiceBridgeEvent {
 	connected: () => void;
@@ -295,8 +295,8 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<any>('GET', '/api/v1/system/properties');
 	}
 
-	public getWorkingStatus(): Promise<string> {
-		return this.httpRequest<string>('GET', '/api/v1/system/working-status');
+	public getWorkingStatus(): Promise<{ workingStatus: WorkingStatus; progress: number }> {
+		return this.httpRequest<{ workingStatus: WorkingStatus; progress: number }>('GET', '/api/v1/system/working-status');
 	}
 
 	// 6.0 已不再是仿 IPC 结构了，所以这里要考虑在类型上把 implements FFBoxServiceInterface 去掉

@@ -305,7 +305,7 @@ function mountEventFromService(): void {
 	// 全局事件：推送给所有客户端
 	const globalEvents: Array<keyof FFBoxServiceEventParam> = [
 		'ffmpegInfo',
-		'statusUpdate',
+		'workingStatusUpdate',
 		'tasklistUpdate',
 		'notificationUpdate',
 		'asyncListUpdate',
@@ -1754,21 +1754,28 @@ function getRouter(): Router {
 	 * @openapi
 	 * /api/v1/system/working-status:
 	 *   get:
-	 *     summary: 获取工作状态
-	 *     description: 返回当前队列的工作状态，只有 idle（空闲）和 running（运行中）两种状态
+	 *     summary: 获取工作状态与总进度
+	 *     description: 返回当前队列的工作状态（idle / running）和总进度 [0, 1]，队列停止时 progress 为 -1
 	 *     security:
 	 *       - bearerAuth: []
 	 *     responses:
 	 *       200:
-	 *         description: 工作状态
+	 *         description: 工作状态与总进度
 	 *         content:
-	 *           text/plain:
+	 *           application/json:
 	 *             schema:
-	 *               type: string
-	 *               enum: [idle, running]
+	 *               type: object
+	 *               properties:
+	 *                 workingStatus:
+	 *                   type: string
+	 *                   enum: [idle, running]
+	 *                 progress:
+	 *                   type: number
+	 *                   minimum: -1
+	 *                   maximum: 1
 	 */
 	router.get('/api/v1/system/working-status', optionalAuth, async function (ctx) {
-		ctx.body = ffboxService!.workingStatus;
+		ctx.body = ffboxService!.getWorkingStatusInfo();
 	});
 
 	/**

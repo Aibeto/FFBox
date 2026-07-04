@@ -502,25 +502,21 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	/**
-	 * 计算总进度并发送 statusUpdate
-	 * 如果运行状态为停止（没有要继续完成的任务），progress 为 -1
-	 * @param workingStatus 队列状态变化时携带，仅状态变化时传入
-	 * @emits statusUpdate
+	 * 计算总进度
+	 * 返回 [0, 1] 之间的值；无任务时返回 -1
 	 */
-	private emitStatusUpdate(workingStatus?: 'start' | 'stop' | 'pause'): void {
+	private calcOverallProgress(): number {
 		let totalTime = 0.000001;
 		let totalProcessedTime = 0;
-		if (workingStatus === 'stop') {
-			this.emit('statusUpdate', { workingStatus, progress: -1 });
-			return
-		}
-		// 使用状态集合直接遍历有进度贡献的状态（running/paused/finished/error），跳过 idle 等无贡献状态
-		for (const status of [TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing, TaskStatus.finished]) {
+		let notIdleTaskCount = 0;
+		for (const status of [TaskStatus.idle_queued, TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing, TaskStatus.finished]) {
 			for (const taskId of this.taskList.statusSets[status]) {
+				notIdleTaskCount++;
 				const task = this.taskList.getById(taskId);
 				if (!task || !task.before[0]?.duration) continue;
 				const outputDuration = getOutputDuration(task as any);
-				if (outputDuration <= 0) continue;
+				// NaN 规则：如果 outputDuration 为 NaN，直接跳过此任务；如果只有 taskProgress 为 NaN，统计这个任务进度为 0
+				if (outputDuration <= 0 || isNaN(outputDuration)) continue;
 				totalTime += outputDuration;
 
 				let taskProgress: number;
@@ -529,15 +525,51 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				} else {
 					const activeRun = task.runs[task.runs.length - 1];
 					const currentTime = activeRun.progressLog.time.length > 0
-						? activeRun.progressLog.time[activeRun.progressLog.time.length - 1][1]
+						? activeRun.progressLog.time[activeRun.progressLog.time.length - 1][1]	// 有可能是 NaN
 						: 0;
 					taskProgress = Math.max(0, Math.min(1, currentTime / outputDuration));
+					if (isNaN(taskProgress)) taskProgress = 0;
 				}
 				totalProcessedTime += taskProgress * outputDuration;
 			}
 		}
-		const progress = isNaN(totalProcessedTime / totalTime) ? 0 : totalProcessedTime / totalTime;
-		this.emit('statusUpdate', { workingStatus, progress });
+		const progress = notIdleTaskCount === 0 ? -1 : totalProcessedTime / totalTime;
+		return progress;
+	}
+	private workingStatusUpdateThrottleTimer: number | null = null;
+	private lastProgress = -1;	// 由于总体进度和 status 合并，queueStart 时第一个消息的进度是不对的，所以需要缓存
+	/**
+	 * 返回当前 workingStatus 与总进度信息（用于 API 请求和事件通知）
+	 * 如果运行状态为停止（没有要继续完成的任务），progress 为 -1
+	 */
+	public getWorkingStatusInfo(): { workingStatus: WorkingStatus; progress: number } {
+		const progress = this.calcOverallProgress();
+		this.lastProgress = progress;
+		return { workingStatus: this.workingStatus, progress };
+	}
+	/**
+	 * 发送 workingStatus 事件（携带状态与进度信息）
+	 * 如果运行状态为停止（没有要继续完成的任务），progress 为 -1
+	 * @param workingStatus 队列状态变化时携带，仅状态变化时传入
+	 * @emits workingStatus
+	 */
+	private emitWorkingStatusUpdate(workingStatus?: 'start' | 'stop' | 'pause'): void {
+		// 有 workingStatus 传入，状态变化时，马上发送一个不计算进度的消息，否则进行节流
+		if (workingStatus) {
+			this.workingStatusUpdateThrottleTimer = null;
+			this.emit('workingStatusUpdate', { workingStatus, progress: workingStatus === 'stop' ? -1 : this.lastProgress });
+			return;
+		}
+		if (this.workingStatusUpdateThrottleTimer) {
+			return;
+		} else {
+			this.workingStatusUpdateThrottleTimer = setTimeout(() => {
+				this.workingStatusUpdateThrottleTimer = null;
+			}, 150) as any
+		}
+		const progress = this.calcOverallProgress();
+		this.lastProgress = progress;
+		this.emit('workingStatusUpdate', { workingStatus, progress });
 	}
 
 	/**
@@ -675,33 +707,27 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			webhookManager.triggerTaskEvent('task.created', taskId, { taskId, task }).catch(() => {});
 		}
 
+		this.asyncListOp('-', asyncEntry);
+
 		// 对本地批量任务，低优先级进行媒体信息扫描
 		if (!useManagedFilePaths && addedItems.length > 0) {
 			(async () => {
-				const asyncEntry = { type: `批量任务媒体信息扫描 ${addedItems.length} 个任务` };
-				this.asyncListOp('+', asyncEntry);
+				const asyncEntry2 = { type: `批量任务媒体信息扫描 ${addedItems.length} 个任务` };
+				this.asyncListOp('+', asyncEntry2);
 
-				for (let i = 0; i < addedItems.length;) {
-					const batchIds = [];
-					for (let j = 0; i < addedItems.length && j < yieldThreshold;) {
-						batchIds.push(addedItems[i].taskId);
-						j++; i++;
-					}
+				for (const item of addedItems) {
+					const task = this.taskList.getById(item.taskId);
+					if (!task) continue;	// 可能是被删除了，下一个
 					try {
-						await this.yieldManager.yield({ type: 'taskStart', taskIds: new Set(batchIds) });
+						await this.yieldManager.yield({ type: 'getFileMetadata', taskIds: new Set([item.taskId]) });
 					} catch (error) {
 						break;
 					}
-					for (const taskId of batchIds) {
-						const task = this.taskList.getById(taskId);
-						if (!task) continue;	// 可能是被删除了，下一个
-						this.getFileMetadata(task.id, task);
-					}
+					await Promise.allSettled(this.getFileMetadata(task.id, task));
 				}
-				this.asyncListOp('-', asyncEntry);
+				this.asyncListOp('-', asyncEntry2);
 			})();
 		}
-		this.asyncListOp('-', asyncEntry);
 		return Promise.resolve(ids);
 	}
 
@@ -1097,7 +1123,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				time,
 				status,
 			});
-			this.emitStatusUpdate();
+			this.emitWorkingStatusUpdate();
 			webhookManager.triggerTaskEvent('task.progress', id, { taskId: id, progress: status });
 		});
 		newFFmpeg.on('data', ({ content }) => {
@@ -1117,7 +1143,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 		if (this.workingStatus === WorkingStatus.idle) {
 			this.workingStatus = WorkingStatus.running;
-			this.emitStatusUpdate('start');
+			this.emitWorkingStatusUpdate('start');
 			webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
 		}
 		this.storeUnfinishedTask();
@@ -1298,7 +1324,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 
 		if (this.workingStatus === WorkingStatus.idle) {
 			this.workingStatus = WorkingStatus.running;
-			this.emitStatusUpdate('start');
+			this.emitWorkingStatusUpdate('start');
 			webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
 		}
 	}
@@ -1327,6 +1353,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				this.taskResume(id);
 			}
 		}
+		this.asyncListOp('-', asyncEntry);
 	}
 
 	/**
@@ -1494,14 +1521,24 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				block = block.next;
 			}
 
-			if (!dontStop && runningCount === 0) {
-				this.workingStatus = WorkingStatus.idle;
-				this.emitStatusUpdate('stop');
-				webhookManager.triggerGlobalEvent('queue.paused', { timestamp: Date.now() });
-			}
 			this.asyncListOp('-', asyncEntry);
 		}
-		return;
+		if (!dontStop) {
+			// 通过 runningCount 和 stillHaveTask 区分此时是暂停还是停止
+			const runningCount = this.taskList.getTaskCountByStatus(TaskStatus.running);
+			if (!runningCount) {
+				this.workingStatus = WorkingStatus.idle;
+				webhookManager.triggerGlobalEvent('queue.paused', { timestamp: Date.now() });
+				let stillHaveTask = false;
+				for (const status of [TaskStatus.idle_queued, TaskStatus.running, TaskStatus.paused, TaskStatus.paused_queued, TaskStatus.stopping, TaskStatus.finishing]) {
+					if (this.taskList.statusSets[status].size > 0) {
+						stillHaveTask = true;
+						break;
+					}
+				}
+				this.emitWorkingStatusUpdate(stillHaveTask ? 'pause' : 'stop');
+			}
+		}
 	}
 
 	/**
@@ -1515,7 +1552,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.asyncListOp('+', asyncEntry);
 
 		this.workingStatus = WorkingStatus.running;
-		this.emitStatusUpdate('start');
+		this.emitWorkingStatusUpdate('start');
 		webhookManager.triggerGlobalEvent('queue.started', { timestamp: Date.now() });
 
 		// 启动此前已排队的任务
@@ -1550,7 +1587,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		await this.queueAssign();
 		if (!this.taskList.statusSets[TaskStatus.running].size) {
 			this.workingStatus = WorkingStatus.idle;
-			this.emitStatusUpdate('stop');
+			this.emitWorkingStatusUpdate('stop');
 			webhookManager.triggerGlobalEvent('queue.paused', { timestamp: Date.now() });
 		}
 		this.asyncListOp('-', asyncEntry);
@@ -1563,7 +1600,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.yieldManager.kill((metadata) => ['queuePause', 'queueAssign', 'queueStart'].includes(metadata.type));
 
 		if (this.workingStatus === WorkingStatus.running) {
-			this.emitStatusUpdate('pause');
+			this.emitWorkingStatusUpdate('pause');
 			webhookManager.triggerGlobalEvent('queue.paused', { timestamp: Date.now() });
 		}
 		this.workingStatus = WorkingStatus.idle;
