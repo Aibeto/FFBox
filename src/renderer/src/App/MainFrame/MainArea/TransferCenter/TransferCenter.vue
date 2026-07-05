@@ -45,7 +45,7 @@ const uploadFileList = computed(() => {
 });
 
 const chunkList = computed(() => {
-	const serverUploadFile = uploadFileList.value[selectedFileIndex.value || -1];
+	const serverUploadFile = uploadFileList.value[selectedFileIndex.value ?? -1];
 	return (serverUploadFile?.chunks || []).map((chunk) => ({
 		hash: chunk.hash,
 		status: chunk.status,

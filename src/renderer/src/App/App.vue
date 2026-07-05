@@ -5,9 +5,9 @@ import { computed, onMounted, provide } from 'vue'
 import { useAppStore } from '@renderer/stores/appStore';
 import { colorThemeKey, useIECKey } from '@renderer/components/injectionKeys';
 import { handleCloseConfirm } from '@renderer/logic/eventsHandler';
-import { Server } from '@renderer/types';
 import { buildNumber, version } from '@common/constants';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
+import { setDashboardTimerPaused } from '@renderer/common/dashboardCalc';
 import Popup from '@renderer/components/Popup/Popup';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import MainFrame from './MainFrame/MainFrame.vue';
@@ -117,7 +117,12 @@ onMounted(async () => {
 	nodeBridge.localStorage.get('frontendSettings.activationCode').then(async (value) => {
 		const result = await appStore.activateFrontend(value);
 		console.log('前端激活结果', result);
-	});					
+	});
+
+	// 节能逻辑：页面不可见时暂停 dashboardTimer，恢复可见时继续运行
+	document.addEventListener('visibilitychange', () => {
+		setDashboardTimerPaused(document.hidden);
+	});
 
 	// 检查版本更新
 	fetch('https://ffbox.ttqf.tech/api/v1/FFBoxVersion/latest').then(async (response) => {
