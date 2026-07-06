@@ -1111,11 +1111,20 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.storeUnfinishedTask();
 		});
 		newFFmpeg.on('status', (status: FFmpegProgress) => {
+			// 检查最新记录是否与前面一条完全一致
+			if (
+				run.progressLog.time.length > 1 &&
+				run.progressLog.frame.length > 1 &&
+				run.progressLog.size.length > 1 &&
+				run.progressLog.time[run.progressLog.time.length - 1][1] === status.time &&
+				run.progressLog.frame[run.progressLog.frame.length - 1][1] === status.frame &&
+				run.progressLog.size[run.progressLog.size.length - 1][1] === status.size
+			) return;
+
 			const time = new Date().getTime() / 1000 - run.lastStarted + run.elapsed;
-			for (const parameter of ['time', 'frame', 'size']) {
-				const _parameter = parameter as 'time' | 'frame' | 'size';
-				run.progressLog[_parameter].push([time, status[_parameter]]);
-			}
+			run.progressLog.time.push([time, status.time]);
+			run.progressLog.frame.push([time, status.frame]);
+			run.progressLog.size.push([time, status.size]);
 			this.trailLimit_checkIsMediaWorkingTimeExceeded(id, task);
 			this.emit('progressUpdate', {
 				taskId: id,

@@ -549,7 +549,11 @@ export function mergeTaskFromService(self: UITask, remote: TaskForUpdate | Task,
 		// 远端有更多 run 条目，补充 UIRun
 		ret.runs.push({
 			// @ts-ignore 非完整的 Task 不存在这两项，而出现新 run 代表这两项也是空的，所以直接写在这
-			progressLog: [],
+			progressLog: {
+				time: [],
+				frame: [],
+				size: [],
+			},
 			// @ts-ignore
 			cmdData: '',
 			...remoteRuns[ret.runs.length],
