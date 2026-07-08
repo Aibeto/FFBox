@@ -5,6 +5,7 @@ import { NotificationLevel } from '@common/types';
 import { ServiceBridgeStatus } from "@renderer/bridges/serviceBridge";
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
+import { getLimitaion } from '@common/limitaions';
 import Button from '@renderer/components/Button/Button';
 import Popup from '@renderer/components/Popup/Popup';
 import IconLoading from '@renderer/assets/loading.svg';
@@ -117,6 +118,49 @@ const handleMessage = async (event: MessageEvent) => {
 	}, '*');
 };
 
+// Build limitation table rows from limitaions.ts (single source of truth)
+function formatSeconds(totalSec: number | undefined): string {
+	if (totalSec === undefined) return '无限制';
+	const h = Math.floor(totalSec / 3600);
+	const m = Math.floor((totalSec % 3600) / 60);
+	const s = totalSec % 60;
+	if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+	return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function getLimitationTableData(functionLevel: number) {
+	return [
+		{
+			label: '媒体时长上限',
+			value: formatSeconds(getLimitaion('maxMediaDuration', functionLevel)),
+		},
+		{
+			label: '转码时长上限',
+			value: formatSeconds(getLimitaion('maxWorkingDuration', functionLevel)),
+		},
+		{
+			label: '远程单文件上传大小上限',
+			value: getLimitaion('maxUploadSizeGB', functionLevel) === undefined
+				? '无限制' : getLimitaion('maxUploadSizeGB', functionLevel) + 'GB',
+		},
+		{
+			label: '任务列表数量上限',
+			value: getLimitaion('maxTaskListCount', functionLevel) === undefined
+				? '无限制' : String(getLimitaion('maxTaskListCount', functionLevel)),
+		},
+		{
+			label: '同时转码任务数量设定上限',
+			value: getLimitaion('maxThreads', functionLevel) === undefined
+				? '无限制' : String(getLimitaion('maxThreads', functionLevel)),
+		},
+		{
+			label: '滤镜功能节点数量上限',
+			value: getLimitaion('maxFilterNodeCount', functionLevel) === undefined
+				? '无限制' : String(getLimitaion('maxFilterNodeCount', functionLevel)),
+		},
+	];
+}
+
 // Push state updates to iframe when relevant data changes
 function sendStateToIframe() {
 	iframeRef.value?.contentWindow?.postMessage({
@@ -128,6 +172,7 @@ function sendStateToIframe() {
 			localServerMachineId: appStore.localServer?.data.machineId,
 			env: nodeBridge.env,
 			colorTheme: appStore.frontendSettings.colorTheme,
+			limitationTable: getLimitationTableData(appStore.functionLevel),
 		},
 	}, '*');
 }

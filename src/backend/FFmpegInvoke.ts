@@ -189,7 +189,7 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 						const f = scanf(thisLine, 'Duration: %d:%d:%d, start: %d, bitrate: %d kb/s');
 						readingInputInfo.duration = f[0] * 3600 + f[1] * 60 + f[2];
 						readingInputInfo.start = f[3];
-						readingInputInfo.bitrate = f[4];
+						readingInputInfo.bitrate = f[4] * 1000;
 					} else if (thisLine.startsWith('  Metadata:')) {
 						let thisLine;
 						i++;
@@ -217,29 +217,29 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 						if (type === 'Video') {
 							readingStreamInfo.pixelFormat = detailItems[1].match(/\w+/)?.[0];
 							readingStreamInfo.resolution = detailItems[2].match(/\w+/)?.[0];
-							readingStreamInfo.bitrate = +detailItems[3].match(/(\d+) kb\/s/)?.[1];
+							readingStreamInfo.bitrate = +detailItems[3].match(/(\d+) kb\/s/)?.[1] * 1000;
 							readingStreamInfo.fps = +detailItems[4].match(/(\d+(\.)?\d*) fps/)?.[1];
 						} else if (type === 'Audio') {
 							readingStreamInfo.sampleRate = +detailItems[1].match(/\d+/)?.[0];
 							readingStreamInfo.channel = detailItems[2];
-							readingStreamInfo.bitrate = +detailItems.find((item) => item.includes('kb/s'))?.match(/\d+/)?.[0] || undefined;
+							readingStreamInfo.bitrate = +detailItems.find((item) => item.includes('kb/s'))?.match(/\d+/)?.[0] * 1000 || undefined;
 						} else if (type === 'Data') {
 							readingStreamInfo.codec = detailItems[0];
-							readingStreamInfo.bitrate = +detailItems.find((item) => item.includes('kb/s'))?.match(/\d+/)?.[0] || undefined;
+							readingStreamInfo.bitrate = +detailItems.find((item) => item.includes('kb/s'))?.match(/\d+/)?.[0] * 1000 || undefined;
 						} else {
-							readingStreamInfo.bitrate = +detailItems.find((item) => item.includes('kb/s'))?.match(/\d+/)?.[0] || undefined;
+							readingStreamInfo.bitrate = +detailItems.find((item) => item.includes('kb/s'))?.match(/\d+/)?.[0] * 1000 || undefined;
 						}
 						readingStreamInfo.isDefault = detailItems[detailItems.length - 1].includes('default');
 						readingStreamInfo.infoText = thisLine;
 						// 理论上上面这些需要做一下错误处理，比如说 debugger，或者直接跳过这行
 						while (true) {
-							const nextLine = this.readingInputsInfoBuffer[i + 1];
-							if (nextLine && (nextLine.includes('Metadata:') || nextLine.includes('Side data:'))) {
+							const subLine = this.readingInputsInfoBuffer[i + 1];
+							if (subLine && (subLine.includes('Metadata:') || subLine.includes('Side data:'))) {
 								let thisLine;
 								i += 2;
 								while ((thisLine = this.readingInputsInfoBuffer[i] || '').startsWith('      ')) {
 									const match = thisLine.match(/([\w_]+) *: (.+)/);
-									if (nextLine.includes('Metadata:') && match) {
+									if (subLine.includes('Metadata:') && match) {
 										readingStreamInfo.metadata[match[1]] = match[2];
 									} else {
 										readingStreamInfo.sidedata.push(thisLine.trim());
@@ -267,13 +267,13 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 							readingChapterInfo.start = +detailItems[0].match(/\d+(\.\d+)?/)?.[0];
 							readingChapterInfo.end = +detailItems[1].match(/\d+(\.\d+)?/)?.[0];
 							readingChapterInfo.infoText = thisLine;
-							const nextLine = this.readingInputsInfoBuffer[i + 1];
-							if (nextLine && (nextLine.includes('Metadata:'))) {
+							const subLine = this.readingInputsInfoBuffer[i + 1];
+							if (subLine && (subLine.includes('Metadata:'))) {
 								let thisLine;
 								i += 2;
 								while ((thisLine = this.readingInputsInfoBuffer[i] || '').startsWith('      ')) {
 									const match = thisLine.match(/([\w_]+) *: (.+)/);
-									if (nextLine.includes('Metadata:')) {
+									if (match &&subLine.includes('Metadata:')) {
 										readingChapterInfo.metadata[match[1]] = match[2];
 									}
 									i++;
@@ -435,29 +435,29 @@ export class FFmpeg extends (EventEmitter as new () => TypedEventEmitter<FFmpegI
 			case 0:
 				if (false) {
 				} else if (thisLine.includes('frame=')) {	// status（有视频）
-					// const l_status = scanf(thisLine, `frame=%d fps=%f q=%f (L)size=%dkB time=%d:%d:%d.%d bitrate=%dkbits/s speed=%dx`);
+					// const l_status = scanf(thisLine, `frame=%d fps=%f q=%f (L)size=%dkiB time=%d:%d:%d.%d bitrate=%dkbits/s speed=%dx`);
 					const l_status = thisLine.match(/(\d+([.|:]?\d*)*)|(N\/A)/g)!;
 					const time = l_status[4].match(/\d+/g)!;	// 有小概率为 NaN
 					this.emit('status', {
 						frame: parseInt(l_status[0]),
 						fps: parseInt(l_status[1]),
 						q: parseFloat(l_status[2]),
-						size: parseInt(l_status[3]),
+						size: parseInt(l_status[3]) * 1024,
 						time: time ? parseInt(time[0]) * 3600 + parseInt(time[1]) * 60 + parseInt(time[2]) + parseInt(time[3]) * 0.01 : NaN,
-						bitrate: parseFloat(l_status[5]),
+						bitrate: parseFloat(l_status[5]) * 1000,
 						speed: parseFloat(l_status[6]),
 					});
 				} else if (thisLine.includes('size=')) {	// status（无视频）
-					// const l_status = scanf(thisLine, `size=%dkB time=%d:%d:%d.%d bitrate=%dkbits/s speed=%dx`);
+					// const l_status = scanf(thisLine, `size=%dkiB time=%d:%d:%d.%d bitrate=%dkbits/s speed=%dx`);
 					const l_status = thisLine.match(/(\d+([.|:]?\d*)*)|(N\/A)/g)!;
 					const time = l_status[1].match(/\d+/g)!;	// 有小概率为 NaN
 					this.emit('status', {
 						frame: NaN,
 						fps: NaN,
 						q: NaN,
-						size: parseInt(l_status[0]),
+						size: parseInt(l_status[0]) * 1024,
 						time: time ? parseInt(time[0]) * 3600 + parseInt(time[1]) * 60 + parseInt(time[2]) + parseInt(time[3]) * 0.01 : NaN,
-						bitrate: parseFloat(l_status[2]),
+						bitrate: parseFloat(l_status[2]) * 1000,
 						speed: parseFloat(l_status[3]),
 					});
 				} else if (thisLine.includes('Input #')) {	// metadata：获得媒体信息

@@ -358,9 +358,9 @@ export interface FFmpegProgress {
 	frame: number;
 	fps: number;
 	q: number;
-	size: number;		// kB
+	size: number;		// B
 	time: number;		// 秒
-	bitrate: number;	// kbps
+	bitrate: number;	// bps
 	speed: number;
 }
 
@@ -377,9 +377,9 @@ export interface Run {
 	elapsed: number;			// 累计运行时间（秒），暂停时才更新
 	lastPaused: number;			// 最近一次暂停的时间戳（秒）
 	progressLog: {
-		time: SingleProgressLog;
+		time: SingleProgressLog;	// 单位为 s
 		frame: SingleProgressLog;
-		size: SingleProgressLog;
+		size: SingleProgressLog;	// 单位为 B
 	};
 	cmdData: string;
 	errorInfo: Array<string>;

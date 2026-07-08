@@ -100,11 +100,10 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	// #region 参数
 
-	const beforeBitrateFilter = (kbps: number) => {
-		if (isNaN(kbps)) {
+	const beforeBitrateFilter = (bps: number) => {
+		if (isNaN(bps)) {
 			return '读取中';
 		} else {
-			const bps = kbps * 1000;
 			if (appStore.frontendSettings.useIEC) {
 				if (bps >= 10 * 1024 ** 2) {
 					return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
@@ -134,8 +133,7 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	// #region 仪表盘
 
-	const graphBitrateFilter = (kbps: number) => {
-		const bps = kbps * 1000;
+	const graphBitrateFilter = (bps: number) => {
 		if (appStore.frontendSettings.useIEC) {
 			if (bps >= 10 * 1024 ** 2) {
 				return (bps / 1024 ** 2).toFixed(1) + ' M';
@@ -182,7 +180,7 @@ export const TaskItem = defineComponent((props: Props) => {
 		}
 		return '-';
 	});
-	const graphSize = computed(() => formatSize(currentRun.value.dashboard_smooth.size * 1000, appStore.frontendSettings.useIEC));
+	const graphSize = computed(() => formatSize(currentRun.value.dashboard_smooth.size, appStore.frontendSettings.useIEC));
 	const graphUploadRead = computed(() => formatSize(transferInfo.value.totalRead, appStore.frontendSettings.useIEC));
 	const graphUploadHash = computed(() => formatSize(transferInfo.value.totalHash, appStore.frontendSettings.useIEC));
 	const graphUploadUpload = computed(() => formatSize(transferInfo.value.totalUpload, appStore.frontendSettings.useIEC));
@@ -192,7 +190,7 @@ export const TaskItem = defineComponent((props: Props) => {
 	 *  　　　或：(log(数值 / 想要以多少作为最低值) / log(底，即每增长多少倍数为一格)) / 格数
 	 */
 	const graphBitrateStyle = computed(() => {
-		let value = Math.log(currentRun.value.dashboard_smooth.bitrate / 62.5) / Math.log(8) / 4;		// 62.5K, 500K, 4M, 32M, 256M
+		let value = Math.log(currentRun.value.dashboard_smooth.bitrate / 62500) / Math.log(8) / 4;		// 62.5K, 500K, 4M, 32M, 256M
 		value = Math.min(Math.max(value, 0), 1);
 		return `background: conic-gradient(hwb(var(--primaryColor)) 0%, hwb(var(--primaryColor)) ${value * 75}%, hwb(var(--opposite80) / 0.1) ${value * 75}%, hwb(var(--opposite80) / 0.1) 75%, transparent 75%)`;
 	});

@@ -224,7 +224,7 @@ const VcodecView = defineComponent((props: Props) => {
 							}}
 						/>
 					)}
-					{renderDetailParameters(vcodec.value!.parameters, videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
+					{renderDetailParameters(vcodec.value?.parameters || [], videoParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
 					{/* {(() => {
 						const definedParams = (vcodec.value?.parameters || []).map(p => p.parameter);
 						const orphanedKeys = Object.keys(videoParams.value.detail || {}).filter(

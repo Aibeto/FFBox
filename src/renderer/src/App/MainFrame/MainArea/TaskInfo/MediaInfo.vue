@@ -166,7 +166,7 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 									</tr>
 									<tr v-if="stream.bitrate">
 										<td>码率</td>
-										<td>{{ stream.bitrate }} kbps</td>
+										<td>{{ stream.bitrate * 0.001 }} kbps</td>
 									</tr>
 									<tr v-if="stream.language">
 										<td>语言</td>

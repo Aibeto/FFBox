@@ -214,7 +214,7 @@ const AcodecView = defineComponent((props: Props) => {
 							}}
 						/>
 					)}
-					{renderDetailParameters(acodec.value!.parameters, audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
+					{renderDetailParameters(acodec.value?.parameters || [], audioParams.value.detail, (parameter, value: string) => handleDetailChange(parameter.parameter, value), false)}
 					{/* <BoxedSlider
 						title="音量"
 						description='请注意新版 ffmpeg 不再支持 -vol 参数，请换用滤镜进行音量处理'

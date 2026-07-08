@@ -112,7 +112,7 @@ const lowDensityBitrateData = computed(() => {
 		const i = Math.round(f);
 		if (progressLog.size[i][1] === lastSize || progressLog.time[i][1] <= lastMediaTime) continue;	// 第二个条件的原因：即使尺寸变化，时间也有可能不变，甚至倒退
 		const x = (progressLog.time[i][1] + lastMediaTime) / 2;	// 中点媒体时间
-		const y = (progressLog.size[i][1] - lastSize) / (progressLog.time[i][1] - lastMediaTime);	// 变化尺寸/变化时间
+		const y = (progressLog.size[i][1] - lastSize) / (progressLog.time[i][1] - lastMediaTime) * 8;	// 变化尺寸/变化时间 * 8（记录 B，显示 b）
 		if (y === Infinity) debugger;
 		lastSize = progressLog.size[i][1];
 		lastMediaTime = progressLog.time[i][1];
@@ -151,8 +151,7 @@ const lowDensitySpeedData = computed(() => {
 
 // #region 字符串 filter
 
-const graphSizeFilter = (kB: number) => {
-	const B = kB * 1000;
+const graphSizeFilter = (B: number) => {
 	if (appStore.frontendSettings?.useIEC) {
 		if (B >= 10 * 1024 ** 3) {
 			return (B / 1024 ** 3).toFixed(1) + ' GiB';
@@ -179,11 +178,10 @@ const graphSizeFilter = (kB: number) => {
 		}
 	}
 };
-const beforeBitrateFilter = (kbps: number) => {
-	if (isNaN(kbps)) {
+const beforeBitrateFilter = (bps: number) => {
+	if (isNaN(bps)) {
 		return '读取中';
 	} else {
-		const bps = kbps * 1000;
 		if (appStore.frontendSettings?.useIEC) {
 			if (bps >= 10 * 1024 ** 2) {
 				return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
@@ -287,7 +285,7 @@ const getEstimatedMaxTimeSize = () => {
 	const currentSize = progressLog.size.length > 0 ? progressLog.size[progressLog.size.length - 1][1] : 0;
 	return {
 		time: elapsedTime + (outputDuration.value - currentTime) / lastSpeedBitrate.speed,
-		size: currentSize + (outputDuration.value - currentTime) * lastSpeedBitrate.bitrate * 0.125,	// size 的单位是 kB，bitrate 的单位是 kbps
+		size: currentSize + (outputDuration.value - currentTime) * lastSpeedBitrate.bitrate * 0.125,	// size 的单位是 B，bitrate 的单位是 bps
 	};
 };
 
