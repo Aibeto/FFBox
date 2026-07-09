@@ -2,7 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { Task, TaskStatus } from '@common/types';
 import { UITask } from '@renderer/types.js';
-import { formatTimeToFFmpegStyle, getOutputFileTime, getTimeString, getTaskOutputParams } from '@common/utils';
+import { getOutputFileTime, getTimeString, getTaskOutputParams } from '@common/utils';
+import formatUtils from '@common/formatUtils';
 import { getOutputFileBaseName } from '@common/params/formats';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import { useAppStore } from '@renderer/stores/appStore';
@@ -126,7 +127,7 @@ const handleCenterDraggerDragStart = (event: MouseEvent | TouchEvent) => {
 									</tr>
 									<tr>
 										<td>时长</td>
-										<td>{{ formatTimeToFFmpegStyle(inputFile.duration!) }}</td>
+										<td>{{ formatUtils.time(inputFile.duration!, 'ffmpeg') }}</td>
 									</tr>
 								</tbody></table>
 							</div>

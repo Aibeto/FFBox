@@ -4,6 +4,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { SingleProgressLog, TaskStatus } from '@common/types';
 import { getOutputDuration } from '@common/utils';
 import { calcDashboard } from '@renderer/common/dashboardCalc';
+import formatUtils from '@common/formatUtils';
 import { getScaleUnit } from '@renderer/common/utils';
 import RadioList, { Props as RadioListProps } from '@renderer/components/RadioList/RadioList.vue';
 import RockerSwitch from '@renderer/components/RockerSwitch/RockerSwitch.vue';
@@ -149,84 +150,7 @@ const lowDensitySpeedData = computed(() => {
 
 // #endregion 数据处理
 
-// #region 字符串 filter
-
-const graphSizeFilter = (B: number) => {
-	if (appStore.frontendSettings?.useIEC) {
-		if (B >= 10 * 1024 ** 3) {
-			return (B / 1024 ** 3).toFixed(1) + ' GiB';
-		} else if (B >= 1024 ** 3) {
-			return (B / 1024 ** 3).toFixed(2) + ' GiB';
-		} else if (B >= 100 * 1024 ** 2) {
-			return (B / 1024 ** 2).toFixed(0) + ' MiB';
-		} else if (B >= 10 * 1024 ** 2) {
-			return (B / 1024 ** 2).toFixed(1) + ' MiB';
-		} else {
-			return (B / 1024 ** 2).toFixed(2) + ' MiB';
-		}
-	} else {
-		if (B >= 10 * 1000 ** 3) {
-			return (B / 1000 ** 3).toFixed(1) + ' GB';
-		} else if (B >= 1000 ** 3) {
-			return (B / 1000 ** 3).toFixed(2) + ' GB';
-		} else if (B >= 100 * 1000 ** 2) {
-			return (B / 1000 ** 2).toFixed(0) + ' MB';
-		} else if (B >= 10 * 1000 ** 2) {
-			return (B / 1000 ** 2).toFixed(1) + ' MB';
-		} else {
-			return (B / 1000 ** 2).toFixed(2) + ' MB';
-		}
-	}
-};
-const beforeBitrateFilter = (bps: number) => {
-	if (isNaN(bps)) {
-		return '读取中';
-	} else {
-		if (appStore.frontendSettings?.useIEC) {
-			if (bps >= 10 * 1024 ** 2) {
-				return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
-			} else {
-				return (bps / 1024).toFixed(0) + ' kibps';
-			}
-		} else {
-			if (bps >= 10 * 1000 ** 2) {
-				return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
-			} else {
-				return (bps / 1000).toFixed(0) + ' kbps';
-			}
-		}
-	}
-};
-const transferrateFilter = (Bps: number) => {
-	if (appStore.frontendSettings?.useIEC) {
-		if (Bps >= 10 * 1024 ** 2) {
-			return (Bps / 1024 ** 2).toFixed(1) + ' MiBps';
-		} else {
-			return (Bps / 1024).toFixed(0) + ' kiBps';
-		}
-	} else {
-		if (Bps >= 10 * 1000 ** 2) {
-			return (Bps / 1000 ** 2).toFixed(1) + ' MBps';
-		} else {
-			return (Bps / 1000).toFixed(0) + ' kBps';
-		}
-	}
-}
-const timeFilter = (value: number, withDecimal = true) => {
-	let left = value;
-	let hour = Math.floor(left / 3600); left -= hour * 3600;
-	let minute = Math.floor(left / 60); left -= minute * 60;
-	let second = left;
-	if (hour) {
-		return `${hour}:${minute.toString().padStart(2, '0')}:${second.toFixed(0).toString().padStart(2, '0')}`;
-	} else if (minute) {
-		return `${minute}:${withDecimal ? second.toFixed(1).padStart(4, '0') : second.toFixed(0).padStart(2, '0')}`;
-	} else {
-		return withDecimal ? second.toFixed(2) : `${second.toFixed(0)} s`;
-	}
-};
-
-// #endregion
+// 数字格式化：formatUtils.size / .bitrate / .transferRate / .time 由 @common/formatUtils 统一提供；圆环/速度等特殊显示由本地内联处理
 
 const getLastSpeedBitrate = () => {
 	const progressLog = activeProgressLog.value!;
@@ -357,7 +281,7 @@ const render = () => {
 		context.moveTo(x, 0);
 		context.lineTo(x, canvasHeight - 30);
 		context.stroke();
-		context.fillText(timeFilter(value, false), x, canvasHeight - 30 + 8);
+		context.fillText(formatUtils.time(value, 'compact'), x, canvasHeight - 30 + 8);
 	}
 
 	// 纵坐标
@@ -365,15 +289,16 @@ const render = () => {
 	context.textBaseline = 'middle';
 	context.fillStyle = isDark.value ? '#eee' : '#333'; // 字体颜色
 	context.font = '14px 华文中宋 black';
+	const useIEC = appStore.frontendSettings?.useIEC ?? false;
 	for (let value = 0; value < verticalMax; value += verticalUnit) {
 		const y = (1 - value / verticalMax) * (canvasHeight - 30);
 		const displayText = [
 			value + '%',
-			graphSizeFilter(value),
-			beforeBitrateFilter(value),
-			(value >= 10 ? value.toFixed(0) : value >= 1 ? value.toFixed(1) : value.toFixed(2)) + '×',
+			formatUtils.size(value, useIEC),
+			isNaN(value) ? '读取中' : formatUtils.bitrate(value, useIEC),
+			value >= 10 ? value.toFixed(0) + '×' : (value >= 1 ? value.toFixed(1) + '×' : value.toFixed(2) + '×'),
 			value + '%',
-			transferrateFilter(value)
+			formatUtils.transferRate(value, useIEC),
 		][
 			['progress', 'size', 'bitrate', 'speed', 'transferProgress', 'transferSpeed'].indexOf(chartType.value)
 		];

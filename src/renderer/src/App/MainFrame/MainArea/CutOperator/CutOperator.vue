@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, watch, StyleValue } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import { Frame } from '@common/types';
-import { formatTimeToFFmpegStyle, parseTimeString } from '@common/utils';
+import formatUtils from '@common/formatUtils';
 import { PreviewStreamDecoder, PreviewDecoderConfig, BufferInfo } from '@renderer/App/MainFrame/MainArea/CutOperator/PreviewStreamDecoder';
 import { ServiceBridge } from '@renderer/bridges/serviceBridge';
 import { durationValidator, durationFixer } from '@renderer/components/validatorAndFixer';
@@ -549,11 +549,11 @@ const handleSelectionMouseDown = (event: MouseEvent, selectionType: 'input' | 'o
 		// 同步到 params
 		if (dragState.value.type) {
 			// 输入选区
-			params.value.input.begin = formatTimeToFFmpegStyle(inputBegin.value);
-			params.value.input.end = formatTimeToFFmpegStyle(inputEnd.value);
+			params.value.input.begin = formatUtils.time(inputBegin.value, 'ffmpeg');
+			params.value.input.end = formatUtils.time(inputEnd.value, 'ffmpeg');
 			// 输出选区（相对时间）
-			params.value.mux.begin = formatTimeToFFmpegStyle(outputBegin.value - inputBegin.value);
-			params.value.mux.end = formatTimeToFFmpegStyle(outputEnd.value - inputBegin.value);
+			params.value.mux.begin = formatUtils.time(outputBegin.value - inputBegin.value, 'ffmpeg');
+			params.value.mux.end = formatUtils.time(outputEnd.value - inputBegin.value, 'ffmpeg');
 			appStore.applyParameters();
 		}
 
@@ -596,21 +596,6 @@ const drawKeyFrames = () => {
 	const viewRange = viewEnd.value - viewBegin.value;
 	const drawWidth = keyFramesCanvasWidth.value - CANVAS_PADDING * 2;
 
-	// 来自 ProgressLog
-	const timeFilter = (value: number, withDecimal = true) => {
-		let left = value;
-		let hour = Math.floor(left / 3600); left -= hour * 3600;
-		let minute = Math.floor(left / 60); left -= minute * 60;
-		let second = left;
-		if (hour) {
-			return `${hour}:${minute.toString().padStart(2, '0')}:${second.toFixed(0).toString().padStart(2, '0')}`;
-		} else if (minute) {
-			return `${minute}:${withDecimal ? second.toFixed(1).padStart(4, '0') : second.toFixed(0).padStart(2, '0')}`;
-		} else {
-			return withDecimal ? second.toFixed(2) : `${second.toFixed(0)} s`;
-		}
-	};
-
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
 
@@ -633,7 +618,7 @@ const drawKeyFrames = () => {
 
 			// 若没有时间刻度：直接绘画标签；否则绘制标签的条件是平均至少间隔 100px
 			if (!showTimeScale.value || kFrames.length / keyFramesCanvasWidth.value < 0.01) {
-				ctx.fillText(`${timeFilter(frame.pts_time)} #${frame.n}`, x, 66);
+				ctx.fillText(`${formatUtils.time(frame.pts_time, 'display')} #${frame.n}`, x, 66);
 			}
 		}
 	}
@@ -657,7 +642,7 @@ const drawKeyFrames = () => {
 			ctx.lineTo(x, 60);
 			ctx.stroke();
 
-			ctx.fillText(timeFilter(time), x, 66);
+			ctx.fillText(formatUtils.time(time, 'display'), x, 66);
 		}
 	}
 
@@ -1149,10 +1134,10 @@ const handleShowSettings = (event: MouseEvent) => {
 const updateSelectionFromParams = () => {
 	if (!selectedTasks.value.task) return;
 
-	let ib = parseTimeString(params.value?.input.begin || '');
-	let ie = parseTimeString(params.value?.input.end === '' ? duration.value + '' : params.value?.input.end || '');
-	let ob = parseTimeString(params.value?.mux.begin || '');
-	let oe = parseTimeString(params.value?.mux.end === '' ? duration.value + '' : params.value?.mux.end || '');
+	let ib = formatUtils.parseTime(params.value?.input.begin || '');
+	let ie = formatUtils.parseTime(params.value?.input.end === '' ? duration.value + '' : params.value?.input.end || '');
+	let ob = formatUtils.parseTime(params.value?.mux.begin || '');
+	let oe = formatUtils.parseTime(params.value?.mux.end === '' ? duration.value + '' : params.value?.mux.end || '');
 
 	ib = Math.max(0, Math.min(ib, duration.value));
 	ie = Math.max(ib, Math.min(ie, duration.value));
@@ -1232,7 +1217,7 @@ onUnmounted(async () => {
 				<div class="topTimeDisplay">
 					<Transition name="timeDisplayTrans">
 						<div class="timeDisplayWrapper" v-show="thumbnailVisible">
-							{{ formatTimeToFFmpegStyle(playbackPosition) }} (#{{ currentFrameIndex >= 0 ? currentFrameIndex : '-' }}) / {{ formatTimeToFFmpegStyle(duration) }}
+							{{ formatUtils.time(playbackPosition, 'ffmpeg') }} (#{{ currentFrameIndex >= 0 ? currentFrameIndex : '-' }}) / {{ formatUtils.time(duration, 'ffmpeg') }}
 						</div>
 					</Transition>
 				</div>
@@ -1241,7 +1226,7 @@ onUnmounted(async () => {
 					<div class="timeDisplay">
 						<Transition name="timeDisplayTrans">
 							<div class="timeDisplayWrapper" v-show="!thumbnailVisible">
-								{{ formatTimeToFFmpegStyle(playbackPosition) }} (#{{ currentFrameIndex >= 0 ? currentFrameIndex : '-' }}) / {{ formatTimeToFFmpegStyle(duration) }}
+								{{ formatUtils.time(playbackPosition, 'ffmpeg') }} (#{{ currentFrameIndex >= 0 ? currentFrameIndex : '-' }}) / {{ formatUtils.time(duration, 'ffmpeg') }}
 							</div>
 						</Transition>
 					</div>
@@ -1291,7 +1276,7 @@ onUnmounted(async () => {
 					<!-- 缩略图 tooltip：相对定位在时间坐标上 -->
 					<Transition name="thumbnailTrans">
 						<div class="flowThumbnail" v-show="thumbnailVisible" :style="thumbnailTooltipPositionStyle">
-							<div class="thumbnailTime">{{ formatTimeToFFmpegStyle(thumbnailHoverTime) }}</div>
+							<div class="thumbnailTime">{{ formatUtils.time(thumbnailHoverTime, 'ffmpeg') }}</div>
 							<div class="thumbnailLoadingText">缩略图加载中 {{ (thumbnailBufferEnd / duration * 100).toFixed(0) }}%</div>
 							<video ref="thumbnailVideoRef" muted preload="auto" :class="{ transparent: !thumbnailIsBuffered }"></video>
 						</div>

@@ -6,6 +6,7 @@ import { ServiceBridgeStatus } from "@renderer/bridges/serviceBridge";
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { getLimitaion } from '@common/limitaions';
+import formatUtils from '@common/formatUtils';
 import Button from '@renderer/components/Button/Button';
 import Popup from '@renderer/components/Popup/Popup';
 import IconLoading from '@renderer/assets/loading.svg';
@@ -119,14 +120,7 @@ const handleMessage = async (event: MessageEvent) => {
 };
 
 // Build limitation table rows from limitaions.ts (single source of truth)
-function formatSeconds(totalSec: number | undefined): string {
-	if (totalSec === undefined) return '无限制';
-	const h = Math.floor(totalSec / 3600);
-	const m = Math.floor((totalSec % 3600) / 60);
-	const s = totalSec % 60;
-	if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-	return `${m}:${String(s).padStart(2, '0')}`;
-}
+const formatSeconds = (totalSec: number | undefined): string => totalSec === undefined ? '无限制' : formatUtils.time(totalSec, 'compact');
 
 function getLimitationTableData(functionLevel: number) {
 	return [

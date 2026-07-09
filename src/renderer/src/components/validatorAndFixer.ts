@@ -2,7 +2,7 @@
  * 该 utils 用于进行输入框的文本校验和更正
  * 注意传入类型必须为字符串，不能为 undefined 等值
  */
-import { parseTimeString } from '@common/utils';
+import formatUtils from '@common/formatUtils';
 
 const INVALID_TEXT = '默认输入不合法提示';
 
@@ -23,7 +23,7 @@ export function notEmptyValidator(value: string) {
 }
 
 export function durationValidator(value: string) {
-	return parseTimeString(value) >= 0 || !value.length ? undefined : INVALID_TEXT;
+	return formatUtils.parseTime(value) >= 0 || !value.length ? undefined : INVALID_TEXT;
 }
 
 export function numberValidator(value: string) {

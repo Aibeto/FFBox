@@ -1,4 +1,5 @@
 import { getMenuItemByValue, MenuItem, NarrowedMenuItem } from "@common/menu";
+import formatUtils from '@common/formatUtils';
 import { OutputParams_audio } from "../types";
 import { Parameter, RateControl } from './parameter';
 
@@ -883,13 +884,7 @@ export const getAudioRateControlParam = function (audioParams: OutputParams_audi
 				if (vtt instanceof Function) return vtt(sliderValue);
 				if (vtt?.type === 'bitrate') {
 					const bps = Math.round((vtt.base ?? 0) * 2 ** sliderValue);
-					if (window.frontendSettings?.useIEC) {
-						if (bps >= 10 * 1024 ** 2) return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
-						else return (bps / 1024).toFixed(0) + ' kibps';
-					} else {
-						if (bps >= 10 * 1000 ** 2) return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
-						else return (bps / 1000).toFixed(0) + ' kbps';
-					}
+					return formatUtils.bitrate(bps, window.frontendSettings?.useIEC ?? false);
 				}
 				if (vtt?.type === 'revertInteger') return ((rc.max ?? 0) - sliderValue).toFixed(0);
 				if (vtt?.type === 'integer') return sliderValue.toFixed(0);

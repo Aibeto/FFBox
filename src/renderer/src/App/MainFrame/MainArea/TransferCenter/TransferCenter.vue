@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { UploadFile } from '@renderer/types';
 import { useAppStore } from '@renderer/stores/appStore';
-import { formatSize } from '@common/utils';
+import formatUtils from '@common/formatUtils';
 import { useTooltip } from '@renderer/common/tooltipUtil';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import useLowerDividerDrag from '../useLowerDevider';
@@ -138,7 +138,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						class="listItem" :class="selectedFileIndex === index ? 'listItemSelected' : undefined"
 						:style="file.isCurrentTask ? {} : (paraSelected == 0 ? { opacity: 0.6 } : { display: 'none' })"
 						@click="handleFileClick(file as any, index)"
-						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${formatSize(file.size!, appStore.frontendSettings.useIEC)}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`, 'mtl')"
+						v-bind="useTooltip(`文件名：${file.fileBaseName}\n大小：${formatUtils.size(file.size!, appStore.frontendSettings.useIEC)}\n分段数：${file.chunks.length}\n任务 ID：${file.taskId}`, 'mtl')"
 					>
 						<div :class="`progress ${file.status === 'error' ? 'progressError' : ''}`">
 							<div :style="{
@@ -157,7 +157,7 @@ watch(() => (appStore.currentServer?.data.uploadFiles || []).length, () => {
 						v-if="paraSelected === 2"
 						v-for="(file, index) in downloadFileList"
 						class="listItem"
-						v-bind="useTooltip(`网址：${file.url}\n存址：${file.finalFilePath ?? ''}\n大小：${formatSize(file.size, appStore.frontendSettings.useIEC)}`, 'mtl')"
+						v-bind="useTooltip(`网址：${file.url}\n存址：${file.finalFilePath ?? ''}\n大小：${formatUtils.size(file.size, appStore.frontendSettings.useIEC)}`, 'mtl')"
 					>
 						<div class="progress">
 							<div :style="{

@@ -2,89 +2,7 @@
 import { OutputParams, Run, ServiceTask, Task, TaskForUpdate, TaskStatus } from '@common/types';
 import { UIRun, UITask } from '@renderer/types';
 import { deleteNode } from './params/filter';
-
-// #region 格式转换区
-
-/**
- * 传入秒数，返回 --:--:--.--
- */
-export function formatTimeToFFmpegStyle(second: number): string {
-	if (!isNaN(second) && second !== -1) {
-		const Hour = Math.floor(second / 3600);
-		const Minute = Math.floor((second - Hour * 3600) / 60);
-		const Second = second - Hour * 3600 - Minute * 60;
-		return ('0' + Hour).slice(-2) + ':' + ('0' + Minute).slice(-2) + ':' + ('0' + Second.toFixed(2)).slice(-5);
-	} else {
-		return '时长未知';
-	}
-}
-
-/**
- * 传入 ffmpeg 支持的时间格式（如 --:--:--.-- 或 ---.--），返回秒数（如格式错误则返回 -1）
- */
-export function parseTimeString(timeString: string): number {
-	if (timeString === 'N/A') {
-		return -1;
-	}
-	let exp: RegExpExecArray | null;
-	if (exp = /^(\d+):([0-5]?[0-9]):([0-5]?[0-9])(.\d+)?$/.exec(timeString)) {
-		// (时):(分):(秒)(.小)
-		const hour = Number(exp[1]);
-		const minute = Number(exp[2]);
-		const second = Number(exp[3]);
-		const mili = Number(exp[4] ?? '0');
-		if (minute >= 60 || second >= 60) {
-			return -1;
-		}
-		return hour * 3600 + minute * 60 + second + Number(mili);
-	} else if (exp = /^([0-5]?[0-9]):([0-5]?[0-9])(.\d+)?$/.exec(timeString)) {
-		// (分):(秒)(.小)
-		const minute = Number(exp[1]);
-		const second = Number(exp[2]);
-		const mili = Number(exp[3] ?? '0');
-		if (minute >= 60 || second >= 60) {
-			return -1;
-		}
-		return minute * 60 + second + Number(mili);
-	} else if (/^(\d+)(.\d+)?$/.test(timeString)) {
-		// (秒)(.小)
-		return Number(timeString);
-	}
-	return -1;
-}
-
-/**
- * 将字节大小转换为人类可读数字
- */
-export function formatSize(B: number, useIEC?: boolean) {
-	if (useIEC) {
-		if (B >= 10 * 1024 ** 3) {
-			return (B / 1024 ** 3).toFixed(1) + ' GiB';
-		} else if (B >= 1024 ** 3) {
-			return (B / 1024 ** 3).toFixed(2) + ' GiB';
-		} else if (B >= 100 * 1024 ** 2) {
-			return (B / 1024 ** 2).toFixed(0) + ' MiB';
-		} else if (B >= 10 * 1024 ** 2) {
-			return (B / 1024 ** 2).toFixed(1) + ' MiB';
-		} else {
-			return (B / 1024 ** 2).toFixed(2) + ' MiB';
-		}
-	} else {
-		if (B >= 10 * 1000 ** 3) {
-			return (B / 1000 ** 3).toFixed(1) + ' GB';
-		} else if (B >= 1000 ** 3) {
-			return (B / 1000 ** 3).toFixed(2) + ' GB';
-		} else if (B >= 100 * 1000 ** 2) {
-			return (B / 1000 ** 2).toFixed(0) + ' MB';
-		} else if (B >= 10 * 1000 ** 2) {
-			return (B / 1000 ** 2).toFixed(1) + ' MB';
-		} else {
-			return (B / 1000 ** 2).toFixed(2) + ' MB';
-		}
-	}
-}
-
-// #endregion
+import formatUtils from './formatUtils';
 
 // #region 字符串转换区
 
@@ -453,8 +371,8 @@ export function getOutputDuration(task: Task, runIndex?: number): number {
 		return NaN;
 	}
 	if (firstInput.begin || firstInput.end) {
-		const begin = firstInput.begin ? parseTimeString(firstInput.begin) : 0;
-		let end = firstInput.end ? parseTimeString(firstInput.end) : duration;
+		const begin = firstInput.begin ? formatUtils.parseTime(firstInput.begin) : 0;
+		let end = firstInput.end ? formatUtils.parseTime(firstInput.end) : duration;
 		if (begin === -1 || end === -1 || begin > end || begin > duration) {
 			return NaN;
 		}
@@ -462,8 +380,8 @@ export function getOutputDuration(task: Task, runIndex?: number): number {
 		duration = end - begin;
 	}
 	if (firstOutput.begin || firstOutput.end) {
-		const begin = firstOutput.begin ? parseTimeString(firstOutput.begin) : 0;
-		let end = firstOutput.end ? parseTimeString(firstOutput.end) : duration;
+		const begin = firstOutput.begin ? formatUtils.parseTime(firstOutput.begin) : 0;
+		let end = firstOutput.end ? formatUtils.parseTime(firstOutput.end) : duration;
 		if (begin === -1 || end === -1 || begin > end || begin > duration) {
 			return NaN;
 		}
@@ -493,8 +411,8 @@ export function getOutputFileTime(task: Task, outputIndex: number, runIndex?: nu
 
 	if (mux.keepFileTime === 'original') {
 	} else {
-		const startTime1 = parseTimeString(after.input.files[0].begin || '');
-		const startTime2 = parseTimeString(mux.begin || '');
+		const startTime1 = formatUtils.parseTime(after.input.files[0].begin || '');
+		const startTime2 = formatUtils.parseTime(mux.begin || '');
 		const startTime = ((startTime1 === -1 ? 0 : startTime1) + (startTime2 === -1 ? 0 : startTime2)) * 1000;
 		const duration = (getOutputDuration(task) || 0) * 1000; // 假设 getOutputDuration 可接收 index
 		if (mux.keepFileTime === 'autoShift') {

@@ -2,7 +2,7 @@ import { defineComponent, onMounted, ref } from "vue";
 import { NotificationLevel, Permission } from "@common/types";
 import { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
-import { formatSize } from "@common/utils";
+import formatUtils from "@common/formatUtils";
 import Button from '@renderer/components/Button/Button';
 import Msgbox from "../Msgbox/Msgbox";
 import Popup from "../Popup/Popup";
@@ -30,7 +30,7 @@ const Comp = defineComponent((props: P) => {
 		const server = appStore.servers.find((server) => server.data.id === props.serverId) as Server;
 		try {
 			const result = await server.entity.getCacheInfo(true);
-			Popup({ message: `已清除上传缓存 ${result.uploadCount} 个文件，总计 ${formatSize(result.uploadSize)}；下载缓存 ${result.downloadCount} 个文件，总计 ${formatSize(result.downloadSize)}` });
+			Popup({ message: `已清除上传缓存 ${result.uploadCount} 个文件，总计 ${formatUtils.size(result.uploadSize)}；下载缓存 ${result.downloadCount} 个文件，总计 ${formatUtils.size(result.downloadSize)}` });
 			const newResult = await server.entity.getCacheInfo(false);
 			cacheInfo.value = newResult;
 		} catch (e: any) {
@@ -48,8 +48,8 @@ const Comp = defineComponent((props: P) => {
 		<div>
 			{cacheInfo.value ? (
 				<div style={{ lineHeight: '1.5em' }}>
-					上传缓存：{cacheInfo.value.uploadCount} 个文件，{formatSize(cacheInfo.value.uploadSize, appStore.frontendSettings.useIEC)}<br />
-					下载缓存：{cacheInfo.value.downloadCount} 个文件，{formatSize(cacheInfo.value.downloadSize, appStore.frontendSettings.useIEC)}
+					上传缓存：{cacheInfo.value.uploadCount} 个文件，{formatUtils.size(cacheInfo.value.uploadSize, appStore.frontendSettings.useIEC)}<br />
+					下载缓存：{cacheInfo.value.downloadCount} 个文件，{formatUtils.size(cacheInfo.value.downloadSize, appStore.frontendSettings.useIEC)}
 				</div>
 			) : (
 				<div>暂无信息</div>

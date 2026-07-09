@@ -8,7 +8,8 @@ import { useAppStore } from '@renderer/stores/appStore';
 import Tooltip from '@renderer/components/Tooltip/Tooltip';
 import showMenu from '@renderer/components/Menu/Menu';
 import nodeBridge from '@renderer/bridges/nodeBridge';
-import { getOutputDuration, formatTimeToFFmpegStyle, formatSize, parseTimeString, getOutputFileTime, getDefaultInputVideo, getDefaultInputAudio } from '@common/utils';
+import { getOutputDuration, getOutputFileTime, getDefaultInputVideo, getDefaultInputAudio } from '@common/utils';
+import formatUtils from '@common/formatUtils';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import IconInitializing from './initializing.svg';
 import IconIdle from './idle.svg';
@@ -100,27 +101,9 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	// #region 参数
 
-	const beforeBitrateFilter = (bps: number) => {
-		if (isNaN(bps)) {
-			return '读取中';
-		} else {
-			if (appStore.frontendSettings.useIEC) {
-				if (bps >= 10 * 1024 ** 2) {
-					return (bps / 1024 ** 2).toFixed(1) + ' Mibps';
-				} else {
-					return (bps / 1024).toFixed(0) + ' kibps';
-				}
-			} else {
-				if (bps >= 10 * 1000 ** 2) {
-					return (bps / 1000 ** 2).toFixed(1) + ' Mbps';
-				} else {
-					return (bps / 1000).toFixed(0) + ' kbps';
-				}
-			}
-		}
-	};
-	const durationBefore = computed(() => formatTimeToFFmpegStyle(props.task.before[0]?.duration ?? NaN));
-	const durationAfter = computed(() => formatTimeToFFmpegStyle(outputDuration.value));
+	const beforeBitrateFilter = (bps: number) => isNaN(bps) ? '读取中' : formatUtils.bitrate(bps, appStore.frontendSettings.useIEC);
+	const durationBefore = computed(() => formatUtils.time(props.task.before[0]?.duration ?? NaN, 'ffmpeg'));
+	const durationAfter = computed(() => formatUtils.time(outputDuration.value, 'ffmpeg'));
 	const smpteBefore = computed(() => defaultVideo.value?.resolution && defaultVideo.value?.fps ? `${defaultVideo.value?.resolution}@${defaultVideo.value?.fps}` : '-');
 	const videoRateControlValue = computed(() => getVideoRateControlParam(currentAfter.value.outputs[0]?.video)?.value);
 	const audioRateControlValue = computed(() => getAudioRateControlParam(currentAfter.value.outputs[0]?.audio)?.value);
@@ -133,57 +116,42 @@ export const TaskItem = defineComponent((props: Props) => {
 
 	// #region 仪表盘
 
-	const graphBitrateFilter = (bps: number) => {
-		if (appStore.frontendSettings.useIEC) {
-			if (bps >= 10 * 1024 ** 2) {
-				return (bps / 1024 ** 2).toFixed(1) + ' M';
+	const graphBitrate = computed(() => {
+		const formatter = (bps: number) => {
+			if (appStore.frontendSettings.useIEC) {
+				if (bps >= 10 * 1024 ** 2) {
+					return (bps / 1024 ** 2).toFixed(1) + ' M';
+				} else {
+					return (bps / 1024 ** 2).toFixed(2) + ' M';
+				}
 			} else {
-				return (bps / 1024 ** 2).toFixed(2) + ' M';
+				if (bps >= 10 * 1000 ** 2) {
+					return (bps / 1000 ** 2).toFixed(1) + ' M';
+				} else {
+					return (bps / 1000 ** 2).toFixed(2) + ' M';
+				}
 			}
-		} else {
-			if (bps >= 10 * 1000 ** 2) {
-				return (bps / 1000 ** 2).toFixed(1) + ' M';
-			} else {
-				return (bps / 1000 ** 2).toFixed(2) + ' M';
-			}
-		}
-	};
-	const graphBitrate = computed(() => graphBitrateFilter(currentRun.value.dashboard_smooth.bitrate));
-	const speedFilter = (value: number) => {
-		if (value < 10) {
-			return value.toFixed(2) + ' ×';
-		} else {
-			return value.toFixed(1) + ' ×';
-		}
-	};
-	const graphSpeed = computed(() => speedFilter(currentRun.value.dashboard_smooth.speed));
-	const timeFilter = (value: number, withDecimal = true) => {
-		let left = value;
-		let hour = Math.floor(left / 3600); left -= hour * 3600;
-		let minute = Math.floor(left / 60); left -= minute * 60;
-		let second = left;
-		if (hour) {
-			return `${hour}:${minute.toString().padStart(2, '0')}:${second.toFixed(0).toString().padStart(2, '0')}`;
-		} else if (minute) {
-			return `${minute}:${withDecimal ? second.toFixed(1).padStart(4, '0') : second.toFixed(0).padStart(2, '0')}`;
-		} else {
-			return withDecimal ? second.toFixed(2) : `${second.toFixed(0)} s`;
-		}
-	};
-	const graphTime = computed(() => timeFilter(currentRun.value.dashboard_smooth.time));
+		};
+		return formatter(currentRun.value.dashboard_smooth.bitrate);
+	});
+	const graphSpeed = computed(() => {
+		const formatter = (value: number) => value >= 10 ? value.toFixed(0) + '×' : (value >= 1 ? value.toFixed(1) + '×' : value.toFixed(2) + '×');
+		return formatter(currentRun.value.dashboard_smooth.speed);
+	});
+	const graphTime = computed(() => formatUtils.time(currentRun.value.dashboard_smooth.time, 'display'));
 	const graphLeftTime = computed(() => {
 		const totalDuration = outputDuration.value;
 		if (currentRun.value.dashboard_smooth.speed > 0) {
 			const needTime = totalDuration / currentRun.value.dashboard_smooth.speed;
 			const remainTime = (totalDuration - currentRun.value.dashboard_smooth.time) / totalDuration * needTime;	// 剩余进度比例 * 全进度耗时
-			return timeFilter(remainTime, false);
+			return formatUtils.time(remainTime, 'compact');
 		}
 		return '-';
 	});
-	const graphSize = computed(() => formatSize(currentRun.value.dashboard_smooth.size, appStore.frontendSettings.useIEC));
-	const graphUploadRead = computed(() => formatSize(transferInfo.value.totalRead, appStore.frontendSettings.useIEC));
-	const graphUploadHash = computed(() => formatSize(transferInfo.value.totalHash, appStore.frontendSettings.useIEC));
-	const graphUploadUpload = computed(() => formatSize(transferInfo.value.totalUpload, appStore.frontendSettings.useIEC));
+	const graphSize = computed(() => formatUtils.size(currentRun.value.dashboard_smooth.size, appStore.frontendSettings.useIEC));
+	const graphUploadRead = computed(() => formatUtils.size(transferInfo.value.totalRead, appStore.frontendSettings.useIEC));
+	const graphUploadHash = computed(() => formatUtils.size(transferInfo.value.totalHash, appStore.frontendSettings.useIEC));
+	const graphUploadUpload = computed(() => formatUtils.size(transferInfo.value.totalUpload, appStore.frontendSettings.useIEC));
 
 	/** 圆环 style 部分
 	 *  计算方式：(log(数值) / log(底，即每增长多少倍数为一格) + 数值为 1 时偏移多少格) / 格数
