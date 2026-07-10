@@ -2,7 +2,7 @@ import { Fragment, h } from "vue";
 import { version } from "@common/constants";
 import { useAppStore } from "@renderer/stores/appStore";
 import { ServiceBridgeStatus } from "@renderer/bridges/serviceBridge";
-import Msgbox from "../Msgbox/Msgbox";
+import Msgbox from "../components/Msgbox/Msgbox";
 import nodeBridge from "@renderer/bridges/nodeBridge";
 
 export function showEnvironmentInfo() {

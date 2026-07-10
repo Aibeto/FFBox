@@ -7,11 +7,11 @@ import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import showMenu, { MenuItem } from '@renderer/components/Menu/Menu';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { handleCloseConfirm } from '@renderer/logic/eventsHandler';
-import { showEnvironmentInfo } from '@renderer/components/misc/EnvironmentInfo'
-import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
-import { showServerConfig } from '@renderer/components/misc/ServerConfig';
-import { showServerUserConfig } from '@renderer/components/misc/ServerUserConfig';
-import { showServerCacheInfo } from '@renderer/components/misc/ServerCacheInfo';
+import { showEnvironmentInfo } from '@renderer/bizComponents/EnvironmentInfo'
+import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/bizComponents/AddTasks';
+import { showServerConfig } from '@renderer/bizComponents/ServerConfig';
+import { showServerUserConfig } from '@renderer/bizComponents/ServerUserConfig';
+import { showServerCacheInfo } from '@renderer/bizComponents/ServerCacheInfo';
 import SponsorPanel from './SponsorPanel/SponsorPanel.vue';
 import LocalSettings from './LocalSettings/LocalSettings.vue';
 import Terms from './Terms/Terms.vue';

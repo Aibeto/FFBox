@@ -9,7 +9,7 @@ import Button from '@renderer/components/Button/Button';
 import Checkbox from '@renderer/components/Checkbox/Checkbox.vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import showMenu from '@renderer/components/Menu/Menu';
-import { showPresetConverterDialog } from '@renderer/components/misc/PresetConverterDialog';
+import { showPresetConverterDialog } from '@renderer/bizComponents/PresetConverterDialog';
 import css from './ShortcutView.module.less';
 
 interface Props {}

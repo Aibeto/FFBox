@@ -4,8 +4,8 @@ import { NotificationLevel, PresetFileJSON } from '@common/types';
 import { runImportConverter, runExportConverter } from '@renderer/logic/presetAdapterRunner';
 import Button from '@renderer/components/Button/Button';
 import nodeBridge from '@renderer/bridges/nodeBridge';
-import Popup from "../Popup/Popup";
-import Msgbox from "../Msgbox/Msgbox";
+import Popup from "../components/Popup/Popup";
+import Msgbox from "../components/Msgbox/Msgbox";
 import { useTooltip } from "@renderer/common/tooltipUtil";
 
 interface ConverterItem {

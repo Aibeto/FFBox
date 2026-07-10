@@ -4,7 +4,7 @@ import { Server, UITask } from '@renderer/types';
 import { getInitialUITask, mergeTaskFromService } from '@common/utils';
 import { registerServerForDashboard } from '@renderer/common/dashboardCalc';
 import { useAppStore } from '../stores/appStore';
-import { getLimitaion } from './limitaions';
+import { getLimitation } from './limitations';
 import Popup from '@renderer/components/Popup/Popup';
 import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import { ButtonType } from '@renderer/components/Button/Button';
@@ -174,7 +174,7 @@ export function handleProgressUpdate(server: Server, id: number, runIndex: numbe
 			return;
 		}
 	}
-	const maxWorkingDuration = getLimitaion('maxWorkingDuration');
+	const maxWorkingDuration = getLimitation('maxWorkingDuration');
 	if (run.progressLog.time.length > 0) {
 		if (run.elapsed + new Date().getTime() / 1000 - run.lastStarted > maxWorkingDuration) {
 			server.entity.trailLimit_stopTranscoding(id, 'working');

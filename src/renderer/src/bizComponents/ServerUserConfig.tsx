@@ -2,16 +2,15 @@ import { defineComponent, onMounted, ref } from "vue";
 import CryptoJS from 'crypto-js';
 import { randomString } from "@common/utils";
 import { Permission, UserConfig } from "@common/types";
-import { Server } from "@renderer/types";
+import type { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import { useTooltip } from "@renderer/common/tooltipUtil";
-import Button from '@renderer/components/Button/Button';
-import { ButtonType } from "../Button/Button";
+import Button, { ButtonType } from '@renderer/components/Button/Button';
 import InputAutoSize from '@renderer/components/InputAutoSize/InputAutoSize.vue';
-import Msgbox from "../Msgbox/Msgbox";
-import Popup from "../Popup/Popup";
+import Msgbox from "@renderer/components/Msgbox/Msgbox";
+import Popup from "@renderer/components/Popup/Popup";
+import Checkbox from "@renderer/components/Checkbox/Checkbox.vue";
 import css from './ServerUserConfig.module.less';
-import Checkbox from "../Checkbox/Checkbox.vue";
 
 const permissionLabels: Record<Permission, string> = {
 	[Permission.UserManagement]: '用户管理',

@@ -1,5 +1,5 @@
 import { defineComponent, onMounted, ref } from 'vue';
-import Msgbox from '../Msgbox/Msgbox';
+import Msgbox from '../components/Msgbox/Msgbox';
 
 export function showLocalLibrary(libName: string) {
 	(document.activeElement as any)?.blur();

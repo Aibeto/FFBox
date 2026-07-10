@@ -4,8 +4,8 @@ import { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import formatUtils from "@common/formatUtils";
 import Button from '@renderer/components/Button/Button';
-import Msgbox from "../Msgbox/Msgbox";
-import Popup from "../Popup/Popup";
+import Msgbox from "../components/Msgbox/Msgbox";
+import Popup from "../components/Popup/Popup";
 
 export function showServerCacheInfo(serverId: string) {
 	(document.activeElement as any)?.blur();

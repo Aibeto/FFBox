@@ -3,13 +3,13 @@ import { Permission } from "@common/types";
 import { Server } from "@renderer/types";
 import { useAppStore } from "@renderer/stores/appStore";
 import { useTooltip } from "@renderer/common/tooltipUtil";
-import { getLimitaion } from '@renderer/logic/limitaions';
+import { getLimitation } from '@renderer/logic/limitations';
 import BoxedNormalInput from '@renderer/components/NormalInput/BoxedNormalInput.vue';
 import BoxedSwitch from '@renderer/components/Switch/BoxedSwitch.vue';
 import { posIntegerFixer } from "@renderer/components/validatorAndFixer";
-import { ButtonType } from "../Button/Button";
-import Msgbox from "../Msgbox/Msgbox";
-import Popup from "../Popup/Popup";
+import { ButtonType } from "../components/Button/Button";
+import Msgbox from "../components/Msgbox/Msgbox";
+import Popup from "../components/Popup/Popup";
 import css from './ServerConfig.module.less';
 
 export function showServerConfig(serverId: string) {
@@ -68,7 +68,7 @@ const Comp = defineComponent((props: P) => {
 		}
 	};
 
-	const maxThreadsLimit = computed(() => getLimitaion('maxThreads', appStore.functionLevel));
+	const maxThreadsLimit = computed(() => getLimitation('maxThreads', appStore.functionLevel));
 
 	onMounted(() => {
 		props.exportFunctions(exports);

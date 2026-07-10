@@ -4,7 +4,7 @@ import { RateControl } from '@common/params/parameter';
 import { allMuxers, builtInMuxers } from '@common/params/formats';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
-import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
+import { showLocalLibrary } from '@renderer/bizComponents/LocalLibrary';
 import { renderDetailParameters } from './utils';
 import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrapper.vue';
 import Button, { ButtonType } from '@renderer/components/Button/Button';

@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
 import { version } from '@common/constants'
-import { showEnvironmentInfo } from '@renderer/components/misc/EnvironmentInfo';
+import { showEnvironmentInfo } from '@renderer/bizComponents/EnvironmentInfo';
 import IconLoading from '@renderer/assets/loading.svg?component';
 import IconInfo from './info.svg?component';
 import IconArrow from '@renderer/assets/swap_right.svg?component'

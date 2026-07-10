@@ -5,7 +5,7 @@ import { useAppStore } from '@renderer/stores/appStore';
 import { NotificationLevel, Permission } from '@common/types';
 import { useScrollStop } from './useScrollStop';
 import CoarseSlider from './CoarseSlider.vue';
-import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/components/misc/AddTasks';
+import { showAddTaskPrompt, showOpenFilePrompt } from '@renderer/bizComponents/AddTasks';
 import Popup from '@renderer/components/Popup/Popup';
 import { TaskItem } from './TaskItem/TaskItem';
 import showMenu from '@renderer/components/Menu/Menu';

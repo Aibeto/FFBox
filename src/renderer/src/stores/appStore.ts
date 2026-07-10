@@ -20,7 +20,7 @@ import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromServi
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleStatusUpdate } from '@renderer/logic/eventsHandler';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { addUploadTask } from '@renderer/logic/transferManager2';
-import { getLimitaion } from '@renderer/logic/limitaions';
+import { getLimitation } from '@renderer/logic/limitations';
 import Popup from '@renderer/components/Popup/Popup';
 
 interface StoreState {
@@ -240,7 +240,7 @@ export const useAppStore = defineStore('app', {
 				Popup({ message: '网页版受安全限制无法取到文件路径\n当前登录的用户具有文件系统权限，请双击任务列表或从主菜单中以文本方式添加任务😊', level: NotificationLevel.info });
 				return [];
 			}
-			const maxTaskCount = getLimitaion('maxTaskListCount');
+			const maxTaskCount = getLimitation('maxTaskListCount');
 
 			if (type === 'multiTask') {
 				if (server.data.totalCount >= maxTaskCount) {
@@ -260,7 +260,7 @@ export const useAppStore = defineStore('app', {
 					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
 					const needUpload = fileType === 'lf' && needUploadForFileSystem;	// lf = 本地文件；无 FileSystem 权限时需上传，有则直接使用路径
 					if (needUpload) {
-						const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
+						const limitedFileSizeGB = getLimitation('maxUploadSizeGB');
 						const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
 						if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
 							Popup({
@@ -313,7 +313,7 @@ export const useAppStore = defineStore('app', {
 					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
 					const needUpload = fileType === 'lf' && needUploadForFileSystem;	// lf = 本地文件；无 FileSystem 权限时需上传
 					if (needUpload) {
-						const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
+						const limitedFileSizeGB = getLimitation('maxUploadSizeGB');
 						const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
 						if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
 							Popup({

@@ -6,9 +6,9 @@ import { Server } from '@renderer/types';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import showMenu from '@renderer/components/Menu/Menu';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
-import { showServerConfig } from '@renderer/components/misc/ServerConfig';
-import { showServerUserConfig } from '@renderer/components/misc/ServerUserConfig';
-import { showServerCacheInfo } from '@renderer/components/misc/ServerCacheInfo';
+import { showServerConfig } from '@renderer/bizComponents/ServerConfig';
+import { showServerUserConfig } from '@renderer/bizComponents/ServerUserConfig';
+import { showServerCacheInfo } from '@renderer/bizComponents/ServerCacheInfo';
 import IconX from '@renderer/assets/×.svg?component';
 
 const appStore = useAppStore();

@@ -8,10 +8,10 @@ import { randomString } from '@common/utils';
 import { defaultParams } from '@common/defaultParams';
 import { useTooltip } from "@renderer/common/tooltipUtil";
 import { useAppStore } from '@renderer/stores/appStore';
-import { getLimitaion } from '@renderer/logic/limitaions';
+import { getLimitation } from '@renderer/logic/limitations';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { getValidator, numberValidator } from '@renderer/components/validatorAndFixer';
-import { showLocalLibrary } from '@renderer/components/misc/LocalLibrary';
+import { showLocalLibrary } from '@renderer/bizComponents/LocalLibrary';
 import showMenu from '@renderer/components/Menu/Menu';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import NormalInput from '@renderer/components/NormalInput/NormalInput.vue';
@@ -543,7 +543,7 @@ const EffectView = defineComponent((props: Props) => {
 	};
 
 	const addOutput = () => {
-		const maxNodeCount = getLimitaion('maxFilterNodeCount');
+		const maxNodeCount = getLimitation('maxFilterNodeCount');
 		if (nodes.value.length >= maxNodeCount) {
 			Popup({
 				message: i11n.service.功能限制_滤镜图节点数上限(maxNodeCount),
@@ -628,7 +628,7 @@ const EffectView = defineComponent((props: Props) => {
 
 	// 在工具箱中双击滤镜，则在画布当前中心放一个 node
 	const handleFilterDblclick = (detail: FFmpegFilterDetail) => {
-		const maxNodeCount = getLimitaion('maxFilterNodeCount');
+		const maxNodeCount = getLimitation('maxFilterNodeCount');
 		if (nodes.value.length >= maxNodeCount) {
 			Popup({
 				message: `😞节点数量达到上限了\n` +
@@ -669,7 +669,7 @@ const EffectView = defineComponent((props: Props) => {
 			// 获取鼠标按下点显示位置
 			const [pageX, pageY] = getPageXYfromEvent(event as any);
 			if (Math.abs(pageX - mouseDownX) - Math.abs(pageY - mouseDownY) * 2 > 10 && Math.abs(pageY - mouseDownY) < 20 && !dragged) {
-				const maxNodeCount = getLimitaion('maxFilterNodeCount');
+				const maxNodeCount = getLimitation('maxFilterNodeCount');
 				if (nodes.value.length >= maxNodeCount) {
 					Popup({
 						message: `😞节点数量达到上限了\n` +

@@ -2,10 +2,10 @@ import { computed, defineComponent, defineExpose, onMounted, ref } from 'vue';
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 // import RadioList, { Props as RadioListProps } from '@renderer/containers/MainFrame/MainArea/ParaBox/components/RadioList.vue';
-import { getLimitaion } from '@renderer/logic/limitaions';
-import Msgbox from '../Msgbox/Msgbox';
+import { getLimitation } from '@renderer/logic/limitations';
+import Msgbox from '../components/Msgbox/Msgbox';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
-import Popup from '../Popup/Popup';
+import Popup from '../components/Popup/Popup';
 import css from './AddTasks.module.less';
 import { Permission } from '@common/types';
 
@@ -64,7 +64,7 @@ const Comp = defineComponent((props: Props) => {
 			// const r = categorized.value.remotes.length;
 			// const u = categorized.value.unknowns.length;
 			const { localFilesCount: lf, localDirsCount: ld, remotesCount: r, unknownsCount: u } = categorized.value;
-			const maxTaskCount = getLimitaion('maxTaskListCount');
+			const maxTaskCount = getLimitation('maxTaskListCount');
 			if (lf + ld + r + u === 0) {
 				return '您未填入文件';
 			} else {

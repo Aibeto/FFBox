@@ -7,7 +7,7 @@ import { hwaccels, builtInDemuxers, allDemuxers, Demuxer, skipFrame } from '@com
 import { getMenuItemByValue } from '@common/menu';
 import { renderDetailParameters } from './utils';
 import { useAppStore } from '@renderer/stores/appStore';
-import { getLimitaion } from '@renderer/logic/limitaions';
+import { getLimitation } from '@renderer/logic/limitations';
 import { addUploadTask } from '@renderer/logic/transferManager2';
 import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrapper.vue';
 import WaveGrid from '@renderer/components/WaveGrid/WaveGrid.vue';
@@ -245,7 +245,7 @@ const InputView = defineComponent((props: Props) => {
 				if (!isFinite(firstTaskId)) return;
 
 				for (const file of event.dataTransfer?.files) {
-					const limitedFileSizeGB = getLimitaion('maxUploadSizeGB');
+					const limitedFileSizeGB = getLimitation('maxUploadSizeGB');
 					if (file.size > limitedFileSizeGB * 1000 * 1000 * 1000) {
 						Popup({
 							message: `${file.name} 文件大小超过 ${limitedFileSizeGB} GB，暂不支持上传操作`,
