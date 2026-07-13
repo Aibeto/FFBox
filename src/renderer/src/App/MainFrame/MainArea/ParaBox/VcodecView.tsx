@@ -4,8 +4,8 @@ import { allMuxers, builtInMuxers } from '@common/params/formats';
 import { RateControl } from '@common/params/parameter';
 import { getMenuItemByValue } from '@common/menu';
 import { useAppStore } from '@renderer/stores/appStore';
-import { framerateValidator } from '../../../../components/validatorAndFixer';
-import { showLocalLibrary } from '@renderer/bizComponents/LocalLibrary';
+import { framerateValidator } from '@renderer/components/validatorAndFixer';
+import nodeBridge from '@renderer/bridges/nodeBridge';
 import { renderDetailParameters } from './utils';
 import AutoSizeWrapper from '@renderer/components/AutoSizeWrapper/AutoSizeWrapper.vue';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
@@ -96,7 +96,7 @@ const VcodecView = defineComponent((props: Props) => {
 				value: 'fetchFromService',
 				label: '我应调整到什么值？...',
 				icon: <span>🤔</span>,
-				onClick: () => showLocalLibrary('FFBox 推荐画质设定'),
+				onClick: () => nodeBridge.jumpToUrl('https://ffbox.ttqf.tech/wiki/rateControl.html'),
 			},
 		];
 	});

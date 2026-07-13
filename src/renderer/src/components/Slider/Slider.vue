@@ -281,7 +281,7 @@ const handleKeypress = (event: KeyboardEvent) => {
 				position: absolute;
 				bottom: 0px;
 				transform: translateX(-50%);
-				width: 96px;
+				width: max-content;
 				font-size: 10px;
 				text-align: center;
 				opacity: 0.7;

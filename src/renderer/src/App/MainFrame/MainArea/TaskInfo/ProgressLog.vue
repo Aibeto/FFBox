@@ -55,14 +55,21 @@ const selectionList = computed(() => {
 
 // #region 数据处理
 
+// 运行进度 0~1
+const currentProgress = computed(() => {
+	const progressLog = activeProgressLog.value;
+	if (!progressLog?.time.length) return 0;
+	const lastTime = progressLog.time[progressLog.time.length - 1][1];
+	return lastTime / outputDuration.value;
+});
+
 // 进度图表数据。横轴为转码时间，纵轴为进度百分比
 const lowDensityProgressData = computed(() => {
 	// console.time('lowDensityProgressData');
 	const data: { x: number, y: number }[] = [];
 	const progressLog = activeProgressLog.value;
 	if (!progressLog?.time.length) return [];
-	const lastTime = progressLog.time[progressLog.time.length - 1][1];
-	const step = Math.max(1, (progressLog?.time.length ?? 0) / maxDensity.value / (lastTime / outputDuration.value));	// time 数据量 ÷ 最大密度 ÷ 已运行比例
+	const step = Math.max(1, (progressLog?.time.length ?? 0) / maxDensity.value / currentProgress.value);	// time 数据量 ÷ 最大密度 ÷ 已运行比例
 
 	for (let f = 0; Math.round(f) < (progressLog?.time.length ?? 0); f+= step) {
 		const i = Math.round(f);
@@ -80,8 +87,7 @@ const lowDensitySizeData = computed(() => {
 	const data: { x: number, y: number }[] = [];
 	const progressLog = activeProgressLog.value;
 	if (!progressLog?.size.length) return [];
-	const lastTime = progressLog.time[progressLog.time.length - 1][1];
-	const step = Math.max(1, (progressLog?.size.length ?? 0) / maxDensity.value / (lastTime / outputDuration.value));	// size 数据量 ÷ 最大密度 ÷ 已运行比例
+	const step = Math.max(1, (progressLog?.size.length ?? 0) / maxDensity.value / currentProgress.value);	// size 数据量 ÷ 最大密度 ÷ 已运行比例
 
 	let lastSize = progressLog.size[0][1];
 	for (let f = 0; Math.round(f) < progressLog.size.length; f+= step) {
@@ -103,8 +109,7 @@ const lowDensityBitrateData = computed(() => {
 	const data: { x: number, y: number }[] = [];
 	const progressLog = activeProgressLog.value;
 	if (!progressLog?.size.length) return { data, maxY: 0 };
-	const lastTime = progressLog.time[progressLog.time.length - 1][1];
-	const step = Math.max(1, (progressLog?.size.length ?? 0) / maxDensity.value / (lastTime / outputDuration.value));	// size 数据量 ÷ 最大密度 ÷ 已运行比例
+	const step = Math.max(1, (progressLog?.size.length ?? 0) / maxDensity.value / currentProgress.value);	// size 数据量 ÷ 最大密度 ÷ 已运行比例
 
 	let lastSize = progressLog.size[0][1];
 	let lastMediaTime = progressLog.time[0][1];
@@ -129,8 +134,7 @@ const lowDensitySpeedData = computed(() => {
 	const data: { x: number, y: number }[] = [];
 	const progressLog = activeProgressLog.value;
 	if (!progressLog?.time.length) return { data, maxY: 0 };
-	const lastTime = progressLog.time[progressLog.time.length - 1][1];
-	const step = Math.max(1, (progressLog?.time.length ?? 0) / maxDensity.value / (lastTime / outputDuration.value));	// time 数据量 ÷ 最大密度 ÷ 已运行比例
+	const step = Math.max(1, (progressLog?.time.length ?? 0) / maxDensity.value / currentProgress.value);	// time 数据量 ÷ 最大密度 ÷ 已运行比例
 
 	let lastRealTime = progressLog.time[0][0];
 	let lastMediaTime = progressLog.time[0][1];
@@ -430,11 +434,11 @@ watch(() => activeProgressLog.value, () => {
 	render();
 })
 const handleDensityChange = (mode: '+' | '-') => {
-	if (mode === '+' && maxDensity.value < (activeProgressLog.value?.time.length ?? 0)) {
+	if (mode === '+' && maxDensity.value < (activeProgressLog.value?.time.length ?? 0) / currentProgress.value) {
 		maxDensity.value *= 2;
 	} else if (mode === '-') {
 		maxDensity.value /= 2;
-		while (maxDensity.value > 50 && maxDensity.value >= (activeProgressLog.value?.time.length ?? 0)) {
+		while (maxDensity.value > 50 && maxDensity.value >= (activeProgressLog.value?.time.length ?? 0) / currentProgress.value) {
 			maxDensity.value /= 2;
 		}
 	}
@@ -457,9 +461,9 @@ const handleDensityChange = (mode: '+' | '-') => {
 						v-if="true"
 						class="rockerSwitch"
 						size="m"
-						:label="`图表密度：${maxDensity}${maxDensity >= (activeProgressLog?.time.length ?? 0) ? '（最大）' : ''}`"
+						:label="`图表密度：${maxDensity}${maxDensity >= (activeProgressLog?.time.length ?? 0) / currentProgress ? '（最大）' : ''}`"
 						:disabled-left="maxDensity <= 50 || !activeProgressLog?.time.length"
-						:disabled-right="maxDensity >= (activeProgressLog?.time.length ?? 0)"
+						:disabled-right="maxDensity >= (activeProgressLog?.time.length ?? 0) / currentProgress"
 						@left="handleDensityChange('-')"
 						@right="handleDensityChange('+')"
 					/>

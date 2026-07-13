@@ -46,11 +46,6 @@ const CRF51 = {
 		max: 51,
 		tags: new Map([
 			[0, '51（最低画质）'],
-			[15, '36（很低画质）'],
-			[21, '30（低画质）'],
-			[27, '24（中画质）'],
-			[33, '18（高画质）'],
-			[39, '12（肉眼无损）'],
 			[51, '0（最高画质）'],
 		]),
 		adsorption: 'int',
@@ -69,7 +64,7 @@ const CRF51 = {
 		},
 	},
 } satisfies MenuItem<RateControl>;
-const CRF63unknown = {
+const CRF63 = {
 	type: 'normal',
 	value: 'CRF',
 	label: '恒定质量 CRF',
@@ -97,39 +92,7 @@ const CRF63unknown = {
 		},
 	},
 } satisfies MenuItem<RateControl>;
-const CRF63libsvtav1 = {
-	type: 'normal',
-	value: 'CRF',
-	label: '恒定质量 CRF',
-	tooltip: 'Constant Rate Factor - 恒定速率因子\n指定视觉画质，而码率因画面内容而异，性价比最高。\n如果您对输出文件大小没有明确的目标，使用此项可获得视觉上最稳定的画质。相较于 CQP，CRF 会考虑帧间的动态关系，在人眼更容易捕捉的静态画面分配更低的 QP，从而节省码率并且获得更好的视觉效果。',
-	extra: {
-		min: 0,
-		max: 63,
-		tags: new Map([
-			[0, '63（最低画质）'],
-			[13, '50（低画质）'],
-			[27, '36（中画质）'],
-			[41, '22（高画质）'],
-			[62, '1（最高画质）'],
-			[63, '0（自动）'],
-		]),
-		adsorption: 'int',
-		detailToSliderValue: (detail) => {
-			const crf = detail['crf'];
-			return Number.isFinite(+crf) ? 63 - crf : undefined;
-		},
-		valueToDisplay: { type: 'revertInteger' },
-		valueToParam: (value) => 63 - +value + '',
-		sliderParamToDetail: (sliderValue) => ({
-			'crf': 63 - sliderValue,
-		}),
-		paramNames: ['crf'],
-		defaultDetail: {
-			'crf': 30,
-		},
-	},
-} satisfies MenuItem<RateControl>;
-const QP70libx264x265 = {
+const QP70 = {
 	type: 'normal',
 	value: 'CQP',
 	label: '恒定量化 CQP',
@@ -153,11 +116,11 @@ const QP70libx264x265 = {
 		}),
 		paramNames: ['qp'],
 		defaultDetail: {
-			'qp': 30,
+			'qp': 34,
 		},
 	},
 } satisfies MenuItem<RateControl>;
-const QP63libsvtav1 = {
+const QP63 = {
 	type: 'normal',
 	value: 'CQP',
 	label: '恒定量化 CQP',
@@ -167,10 +130,6 @@ const QP63libsvtav1 = {
 		max: 63,
 		tags: new Map([
 			[0, '63（最低画质）'],
-			[3, '60（很低画质）'],
-			[15, '48（低画质）'],
-			[27, '36（中画质）'],
-			[41, '22（高画质）'],
 			[62, '1（最高画质）'],
 			[63, '0（自动）'],
 		]),
@@ -190,7 +149,7 @@ const QP63libsvtav1 = {
 		},
 	},
 } satisfies MenuItem<RateControl>;
-const QP51nvenc = {
+const QP51 = {
 	type: 'normal',
 	value: 'CQP',
 	label: '恒定量化 CQP',
@@ -200,11 +159,7 @@ const QP51nvenc = {
 		max: 51,
 		tags: new Map([
 			[0, '51（最低画质）'],
-			[9, '42（很低画质）'],
-			[15, '36（低画质）'],
-			[23, '28（中画质）'],
-			[41, '10（高画质）'],
-			[51, '0（自动）'],
+			[51, '0（最高画质）'],
 		]),
 		adsorption: 'int',
 		detailToSliderValue: (detail) => {
@@ -222,50 +177,20 @@ const QP51nvenc = {
 		},
 	},
 } satisfies MenuItem<RateControl>;
-const QP51amf = {
-	type: 'normal',
-	value: 'CQP',
-	label: '恒定量化 CQP',
-	tooltip: 'Constant Quantization Parameter - 恒定量化参数\n指定每帧的画质，而码率因画面内容而异，可作为 CRF 的备选方案。\n如果您对输出文件大小没有明确的目标，使用此项可获得最稳定的画质。相较于 CRF，CQP 的 QP 是恒定的，每帧的画质相同，因此相同码率下视觉画质较 CRF 低，一般仅在显卡编码时使用。',
-	extra: {
-		min: 0,
-		max: 51,
-		tags: new Map([
-			[0, '51（最低画质）'],
-			[51, '0（最高画质）'],
-		]),
-		adsorption: 'int',
-		detailToSliderValue: (detail) => {
-			const qp = detail['qp_i'] || detail['qp_p'] || detail['qp'];
-			return Number.isFinite(+qp) ? 51 - qp : undefined;
-		},
-		valueToDisplay: { type: 'revertInteger' },
-		valueToParam: (value) => 51 - +value + '',
-		sliderParamToDetail: (sliderValue) => ({
-			'qp_i': 51 - sliderValue,
-			'qp_p': 51 - sliderValue,
-		}),
-		paramNames: ['qp'],
-		defaultDetail: {
-			'qp_i': 28,
-			'qp_p': 28,
-		},
-	},
-} satisfies MenuItem<RateControl>;
 const VBRnvenc = {
 	type: 'normal',
 	value: 'VBR',
 	label: '动态码率 VBR',
-	tooltip: 'Variable Bit Rate - 可变码率\n指定比特率或画质参数，并控制比特率范围。',
+	tooltip: 'Variable Bit Rate - 可变码率\n指定画质参数，控制比特率范围，可作为 CRF 的备选方案。',
 	extra: {
 		min: 0,
 		max: 51,
 		tags: new Map([
 			[0, '51（最低画质）'],
-			[9, '42（很低画质）'],
-			[15, '36（低画质）'],
-			[23, '28（中画质）'],
-			[41, '10（高画质）'],
+			[11, '40（低画质）'],	// VMAF 78.36
+			[17, '34（一般画质）'],	// VMAF 87.03
+			[23, '28（良画质）'],	// VMAF 93.03
+			[31, '20（高画质）'],	// VMAF 96.86
 			[51, '0（自动）'],
 		]),
 		adsorption: 'int',
@@ -278,11 +203,13 @@ const VBRnvenc = {
 		sliderParamToDetail: (sliderValue) => ({
 			'rc': 'vbr',
 			'cq': 51 - sliderValue,
+			'maxrate': 800000000,
 		}),
-		paramNames: ['cq', 'rc'],
+		paramNames: ['cq', 'rc', 'maxrate'],
 		defaultDetail: {
 			'rc': 'vbr',
 			'cq': 28,
+			'maxrate': 800000000,
 		},
 	},
 } satisfies MenuItem<RateControl>;
@@ -290,33 +217,18 @@ const VBRnvencHQ = {
 	type: 'normal',
 	value: 'VBR_HQ',
 	label: '动态码率 VBR_HQ',
-	tooltip: 'Variable Bit Rate - 可变码率\n指定比特率或画质参数，并控制比特率范围。该项是 NVIDIA 特有选项，在编码时间几乎不变的情况下略微提高质量。',
+	tooltip: 'Variable Bit Rate - 可变码率\n指定画质参数，控制比特率范围，可作为 CRF 的备选方案。该项是 NVIDIA 特有选项，在编码时间几乎不变的情况下略微提高质量。',
 	extra: {
-		min: 0,
-		max: 51,
-		tags: new Map([
-			[0, '51（最低画质）'],
-			[9, '42（很低画质）'],
-			[15, '36（低画质）'],
-			[23, '28（中画质）'],
-			[41, '10（高画质）'],
-			[51, '0（自动）'],
-		]),
-		adsorption: 'int',
-		detailToSliderValue: (detail) => {
-			const cq = detail['cq'];
-			return Number.isFinite(+cq) ? 51 - cq : undefined;
-		},
-		valueToDisplay: { type: 'revertInteger' },
-		valueToParam: (value) => 51 - +value + '',
+		...VBRnvenc.extra,
 		sliderParamToDetail: (sliderValue) => ({
 			'rc': 'vbr_hq',
 			'cq': 51 - sliderValue,
+			'maxrate': 800000000,
 		}),
-		paramNames: ['cq', 'rc'],
 		defaultDetail: {
 			'rc': 'vbr_hq',
 			'cq': 28,
+			'maxrate': 800000000,
 		},
 	},
 } satisfies MenuItem<RateControl>;
@@ -361,17 +273,18 @@ const Q100 = {
 		min: 0,
 		max: 100,
 		tags: new Map([
-			[0, '0'],
-			[100, '100'],
+			[100, '0'],
+			[0, '100'],
 		]),
 		adsorption: 'int',
 		detailToSliderValue: (detail) => {
 			const q = detail['q'];
 			return Number.isFinite(+q) ? 100 - q : undefined;
 		},
-		valueToParam: (value) => value + '',
+		valueToDisplay: { type: 'revertInteger' },
+		valueToParam: (value) => 100 - +value + '',
 		sliderParamToDetail: (sliderValue) => ({
-			'q': sliderValue,
+			'q': 100 - sliderValue,
 		}),
 		paramNames: ['q'],
 		defaultDetail: {
@@ -412,65 +325,16 @@ const ABR = {
 		},
 	},
 } satisfies MenuItem<RateControl>;
-const CBRnvenc = {
-	type: 'normal',
+const CBR = {
+	...ABR,
 	value: 'CBR',
 	label: '固定码率 CBR',
-	tooltip: 'Constant Bit Rate - 恒定码率\n将码率恒定在指定值，仅允许极小或没有波动，性价比最低，一般仅应用于直播等需要数据速率稳定的场景。',
-	extra: {
-		min: 0,
-		max: 12,
-		arrowKeyStep: 24,
-		tags: new Map([
-			[0, '62.5 Kbps'],
-			[3, '500 Kbps'],
-			[6, '4 Mbps'],
-			[9, '32 Mbps'],
-			[12, '256 Mbps'],
-		]),
-		detailToSliderValue: (detail) => {
-			const bitrate = detail['b:v'];
-			return Number.isFinite(+bitrate) ? Math.log(+bitrate / 62500) / Math.log(2) : undefined;
-		},
-		valueToDisplay: { base: 62500, type: 'bitrate' },
-		valueToParam: (value) => {
-			return Math.round(62500 * Math.pow(2, +value));
-		},
-		sliderParamToDetail: (sliderValue) => ({
-			'cbr': 'true',
-			'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
-		}),
-		paramNames: ['cbr', 'b:v'],
-		defaultDetail: {
-			'cbr': 'true',
-			'b:v': 4000000,
-		},
-	},
+	tooltip: 'Constant Bit Rate - 恒定码率\n将码率恒定在指定值，仅允许极小或没有波动，性价比最低，一般仅应用于直播等需要数据速率固定的场景。',
 } satisfies MenuItem<RateControl>;
 const CBRlibx264x265 = {
-	type: 'normal',
-	value: 'CBR',
-	label: '固定码率 CBR',
-	tooltip: 'Constant Bit Rate - 恒定码率\n将码率恒定在指定值，仅允许极小或没有波动，性价比最低，一般仅应用于直播等需要数据速率稳定的场景。',
+	...CBR,
 	extra: {
-		min: 0,
-		max: 12,
-		arrowKeyStep: 24,
-		tags: new Map([
-			[0, '62.5 Kbps'],
-			[3, '500 Kbps'],
-			[6, '4 Mbps'],
-			[9, '32 Mbps'],
-			[12, '256 Mbps'],
-		]),
-		detailToSliderValue: (detail) => {
-			const bitrate = detail['b:v'];
-			return Number.isFinite(+bitrate) ? Math.log(+bitrate / 62500) / Math.log(2) : undefined;
-		},
-		valueToDisplay: { base: 62500, type: 'bitrate' },
-		valueToParam: (value) => {
-			return Math.round(62500 * Math.pow(2, +value));
-		},
+		...CBR.extra,
 		sliderParamToDetail: (sliderValue) => ({
 			'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
 			'minrate': Math.round(62500 * Math.pow(2, +sliderValue)),
@@ -484,42 +348,6 @@ const CBRlibx264x265 = {
 		},
 	},
 } satisfies MenuItem<RateControl>;
-const CBRamf = {
-	type: 'normal',
-	value: 'CBR',
-	label: '固定码率 CBR',
-	tooltip: 'Constant Bit Rate - 恒定码率\n将码率恒定在指定值，仅允许极小或没有波动，性价比最低，一般仅应用于直播等需要数据速率稳定的场景。',
-	extra: {
-		min: 0,
-		max: 12,
-		arrowKeyStep: 24,
-		tags: new Map([
-			[0, '62.5 Kbps'],
-			[3, '500 Kbps'],
-			[6, '4 Mbps'],
-			[9, '32 Mbps'],
-			[12, '256 Mbps'],
-		]),
-		detailToSliderValue: (detail) => {
-			const bitrate = detail['b:v'];
-			return Number.isFinite(+bitrate) ? Math.log(+bitrate / 62500) / Math.log(2) : undefined;
-		},
-		valueToDisplay: { base: 62500, type: 'bitrate' },
-		valueToParam: (value) => {
-			return Math.round(62500 * Math.pow(2, +value));
-		},
-		sliderParamToDetail: (sliderValue) => ({
-			'rc': 'vbr',
-			'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
-		}),
-		paramNames: ['rc', 'b:v'],
-		defaultDetail: {
-			'rc': 'vbr',
-			'b:v': 4000000,
-		},
-	},
-} satisfies MenuItem<RateControl>;
-
 
 // #endregion
 
@@ -1072,7 +900,23 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...CRF63unknown },
+						{
+							...CRF63,
+							extra: {
+								...CRF63.extra,
+								tags: new Map([
+									[0, '63（最低画质）'],
+									[5, '58（低画质）'],	// VMAF 77.28
+									[15, '48（一般画质）'],	// VMAF 86.39
+									[29, '34（良画质）'],	// VMAF 93.25
+									[43, '20（高画质）'],	// VMAF 96.59
+									[63, '0（最高画质）'],
+								]),
+								defaultDetail: {
+									'crf': 29,
+								},
+							},
+						},
 						{ ...ABR },
 					],
 					parameters: [
@@ -1105,8 +949,25 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...CRF63libsvtav1 },
-						{ ...QP63libsvtav1 },
+						{
+							...CRF63,
+							extra: {
+								...CRF63.extra,
+								tags: new Map([
+									[0, '63（最低画质）'],
+									[3, '60（低画质）'],	// VMAF 75.76
+									[13, '50（一般画质）'],	// VMAF 85.51
+									[27, '36（良画质）'],	// VMAF 92.56
+									[41, '22（高画质）'],	// VMAF 96.44
+									[62, '1（最高画质）'],
+									[63, '0（自动）'],
+								]),
+								defaultDetail: {
+									'crf': 27,
+								},
+							},
+						},
+						{ ...QP63 },
 						{ ...ABR },
 					],
 					parameters: [
@@ -1169,14 +1030,31 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...CRF51 },
-						{ ...QP70libx264x265 },
+						{
+							...CRF51,
+							extra: {
+								...CRF51.extra,
+								tags: new Map([
+									[0, '51（最低画质）'],
+									[15, '36（低画质）'],	// VMAF 76.66
+									[21, '30（一般画质）'],	// VMAF 87.19
+									[27, '24（良画质）'],	// VMAF 93.44
+									[33, '18（高画质）'],	// VMAF 96.86
+									[39, '12（肉眼无损）'],
+									[51, '0（最高画质）'],
+								]),
+								defaultDetail: {
+									'crf': 24,
+								},
+							},
+						},
+						{ ...QP70 },
 						{ ...ABR },
 						{ ...CBRlibx264x265 },
 					],
 					parameters: [
 						{
-							mode: "slider", parameter: "preset", display: "编码质量",
+							mode: "slider", parameter: "preset", display: "速度/质量",
 							...H264265presetSlider,
 						},
 						{
@@ -1231,8 +1109,22 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 						...AUTO_RATECONTROLs,
 						{ ...VBRnvencHQ },
 						{ ...VBRnvenc },
-						{ ...CBRnvenc },
-						{ ...QP51nvenc },
+						{ ...QP51 },
+						{
+							...CBR,
+							extra: {
+								...CBR.extra,
+								sliderParamToDetail: (sliderValue) => ({
+									'cbr': 'true',
+									'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
+								}),
+								paramNames: ['cbr', 'b:v'],
+								defaultDetail: {
+									'cbr': 'true',
+									'b:v': 4000000,
+								},
+							},
+						},
 						{ ...ABR },
 					],
 					parameters: [
@@ -1267,8 +1159,40 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...QP51amf },
-						{ ...CBRamf },
+						{
+							...QP51,
+							extra: {
+								...QP51.extra,
+								detailToSliderValue: (detail) => {
+									const qp = detail['qp_i'] || detail['qp_p'] || detail['qp'];
+									return Number.isFinite(+qp) ? 51 - qp : undefined;
+								},
+								sliderParamToDetail: (sliderValue) => ({
+									'qp_i': 51 - sliderValue,
+									'qp_p': 51 - sliderValue,
+								}),
+								paramNames: ['qp_i', 'qp_p'],
+								defaultDetail: {
+									'qp_i': 28,
+									'qp_p': 28,
+								},
+							},
+						},
+						{
+							...CBR,
+							extra: {
+								...CBR.extra,
+								sliderParamToDetail: (sliderValue) => ({
+									'rc': 'vbr',
+									'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
+								}),
+								paramNames: ['rc', 'b:v'],
+								defaultDetail: {
+									'rc': 'vbr',
+									'b:v': 4000000,
+								},
+							},
+						},
 						{ ...ABR },
 					],
 					parameters: [
@@ -1361,8 +1285,25 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...CRF51 },
-						{ ...QP70libx264x265 },
+						{
+							...CRF51,
+							extra: {
+								...CRF51.extra,
+								tags: new Map([
+									[0, '51（最低画质）'],
+									[15, '36（低画质）'],	// VMAF 75.77
+									[21, '30（一般画质）'],	// VMAF 86.96
+									[27, '24（良画质）'],	// VMAF 93.68
+									[33, '18（高画质）'],	// VMAF 97.15
+									[39, '12（肉眼无损）'],
+									[51, '0（最高画质）'],
+								]),
+								defaultDetail: {
+									'crf': 24,
+								},
+							},
+						},
+						{ ...QP70 },
 						{ ...ABR },
 						{ ...CBRlibx264x265 },
 					],
@@ -1398,8 +1339,25 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...CRF51 },
-						{ ...QP70libx264x265 },
+						{
+							...CRF51,
+							extra: {
+								...CRF51.extra,
+								tags: new Map([
+									[0, '51（最低画质）'],
+									[15, '36（低画质）'],
+									[21, '30（一般画质）'],
+									[27, '24（良画质）'],
+									[33, '18（高画质）'],
+									[39, '12（肉眼无损）'],
+									[51, '0（最高画质）'],
+								]),
+								defaultDetail: {
+									'crf': 24,
+								},
+							},						
+						},
+						{ ...QP70 },
 						{ ...CBRlibx264x265 },
 						{ ...ABR },
 					],
@@ -1460,8 +1418,22 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 						...AUTO_RATECONTROLs,
 						{ ...VBRnvencHQ },
 						{ ...VBRnvenc },
-						{ ...QP51nvenc },
-						{ ...CBRnvenc },
+						{ ...QP51 },
+						{
+							...CBR,
+							extra: {
+								...CBR.extra,
+								sliderParamToDetail: (sliderValue) => ({
+									'cbr': 'true',
+									'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
+								}),
+								paramNames: ['cbr', 'b:v'],
+								defaultDetail: {
+									'cbr': 'true',
+									'b:v': 4000000,
+								},
+							},
+						},
 						{ ...ABR },
 					],
 					parameters: [
@@ -1496,8 +1468,40 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...QP51amf },
-						{ ...CBRamf },
+						{
+							...QP51,
+							extra: {
+								...QP51.extra,
+								detailToSliderValue: (detail) => {
+									const qp = detail['qp_i'] || detail['qp_p'] || detail['qp'];
+									return Number.isFinite(+qp) ? 51 - qp : undefined;
+								},
+								sliderParamToDetail: (sliderValue) => ({
+									'qp_i': 51 - sliderValue,
+									'qp_p': 51 - sliderValue,
+								}),
+								paramNames: ['qp_i', 'qp_p'],
+								defaultDetail: {
+									'qp_i': 28,
+									'qp_p': 28,
+								},
+							},
+						},
+						{
+							...CBR,
+							extra: {
+								...CBR.extra,
+								sliderParamToDetail: (sliderValue) => ({
+									'rc': 'vbr',
+									'b:v': Math.round(62500 * Math.pow(2, +sliderValue)),
+								}),
+								paramNames: ['rc', 'b:v'],
+								defaultDetail: {
+									'rc': 'vbr',
+									'b:v': 4000000,
+								},
+							},
+						},
 						{ ...ABR },
 					],
 					parameters: [
@@ -1593,12 +1597,28 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...CRF63unknown },
+						{
+							...CRF63,
+							extra: {
+								...CRF63.extra,
+								tags: new Map([
+									[0, '63（最低画质）'],
+									[9, '54（低画质）'],	// VMAF 77.41
+									[19, '44（一般画质）'],	// VMAF 87.31
+									[29, '34（良画质）'],	// VMAF 93.22
+									[41, '22（高画质）'],	// VMAF 96.58
+									[63, '0（有损最高画质）'],
+								]),
+								defaultDetail: {
+									'crf': 29,
+								},
+							},
+						},
 						{ ...ABR },
 					],
 					parameters: [
 						{
-							mode: "slider", parameter: "preset", display: "编码质量",
+							mode: "slider", parameter: "quality", display: "编码质量",
 							max: 2,
 							tags: new Map([
 								[0, 'realtime'],
@@ -1631,12 +1651,12 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...CRF63unknown },
+						{ ...CRF63 },
 						{ ...ABR },
 					],
 					parameters: [
 						{
-							mode: "slider", parameter: "preset", display: "编码质量",
+							mode: "slider", parameter: "quality", display: "编码质量",
 							max: 2,
 							tags: new Map([
 								[0, 'realtime'],
@@ -1669,7 +1689,34 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...Q100 },
+						{
+							...Q100,
+							extra: {
+								...Q100.extra,
+								min: 0,
+								max: 31,
+								tags: new Map([
+									[31, '0（最高画质）'],
+									[30, '1（高画质）'],
+									[28, '3（良画质）'],
+									[25, '6（一般画质）'],
+									[21, '10（低画质）'],
+									[0, '（最低为 10000）'],
+								]),
+								detailToSliderValue: (detail) => {
+									const q = detail['q'];
+									return Number.isFinite(+q) ? 31 - q : undefined;
+								},
+								valueToParam: (value) => 31 - +value + '',
+								sliderParamToDetail: (sliderValue) => ({
+									'q': 31 - sliderValue,
+								}),
+								paramNames: ['q'],
+								defaultDetail: {
+									'q': 10,
+								},
+							},
+						},
 						{ ...ABR },
 					],
 					parameters: [
@@ -1793,7 +1840,33 @@ export const builtInVcodecs: MenuItem<VCodecDetail>[] = [
 				extra: {
 					rateControl: [
 						...AUTO_RATECONTROLs,
-						{ ...Q100 },
+						{
+							...Q100,
+							extra: {
+								...Q100.extra,
+								min: 0,
+								max: 31,
+								tags: new Map([
+									[29, '2（最高画质）'],
+									[26, '5（良画质）'],
+									[23, '8（一般画质）'],
+									[13, '18（低画质）'],
+									[0, '31（最低画质）'],
+								]),
+								detailToSliderValue: (detail) => {
+									const q = detail['q'];
+									return Number.isFinite(+q) ? 31 - q : undefined;
+								},
+								valueToParam: (value) => 31 - +value + '',
+								sliderParamToDetail: (sliderValue) => ({
+									'q': 31 - sliderValue,
+								}),
+								paramNames: ['q'],
+								defaultDetail: {
+									'q': 10,
+								},
+							},
+						},
 						{ ...ABR },
 					],
 					parameters: [
@@ -2166,9 +2239,9 @@ export function getVideoFFmpegParam(videoParams: OutputParams_video) {
 			const ratecontrolItem = (vcodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === videoParams.ratecontrol) as any;
 			if (ratecontrolItem) {
 				const rc = ratecontrolItem.extra as RateControl;
-				const defined = ret.some((param) => rc.paramNames.some((paramName) => '-' + paramName === param));
-				if (!defined) {
-					for (const paramName of rc.paramNames) {
+				for (const paramName of rc.paramNames) {
+					const defined = ret.some((param) => '-' + paramName === param);
+					if (!defined) {
 						ret.push('-' + paramName);
 						ret.push(videoParams.detail[paramName]);
 					}
