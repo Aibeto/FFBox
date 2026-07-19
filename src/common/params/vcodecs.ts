@@ -2251,25 +2251,27 @@ export function getVideoFFmpegParam(videoParams: OutputParams_video) {
 				ret.push('-strict');
 				ret.push('-2');
 			}
-			// 设置通用参数
-			if (videoParams.resolution && videoParams.resolution !== '不改变') {
-				ret.push('-s');
-				ret.push(videoParams.resolution);
-			}
-			if (videoParams.framerate && videoParams.framerate !== '不改变') {
-				if (videoParams.framerate.includes('i') && videoParams.framerate.match(/^\d+(.\d+)?i?$/)) {
-					const fieldrate = Number(videoParams.framerate.match(/^(\d+(.\d+)?)/)![0]);
-					ret.push('-r');
-					ret.push(fieldrate / 2);	
-					flags += '+ilme+ildct';
-				} else {
-					ret.push('-r');
-					ret.push(videoParams.framerate);
-				}
-			}
 			if (flags) {
 				ret.push('-flags:v');
 				ret.push(flags);
+			}
+		}
+	}
+	// 设置通用参数
+	if (videoParams.vcodec !== '禁用' && videoParams.vcodec !== 'copy') {
+		if (videoParams.resolution && videoParams.resolution !== '不改变') {
+			ret.push('-s');
+			ret.push(videoParams.resolution);
+		}
+		if (videoParams.framerate && videoParams.framerate !== '不改变') {
+			if (videoParams.framerate.includes('i') && videoParams.framerate.match(/^\d+(.\d+)?i?$/)) {
+				const fieldrate = Number(videoParams.framerate.match(/^(\d+(.\d+)?)/)![0]);
+				ret.push('-r');
+				ret.push(fieldrate / 2);	
+				flags += '+ilme+ildct';
+			} else {
+				ret.push('-r');
+				ret.push(videoParams.framerate);
 			}
 		}
 	}

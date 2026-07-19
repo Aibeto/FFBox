@@ -218,68 +218,80 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.ffmpegPath = resolved.ffmpegPath;
 			this.ffprobePath = resolved.ffprobePath;
 		}
-		const ffmpeg = new FFmpeg(this.ffmpegPath, 1);
-		ffmpeg.on('version', async ({ content }) => {
-			if (content) {
-				this.ffmpegInfo.version = content;
-				const lastFFmpegVersion = await localConfig.get('ffmpegInfo.version');
-				if (lastFFmpegVersion === content) {
-					try {
-						const storedFFmpegInfo = await localConfig.get('ffmpegInfo') as any;
-						this.ffmpegInfo.audioEncodersCount = storedFFmpegInfo.audioEncodersCount ?? 0;
-						this.ffmpegInfo.videoEncodersCount = storedFFmpegInfo.videoEncodersCount ?? 0;
-						this.ffmpegInfo.muxersCount = storedFFmpegInfo.muxersCount ?? 0;
-						this.ffmpegInfo.demuxersCount = storedFFmpegInfo.demuxersCount ?? 0;
-						this.ffmpegInfo.filtersCount = storedFFmpegInfo.filtersCount ?? 0;
-						this.ffmpegCodecs = {
-							video: JSON.parse(storedFFmpegInfo.videoCodecs),
-							audio: JSON.parse(storedFFmpegInfo.audioCodecs),
-						};
-						this.ffmpegFormats = {
-							muxer: JSON.parse(storedFFmpegInfo.muxers),
-							demuxer: JSON.parse(storedFFmpegInfo.demuxers),
-						};
-						this.ffmpegFilters = JSON.parse(storedFFmpegInfo.filters) || [];
-						log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。已从缓存中加载编码器和滤镜。`);
-						this.emitFFmpegInfo();
-					} catch (error) {
-						log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。缓存中的编码器和滤镜不可用，即将获取编码器信息。`);
-						setTimeout(() => {
-							this.getFFmpegCodecsAndFilters();
-						}, 100);
+
+		const ffmpegVersion = await new Promise<string>(async (resolve) => {
+			for (let i = 0, ok = false; i < 3 && !ok; i++) {
+				const ffmpeg = new FFmpeg(this.ffmpegPath, 1);
+				ffmpeg.on('version', async ({ content }) => {
+					ok = true;
+					resolve(content || '');
+				});
+				// ffmpeg.once('closed', () => { 
+				// });
+				await new Promise((r) => setTimeout(() => {
+					if (!ok) {
+						log.error(`在检查 ffmpeg 版本时，ffmpeg 成功启动，但 stdio 中没有接收到任何消息。重试。`);
+						r(0);
 					}
-				} else {
-					log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${content}。即将获取编码器信息。`);
+				}, 1500));
+			}
+			// 连续 3 次都不 OK，返回空字符串
+			resolve('');
+		});
+		if (ffmpegVersion) {
+			this.ffmpegInfo.version = ffmpegVersion;
+			this.emitFFmpegInfo();
+			const lastFFmpegVersion = await localConfig.get('ffmpegInfo.version');
+			if (lastFFmpegVersion === ffmpegVersion) {
+				try {
+					const storedFFmpegInfo = await localConfig.get('ffmpegInfo') as any;
+					this.ffmpegInfo.audioEncodersCount = storedFFmpegInfo.audioEncodersCount ?? 0;
+					this.ffmpegInfo.videoEncodersCount = storedFFmpegInfo.videoEncodersCount ?? 0;
+					this.ffmpegInfo.muxersCount = storedFFmpegInfo.muxersCount ?? 0;
+					this.ffmpegInfo.demuxersCount = storedFFmpegInfo.demuxersCount ?? 0;
+					this.ffmpegInfo.filtersCount = storedFFmpegInfo.filtersCount ?? 0;
+					this.ffmpegCodecs = {
+						video: JSON.parse(storedFFmpegInfo.videoCodecs),
+						audio: JSON.parse(storedFFmpegInfo.audioCodecs),
+					};
+					this.ffmpegFormats = {
+						muxer: JSON.parse(storedFFmpegInfo.muxers),
+						demuxer: JSON.parse(storedFFmpegInfo.demuxers),
+					};
+					this.ffmpegFilters = JSON.parse(storedFFmpegInfo.filters) || [];
+					log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${ffmpegVersion}。已从缓存中加载编码器和滤镜。`);
+					this.emitFFmpegInfo();
+				} catch (error) {
+					log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${ffmpegVersion}。缓存中的编码器和滤镜不可用，即将获取编码器信息。`);
 					setTimeout(() => {
 						this.getFFmpegCodecsAndFilters();
 					}, 100);
 				}
 			} else {
-				this.ffmpegInfo.version = '';
-				this.emitFFmpegInfo();
+				log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${ffmpegVersion}。即将获取编码器信息。`);
+				setTimeout(() => {
+					this.getFFmpegCodecsAndFilters();
+				}, 100);
 			}
-		});
-		ffmpeg.once('closed', () => { 
-			this.asyncListOp('-', asyncEntry);
-		});
-		setTimeout(() => {
-			this.asyncListOp('-', asyncEntry);
-			if (!this.ffmpegInfo.version) {
-				log.error(`在检查 ffmpeg 版本时，ffmpeg 成功启动，但 stdio 中没有接收到任何消息。重试。`);
-				this.initFFmpeg();
-			}
-		}, 1500);
+		} else {
+			this.ffmpegInfo.version = '';
+			this.emitFFmpegInfo();
+		}
+		this.asyncListOp('-', asyncEntry);
 	}
 
 	public async getFFmpegCodecsAndFilters(): Promise<void> {
+		while (this.ffmpegInfo.scanning) {
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		}
 		this.ffmpegInfo.scanning = true;
 		this.emitFFmpegInfo();
 
 		const ffmpegPath = this.ffmpegPath;
 		await new Promise((resolve, reject) => {
 			// 获取 codecs
-			const asyncEntry = { type: `获取 ffmpeg 编码器` };
-			this.asyncListOp('+', asyncEntry);
+			const asyncEntryEncoders = { type: `获取 ffmpeg 编码器` };
+			this.asyncListOp('+', asyncEntryEncoders);
 			const ffmpeg = new FFmpeg(ffmpegPath, 3, ['-codecs']);
 			ffmpeg.on('codecs', async (codecsResult) => {
 				if (!codecsResult) { debugger; throw 'ub'; }
@@ -356,13 +368,17 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				resolve(0);
 			});
 			ffmpeg.once('closed', () => { 
-				this.asyncListOp('-', asyncEntry);
+				this.asyncListOp('-', asyncEntryEncoders);
 			});	
 		});
+		if (this.ffmpegPath !== ffmpegPath) {
+			this.ffmpegInfo.scanning = false;
+			return;
+		}
 		await new Promise((resolve, reject) => {
 			// 获取 muxers/demuxers
-			const asyncEntry = { type: `获取 ffmpeg 复用器、解复用器` };
-			this.asyncListOp('+', asyncEntry);
+			const asyncEntryFormats = { type: `获取 ffmpeg 复用器、解复用器` };
+			this.asyncListOp('+', asyncEntryFormats);
 			const ffmpeg = new FFmpeg(ffmpegPath, 4, ['-formats']);
 			ffmpeg.on('formats', async (formatsResult) => {
 				if (!formatsResult) { debugger; throw 'ub'; }
@@ -375,6 +391,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				for (const muxer of formatsResult.muxers) {
 					// console.log(`正在读取 ${filter.name}`);
 					if (this.ffmpegPath !== ffmpegPath) {
+						this.ffmpegInfo.scanning = false;
 						this.asyncListOp('-', asyncEntryMuxer);
 						return;
 					}
@@ -402,6 +419,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				this.asyncListOp('+', asyncEntryDemuxer);
 				for (const demuxer of formatsResult.demuxers) {
 					if (this.ffmpegPath !== ffmpegPath) {
+						this.ffmpegInfo.scanning = false;
 						this.asyncListOp('-', asyncEntryDemuxer);
 						return;
 					}
@@ -430,24 +448,29 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				resolve(0);
 			});
 			ffmpeg.once('closed', () => { 
-				this.asyncListOp('-', asyncEntry);
+				this.asyncListOp('-', asyncEntryFormats);
 			});
 		});
+		if (this.ffmpegPath !== ffmpegPath) {
+			this.ffmpegInfo.scanning = false;
+			return;
+		}
 		await new Promise((resolve, reject) => {
 			// 获取 filters
-			const asyncEntry = { type: `获取 ffmpeg 滤镜` };
-			this.asyncListOp('+', asyncEntry);
+			const asyncEntryFilters = { type: `获取 ffmpeg 滤镜` };
+			this.asyncListOp('+', asyncEntryFilters);
 			const ffmpeg = new FFmpeg(ffmpegPath, 5, ['-filters']);
 			ffmpeg.on('filters', async (filtersResult) => {
 				if (!filtersResult) { debugger; throw 'ub'; }
 				log.info(`滤镜概览扫描完成，支持滤镜 ${filtersResult.length} 个。即将扫描详细信息。`);
 				// console.log(filtersResult);
 				const result: FFmpegFilterDetail[] = [];
-				const asyncEntry = { type: `获取 ffmpeg 滤镜（${filtersResult.length} 个）详细参数` };
-				this.asyncListOp('+', asyncEntry);
+				const asyncEntryFilterDetail = { type: `获取 ffmpeg 滤镜（${filtersResult.length} 个）详细参数` };
+				this.asyncListOp('+', asyncEntryFilterDetail);
 				for (const filter of filtersResult) {
 					if (this.ffmpegPath !== ffmpegPath) {
-						this.asyncListOp('-', asyncEntry);
+						this.ffmpegInfo.scanning = false;
+						this.asyncListOp('-', asyncEntryFilterDetail);
 						return;
 					}
 					// console.log(`正在读取 ${filter.name}`);
@@ -466,7 +489,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						});
 					});
 				}
-				this.asyncListOp('-', asyncEntry);
+				this.asyncListOp('-', asyncEntryFilterDetail);
 				log.info('滤镜扫描结果', result);
 				this.ffmpegFilters = result;
 				this.ffmpegInfo.scanning = false;
@@ -475,7 +498,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 				resolve(0);
 			});	
 			ffmpeg.once('closed', () => { 
-				this.asyncListOp('-', asyncEntry);
+				this.asyncListOp('-', asyncEntryFilters);
 			});
 		});
 		localConfig.set('ffmpegInfo', {

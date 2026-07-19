@@ -815,16 +815,6 @@ export const getAudioFFmpegParam = function (audioParams: OutputParams_audio) {
 					}
 				}
 			}
-			// 回退处理：当编码器 parameters 中没有定义 ar/channel_layout 时，仍可从 detail 中输出
-			const definedParams = (acodecDetail.parameters || []).map(p => p.parameter);
-			if (!definedParams.includes('ar') && audioParams.detail?.ar !== '自动') {
-				ret.push('-ar');
-				ret.push(audioParams.detail.ar);
-			}
-			if (!definedParams.includes('channel_layout') && audioParams.detail?.channel_layout !== '自动') {
-				ret.push('-channel_layout');
-				ret.push(audioParams.detail.channel_layout);
-			}
 			// 完成编码器详细设定转 ffmpeg 参数后，检查 ratecontrol。如果此前没有指定参数，那么在此处指定
 			const ratecontrolItem = (acodecDetail.rateControl || []).find((item) => item.type === 'normal' && item.value === audioParams.ratecontrol) as any;
 			if (ratecontrolItem) {
@@ -841,6 +831,17 @@ export const getAudioFFmpegParam = function (audioParams: OutputParams_audio) {
 				ret.push('-strict');
 				ret.push('-2');
 			}
+		}
+	}
+	// 设置通用参数
+	if (audioParams.acodec !== '禁用' && audioParams.acodec !== 'copy') {
+		if (audioParams.detail.ar && audioParams.detail.ar !== '不改变' && audioParams.detail.ar !== '自动') {
+			ret.push('-ar');
+			ret.push(audioParams.detail.ar);
+		}
+		if (audioParams.detail.channel_layout && audioParams.detail.channel_layout !== '不改变' && audioParams.detail.channel_layout !== '自动') {
+			ret.push('-channel_layout');
+			ret.push(audioParams.detail.channel_layout);
 		}
 	}
 	// deprecated
