@@ -3,7 +3,8 @@ import { computed } from 'vue';
 import { ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
 import { useAppStore } from '@renderer/stores/appStore';
 import { WorkingStatus } from '@common/types';
-import AISearch from './AISearch/AISearchWithConfig.vue';
+import { version } from '@common/constants.js';
+import AISearchIframeHost from './AISearch/AISearchIframeHost.vue';
 import Button, { ButtonType } from '@renderer/components/Button/Button';
 import IconSelectAll from './selectAll.svg?component';
 
@@ -79,7 +80,7 @@ const handleApplyAllClick = async () => {
 			</Button>
 		</div>
 		<div class="center">
-			<AISearch />
+			<AISearchIframeHost v-if="!appStore.frontendSettings.aiDisabled" :platform="version" />
 		</div>
 		<div class="right">
 			<button class="startbutton" :class="startButtonClass" @click="appStore.startNpause()">{{ startButtonText }}</button>
@@ -132,6 +133,7 @@ const handleApplyAllClick = async () => {
 			}
 		}
 		.center {
+			position: relative;
 			flex: 1 1 auto;
 			-webkit-app-region: drag;
 			&>div {
