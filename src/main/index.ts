@@ -4,9 +4,11 @@ import { exec, spawn, SpawnOptions } from 'child_process';
 import path from 'path';
 import parsePath from 'parse-path';
 import CryptoJS from 'crypto-js';
+import crypto from 'crypto';
 import { utimes } from 'utimes';
 import fs from 'fs/promises';
 import { getMachineId } from './utils';
+import { ED25519_PUBLIC_KEY_PEM } from '@common/activation';
 import ProcessInstance from '@common/processInstance';
 import localConfig from '@common/localConfig';
 import i11n from '@common/i11n/i11n';
@@ -548,6 +550,18 @@ class ElectronApp {
 		// 获取机器码
 		ipcMain.handle('getMachineId', async (event) => {
 			return getMachineId();
+		});
+
+		// Ed25519 验签（渲染进程的 Web Crypto 不支持 Ed25519，需在主进程完成）
+		ipcMain.handle('verifyEd25519', async (event, payloadB64: string, sigB64: string) => {
+			try {
+				const sig = Buffer.from(sigB64.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+				const data = Buffer.from(payloadB64, 'utf-8');
+				const ok = crypto.verify(null, data, ED25519_PUBLIC_KEY_PEM, sig);
+				return ok;
+			} catch {
+				return false;
+			}
 		});
 
 		// 代为请求

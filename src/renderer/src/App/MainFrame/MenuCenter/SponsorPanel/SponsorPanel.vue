@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
-import CryptoJS from 'crypto-js';
-import { NotificationLevel } from '@common/types';
 import { ServiceBridgeStatus } from "@renderer/bridges/serviceBridge";
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
@@ -10,17 +8,14 @@ import formatUtils from '@common/formatUtils';
 import Button from '@renderer/components/Button/Button';
 import Popup from '@renderer/components/Popup/Popup';
 import IconLoading from '@renderer/assets/loading.svg';
-import NormalInput from '@renderer/components/NormalInput/NormalInput.vue';
 
 const appStore = useAppStore();
-const frontendMachineIdOrActivateCode = ref<string | undefined>(undefined);
 
 const iframeRef = ref<HTMLIFrameElement>();
 const iframeLoading = ref(true);
-const iframeLoadingPressed = ref(false);
-const iframeLoadingNum = ref(-2);
 const iframeFailed = ref(false);
 const showAnswer = ref(false);
+const frontendMachineId = ref<string | undefined>(undefined);
 let iframeLoadTimer: ReturnType<typeof setTimeout> | undefined;
 
 function onIframeLoad(event: Event) {
@@ -93,15 +88,10 @@ const handleMessage = async (event: MessageEvent) => {
 			Popup({ message: data.message, level: data.level });
 			break;
 
-		case 'encryptAES': {
-			const min = CryptoJS.enc.Utf8.parse(data.plaintext);
-			responseData = CryptoJS.AES.encrypt(min, data.key).toString();
-			break;
-		}
-
 		case 'getState':
 			responseData = {
 				functionLevel: appStore.functionLevel,
+				frontendMachineId: frontendMachineId.value,
 				localServerConnected: appStore.localServer?.entity.status === ServiceBridgeStatus.Connected,
 				localServerFunctionLevel: appStore.localServer?.data.functionLevel,
 				localServerMachineId: appStore.localServer?.data.machineId,
@@ -161,6 +151,7 @@ function sendStateToIframe() {
 		type: 'stateUpdate',
 		state: {
 			functionLevel: appStore.functionLevel,
+			frontendMachineId: frontendMachineId.value,
 			localServerConnected: appStore.localServer?.entity.status === ServiceBridgeStatus.Connected,
 			localServerFunctionLevel: appStore.localServer?.data.functionLevel,
 			localServerMachineId: appStore.localServer?.data.machineId,
@@ -179,6 +170,9 @@ watch(() => appStore.frontendSettings.colorTheme, sendStateToIframe);
 
 onMounted(() => {
 	window.addEventListener('message', handleMessage);
+	nodeBridge.getMachineId().then((id) => {
+		frontendMachineId.value = id;
+	});
 });
 
 onBeforeUnmount(() => {
@@ -189,61 +183,25 @@ onBeforeUnmount(() => {
 	}
 });
 
-const handleLoadingMouseDown = async (event: MouseEvent) => {
-	iframeLoadingPressed.value = true;
-	if (event.button === 2 && iframeLoadingNum.value < 0) {
-		// 右键两次启动计数
-		iframeLoadingNum.value += 1;
-	} else if (event.button === 1 && iframeLoadingNum.value > -1) {
-		// 中键增加计数
-		iframeLoadingNum.value = (iframeLoadingNum.value + 10) % 110;
-		event.preventDefault();
-	} else if (event.button === 0 && iframeLoadingNum.value > -1) {
-		// 左键结束计数并改为输入框显示
-		frontendMachineIdOrActivateCode.value = await nodeBridge.getMachineId();
-	} else {
-		// 其他情况一律结束计数
-		iframeLoadingNum.value = -2;
-	}
-};
-
-const handleInputKeydown = async (event: KeyboardEvent) => {
-	if (event.key === 'Enter') {
-		const machineId = (event.target as HTMLInputElement).value || '';
-		const fixedCode = 'd324c697ebfc42b7';
-		const key = machineId + fixedCode;
-		const min = CryptoJS.enc.Utf8.parse(iframeLoadingNum.value + '');
-		const userInput = CryptoJS.AES.encrypt(min, key).toString();
-
-		frontendMachineIdOrActivateCode.value = userInput;	// 将计算结果回填到输入框
-		const frontendResult = await appStore.activateFrontend(userInput);
-		const backendResult = await appStore.activateBackend(userInput);
-		console.log('激活结果', frontendResult, backendResult, iframeLoadingNum.value, userInput);
-		Popup({ message: '激活结果请到开发人员控制台查看', level: NotificationLevel.ok });
-	}
-}
-
 </script>
 
 <template>
 	<div class="sponsorPanel">
 		<iframe
 			ref="iframeRef"
-			src="https://ffbox.ttqf.tech/sponsorPanel/v1.html"
+			src="https://ffbox.ttqf.tech/sponsorPanel/v2.html"
+			src-local="http://127.0.0.1:5500/public/sponsorPanel/v2.html"
 			@load="onIframeLoad"
 			@error="onIframeError"
+			allow="clipboard-read; clipboard-write"
 			:style="{ opacity: iframeLoading ? 0.3 : 1 }"
 		></iframe>
 		<div
 			v-if="iframeLoading"
 			class="loadingOverlay"
-			@mousedown="handleLoadingMouseDown"
-			@mouseup="() => iframeLoadingPressed = false"
-			:style="{ transform: iframeLoadingPressed ? 'scale(0.95)': 'unset' }"
 		>
 			<IconLoading />
-			<span v-if="frontendMachineIdOrActivateCode === undefined">加载中</span>
-			<NormalInput v-else :value="frontendMachineIdOrActivateCode" @keydown="handleInputKeydown" @mousedown.stop="() => {}" />
+			<span>加载中</span>
 		</div>
 		<Transition name="fadeUp">
 			<div v-if="iframeFailed" class="failureOverlay">

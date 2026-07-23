@@ -1,9 +1,9 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useAppStore } from '@renderer/stores/appStore';
+import nodeBridge from '@renderer/bridges/nodeBridge';
 import Msgbox from '@renderer/components/Msgbox/Msgbox';
 import { ButtonType } from '@renderer/components/Button/Button';
-import { showActivateCodeGen } from './activateCodeGen';
 
 /**
  * AISearch iframe 宿主组件。
@@ -37,11 +37,11 @@ let iframeReady = false;
 let resizeObserver: ResizeObserver | null = null;
 
 // iframe 路径：
-// - 开发环境：指向 ffboxSite 中 AISearch-iframe 项目的独立 dev server（支持 HMR，需另起 `npm --prefix A:/Code/FFBoxSite/AISearch-iframe run dev`，默认端口 5175）
+// - 开发环境：指向 ffboxSite 中 AISearch-iframe 项目的独立 dev server（支持 HMR，需另起 `npm --prefix FFBoxSite/AISearch-iframe run dev`，默认端口 5119）
 // - 生产环境：由 ffboxSite 提供，加载其构建产物 aiSearch/index.html（需本地运行 ffboxSite）
 const iframeSrc = import.meta.env.DEV
-	? 'http://localhost:5176'
-	: 'http://localhost:5173/aiSearch/index.html';
+	? 'http://localhost:5119'
+	: 'http://ffbox.ttqf.tech/aiSearch/index.html';
 
 const sendTheme = () => {
 	if (!iframeReady) return;
@@ -81,13 +81,15 @@ const handleAction = (url: string) => {
 	try {
 		const urlObject = new URL(url);
 		if (urlObject.protocol === 'ffbox:') {
-			const query = new URLSearchParams(urlObject.search);
-			if (urlObject.pathname === '/showActivationCodeGenMsgbox') {
-				const level = +query.get('level');
-				if (isFinite(level)) {
-					showActivateCodeGen(level);
-				}
-			}
+			// 激活码生成器已废弃，API 调用收归到 sponsorPanel/v1.html
+			console.log('AISearch iframe action（已忽略）', url);
+			// const query = new URLSearchParams(urlObject.search);
+			// if (urlObject.pathname === '/showActivationCodeGenMsgbox') {
+			// 	const level = +query.get('level');
+			// 	if (isFinite(level)) {
+			// 		showActivateCodeGen(level);
+			// 	}
+			// }
 		} else {
 			window.open(url);
 		}
@@ -104,9 +106,29 @@ const showInitMsgbox = (content: string) => {
 	});
 };
 
-const handleMessage = (event: MessageEvent) => {
+const handleMessage = async (event: MessageEvent) => {
 	const data = event.data;
 	if (!data || typeof data !== 'object') return;
+
+	// 带 requestId 的请求-响应型消息（参照 SponsorPanel.vue 的通讯机制）
+	if (data.requestId) {
+		let responseData: any = undefined;
+		switch (data.type) {
+			case 'getMachineIds':
+				responseData = {
+					frontendMachineId: await nodeBridge.getMachineId(),
+					backendMachineId: appStore.localServer?.data.machineId,
+				};
+				break;
+		}
+		iframeRef.value?.contentWindow?.postMessage({
+			type: 'response',
+			requestId: data.requestId,
+			data: responseData,
+		}, '*');
+		return;
+	}
+
 	switch (data.type) {
 		case 'ready':
 			iframeReady = true;

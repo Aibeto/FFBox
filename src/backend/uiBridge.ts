@@ -1,7 +1,6 @@
 import Http from 'http';
 import WebSocket, { WebSocketServer } from 'ws';
 import { PassThrough } from 'stream';
-import CryptoJS from 'crypto-js';
 import Koa from 'koa';
 import Router from 'koa-router';
 import { koaBody } from 'koa-body';
@@ -2114,15 +2113,10 @@ function getRouter(): Router {
 			return;
 		}
 		const userInput = ctx.request.body.userInput;
-		const fixedCode = 'd324c697ebfc42b7';
-		const key = ffboxService!.machineId + fixedCode;
-		const decrypted = CryptoJS.AES.decrypt(userInput, key);
-		const activationResult = CryptoJS.enc.Utf8.stringify(decrypted);
-		if (parseInt(activationResult).toString() === activationResult) {
-			ffboxService!.functionLevel = parseInt(activationResult);
-			localConfig.set('userInfo.activationCode', userInput);
-			const returnEncrypted = CryptoJS.AES.encrypt(activationResult, fixedCode).toString();
-			ctx.body = returnEncrypted;
+		const result = await ffboxService!.activate(userInput);
+		if (result !== false) {
+			// 返回 functionLevel 字符串，前端用 +result 转数字
+			ctx.body = String(result);
 		} else {
 			ctx.status = 400;
 			ctx.body = { error: 'Unrecognizable activation code' };

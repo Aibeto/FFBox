@@ -17,11 +17,12 @@ import { getInitialServiceTask, TypedEventEmitter, replaceOutputParams, getOutpu
 import { getOutputFileBaseName } from '@common/params/formats';
 import { getMachineId, log } from './utils';
 import { getLimitaion } from '@common/limitaions';
+import { isV2Code, isLegacyCode, verifyActivationCode } from '@common/activation';
 import { FFmpeg } from './FFmpegInvoke';
 import { YieldManager } from './YieldManager';
 import { webhookManager } from './webhookManager';
 import { UserManager } from './userManager';
-import { ServerSettingsManager } from './ServerSettingsManager';
+import { ServerSettingsManager } from './serverSettingsManager';
 
 const yieldThreshold = 50;
 
@@ -107,11 +108,16 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			this.functionLevel = 0;
 		} else {
 			const activationCode = await localConfig.get('userInfo.activationCode') as string;
-			let result;
 			if (activationCode) {
-				result = this.activate(activationCode);
+				const result = await this.activate(activationCode);
+				if (result !== false) {
+					log.info(`已读取激活信息，人品值=${result}`);
+				} else {
+					log.warn('激活信息无效');
+				}
+			} else {
+				log.info('未读取到激活信息');
 			}
-			log.info(activationCode ? (result ? '已读取激活信息' : '激活信息无效') : '未读取到激活信息');
 		}
 	}
 
@@ -1782,23 +1788,38 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		this.notifications[notificationId] = notification;
 	}
 
-	private activate(activationCode: string): boolean {
+	/**
+	 * 激活 FFBox 服务。
+	 * - 新版激活码（称作“解锢密令”）（facv2.*）：公钥验签 + machineId 匹配 + 流速衰减
+	 * - 旧版激活码（U2FsdGVkX1*）：不生效，setNotification 提示用户到激活面板升级
+	 * 返回 functionLevel（衰减后），或 false 表示激活失败。
+	 */
+	public async activate(activationCode: string): Promise<number | false> {
 		if (validUntil !== undefined && new Date() > validUntil) {
 			this.setNotification(undefined, 'FFBox 内部版本已过期，当前版本功能受限，请更新版本后使用。', NotificationLevel.warning);
 			this.functionLevel = 0;
 			return false;
-		} else {
-			const fixedCode = 'd324c697ebfc42b7';
-			const key = this.machineId + fixedCode;
-			const decrypted = CryptoJS.AES.decrypt(activationCode, key);
-			const decryptedString = CryptoJS.enc.Utf8.stringify(decrypted);
-			if (parseInt(decryptedString).toString() === decryptedString) {
-				this.functionLevel = parseInt(decryptedString);
-				return true;
-			} else {
-				return false;
-			}
 		}
+		if (!this.machineId) return false;
+
+		// 新版激活码：验签 + machineId 匹配 + 流速衰减
+		if (isV2Code(activationCode)) {
+			const r = await verifyActivationCode(activationCode, true);
+			if (r.ok && r.machineId === this.machineId) {
+				this.functionLevel = r.functionLevel!;
+				await localConfig.set('userInfo.activationCode', activationCode);
+				return r.functionLevel!;
+			}
+			return false;
+		}
+
+		// 旧版激活码：不生效，提示升级
+		if (isLegacyCode(activationCode)) {
+			this.setNotification(undefined, '感谢您使用以前版本的 FFBox！❤️\n旧版本的激活码机制在当前版本已不再支持。请您依据前端界面的指示，更换为“解锢密令”🙇', NotificationLevel.warning);
+			return false;
+		}
+
+		return false;
 	}
 
 	private trailLimit_checkIsMediaWorkingTimeExceeded(id: number, task: ServiceTask): boolean {

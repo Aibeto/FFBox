@@ -1,9 +1,9 @@
 import { h, VNodeRef, nextTick } from 'vue';
 import { defineStore } from 'pinia';
-import CryptoJS from 'crypto-js';
 import gsap from 'gsap';
 import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, Permission, TaskStatus, WorkingStatus } from '@common/types';
 import { validUntil, version } from '@common/constants';
+import { isV2Code, isLegacyCode, verifyActivationCode } from '@common/activation';
 import { defaultParams } from "@common/defaultParams";
 import { Server, UITask } from '@renderer/types';
 import { getMenuItemByValue } from '@common/menu';
@@ -1116,25 +1116,29 @@ export const useAppStore = defineStore('app', {
 				this.functionLevel = 0;
 				return 0;
 			}
-			if (nodeBridge.env === 'electron') {
-				/**
-				 * 客户端和管理端均使用机器码 + 固定码共 32 位作为 key
-				 * 管理端使用这个 key 对 functionLevel 加密，得到的加密字符串由用户输入到 userInput 中去
-				 * 客户端将 userInput 使用 key 解密，如果 userInput 不是瞎编的，那么就能解出正确的 functionLevel
-				 */
-				const machineId = await nodeBridge.getMachineId();
-				const fixedCode = 'd324c697ebfc42b7';
-				const key = machineId + fixedCode;
-				const decrypted = CryptoJS.AES.decrypt(userInput, key)
-				const decryptedString = CryptoJS.enc.Utf8.stringify(decrypted);
-				if ((+decryptedString).toString() === decryptedString) {
-					this.functionLevel = parseInt(decryptedString);
-					nodeBridge.localStorage.set('frontendSettings.activationCode', userInput);
-					return parseInt(decryptedString);
-				} else {
-					return false;
-				}
+			if (nodeBridge.env !== 'electron') {
+				return false;
 			}
+			const machineId = await nodeBridge.getMachineId();
+			if (!machineId) return false;
+
+			// 新版激活码（facv2.*）：公钥验签 + machineId 匹配 + 流速衰减
+			if (isV2Code(userInput)) {
+				const r = await verifyActivationCode(userInput, true);
+				if (r.ok && r.machineId === machineId) {
+					this.functionLevel = r.functionLevel!;
+					nodeBridge.localStorage.set('frontendSettings.activationCode', userInput);
+					return r.functionLevel!;
+				}
+				return false;
+			}
+
+			// 旧版激活码（U2FsdGVkX1*）：不生效，提示升级
+			if (isLegacyCode(userInput)) {
+				this.pushMsg('感谢您使用以前版本的 FFBox！❤️\n旧版本的激活码机制在当前版本已不再支持。请进入左上角菜单中心，在「支持作者」面板中使用旧激活码换取新的“解锢密令”！🙇', NotificationLevel.warning);
+				return false;
+			}
+
 			return false;
 		},
 		/**
