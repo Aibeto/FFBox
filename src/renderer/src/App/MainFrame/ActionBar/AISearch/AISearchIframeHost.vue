@@ -30,7 +30,7 @@ const props = defineProps<Props>();
 const iframeRef = ref<HTMLIFrameElement | null>(null);
 const hostRef = ref<HTMLDivElement | null>(null);
 const iframePointerEvents = ref<'none' | 'auto'>('none');
-const lastBounds = ref<{ top: number, left: number, width: number, height: number } | null>(null);
+const opAreaBounds = ref<{ top: number, left: number, width: number, height: number } | null>(null);
 let lastMouseX = -1;
 let lastMouseY = -1;
 let iframeReady = false;
@@ -53,11 +53,11 @@ const sendPlatform = () => {
 };
 
 // 将宿主容器自身在父页面 viewport 下的 rect 下发到 iframe
-const sendHostBounds = () => {
+const sendContainerBounds = () => {
 	if (!iframeReady || !hostRef.value) return;
 	const rect = hostRef.value.getBoundingClientRect();
-	// console.log('主→子 bounds', rect);
-	iframeRef.value?.contentWindow?.postMessage({ type: 'bounds', rect }, '*');
+	// console.log('主→子 container bounds', rect);
+	iframeRef.value?.contentWindow?.postMessage({ type: 'hostBounds', rect }, '*');
 };
 
 watch(() => appStore.frontendSettings.colorTheme, () => {
@@ -65,9 +65,9 @@ watch(() => appStore.frontendSettings.colorTheme, () => {
 });
 
 const isPointInBounds = (x: number, y: number) => {
-	if (!lastBounds.value) return false;
-	return x >= lastBounds.value.left && x <= lastBounds.value.left + lastBounds.value.width
-		&& y >= lastBounds.value.top && y <= lastBounds.value.top + lastBounds.value.height;
+	if (!opAreaBounds.value) return false;
+	return x >= opAreaBounds.value.left && x <= opAreaBounds.value.left + opAreaBounds.value.width
+		&& y >= opAreaBounds.value.top && y <= opAreaBounds.value.top + opAreaBounds.value.height;
 };
 
 const handleMouseMove = (e: MouseEvent) => {
@@ -135,11 +135,11 @@ const handleMessage = async (event: MessageEvent) => {
 			sendTheme();
 			sendPlatform();
 			// iframe 就绪后立即下发一次 bounds，避免首次渲染错位
-			sendHostBounds();
+			sendContainerBounds();
 			break;
-		case 'bounds':
-			lastBounds.value = data.rect;
-			// console.log('子→主 bounds', lastBounds.value);
+		case 'opAreaBounds':
+			opAreaBounds.value = data.rect;
+			// console.log('子→主 opAreaBounds', opAreaBounds.value);
 			// bounds 变化时，根据最近鼠标位置重新判定 pointer-events
 			iframePointerEvents.value = isPointInBounds(lastMouseX, lastMouseY) ? 'auto' : 'none';
 			break;
@@ -164,13 +164,12 @@ onMounted(() => {
 	// 监听宿主容器尺寸变化（窗口缩放、父页面动画导致位置变更等）。
 	// ResizeObserver 仅能监听到尺寸变化，位置变化需额外兜底。
 	if (hostRef.value && typeof ResizeObserver !== 'undefined') {
-		resizeObserver = new ResizeObserver(() => sendHostBounds());
+		resizeObserver = new ResizeObserver(() => sendContainerBounds());
 		resizeObserver.observe(hostRef.value);
 	}
 
 	// 兜底：在 window resize / scroll 时重新计算（scroll 会改变父页面 viewport 下的位置）
-	window.addEventListener('resize', sendHostBounds);
-	window.addEventListener('scroll', sendHostBounds, true);
+	window.addEventListener('resize', sendContainerBounds);
 
 	// 首次挂载也主动下发一次（以防 iframe 先 ready 后 host 还未完整渲染）
 	// sendHostBounds();
@@ -179,8 +178,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
 	window.removeEventListener('message', handleMessage);
 	window.removeEventListener('mousemove', handleMouseMove);
-	window.removeEventListener('resize', sendHostBounds);
-	window.removeEventListener('scroll', sendHostBounds, true);
+	window.removeEventListener('resize', sendContainerBounds);
 	if (resizeObserver && hostRef.value) {
 		resizeObserver.unobserve(hostRef.value);
 		resizeObserver.disconnect();
@@ -202,13 +200,13 @@ onBeforeUnmount(() => {
 		:style="{ pointerEvents: iframePointerEvents }"
 	></iframe>
 	<div
-		v-if="lastBounds"
+		v-if="opAreaBounds"
 		class="noDragOverlay"
 		:style="{
-			top: `${lastBounds.top}px`,
-			left: `${lastBounds.left}px`,
-			width: `${lastBounds.width}px`,
-			height: `${lastBounds.height}px`,
+			top: `${opAreaBounds.top}px`,
+			left: `${opAreaBounds.left}px`,
+			width: `${opAreaBounds.width}px`,
+			height: `${opAreaBounds.height}px`,
 		}"
 	></div>
 </template>

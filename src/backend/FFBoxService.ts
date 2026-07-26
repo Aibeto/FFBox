@@ -640,7 +640,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @emits tasklistUpdate（当 silent 为 false 时）
 	 */
 	private taskAdd(taskName: string, outputParams: OutputParams, useManagedFilePaths?: boolean, silent?: boolean, skipMetadataScan?: boolean): number | null {
-		const maxTaskCount = getLimitaion('maxTaskListCount', this.functionLevel);
+		const maxTaskCount = getLimitaion('maxTaskListCount', this.functionLevel)!;
 		if (this.taskList.count() >= maxTaskCount) {
 			if (!silent) {
 				this.setNotification(
@@ -690,7 +690,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	 * @returns 所有新创建的任务 ID
 	 */
 	public async taskAddBatch(filePaths: string[], outputParams: OutputParams, useManagedFilePaths?: boolean): Promise<number[]> {
-		const maxTaskCount = getLimitaion('maxTaskListCount', this.functionLevel);
+		const maxTaskCount = getLimitaion('maxTaskListCount', this.functionLevel)!;
 		const remaining = maxTaskCount - this.taskList.count();
 		if (filePaths.length > remaining) {
 			this.setNotification(
@@ -1523,7 +1523,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 			const asyncEntry = { type: `排队任务分配执行` };
 			this.asyncListOp('+', asyncEntry);
 
-			const maxThreads = Math.min(this.settings.get().maxThreads, getLimitaion('maxThreads', this.functionLevel));
+			const maxThreads = Math.min(this.settings.get().maxThreads, getLimitaion('maxThreads', this.functionLevel)!);
 			let runningCount = this.taskList.getTaskCountByStatus(TaskStatus.running);
 
 			// 根据 runningCount 分配任务
@@ -1827,12 +1827,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 		if (!activeRun) return false;
 		const progressLog = activeRun.progressLog;
 		if (this.functionLevel < 50) {
-			if (progressLog.time[progressLog.time.length - 1][1] > getLimitaion('maxMediaDuration', this.functionLevel)) {
+			if (progressLog.time[progressLog.time.length - 1][1] > getLimitaion('maxMediaDuration', this.functionLevel)!) {
 				this.trailLimit_stopTranscoding(id, 'media');
 				return true;
 			}
 		}
-		const maxWorkingDuration = getLimitaion('maxWorkingDuration', this.functionLevel);
+		const maxWorkingDuration = getLimitaion('maxWorkingDuration', this.functionLevel)!;
 		if (activeRun.elapsed + new Date().getTime() / 1000 - activeRun.lastStarted > maxWorkingDuration) {
 			this.trailLimit_stopTranscoding(id, 'working');
 			return true;

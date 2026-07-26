@@ -3,8 +3,7 @@ import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { ServiceBridgeStatus } from "@renderer/bridges/serviceBridge";
 import nodeBridge from '@renderer/bridges/nodeBridge';
 import { useAppStore } from '@renderer/stores/appStore';
-import { getLimitaion } from '@common/limitaions';
-import formatUtils from '@common/formatUtils';
+import { limitations } from '@common/limitaions';
 import Button from '@renderer/components/Button/Button';
 import Popup from '@renderer/components/Popup/Popup';
 import IconLoading from '@renderer/assets/loading.svg';
@@ -97,6 +96,8 @@ const handleMessage = async (event: MessageEvent) => {
 				localServerMachineId: appStore.localServer?.data.machineId,
 				env: nodeBridge.env,
 				colorTheme: appStore.frontendSettings.colorTheme,
+				limitationItems: limitations,
+				loader: { kind: 'FFBox', version: '6.0' },
 			};
 			break;
 	}
@@ -109,43 +110,6 @@ const handleMessage = async (event: MessageEvent) => {
 	}, '*');
 };
 
-// Build limitation table rows from limitaions.ts (single source of truth)
-const formatSeconds = (totalSec: number | undefined): string => totalSec === undefined ? '无限制' : formatUtils.time(totalSec, 'compact');
-
-function getLimitationTableData(functionLevel: number) {
-	return [
-		{
-			label: '媒体时长上限',
-			value: formatSeconds(getLimitaion('maxMediaDuration', functionLevel)),
-		},
-		{
-			label: '转码时长上限',
-			value: formatSeconds(getLimitaion('maxWorkingDuration', functionLevel)),
-		},
-		{
-			label: '远程单文件上传大小上限',
-			value: getLimitaion('maxUploadSizeGB', functionLevel) === undefined
-				? '无限制' : getLimitaion('maxUploadSizeGB', functionLevel) + 'GB',
-		},
-		{
-			label: '任务列表数量上限',
-			value: getLimitaion('maxTaskListCount', functionLevel) === undefined
-				? '无限制' : String(getLimitaion('maxTaskListCount', functionLevel)),
-		},
-		{
-			label: '同时转码任务数量设定上限',
-			value: getLimitaion('maxThreads', functionLevel) === undefined
-				? '无限制' : String(getLimitaion('maxThreads', functionLevel)),
-		},
-		{
-			label: '滤镜功能节点数量上限',
-			value: getLimitaion('maxFilterNodeCount', functionLevel) === undefined
-				? '无限制' : String(getLimitaion('maxFilterNodeCount', functionLevel)),
-		},
-	];
-}
-
-// Push state updates to iframe when relevant data changes
 function sendStateToIframe() {
 	iframeRef.value?.contentWindow?.postMessage({
 		type: 'stateUpdate',
@@ -157,7 +121,8 @@ function sendStateToIframe() {
 			localServerMachineId: appStore.localServer?.data.machineId,
 			env: nodeBridge.env,
 			colorTheme: appStore.frontendSettings.colorTheme,
-			limitationTable: getLimitationTableData(appStore.functionLevel),
+			limitationItems: limitations,
+			loader: { kind: 'FFBox', version: '6.0' },
 		},
 	}, '*');
 }
