@@ -65,6 +65,21 @@ const previewSessions = new Map<string, PreviewSession>();
 const uploadDir = os.tmpdir() + '/FFBoxUploadCache'; // 文件上传目录
 const downloadDir = os.tmpdir() + '/FFBoxDownloadCache'; // 文件下载目录
 
+// 任务状态中文名映射，供 /api/v1/tasks/summary 组装纯文本使用
+const TASK_STATUS_CN: Record<string, string> = {
+	deleted: '已删除',
+	initializing: '初始化中',
+	idle: '空闲',
+	idle_queued: '排队开始',
+	running: '运行中',
+	paused: '已暂停',
+	paused_queued: '排队继续',
+	stopping: '正在停止',
+	finishing: '正在完成',
+	finished: '已完成',
+	error: '已失败',
+};
+
 const uiBridge = {
 	init(self: FFBoxService): void {
 		ffboxService = self;
@@ -793,6 +808,101 @@ function getRouter(): Router {
 		} else {
 			const tasks = await ffboxService!.getTaskList(offset, size);
 			ctx.body = { tasks, totalCount };
+		}
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/summary:
+	 *   get:
+	 *     summary: 任务列表摘要（纯文本）
+	 *     description: |
+	 *       一次返回任务总数与各任务状态的统计信息，由后端组装为纯文本简介。
+	 *       sampleSize 是「每种状态」最多展示的 id 数量：该状态任务数 ≤ sampleSize 时正常列出全部 id，否则显示「数量较多，将隐去 id」，
+	 *       若任务总数超过 1000000，直接返回「任务数量过多」提示，不遍历、不返回具体结果。
+	 *     security:
+	 *       - bearerAuth: []
+	 *     parameters:
+	 *       - in: query
+	 *         name: sampleSize
+	 *         schema:
+	 *           type: integer
+	 *           default: 50
+	 *     responses:
+	 *       200:
+	 *         description: 任务列表摘要纯文本
+	 *         content:
+	 *           text/plain:
+	 *             schema:
+	 *               type: string
+	 */
+	router.get('/api/v1/tasks/summary', optionalAuth, async function (ctx) {
+		const sampleSize = parseInt(ctx.query.sampleSize as string) || 50;
+		const summary = ffboxService!.getTaskSummary(sampleSize + 1);
+		if (summary.tooManyTasks) {
+			ctx.body = `当前服务器任务数量过多（${summary.totalCount}），暂不支持汇总，请减少任务数量后再试。`;
+			return;
+		}
+		const lines: string[] = [`当前服务器任务列表概览（共 ${summary.totalCount} 个任务）：`];
+		for (const status of Object.values(TaskStatus)) {
+			if (status === TaskStatus.deleted) continue;
+			const stat = summary.statusStats[status];
+			if (!stat || stat.count === 0) continue;
+			const statusName = TASK_STATUS_CN[status] || status;
+			if (stat.count > sampleSize) {
+				lines.push(`${statusName}：${stat.count} 个任务（数量较多，将隐去 id）`);
+			} else {
+				const ids = stat.samples.map(s => s.id).join(', ');
+				lines.push(`${statusName}：${stat.count} 个任务（id: ${ids}）`);
+			}
+		}
+		ctx.body = lines.join('\n');
+	});
+
+	/**
+	 * @openapi
+	 * /api/v1/tasks/briefs:
+	 *   post:
+	 *     summary: 批量获取任务简介（按序号 indexes 或 taskId）
+	 *     description: |
+	 *       按 indexes（全局序号）或 taskIds 批量返回任务简介（taskId、taskName、status）。
+	 *       用于 AI 工具按序号或按 id 查询任务的场景。
+	 *     security:
+	 *       - bearerAuth: []
+	 *     requestBody:
+	 *       required: true
+	 *       content:
+	 *         application/json:
+	 *           schema:
+	 *             type: object
+	 *             properties:
+	 *               taskIndexes:
+	 *                 type: array
+	 *                 items:
+	 *                   type: integer
+	 *               taskIds:
+	 *                 type: array
+	 *                 items:
+	 *                   type: integer
+	 *     responses:
+	 *       200:
+	 *         description: 任务简介数组
+	 *         content:
+	 *           application/json:
+	 *             schema:
+	 *               type: array
+	 *               items:
+	 *                 type: object
+	 */
+	router.post('/api/v1/tasks/briefs', optionalAuth, async function (ctx) {
+		const body = ctx.request.body || {};
+		if (Array.isArray(body.taskIndexes)) {
+			ctx.body = ffboxService!.getTaskBriefsByIndexes(body.taskIndexes);
+		} else if (Array.isArray(body.taskIds)) {
+			ctx.body = ffboxService!.getTaskBriefsByIds(body.taskIds);
+		} else {
+			ctx.status = 400;
+			ctx.body = { error: '需要提供 taskIndexes 或 taskIds' };
 		}
 	});
 

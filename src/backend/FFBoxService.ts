@@ -1878,6 +1878,73 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 	}
 
 	/**
+	 * 任务列表摘要：一次遍历返回总数 + 各状态统计（含前 sampleSize 个样本的 id 和 index）
+	 * 若任务总数超过 TASK_COUNT_LIMIT，直接返回 tooManyTasks，不遍历。
+	 */
+	public static readonly TASK_COUNT_LIMIT = 1000000;
+	public getTaskSummary(sampleSize = 50): {
+		tooManyTasks?: boolean;
+		totalCount: number;
+		statusStats: Record<string, { count: number; samples: Array<{ id: number; index: number }> }>;
+	} {
+		const totalCount = this.taskList.count();
+		if (totalCount > FFBoxService.TASK_COUNT_LIMIT) {
+			return { tooManyTasks: true, totalCount, statusStats: {} };
+		}
+		const statusStats: Record<string, { count: number; samples: Array<{ id: number; index: number }> }> = {};
+		for (const status of Object.values(TaskStatus)) {
+			if (status === TaskStatus.deleted) continue;
+			const set = this.taskList.statusSets[status];
+			const samples: Array<{ id: number; index: number }> = [];
+			let count = 0;
+			for (const id of set) {
+				count++;
+				if (samples.length < sampleSize) {
+					samples.push({ id, index: this.taskList.getIndexById(id) });
+				}
+			}
+			statusStats[status] = { count, samples };
+		}
+		return { totalCount, statusStats };
+	}
+
+	/**
+	 * 按全局序号批量获取任务简介
+	 * @returns 每个序号对应的 { index, taskId?, taskName?, status? } 或 { index, error }
+	 */
+	public getTaskBriefsByIndexes(indexes: number[]): Array<{ taskIndex: number; taskId?: number; taskName?: string; status?: TaskStatus; lastRunIndex?: number; error?: string }> {
+		return indexes.map((taskIndex) => {
+			const task = this.taskList.getByOffset(taskIndex);
+			if (!task) return { taskIndex, error: '序号超出范围' };
+			return {
+				taskIndex,
+				taskId: task.id,
+				taskName: task.taskName,
+				status: task.status,
+				lastRunIndex: task.runs.length - 1,
+			};
+		});
+	}
+
+	/**
+	 * 按 taskId 批量获取任务简介（不含 runs，避免传输大量数据）
+	 * @returns 每个 taskId 对应的 { taskId, taskName?, status?, index? } 或 { taskId, error }
+	 */
+	public getTaskBriefsByIds(taskIds: number[]): Array<{ taskId: number; taskIndex?: number; taskName?: string; status?: TaskStatus; lastRunIndex?: number; error?: string }> {
+		return taskIds.map(taskId => {
+			const task = this.taskList.getById(taskId);
+			if (!task) return { taskId, error: '任务不存在' };
+			return {
+				taskId,
+				taskIndex: this.taskList.getIndexById(taskId),
+				taskName: task.taskName,
+				status: task.status,
+				lastRunIndex: task.runs.length - 1,
+			};
+		});
+	}
+
+	/**
 	 * 批量获取任务的输出文件信息（用于批量下载）
 	 * @param taskRunEntries 每个任务的 { taskId, runIndex? }。runIndex 未指定时默认取最后一个 run
 	 * @returns 每个输出文件的 { taskId, taskIndex, runIndex, outputIndex, filePath, fileBaseName, fileTime? }

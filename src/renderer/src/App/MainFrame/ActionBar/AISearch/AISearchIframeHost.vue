@@ -106,6 +106,33 @@ const showInitMsgbox = (content: string) => {
 	});
 };
 
+// 处理来自 iframe 的 HTTP 代调用请求：iframe 指定服务器、方法、路径、参数，宿主代为调用后端 API
+const handleHttpRequest = async (payload: {
+	serverId?: string;	// undefined 表示 currentServer
+	method: string;
+	path: string;
+	query?: Record<string, any>;
+	body?: any;
+}): Promise<any> => {
+	const server = payload.serverId
+		? appStore.servers.find(s => s.data.id === payload.serverId)
+		: appStore.currentServer;
+	if (!server) return { error: '未连接到服务器' };
+
+	// 构造完整路径（含 query string）
+	let fullPath = payload.path;
+	if (payload.query) {
+		const qs = new URLSearchParams();
+		for (const [k, v] of Object.entries(payload.query)) {
+			if (v !== undefined && v !== null) qs.append(k, String(v));
+		}
+		const qsStr = qs.toString();
+		if (qsStr) fullPath += (fullPath.includes('?') ? '&' : '?') + qsStr;
+	}
+
+	return await server.entity.httpRequest<any>(payload.method, fullPath, payload.body);
+};
+
 const handleMessage = async (event: MessageEvent) => {
 	const data = event.data;
 	if (!data || typeof data !== 'object') return;
@@ -119,6 +146,10 @@ const handleMessage = async (event: MessageEvent) => {
 					frontendMachineId: await nodeBridge.getMachineId(),
 					backendMachineId: appStore.localServer?.data.machineId,
 				};
+				break;
+			case 'httpRequest':
+				const { serverId, method, path, query, body } = data;
+				responseData = await handleHttpRequest({ serverId, method, path, query, body });
 				break;
 		}
 		iframeRef.value?.contentWindow?.postMessage({

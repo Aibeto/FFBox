@@ -41,9 +41,9 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	// #region HTTP 请求封装
 
 	/**
-	 * 发送 HTTP 请求
+	 * 发送 HTTP 请求（public：供 AISearchIframeHost 代调用 iframe 指定的 API）
 	 */
-	private async httpRequest<T>(method: string, path: string, body?: any): Promise<T> {
+	public async httpRequest<T>(method: string, path: string, body?: any): Promise<T> {
 		const headers: HeadersInit = { 'Content-Type': 'application/json' };
 		if (this.sessionId) {
 			headers['Authorization'] = `Bearer ${this.sessionId}`;
