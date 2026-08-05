@@ -1,4 +1,4 @@
-export type LimitationType = 'maxMediaDuration' | 'maxWorkingDuration' | 'maxUploadSizeGB' | 'maxTaskListCount' | 'maxThreads' | 'maxFilterNodeCount';
+export type LimitationType = 'maxMediaDuration' | 'maxWorkingDuration' | 'maxUploadSizeGB' | 'maxTaskListCount' | 'maxThreads' | 'maxUploadListCount' | 'maxFilterNodeCount';
 export type LimitationUnit = 'time' | 'GB' | 'count';
 
 /**
@@ -35,9 +35,9 @@ export const limitations: LimitationEntry[] = [
 		[0, 20],
 		[20, 99],
 		[35, 256],
-		[55, 2048],
+		[50, 2048],
 		[65, 66666],
-		[75, 11111111],
+		[80, 11111111],
 	]},
 	{ type: 'maxThreads', label: '同时转码任务数量设定上限', unit: 'count', pairs: [
 		[0, 1],
@@ -45,6 +45,12 @@ export const limitations: LimitationEntry[] = [
 		[25, 9],
 		[40, 99],
 		[70, 256],
+	]},
+	{ type: 'maxUploadListCount', label: '上传列表数量上限', unit: 'count', pairs: [
+		[0, 20],
+		[25, 66],
+		[55, 256],
+		[75, 999],
 	]},
 	{ type: 'maxFilterNodeCount', label: '滤镜功能节点数量上限', unit: 'count', pairs: [
 		[0, 20],

@@ -80,7 +80,7 @@ const handleApplyAllClick = async () => {
 			</Button>
 		</div>
 		<div class="center">
-			<AISearchIframeHost v-if="!appStore.frontendSettings.aiDisabled" :platform="version" />
+			<AISearchIframeHost v-if="!appStore.frontendSettings.aiDisabled" :platform="'FFBox ' + version" />
 		</div>
 		<div class="right">
 			<button class="startbutton" :class="startButtonClass" @click="appStore.startNpause()">{{ startButtonText }}</button>

@@ -5,6 +5,7 @@ export interface I11n {
 		功能限制_暂停转码: (taskName: string, byFrontend: boolean, reason: 'media' | 'working') => string;
 		功能限制_不能继续: (taskName: string, byFrontend: boolean, reason: 'media' | 'working', pid: number) => string;
 		功能限制_任务数上限: (maxTaskCount: string | number, byFrontend: boolean) => string;
+		功能限制_上传数上限: (maxUploadCount: string | number) => string;
 		功能限制_滤镜图节点数上限: (maxNodeCount: string | number) => string;
 	},
 	ffmpeg: {

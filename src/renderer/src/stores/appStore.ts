@@ -241,6 +241,8 @@ export const useAppStore = defineStore('app', {
 				return [];
 			}
 			const maxTaskCount = getLimitation('maxTaskListCount');
+			const maxUploadCount = getLimitation('maxUploadListCount');
+			const activeUploadCount = server.data.uploadFiles.filter(f => f.status !== 'finished' && f.status !== 'error').length;
 
 			if (type === 'multiTask') {
 				if (server.data.totalCount >= maxTaskCount) {
@@ -254,12 +256,20 @@ export const useAppStore = defineStore('app', {
 				// 收集所有文件路径，同时检查上传限制
 				const filePaths: string[] = [];
 				const inputMeta: { input: string | File; fileBaseName: string; needUpload: boolean }[] = [];
+				let newUploadCount = 0;
 
 				for (const input of inputList) {
 					const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
 					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
 					const needUpload = fileType === 'lf' && needUploadForFileSystem;	// lf = 本地文件；无 FileSystem 权限时需上传，有则直接使用路径
 					if (needUpload) {
+						if (activeUploadCount + newUploadCount >= maxUploadCount) {
+							store.pushMsg(
+								i11n.service.功能限制_上传数上限(maxUploadCount),
+								NotificationLevel.warning
+							);
+							break;
+						}
 						const limitedFileSizeGB = getLimitation('maxUploadSizeGB');
 						const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
 						if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
@@ -269,6 +279,7 @@ export const useAppStore = defineStore('app', {
 							});
 							continue;
 						}
+						newUploadCount++;
 					}
 					const uploadInputName = `[uploading] ${fileBaseName}`;
 					filePaths.push(needUpload ? uploadInputName : (typeof input === 'string' ? input : input.path.replace(/\\/g, '/')));
@@ -308,11 +319,19 @@ export const useAppStore = defineStore('app', {
 
 				// 收集输入文件路径（处理上传）
 				const inputPaths: string[] = [];
+				let newUploadCount = 0;
 				for (const input of inputList) {
 					const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
 					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
 					const needUpload = fileType === 'lf' && needUploadForFileSystem;	// lf = 本地文件；无 FileSystem 权限时需上传
 					if (needUpload) {
+						if (activeUploadCount + newUploadCount >= maxUploadCount) {
+							store.pushMsg(
+								i11n.service.功能限制_上传数上限(maxUploadCount),
+								NotificationLevel.warning
+							);
+							break;
+						}
 						const limitedFileSizeGB = getLimitation('maxUploadSizeGB');
 						const fileSize = typeof input === 'string' ? (await nodeBridge.getLocalFileStats(input)).size : input.size;
 						if (fileSize > limitedFileSizeGB * 1000 * 1000 * 1000) {
@@ -322,6 +341,7 @@ export const useAppStore = defineStore('app', {
 							});
 							continue;
 						}
+						newUploadCount++;
 					}
 					if (needUpload) {
 						const inputName = `[uploading] ${fileBaseName}`;

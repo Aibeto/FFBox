@@ -260,10 +260,12 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 						video: JSON.parse(storedFFmpegInfo.videoCodecs),
 						audio: JSON.parse(storedFFmpegInfo.audioCodecs),
 					};
+					parseFFmpegCodecsToCodecsList(this.ffmpegCodecs);
 					this.ffmpegFormats = {
 						muxer: JSON.parse(storedFFmpegInfo.muxers),
 						demuxer: JSON.parse(storedFFmpegInfo.demuxers),
 					};
+					parseFFmpegMuDeMuxersToList(this.ffmpegFormats);
 					this.ffmpegFilters = JSON.parse(storedFFmpegInfo.filters) || [];
 					log.info(`已获取 FFmpeg 路径 ${this.ffmpegPath} 版本 ${ffmpegVersion}。已从缓存中加载编码器和滤镜。`);
 					this.emitFFmpegInfo();
@@ -1086,6 +1088,7 @@ export class FFBoxService extends (EventEmitter as new () => TypedEventEmitter<F
 					log.error(`[任务 ${id}] 异常终止：${task.taskName}。`);
 					this.setNotification(id, '任务「' + task.taskName + '」异常终止。' + errorMessages, NotificationLevel.error);
 				}
+				this.setCmdText(task, `❌️ ffmpeg 已于 ${getTimeString(new Date(), true)} 退出，错误码 ${errorCode}。`, true);
 				this.taskList.setStatus(id, TaskStatus.error);
 				run.errorInfo = errorMessages;
 

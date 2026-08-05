@@ -265,6 +265,6 @@ onBeforeUnmount(() => {
 		position: fixed;
 		-webkit-app-region: no-drag;
 		pointer-events: none;
-		outline: red 1px dashed;
+		/* outline: red 1px dashed; */
 	}
 </style>
