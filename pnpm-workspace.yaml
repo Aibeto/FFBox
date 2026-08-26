@@ -1,0 +1,4 @@
+allowBuilds:
+  electron: true
+  utimes: true
+  vue-demi: true
