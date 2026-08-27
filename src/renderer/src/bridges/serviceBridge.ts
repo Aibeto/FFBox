@@ -184,6 +184,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			ws.onclose = function (event) {
 				// close 事件在 error 事件后触发
 				if (这.status === ServiceBridgeStatus.Connected) {
+					clearTimeout(wsConnectTimeout);
 					// 掉线
 					这.status = ServiceBridgeStatus.Disconnected;
 				} else {
@@ -195,6 +196,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			};
 
 			ws.onerror = function (event) {
+				clearTimeout(wsConnectTimeout);
 				这.emit('error', 'WebSocket 连接失败');
 				connectResult(false); // 确保 status 能重置，不再永久卡在 Connecting
 				// return;
