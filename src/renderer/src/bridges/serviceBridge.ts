@@ -18,7 +18,7 @@ import {
 	WorkingStatus,
 } from '@common/types';
 
-export interface ServeiceBridgeEvent {
+export interface ServiceBridgeEvent {
 	connected: () => void;
 	disconnected: () => void;
 	error: (reason: string) => void;
@@ -34,7 +34,7 @@ export enum ServiceBridgeStatus {
 }
 
 // TODO 6.0 版本中，前后端不再是仿 RPC 设计，因此这里的接口并没有 implements FFBoxServiceInterface
-export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & ServeiceBridgeEvent>) implements FFBoxServiceInterface {
+export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & ServiceBridgeEvent>) implements FFBoxServiceInterface {
 	private ws: WebSocket | null = null;
 	public ip: string | undefined;
 	public port: number | undefined;

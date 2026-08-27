@@ -19,7 +19,6 @@ import { FFBoxService } from './FFBoxService';
 import { getOs, log } from './utils';
 import { webhookManager } from './webhookManager';
 import { ControllableTransform } from './ControllableTransform';
-import { error } from 'console';
 
 interface Client {
 	ws?: WebSocket;
@@ -197,7 +196,10 @@ const uiBridge = {
 		server.listen(port, '::');
 		log.info(`HTTP/WebSocket 服务开始监听端口 ${port}。`);
 		server.on('error', async (error: Error) => {
+			const code = (error as NodeJS.ErrnoException).code;
 			if (
+				code === 'EADDRINUSE' ||
+				code === 'EACCES' ||
 				String(error).includes('address already in use')
 			) {
 				log.error('端口已占用，后端无法启动，请关闭占用端口的进程或服务。');
