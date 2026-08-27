@@ -1,6 +1,6 @@
 {
 	"scripts": [],
-	"assets": ["../node_modules/generator-function/**/*"],
+	"assets": [],
 	"targets": [
 		"node16-win-x64"
 	],
