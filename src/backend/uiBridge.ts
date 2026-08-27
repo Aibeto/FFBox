@@ -96,8 +96,8 @@ const uiBridge = {
 		Promise.all([uploadDirCheck, downloadDirCheck]).then((values) => {
 			if (!values.every((value) => value)) {
 				log.info('创建缓存文件夹', uploadDir, downloadDir);
-				fs.mkdir(uploadDir, () => { });
-				fs.mkdir(downloadDir, () => { });
+				fs.mkdir(uploadDir, () => {});
+				fs.mkdir(downloadDir, () => {});
 			}
 		});
 		// koaBody({
@@ -116,7 +116,7 @@ const uiBridge = {
 		koa.use(async (ctx, next) => {
 			const authHeader = ctx.get('Authorization');
 			const sessionId = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-
+		
 			log.dev('收到请求', sessionId, ctx.request.method, ctx.request.url);
 			ctx.response.set('Access-Control-Allow-Origin', '*');
 			ctx.response.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -643,7 +643,7 @@ async function optionalAuth(ctx: Koa.Context, next: () => Promise<void>): Promis
 		const defaultAdmin = users?.find((u) => u.username === '');
 		return !defaultAdmin || !defaultAdmin.passkey;
 	}
-
+	
 	// 无 sessionId 时检查是否允许无密码访问
 	if (await isPasswordlessAllowed()) {
 		ctx.state.isAnonymous = true;

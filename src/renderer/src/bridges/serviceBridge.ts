@@ -2,28 +2,14 @@ import EventEmitter from 'events';
 import CryptoJS from 'crypto-js';
 import { TypedEventEmitter } from '@common/utils';
 import { version } from '@common/constants';
-import {
-	FFBoxServiceEvent,
-	FFBoxServiceEventApi,
-	FFBoxServiceInterface,
-	Frame,
-	InputInfo,
-	Notification,
-	OutputParams,
-	Task,
-	TaskStatus,
-	Permission,
-	UserConfig,
-	ServerSettingsData,
-	WorkingStatus,
-} from '@common/types';
+import { FFBoxServiceEvent, FFBoxServiceEventApi, FFBoxServiceInterface, Frame, InputInfo, Notification, OutputParams, Task, TaskStatus, Permission, UserConfig, ServerSettingsData, WorkingStatus } from '@common/types';
 
 export interface ServiceBridgeEvent {
 	connected: () => void;
 	disconnected: () => void;
 	error: (reason: string) => void;
 	message: (event: MessageEvent<any>) => void;
-}
+};
 
 export enum ServiceBridgeStatus {
 	Idle = 'Idle',
@@ -31,7 +17,7 @@ export enum ServiceBridgeStatus {
 	Connected = 'Connected',
 	Disconnected = 'Disconnected',
 	Reconnecting = 'Reconnecting',
-}
+};
 
 // TODO 6.0 版本中，前后端不再是仿 RPC 设计，因此这里的接口并没有 implements FFBoxServiceInterface
 export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<FFBoxServiceEvent & ServiceBridgeEvent>) implements FFBoxServiceInterface {
@@ -146,22 +132,17 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 						passkey: password ? CryptoJS.SHA256(password).toString() : '',
 					}),
 					headers: new Headers({
-						'Content-Type': 'application/json',
+						'Content-Type': 'application/json'
 					}),
-				})
-					.then((response) => {
-						response
-							.json()
-							.then((result) => {
-								resolve([result.isSuccess, result]);
-							})
-							.catch(() => {
-								resolve([false, null]);
-							});
-					})
-					.catch((err) => {
+				}).then((response) => {
+					response.json().then((result) => {
+						resolve([result.isSuccess, result]);
+					}).catch(() => {
 						resolve([false, null]);
 					});
+				}).catch((err) => {
+					resolve([false, null]);
+				});
 			});
 
 			if (!loginSuccess) {
@@ -306,7 +287,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<void>('POST', '/api/v1/tasks/reset', { ids });
 	}
 
-	public mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string, fileTime?: { accessTime: number; createTime: number; modifyTime: number }): Promise<void> {
+	public mergeUploaded(id: number, hashs: string[], fileBaseName: string, inputName?: string, fileTime?: { accessTime: number, createTime: number, modifyTime: number }): Promise<void> {
 		return this.httpRequest<void>('POST', `/api/v1/tasks/${id}/merge-upload`, { hashs, fileBaseName, inputName, fileTime });
 	}
 
@@ -355,9 +336,9 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	}
 
 	// 6.0 已不再是仿 IPC 结构了，所以这里要考虑在类型上把 implements FFBoxServiceInterface 去掉
-	public getTaskList(offset: number, size: number): Promise<{ tasks: Task[]; totalCount: number }>;
-	public getTaskList(offset: number, size: number, idOnly: true): Promise<{ taskIds: number[]; totalCount: number }>;
-	public getTaskList(offset: number, size: number, idOnly?: boolean): Promise<{ tasks: Task[]; totalCount: number } | { taskIds: number[]; totalCount: number }> {
+	public getTaskList(offset: number, size: number): Promise<{ tasks: Task[], totalCount: number }>;
+	public getTaskList(offset: number, size: number, idOnly: true): Promise<{ taskIds: number[], totalCount: number }>;
+	public getTaskList(offset: number, size: number, idOnly?: boolean): Promise<{ tasks: Task[], totalCount: number } | { taskIds: number[], totalCount: number }> {
 		const idOnlyParam = idOnly ? '&idOnly=true' : '';
 		return this.httpRequest<any>('GET', `/api/v1/tasks?offset=${offset}&size=${size}${idOnlyParam}`);
 	}
@@ -365,21 +346,11 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	/**
 	 * 按状态筛选任务 ID 列表
 	 */
-	public getTaskIdsByStatus(status: TaskStatus): Promise<{ taskIds: number[]; totalCount: number }> {
+	public getTaskIdsByStatus(status: TaskStatus): Promise<{ taskIds: number[], totalCount: number }> {
 		return this.httpRequest<any>('GET', `/api/v1/tasks?status=${status}`);
 	}
 
-	public getTaskOutputFiles(taskRunEntries: { taskId: number; runIndex?: number }[]): Promise<
-		{
-			taskId: number;
-			taskIndex: number;
-			runIndex: number;
-			outputIndex: number;
-			filePath: string;
-			fileBaseName: string;
-			fileTime?: { accessTime: number; createTime: number; modifyTime: number };
-		}[]
-	> {
+	public getTaskOutputFiles(taskRunEntries: { taskId: number; runIndex?: number }[]): Promise<{ taskId: number; taskIndex: number; runIndex: number; outputIndex: number; filePath: string; fileBaseName: string; fileTime?: { accessTime: number; createTime: number; modifyTime: number } }[]> {
 		return this.httpRequest<any>('POST', '/api/v1/tasks/output-files', { taskRunEntries });
 	}
 
@@ -414,7 +385,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	}
 
 	public getTaskIndex(taskId: number): Promise<number> {
-		return this.httpRequest<{ index: number }>('GET', `/api/v1/tasks/${taskId}/index`).then((r) => r.index);
+		return this.httpRequest<{ index: number }>('GET', `/api/v1/tasks/${taskId}/index`).then(r => r.index);
 	}
 
 	public getNotifications(): Promise<Notification[]> {
@@ -433,8 +404,11 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 		return this.httpRequest<string | false>('POST', '/api/v1/activation', { userInput: activationCode });
 	}
 
-	public getCacheInfo(needDelete: boolean): Promise<{ uploadCount: number; uploadSize: number; downloadCount: number; downloadSize: number }> {
-		return this.httpRequest<{ uploadCount: number; uploadSize: number; downloadCount: number; downloadSize: number }>(needDelete ? 'DELETE' : 'GET', '/api/v1/cache');
+	public getCacheInfo(needDelete: boolean): Promise<{ uploadCount: number, uploadSize: number, downloadCount: number, downloadSize: number }> {
+		return this.httpRequest<{ uploadCount: number, uploadSize: number, downloadCount: number, downloadSize: number }>(
+			needDelete ? 'DELETE' : 'GET',
+			'/api/v1/cache'
+		);
 	}
 
 	// #endregion

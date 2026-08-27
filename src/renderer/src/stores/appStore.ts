@@ -1,21 +1,10 @@
 import { h, VNodeRef, nextTick } from 'vue';
 import { defineStore } from 'pinia';
 import gsap from 'gsap';
-import {
-	FFmpegCodecDetail,
-	FFmpegDemuxerDetail,
-	FFmpegFilterDetail,
-	FFmpegMuxerDetail,
-	Notification,
-	NotificationLevel,
-	OutputParams,
-	Permission,
-	TaskStatus,
-	WorkingStatus,
-} from '@common/types';
+import { FFmpegCodecDetail, FFmpegDemuxerDetail, FFmpegFilterDetail, FFmpegMuxerDetail, Notification, NotificationLevel, OutputParams, Permission, TaskStatus, WorkingStatus } from '@common/types';
 import { validUntil, version } from '@common/constants';
 import { isV2Code, isLegacyCode, verifyActivationCode } from '@common/activation';
-import { defaultParams } from '@common/defaultParams';
+import { defaultParams } from "@common/defaultParams";
 import { Server, UITask } from '@renderer/types';
 import { getMenuItemByValue } from '@common/menu';
 import { allVcodecs, builtInVcodecs } from '@common/params/vcodecs';
@@ -25,7 +14,7 @@ import { RateControl } from '@common/params/parameter';
 import path from '@common/path';
 import i11n from '@common/i11n/i11n';
 import { parseFFmpegCodecsToCodecsList, parseFFmpegFiltersToFiltersList, parseFFmpegMuDeMuxersToList } from '@common/params/parser';
-import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge';
+import { ServiceBridge, ServiceBridgeStatus } from '@renderer/bridges/serviceBridge'
 import { registerServerForDashboard } from '@renderer/common/dashboardCalc';
 import { randomString, replaceOutputParams, getInitialUITask, mergeTaskFromService, getTaskLatestOutputParams, getNewUIRun } from '@common/utils';
 import { handleCmdUpdate, handleFFmpegInfo, handleProgressUpdate, handleTasklistUpdate, handleNotificationUpdate, handleTaskUpdate, handleStatusUpdate } from '@renderer/logic/eventsHandler';
@@ -40,46 +29,46 @@ interface StoreState {
 	showInfoCenter: boolean;
 	showTransferCenter: boolean;
 	showTaskInfo: [number, 0 | 1 | 2, params?: any] | undefined;
-	showCutOperator: { initialDraggerPos: number; focusOn: 'input' | 'output' } | undefined; // 新增：裁切操作器状态
+	showCutOperator: { initialDraggerPos: number; focusOn: 'input' | 'output' } | undefined;  // 新增：裁切操作器状态
 	showDragFilesOverlay: boolean;
-	paraSelected: number;
-	draggerPos: number;
+	paraSelected: number,
+	draggerPos: number,
 	taskViewSettings: {
-		showParams: boolean;
-		showDashboard: boolean;
-		showCmd: boolean;
-		cmdDisplay: 'input' | 'output';
+		showParams: boolean,
+		showDashboard: boolean,
+		showCmd: boolean,
+		cmdDisplay: 'input' | 'output',
 		paramsVisibility: {
-			duration: 'all' | 'input' | 'none';
-			format: 'all' | 'input' | 'none';
-			smpte: 'all' | 'input' | 'none';
-			video: 'all' | 'input' | 'none';
-			audio: 'all' | 'input' | 'none';
-		};
-	};
+			duration: 'all' | 'input' | 'none',
+			format: 'all' | 'input' | 'none',
+			smpte: 'all' | 'input' | 'none',
+			video: 'all' | 'input' | 'none',
+			audio: 'all' | 'input' | 'none',
+		},
+	},
 	frontendSettings: {
 		// 所有值都是必需预置默认值的，这样在初始化时会把没有保存过的设置存一遍
-		colorTheme: string;
-		useIEC: boolean;
-		aiDisabled: boolean;
-		useVirtualTaskList: boolean;
-		autoHideCoarseSlider: boolean;
-		taskListInfiniteScrollThreshold: number;
-		taskListPageSize: number;
-	};
-	unreadNotificationCount: number;
-	componentRefs: { [key: string]: VNodeRef | Element };
+		colorTheme: string,
+		useIEC: boolean,
+		aiDisabled: boolean,
+		useVirtualTaskList: boolean,
+		autoHideCoarseSlider: boolean,
+		taskListInfiniteScrollThreshold: number,
+		taskListPageSize: number,
+	},
+	unreadNotificationCount: number,
+	componentRefs: { [key: string]: VNodeRef | Element },
 	// 非界面类
-	notifications: Notification[];
+	notifications: Notification[],
 	servers: Server[];
 	currentServerId: string | undefined;
-	selectedTask: Set<number>;
-	isAllSelected: boolean; // 标记是否已全选所有任务（跨缓冲区），滚动时不清除选中状态
-	taskSelectionModified: boolean; // 修改参数后显示提示是否应用到所有任务，更改 selectedTask 时去除显示
+	selectedTask: Set<number>,
+	isAllSelected: boolean;	// 标记是否已全选所有任务（跨缓冲区），滚动时不清除选中状态
+	taskSelectionModified: boolean;	// 修改参数后显示提示是否应用到所有任务，更改 selectedTask 时去除显示
 	globalParams: OutputParams;
 	presetName: string | undefined;
 	availablePresets: string[];
-	downloadMap: Map<string, string>; // <url, serverId>
+	downloadMap: Map<string, string>;	// <url, serverId>
 	latestVersion?: string;
 	functionLevel: number;
 }
@@ -170,7 +159,10 @@ export const useAppStore = defineStore('app', {
 			// 检查进入条件
 			const globalParams = this.globalParams;
 			const filter = globalParams.filter;
-			if (globalParams.input.files.length !== 1 || globalParams.outputs.length !== 1 || filter.nodes.length > 0 || filter.lines.length > 0) {
+			if (globalParams.input.files.length !== 1 ||
+				globalParams.outputs.length !== 1 ||
+				filter.nodes.length > 0 ||
+				filter.lines.length > 0) {
 				Popup({ message: '此功能仅限单输入输出模式使用', level: NotificationLevel.warning });
 				return;
 			}
@@ -189,7 +181,7 @@ export const useAppStore = defineStore('app', {
 			gsap.to(target, {
 				value: 0,
 				duration: 0.5,
-				ease: 'power3.inOut',
+				ease: "power3.inOut",
 				onUpdate: () => {
 					this.draggerPos = target.value;
 				},
@@ -206,7 +198,7 @@ export const useAppStore = defineStore('app', {
 				gsap.to(target, {
 					value: initialDraggerPos,
 					duration: 0.5,
-					ease: 'power3.inOut',
+					ease: "power3.inOut",
 					onUpdate: () => {
 						this.draggerPos = target.value;
 					},
@@ -220,13 +212,10 @@ export const useAppStore = defineStore('app', {
 		 * 添加一系列任务。仅支持本地文件和远程路径，本地文件夹需展开后再传入，未知路径传入无效
 		 * Promise 最终会在后端返回任务更新（或 200ms 超时）后，并将 globalParams 替换后 resolve
 		 */
-		async addTasks(inputList: string[] | FileList, type: 'multiTask' | 'multiInput' = 'multiTask') {
+		async addTasks (inputList: string[] | FileList, type: 'multiTask' | 'multiInput' = 'multiTask') {
 			const store = this;
 			const server = store.currentServer;
-			if (!server) {
-				debugger;
-				throw 'ub';
-			}
+			if (!server) { debugger; throw 'ub'; }
 
 			function selectAndApply(ids: number[]) {
 				// 等待第一个 taskUpdate，确保任务参数已在本地同步，再 applySelectedTask
@@ -253,11 +242,14 @@ export const useAppStore = defineStore('app', {
 			}
 			const maxTaskCount = getLimitation('maxTaskListCount');
 			const maxUploadCount = getLimitation('maxUploadListCount');
-			const activeUploadCount = server.data.uploadFiles.filter((f) => f.status !== 'finished' && f.status !== 'error').length;
+			const activeUploadCount = server.data.uploadFiles.filter(f => f.status !== 'finished' && f.status !== 'error').length;
 
 			if (type === 'multiTask') {
 				if (server.data.totalCount >= maxTaskCount) {
-					store.pushMsg(i11n.service.功能限制_任务数上限(maxTaskCount, true), NotificationLevel.warning);
+					store.pushMsg(
+						i11n.service.功能限制_任务数上限(maxTaskCount, true),
+						NotificationLevel.warning
+					);
 					return [];
 				}
 
@@ -269,10 +261,13 @@ export const useAppStore = defineStore('app', {
 				for (const input of inputList) {
 					const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
 					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
-					const needUpload = fileType === 'lf' && needUploadForFileSystem; // lf = 本地文件；无 FileSystem 权限时需上传，有则直接使用路径
+					const needUpload = fileType === 'lf' && needUploadForFileSystem;	// lf = 本地文件；无 FileSystem 权限时需上传，有则直接使用路径
 					if (needUpload) {
 						if (activeUploadCount + newUploadCount >= maxUploadCount) {
-							store.pushMsg(i11n.service.功能限制_上传数上限(maxUploadCount), NotificationLevel.warning);
+							store.pushMsg(
+								i11n.service.功能限制_上传数上限(maxUploadCount),
+								NotificationLevel.warning
+							);
 							break;
 						}
 						const limitedFileSizeGB = getLimitation('maxUploadSizeGB');
@@ -287,7 +282,7 @@ export const useAppStore = defineStore('app', {
 						newUploadCount++;
 					}
 					const uploadInputName = `[uploading] ${fileBaseName}`;
-					filePaths.push(needUpload ? uploadInputName : typeof input === 'string' ? input : input.path.replace(/\\/g, '/'));
+					filePaths.push(needUpload ? uploadInputName : (typeof input === 'string' ? input : input.path.replace(/\\/g, '/')));
 					inputMeta.push({ input, fileBaseName, needUpload });
 				}
 				if (filePaths.length === 0) {
@@ -311,7 +306,10 @@ export const useAppStore = defineStore('app', {
 				selectAndApply(ids);
 			} else if (type === 'multiInput') {
 				if (server.data.totalCount >= maxTaskCount) {
-					store.pushMsg(i11n.service.功能限制_任务数上限(maxTaskCount, true), NotificationLevel.warning);
+					store.pushMsg(
+						i11n.service.功能限制_任务数上限(maxTaskCount, true),
+						NotificationLevel.warning
+					);
 					return [];
 				}
 
@@ -325,10 +323,13 @@ export const useAppStore = defineStore('app', {
 				for (const input of inputList) {
 					const fileBaseName = typeof input === 'string' ? path.parse(input.replaceAll('\\', '/')).base : input.name;
 					const fileType = typeof input === 'string' ? (await nodeBridge.getPathsCategorized(input)).lineResults?.[0] : 'lf';
-					const needUpload = fileType === 'lf' && needUploadForFileSystem; // lf = 本地文件；无 FileSystem 权限时需上传
+					const needUpload = fileType === 'lf' && needUploadForFileSystem;	// lf = 本地文件；无 FileSystem 权限时需上传
 					if (needUpload) {
 						if (activeUploadCount + newUploadCount >= maxUploadCount) {
-							store.pushMsg(i11n.service.功能限制_上传数上限(maxUploadCount), NotificationLevel.warning);
+							store.pushMsg(
+								i11n.service.功能限制_上传数上限(maxUploadCount),
+								NotificationLevel.warning
+							);
 							break;
 						}
 						const limitedFileSizeGB = getLimitation('maxUploadSizeGB');
@@ -354,27 +355,23 @@ export const useAppStore = defineStore('app', {
 
 				// 设置输入列表
 				const params = store.globalParams;
-				server.entity.setParameters(
-					[taskId],
-					{
-						...params,
-						input: {
-							files: inputPaths.map((p, index) => ({
-								filePath: p.replace(/\\/g, '/'),
-								demuxer: params.input.files[index]?.demuxer ?? '自动',
-								begin: params.input.files[index]?.begin ?? '',
-								end: params.input.files[index]?.end ?? '',
-								hwaccel: params.input.files[index]?.hwaccel ?? '',
-								skipFrame: params.input.files[index]?.skipFrame ?? '',
-								readrate: params.input.files[index]?.readrate ?? '',
-								detail: params.input.files[index]?.detail ?? {},
-								custom: params.input.files[index]?.custom ?? '',
-							})),
-						},
+				server.entity.setParameters([taskId], {
+					...params,
+					input: {
+						files: inputPaths.map((p, index) => ({
+							filePath: p.replace(/\\/g, '/'),
+							demuxer: params.input.files[index]?.demuxer ?? '自动',
+							begin: params.input.files[index]?.begin ?? '',
+							end: params.input.files[index]?.end ?? '',
+							hwaccel: params.input.files[index]?.hwaccel ?? '',
+							skipFrame: params.input.files[index]?.skipFrame ?? '',
+							readrate: params.input.files[index]?.readrate ?? '',
+							detail: params.input.files[index]?.detail ?? {},
+							custom: params.input.files[index]?.custom ?? '',
+						})),
 					},
-					true,
-				);
-				selectAndApply([taskId]); // TODO 不用等 setParameters 完成吗？
+				}, true);
+				selectAndApply([taskId]);	// TODO 不用等 setParameters 完成吗？
 			}
 		},
 		/**
@@ -387,10 +384,7 @@ export const useAppStore = defineStore('app', {
 		 */
 		async updateTaskList(firstVisibleIndex?: number, lastVisibleIndex?: number, force: boolean = true): Promise<void> {
 			const server = this.currentServer;
-			if (!server) {
-				debugger;
-				throw 'ub';
-			}
+			if (!server) { debugger; throw 'ub'; }
 			const totalCount = server.data.totalCount;
 			const _first = firstVisibleIndex ?? server.data.viewRange.firstIndex;
 			const _last = lastVisibleIndex ?? _first ?? server.data.viewRange.lastIndex;
@@ -404,7 +398,7 @@ export const useAppStore = defineStore('app', {
 			if (!useInfiniteScroll) {
 				// 一次性拉取全部任务（初始加载时拉取足够多以覆盖非无限滚动场景）
 				newStart = 0;
-				newEnd = totalCount > 0 ? totalCount : 0; // TODO 任务数量为 0 时有可能是初次加载
+				newEnd = totalCount > 0 ? totalCount : 0;	// TODO 任务数量为 0 时有可能是初次加载
 			} else {
 				// 无限滚动模式：基于可见范围前后各预加载 halfPage
 				newStart = Math.max(0, _first - halfPage);
@@ -414,9 +408,9 @@ export const useAppStore = defineStore('app', {
 			const size = newEnd - newStart;
 			if (size <= 0) {
 				// 仅当初始化时会出现 0, 0 的情况，此时要获取任务总量
-				await server.entity.getTaskList(0, 0).then((resp) => (server.data.totalCount = resp.totalCount));
+				await server.entity.getTaskList(0, 0).then((resp) => server.data.totalCount = resp.totalCount);
 				return;
-			}
+			};
 
 			// 增量拉取分支：仅拉取缓冲区前后的缺失部分，中间已有任务不重新拉取
 			if (!force && useInfiniteScroll) {
@@ -434,7 +428,7 @@ export const useAppStore = defineStore('app', {
 						newStart < oldStart ? server.entity.getTaskList(newStart, oldStart - newStart) : Promise.resolve(null),
 						newEnd > oldEnd ? server.entity.getTaskList(oldEnd, newEnd - oldEnd) : Promise.resolve(null),
 					]);
-					server.data.totalCount = prefixResp?.totalCount ?? suffixResp?.totalCount ?? totalCount; // 更新任务总量
+					server.data.totalCount = prefixResp?.totalCount ?? suffixResp?.totalCount ?? totalCount;	// 更新任务总量
 
 					// 前删 + 后删：从现有缓冲区中保留 [newStart, newEnd) 范围内的任务
 					const existingInRange = server.data.tasks.filter((task) => task.taskIndex! >= newStart && task.taskIndex! < newEnd);
@@ -451,7 +445,7 @@ export const useAppStore = defineStore('app', {
 						merged.push(uiTask);
 					}
 					for (const task of existingInRange) {
-						merged.push(task); // 老任务本身有 index，除非任务列表有变，否则 id 不用重新计算
+						merged.push(task);	// 老任务本身有 index，除非任务列表有变，否则 id 不用重新计算
 					}
 					for (const task of suffixResp?.tasks ?? []) {
 						const uiTask = getInitialUITask(task.id, '');
@@ -470,7 +464,7 @@ export const useAppStore = defineStore('app', {
 					server.data.bufferEnd = newStart + merged.length;
 					console.log(`任务列表更新完成，缓冲区范围：${server.data.bufferStart} - ${server.data.bufferEnd}`);
 
-					server.entity.replaceSubscription(merged.map((t) => t.id));
+					server.entity.replaceSubscription(merged.map(t => t.id));
 					this.recalcChangedParams();
 					return;
 				}
@@ -515,7 +509,7 @@ export const useAppStore = defineStore('app', {
 			server.data.bufferEnd = newStart + tasks.length;
 
 			// 订阅当前缓冲区的 taskId
-			server.entity.replaceSubscription([...newTasks.map((t) => t.id)]);
+			server.entity.replaceSubscription([...newTasks.map(t => t.id)]);
 
 			this.recalcChangedParams();
 		},
@@ -557,15 +551,12 @@ export const useAppStore = defineStore('app', {
 		 * @param taskIds
 		 */
 		deleteTasks(taskIds: number[]) {
-			if (!this.currentServer) {
-				debugger;
-				throw 'ub';
-			}
+			if (!this.currentServer) { debugger; throw 'ub'; }
 			for (const taskId of taskIds) {
-				const uploadFiles = this.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === taskId);
+				const uploadFiles = this.currentServer.data.uploadFiles.filter((uploadFile) => uploadFile.taskId === taskId)
 				for (const uploadFile of uploadFiles) {
 					// 对于正在读取校验的任务
-					uploadFile.readTask?.stop(); // 不一定有，比如上传完成
+					uploadFile.readTask?.stop();	// 不一定有，比如上传完成
 					// 对于正在上传的任务
 					const uploadingChunks = uploadFile.chunks.filter((chunk) => chunk.status === 'uploading');
 					uploadingChunks.forEach((chunk) => chunk.abortController.abort());
@@ -578,10 +569,7 @@ export const useAppStore = defineStore('app', {
 		 * 函数将使用已选择的任务项替换 globalParameters
 		 */
 		applySelectedTask() {
-			if (!this.currentServer) {
-				debugger;
-				throw 'ub';
-			}
+			if (!this.currentServer) { debugger; throw 'ub'; }
 			if (this.selectedTask.size > 0) {
 				const data = this.currentServer.data;
 				for (const id of this.selectedTask) {
@@ -596,18 +584,14 @@ export const useAppStore = defineStore('app', {
 			this.globalParams.extra.presetName = '';
 			this.presetName = '';
 		},
-		startNpause() {
-			if (!this.currentServer) {
-				debugger;
-				throw 'ub';
-			}
+		startNpause () {
+			if (!this.currentServer) { debugger; throw 'ub'; }
 			if (this.currentServer.entity.status !== ServiceBridgeStatus.Connected) {
 				return;
 			}
 			const data = this.currentServer.data;
 			const entity = this.currentServer.entity;
-			if (data.workingStatus === WorkingStatus.idle) {
-				// 开始任务
+			if (data.workingStatus === WorkingStatus.idle) {		// 开始任务
 				entity.queueStart();
 			} else {
 				entity.queuePause();
@@ -629,10 +613,7 @@ export const useAppStore = defineStore('app', {
 				this.presetName = '';
 			}
 
-			if (!this.currentServer) {
-				debugger;
-				throw 'ub';
-			}
+			if (!this.currentServer) { debugger; throw 'ub'; }
 			const entity = this.currentServer.entity;
 			const data = this.currentServer.data;
 			if (data) {
@@ -660,9 +641,9 @@ export const useAppStore = defineStore('app', {
 						const newRun = getNewUIRun(JSON.parse(JSON.stringify(latestRun.after)));
 						task.runs.push(newRun);
 						latestRun = newRun;
-						task.status = TaskStatus.idle;
+						task.status = TaskStatus.idle;		
 					}
-					latestRun.after = replaceOutputParams(this.globalParams, latestRun.after, isSingleTaskModify); // TODO：这里的 index 是不对的
+					latestRun.after = replaceOutputParams(this.globalParams, latestRun.after, isSingleTaskModify);	// TODO：这里的 index 是不对的
 				}
 				if (targetIds.length) {
 					// paraArray 由 service 算出后回填本地
@@ -685,7 +666,7 @@ export const useAppStore = defineStore('app', {
 		 * 切换编码器之后或者第一次使用 FFBox 需要预置一些默认值，通过调用此函数进行
 		 * 并会调用一次 applyParameters 以存储并将当前配置应用到所选任务上
 		 */
-		checkAndApplyCodecDefaults(who: { video?: true; audio?: true; mux?: true }, outputIndex = 0) {
+		checkAndApplyCodecDefaults(who: { video?: true, audio?: true, mux?: true }, outputIndex = 0) {
 			if (who.video) {
 				const v = this.globalParams.outputs[outputIndex].video;
 				const vcodec = getMenuItemByValue(builtInVcodecs, v.vcodec) ?? getMenuItemByValue(allVcodecs, v.vcodec);
@@ -698,9 +679,9 @@ export const useAppStore = defineStore('app', {
 					}
 				}
 				// 设置 detail 默认值
-				for (const parameter of (vcodec as any)?.extra?.parameters || []) {
+				for (const parameter of ((vcodec as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
-						continue; // 默认不启用可选参数。在勾选后才读取默认值
+						continue;	// 默认不启用可选参数。在勾选后才读取默认值
 					}
 					if (parameter.mode === 'combo') {
 						const defaultValue = parameter.default ?? parameter.items[0].value;
@@ -708,7 +689,7 @@ export const useAppStore = defineStore('app', {
 						v.detail[parameter.parameter] = defaultValue;
 					} else if (parameter.mode == 'slider') {
 						const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
-						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`); // 假定所有 string 类的 slider 都必须定义 default
+						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
 						v.detail[parameter.parameter] = defaultValue;
 					}
 				}
@@ -731,9 +712,9 @@ export const useAppStore = defineStore('app', {
 					}
 				}
 				// 设置 detail 默认值
-				for (const parameter of (acodec as any)?.extra?.parameters || []) {
+				for (const parameter of ((acodec as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
-						continue; // 默认不启用可选参数。在勾选后才读取默认值
+						continue;	// 默认不启用可选参数。在勾选后才读取默认值
 					}
 					if (parameter.mode === 'combo') {
 						const defaultValue = parameter.default ?? parameter.items[0].value;
@@ -741,7 +722,7 @@ export const useAppStore = defineStore('app', {
 						a.detail[parameter.parameter] = defaultValue;
 					} else if (parameter.mode == 'slider') {
 						const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
-						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`); // 假定所有 string 类的 slider 都必须定义 default
+						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
 						a.detail[parameter.parameter] = defaultValue;
 					}
 				}
@@ -754,10 +735,10 @@ export const useAppStore = defineStore('app', {
 			}
 			if (who.mux) {
 				const m = this.globalParams.outputs[outputIndex].mux;
-				const muxer = getMenuItemByValue(builtInMuxers, m.format) ?? getMenuItemByValue(allMuxers, m.format);
-				for (const parameter of (muxer as any)?.extra?.parameters || []) {
+				const muxer = getMenuItemByValue(builtInMuxers, m.format) ?? getMenuItemByValue(allMuxers, m.format)
+				for (const parameter of ((muxer as any)?.extra?.parameters || [])) {
 					if (parameter.optional) {
-						continue; // 默认不启用可选参数。在勾选后才读取默认值
+						continue;	// 默认不启用可选参数。在勾选后才读取默认值
 					}
 					if (parameter.mode === 'combo') {
 						const defaultValue = parameter.default ?? parameter.items[0].value;
@@ -765,7 +746,7 @@ export const useAppStore = defineStore('app', {
 						m.detail[parameter.parameter] = defaultValue;
 					} else if (parameter.mode == 'slider') {
 						const defaultValue = parameter.default ?? ((parameter.max ?? 1) + (parameter.min ?? 0)) / 2;
-						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`); // 假定所有 string 类的 slider 都必须定义 default
+						console.log(`参数 ${parameter.parameter} 重置为默认值或中间值：${defaultValue}`);	// 假定所有 string 类的 slider 都必须定义 default
 						m.detail[parameter.parameter] = defaultValue;
 					}
 				}
@@ -778,10 +759,7 @@ export const useAppStore = defineStore('app', {
 		 * 目前均以第一个输入和第一个输出的参数为准
 		 */
 		recalcChangedParams() {
-			if (!this.currentServer) {
-				debugger;
-				throw 'ub';
-			}
+			if (!this.currentServer) { debugger; throw 'ub'; }
 			const paramsVisibility = {
 				duration: 0,
 				format: 0,
@@ -919,34 +897,20 @@ export const useAppStore = defineStore('app', {
 			});
 		},
 		fetchAVOptions() {
-			if (!this.currentServer) {
-				debugger;
-				throw 'ub';
-			}
+			if (!this.currentServer) { debugger; throw 'ub'; }
 			const entity = this.currentServer.entity;
 			const data = this.currentServer.data;
 			if (entity.status === ServiceBridgeStatus.Connected) {
-				entity
-					.getAVOptions()
-					.then(
-						(result: {
-							codecs: { video: FFmpegCodecDetail[]; audio: FFmpegCodecDetail[] };
-							formats: { muxer: FFmpegMuxerDetail[]; demuxer: FFmpegDemuxerDetail[] };
-							filters: FFmpegFilterDetail[];
-						}) => {
-							parseFFmpegCodecsToCodecsList(result.codecs);
-							parseFFmpegFiltersToFiltersList(result.filters);
-							parseFFmpegMuDeMuxersToList(result.formats);
-							nodeBridge.localStorage.set('ffmpegCodecs', result.codecs);
-							nodeBridge.localStorage.set('ffmpegFormats', result.formats);
-							nodeBridge.localStorage.set('ffmpegFilters', result.filters);
-							Popup({
-								message: `已获取来自 ${data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.formats.demuxer.length} 个解复用器、${result.formats.muxer.length} 个复用器、${result.filters.length} 个滤镜`,
-								level: NotificationLevel.ok,
-							});
-							window?.dispatchEvent(new CustomEvent('finished-fetch-codecs'));
-						},
-					);
+				entity.getAVOptions().then((result: { codecs: { video: FFmpegCodecDetail[], audio: FFmpegCodecDetail[] }, formats: { muxer: FFmpegMuxerDetail[], demuxer: FFmpegDemuxerDetail[] }, filters: FFmpegFilterDetail[] }) => {
+					parseFFmpegCodecsToCodecsList(result.codecs);
+					parseFFmpegFiltersToFiltersList(result.filters);
+					parseFFmpegMuDeMuxersToList(result.formats);
+					nodeBridge.localStorage.set('ffmpegCodecs', result.codecs);
+					nodeBridge.localStorage.set('ffmpegFormats', result.formats);
+					nodeBridge.localStorage.set('ffmpegFilters', result.filters);
+					Popup({ message: `已获取来自 ${data.name} ffmpeg 的 ${result.codecs.video.length} 种视频编码、${result.codecs.audio.length} 种音频编码、${result.formats.demuxer.length} 个解复用器、${result.formats.muxer.length} 个复用器、${result.filters.length} 个滤镜`, level: NotificationLevel.ok });
+					window?.dispatchEvent(new CustomEvent('finished-fetch-codecs'));
+				});
 			} else {
 				Popup({ message: '请先连接当前标签的服务器', level: NotificationLevel.error });
 			}
@@ -957,10 +921,7 @@ export const useAppStore = defineStore('app', {
 		 * 获取 service 的 notifications 更新到本地
 		 */
 		updateNotifications() {
-			if (!this.currentServer) {
-				debugger;
-				throw 'ub';
-			}
+			if (!this.currentServer) { debugger; throw 'ub'; }
 			const entity = this.currentServer.entity;
 			entity.getNotifications().then((result) => {
 				this.currentServer!.data.notifications = result;
@@ -972,7 +933,7 @@ export const useAppStore = defineStore('app', {
 				time: new Date().getTime(),
 				content: message,
 				level,
-			});
+			})
 		},
 		setUnreadNotifationCount(clear = false) {
 			this.unreadNotificationCount = clear ? 0 : this.unreadNotificationCount + 1;
@@ -984,43 +945,42 @@ export const useAppStore = defineStore('app', {
 		 */
 		updateServerProperties() {
 			const server = this.currentServer;
-			if (!server) {
-				debugger;
-				throw 'ub';
-			}
-			Promise.all([fetch(`http://${server.entity.ip}:${server.entity.port}/api/v1/system/version`, { method: 'get' }), server.entity.getProperties(), server.entity.getWorkingStatus()]).then(
-				([versionResponse, properties, workingStatus]) => {
-					versionResponse.text().then((text) => {
-						server.data.version = text;
-						if (['3.0', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5', '5.0', '5.1', '5.2'].includes(text)) {
-							// 4.3 版本更新了任务管理方式
-							// 5.0 版本更新了任务参数数据结构
-							// 5.1 版本更新了任务名
-							// 5.3 版本更新了 API
-							Popup({ message: `后端版本 ${text} 与客户端版本 ${version} 不兼容，请更换后端或客户端`, level: NotificationLevel.warning });
-						} else if (text !== version) {
-							Popup({ message: `后端版本 ${text} 与客户端版本不匹配，可能会导致部分操作异常，请谨慎操作`, level: NotificationLevel.warning });
-						}
-					});
-
-					// properties
-					server.data.os = properties.os;
-					server.data.isSandboxed = properties.isSandboxed;
-					server.data.machineId = properties.machineId;
-					server.data.functionLevel = properties.functionLevel;
-					server.data.ffmpegInfo = properties.ffmpegInfo;
-
-					// workingStatus
-					if (typeof workingStatus === 'object' && workingStatus !== null && (workingStatus as any).workingStatus !== undefined) {
-						const ws = workingStatus as { workingStatus: WorkingStatus; progress: number };
-						if (ws.workingStatus === WorkingStatus.idle || ws.workingStatus === WorkingStatus.running) {
-							server.data.workingStatus = ws.workingStatus;
-							if (ws.workingStatus === WorkingStatus.running) registerServerForDashboard(server as any, 'start');
-						}
-						server.data.progress = ws.progress;
+			if (!server) { debugger; throw 'ub'; }
+			Promise.all([
+				fetch(`http://${server.entity.ip}:${server.entity.port}/api/v1/system/version`, { method: 'get' }),
+				server.entity.getProperties(),
+				server.entity.getWorkingStatus(),
+			]).then(([versionResponse, properties, workingStatus]) => {
+				versionResponse.text().then((text) => {
+					server.data.version = text;
+					if (['3.0', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5', '5.0', '5.1', '5.2'].includes(text)) {
+						// 4.3 版本更新了任务管理方式
+						// 5.0 版本更新了任务参数数据结构
+						// 5.1 版本更新了任务名
+						// 5.3 版本更新了 API
+						Popup({ message: `后端版本 ${text} 与客户端版本 ${version} 不兼容，请更换后端或客户端`, level: NotificationLevel.warning });
+					} else if (text !== version) {
+						Popup({ message: `后端版本 ${text} 与客户端版本不匹配，可能会导致部分操作异常，请谨慎操作`, level: NotificationLevel.warning });
 					}
-				},
-			);
+				});
+
+				// properties
+				server.data.os = properties.os;
+				server.data.isSandboxed = properties.isSandboxed;
+				server.data.machineId = properties.machineId;
+				server.data.functionLevel = properties.functionLevel;
+				server.data.ffmpegInfo = properties.ffmpegInfo;
+
+				// workingStatus
+				if (typeof workingStatus === 'object' && workingStatus !== null && (workingStatus as any).workingStatus !== undefined) {
+					const ws = workingStatus as { workingStatus: WorkingStatus; progress: number };
+					if (ws.workingStatus === WorkingStatus.idle || ws.workingStatus === WorkingStatus.running) {
+						server.data.workingStatus = ws.workingStatus;
+						if (ws.workingStatus === WorkingStatus.running) registerServerForDashboard(server as any, 'start');
+					}
+					server.data.progress = ws.progress;
+				}
+			});
 		},
 		/**
 		 * 添加服务器标签页
@@ -1079,22 +1039,10 @@ export const useAppStore = defineStore('app', {
 			console.log('初始化服务器连接', server.data);
 
 			const destroy = () => {
-				for (const eventName of [
-					'connected',
-					'disconnected',
-					'error',
-					'ffmpegInfo',
-					'workingStatusUpdate',
-					'tasklistUpdate',
-					'taskUpdate',
-					'cmdUpdate',
-					'progressUpdate',
-					'notificationUpdate',
-					'asyncListUpdate',
-				] as any[]) {
+				for (const eventName of ['connected', 'disconnected', 'error', 'ffmpegInfo', 'workingStatusUpdate', 'tasklistUpdate', 'taskUpdate', 'cmdUpdate', 'progressUpdate', 'notificationUpdate', 'asyncListUpdate'] as any[]) {
 					entity.removeAllListeners(eventName);
 				}
-			};
+			}
 			return new Promise((resolve, reject) => {
 				entity.connect(ip, _port, username, password);
 
@@ -1102,7 +1050,7 @@ export const useAppStore = defineStore('app', {
 					server.data.name = ip === 'localhost' ? '本地服务器' : ip;
 					console.log(`成功连接到服务器 ${server.entity.ip}`);
 					this.pushMsg(`成功连接到服务器 ${server.data.name}`, NotificationLevel.ok);
-					server.data.tasks = []; // 由于 taskList 只包含 id，重新连接后需要清除原 task 信息以获取新的
+					server.data.tasks = [];	// 由于 taskList 只包含 id，重新连接后需要清除原 task 信息以获取新的
 					server.data.taskIdToIndex = new Map();
 					// 以下操作针对的是特定 server（闭包捕获），而非 currentServer（可能已切换），因此直接调用 server.entity 而非 store action
 					this.updateServerProperties();
@@ -1207,10 +1155,7 @@ export const useAppStore = defineStore('app', {
 
 			// 旧版激活码（U2FsdGVkX1*）：不生效，提示升级
 			if (isLegacyCode(userInput)) {
-				this.pushMsg(
-					'感谢您使用以前版本的 FFBox！❤️\n旧版本的激活码机制在当前版本已不再支持。请进入左上角菜单中心，在「支持作者」面板中使用旧激活码换取新的“解锢密令”！🙇',
-					NotificationLevel.warning,
-				);
+				this.pushMsg('感谢您使用以前版本的 FFBox！❤️\n旧版本的激活码机制在当前版本已不再支持。请进入左上角菜单中心，在「支持作者」面板中使用旧激活码换取新的“解锢密令”！🙇', NotificationLevel.warning);
 				return false;
 			}
 
