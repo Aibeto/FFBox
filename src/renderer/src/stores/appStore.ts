@@ -958,9 +958,9 @@ export const useAppStore = defineStore('app', {
 						// 5.0 版本更新了任务参数数据结构
 						// 5.1 版本更新了任务名
 						// 5.3 版本更新了 API
-						Popup({ message: `后端版本 ${text} 与客户端版本 ${version} 不兼容，请更换后端或客户端`, level: NotificationLevel.warning });
+						Popup({ message: `服务器版本 ${text} 与客户端版本 ${version} 不兼容，请更换服务器或客户端`, level: NotificationLevel.warning });
 					} else if (text !== version) {
-						Popup({ message: `后端版本 ${text} 与客户端版本不匹配，可能会导致部分操作异常，请谨慎操作`, level: NotificationLevel.warning });
+						Popup({ message: `服务器版本 ${text} 与客户端版本不匹配，可能会导致部分操作异常，请谨慎操作`, level: NotificationLevel.warning });
 					}
 				});
 

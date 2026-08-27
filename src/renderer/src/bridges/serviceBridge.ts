@@ -66,7 +66,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 	}
 
 	/**
-	 * 带超时的 fetch，避免后端无响应时连接流程永久卡住
+	 * 带超时的 fetch，避免服务器无响应时连接流程永久卡住
 	 */
 	private fetchWithTimeout(path: string, init?: RequestInit, timeout = 5000): Promise<Response> {
 		const controller = new AbortController();
@@ -95,7 +95,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			// 4.4 版本后的服务器具有登录系统。不支持以前版本的服务器
 			// 5.3 版本大量改用 HTTP request，并且版本接口新增 /api/v1 前缀
 
-			// TODO 0. 检查后端是否可连接
+			// TODO 0. 检查服务器是否可连接
 
 			// 1. 检查服务器版本
 			console.log(`serviceBridge: 正在检查服务器版本 http://${this.ip}:${this.port}/api/v1/system/version`);
@@ -105,7 +105,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 				if (responseOK1.ok) {
 					serverVersion = (await responseOK1.text()).trim();
 				} else {
-					console.warn(`serviceBridge: 后端版本接口响应异常，HTTP ${responseOK1.status}`);
+					console.warn(`serviceBridge: 版本接口响应异常，HTTP ${responseOK1.status}`);
 				}
 			} catch (err) {
 				console.warn('serviceBridge: 获取后端版本失败', err);
