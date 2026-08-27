@@ -203,7 +203,7 @@ const uiBridge = {
 				String(error).includes('address already in use')
 			) {
 				log.error('端口已占用，后端无法启动，请关闭占用端口的进程或服务。');
-				log.error(error);
+				// log.error(error);
 				log.error('【进程即将退出】');
 				await sleep(1000);
 				process.exit(1);

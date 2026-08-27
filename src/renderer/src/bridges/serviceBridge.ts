@@ -128,7 +128,7 @@ export class ServiceBridge extends (EventEmitter as new () => TypedEventEmitter<
 			const serverVersionParts = serverVersion?.match(/\d+\.\d+/)?.[0].split('.');
 			const localVersionParts = version.match(/\d+\.\d+/)?.[0].split('.');
 			if (!serverVersion || !serverVersionParts || serverVersionParts[0] !== localVersionParts?.[0]) {
-				this.emit('error', `连接失败：前后端版本不匹配（前端 ${version}，后端 ${serverVersion ?? '未知异常'}）`);
+				this.emit('error', `连接失败：前后端版本不匹配或端口非FFBoxService服务（前端 ${version}，后端 ${serverVersion ?? '未知异常'}）`);
 				connectResult(false);
 				return;
 			}
