@@ -19,6 +19,7 @@ import { FFBoxService } from './FFBoxService';
 import { getOs, log } from './utils';
 import { webhookManager } from './webhookManager';
 import { ControllableTransform } from './ControllableTransform';
+import { error } from 'console';
 
 interface Client {
 	ws?: WebSocket;
@@ -96,8 +97,8 @@ const uiBridge = {
 		Promise.all([uploadDirCheck, downloadDirCheck]).then((values) => {
 			if (!values.every((value) => value)) {
 				log.info('创建缓存文件夹', uploadDir, downloadDir);
-				fs.mkdir(uploadDir, () => {});
-				fs.mkdir(downloadDir, () => {});
+				fs.mkdir(uploadDir, () => { });
+				fs.mkdir(downloadDir, () => { });
 			}
 		});
 		// koaBody({
@@ -116,7 +117,7 @@ const uiBridge = {
 		koa.use(async (ctx, next) => {
 			const authHeader = ctx.get('Authorization');
 			const sessionId = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-		
+
 			log.dev('收到请求', sessionId, ctx.request.method, ctx.request.url);
 			ctx.response.set('Access-Control-Allow-Origin', '*');
 			ctx.response.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -192,8 +193,20 @@ const uiBridge = {
 		});
 
 		const port = +(getSingleArgvValue('--port') || 33269);
+		const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 		server.listen(port, '::');
 		log.info(`HTTP/WebSocket 服务开始监听端口 ${port}。`);
+		server.on('error', async (error: Error) => {
+			if (
+				String(error).includes('address already in use')
+			) {
+				log.error('端口已占用，后端无法启动，请关闭占用端口的进程或服务。');
+				log.error(error);
+				log.error('【进程即将退出】');
+				await sleep(1000);
+				process.exit(1);
+			}
+		});
 
 		// 挂载主 WebSocket 服务器相关事件
 		wss.on('connection', mountWebSocketEvents);
@@ -628,7 +641,7 @@ async function optionalAuth(ctx: Koa.Context, next: () => Promise<void>): Promis
 		const defaultAdmin = users?.find((u) => u.username === '');
 		return !defaultAdmin || !defaultAdmin.passkey;
 	}
-	
+
 	// 无 sessionId 时检查是否允许无密码访问
 	if (await isPasswordlessAllowed()) {
 		ctx.state.isAnonymous = true;
